@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronRight, Plus, Search, Upload, Camera, X, Eye } from 'lucide-react';
+import { ChevronRight, Plus, Search, Upload, Camera, X, Eye, MessageCircle, ExternalLink } from 'lucide-react';
 
 // Types
 interface TattooSession {
@@ -24,6 +24,48 @@ interface Document {
   uploadedDate: string;
 }
 
+type ChatPlatform = 'whatsapp' | 'telegram' | 'messenger' | 'instagram' | 'tiktok' | 'other';
+
+interface ChatLink {
+  id: string;
+  platform: ChatPlatform;
+  url: string;
+}
+
+const PLATFORM_LABELS: Record<ChatPlatform, string> = {
+  whatsapp: 'WhatsApp',
+  telegram: 'Telegram',
+  messenger: 'Messenger',
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  other: 'Другое',
+};
+
+// Lets Anna paste just a phone number or @username instead of a full link —
+// builds the actual deep link to that platform's chat automatically.
+function buildChatLink(platform: ChatPlatform, raw: string): string {
+  const trimmed = raw.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+
+  if (platform === 'whatsapp') {
+    const digits = trimmed.replace(/[^\d]/g, '');
+    return digits ? `https://wa.me/${digits}` : trimmed;
+  }
+  if (platform === 'telegram') {
+    const handle = trimmed.replace(/^@/, '');
+    return handle ? `https://t.me/${handle}` : trimmed;
+  }
+  if (platform === 'instagram') {
+    const handle = trimmed.replace(/^@/, '');
+    return handle ? `https://ig.me/m/${handle}` : trimmed;
+  }
+  if (platform === 'messenger') {
+    const handle = trimmed.replace(/^@/, '');
+    return handle ? `https://m.me/${handle}` : trimmed;
+  }
+  return trimmed;
+}
+
 interface Client {
   id: string;
   name: string;
@@ -31,6 +73,7 @@ interface Client {
   skinType: string;
   skinNotes: string;
   chatHistory: string;
+  chatLinks: ChatLink[];
   sessions: TattooSession[];
   documents: Document[];
   createdDate: string;
@@ -70,14 +113,25 @@ export default function TattoDiary() {
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [showNewSessionForm, setShowNewSessionForm] = useState(false);
   const [db, setDb] = useState<IDBDatabase | null>(null);
+  const [dbError, setDbError] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'client'>('list');
 
   // Initialize DB
   useEffect(() => {
-    initDB().then((database) => {
-      setDb(database as IDBDatabase);
-      loadClients(database as IDBDatabase);
-    });
+    initDB()
+      .then((database) => {
+        setDb(database as IDBDatabase);
+        loadClients(database as IDBDatabase);
+      })
+      .catch((err) => {
+        console.error('IndexedDB init failed:', err);
+        // Safari in Private Browsing mode (and some restricted/embedded
+        // browser contexts) blocks IndexedDB entirely. Without this, the
+        // app would silently fail to save anything with no explanation.
+        setDbError(
+          'Не получилось открыть локальное хранилище. Если это приватная вкладка Safari («Без сохранения истории») — открой сайт в обычной вкладке.'
+        );
+      });
   }, []);
 
   // Load clients from DB
@@ -89,17 +143,30 @@ export default function TattoDiary() {
     request.onsuccess = () => {
       setClients(request.result);
     };
+    request.onerror = () => {
+      console.error('Load failed:', request.error);
+      setDbError('Не получилось загрузить список клиентов.');
+    };
   };
 
   // Save client
   const saveClient = async (client: Client) => {
-    if (!db) return;
+    if (!db) {
+      setDbError(
+        'Хранилище недоступно — клиент не сохранён. Проверь, что это не приватная вкладка Safari, и обнови страницу.'
+      );
+      return;
+    }
     const tx = db.transaction('clients', 'readwrite');
     const store = tx.objectStore('clients');
     store.put(client);
     
     tx.oncomplete = () => {
       loadClients(db);
+    };
+    tx.onerror = () => {
+      console.error('Save failed:', tx.error);
+      setDbError('Не получилось сохранить клиента. Попробуй ещё раз.');
     };
   };
 
@@ -155,6 +222,20 @@ export default function TattoDiary() {
           </div>
         )}
       </div>
+
+      {/* Storage error banner — surfaces issues like Safari Private Browsing
+          blocking IndexedDB, instead of failing silently */}
+      {dbError && (
+        <div className="flex-shrink-0 bg-red-950 border-t border-red-800 text-red-200 text-xs p-3 flex items-start gap-2">
+          <span className="flex-1">{dbError}</span>
+          <button
+            onClick={() => setDbError(null)}
+            className="text-red-300 hover:text-white flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Main Content */}
       <div
@@ -257,6 +338,7 @@ function NewClientForm({
       skinType,
       skinNotes,
       chatHistory: '',
+      chatLinks: [],
       sessions: [],
       documents: [],
       createdDate: new Date().toISOString(),
@@ -454,16 +536,69 @@ function ClientCard({
 
       {/* Tab Content */}
       {activeTab === 'about' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
-            <label className="text-xs text-[#999] block mb-2">Chat History</label>
+            <label className="text-xs text-[#999] block mb-2">Ссылки на чаты</label>
+            <div className="space-y-2">
+              {(client.chatLinks || []).map((link) => (
+                <div
+                  key={link.id}
+                  className="flex items-center gap-2 bg-[#2A2A2A] border border-[#333] rounded px-3 py-2"
+                >
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center gap-2 min-w-0 text-sm text-white hover:text-[#FAD5A5] transition"
+                  >
+                    <MessageCircle className="w-4 h-4 text-[#FAD5A5] flex-shrink-0" />
+                    <span className="flex-shrink-0">{PLATFORM_LABELS[link.platform]}</span>
+                    <span className="text-[#666] truncate text-xs">
+                      {link.url.replace(/^https?:\/\//, '')}
+                    </span>
+                    <ExternalLink className="w-3 h-3 text-[#666] flex-shrink-0 ml-auto" />
+                  </a>
+                  <button
+                    onClick={() => {
+                      const updated = {
+                        ...client,
+                        chatLinks: (client.chatLinks || []).filter((l) => l.id !== link.id),
+                      };
+                      onSave(updated);
+                    }}
+                    className="text-[#666] hover:text-red-400 flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+
+              <AddChatLinkForm
+                onAdd={(platform, raw) => {
+                  const newLink: ChatLink = {
+                    id: Date.now().toString(),
+                    platform,
+                    url: buildChatLink(platform, raw),
+                  };
+                  const updated = {
+                    ...client,
+                    chatLinks: [...(client.chatLinks || []), newLink],
+                  };
+                  onSave(updated);
+                }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-[#999] block mb-2">Заметки по переписке</label>
             <textarea
               value={client.chatHistory}
               onChange={(e) => {
                 const updated = { ...client, chatHistory: e.target.value };
                 onSave(updated);
               }}
-              placeholder="Paste chat history from WhatsApp, Telegram, Facebook, etc."
+              placeholder="Если на платформу нет прямой ссылки — вставь сюда нужный кусок переписки"
               className="w-full bg-[#2A2A2A] text-white px-3 py-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#FAD5A5] resize-none h-32 border border-[#333]"
             />
           </div>
@@ -889,3 +1024,75 @@ function NewSessionForm({
     </div>
   );
 }
+
+// Small inline form for adding a chat link — collapsed to a single button
+// until tapped, so it doesn't clutter the client view by default.
+function AddChatLinkForm({
+  onAdd,
+}: {
+  onAdd: (platform: ChatPlatform, raw: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [platform, setPlatform] = useState<ChatPlatform>('whatsapp');
+  const [raw, setRaw] = useState('');
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        className="w-full text-xs text-[#FAD5A5] hover:text-white transition border border-dashed border-[#333] hover:border-[#FAD5A5] rounded py-2 flex items-center justify-center gap-1"
+      >
+        <Plus className="w-3 h-3" /> Добавить ссылку
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-[#2A2A2A] border border-[#333] rounded p-3 space-y-2">
+      <select
+        value={platform}
+        onChange={(e) => setPlatform(e.target.value as ChatPlatform)}
+        className="w-full bg-[#111010] text-white px-3 py-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#FAD5A5]"
+      >
+        <option value="whatsapp">WhatsApp</option>
+        <option value="telegram">Telegram</option>
+        <option value="messenger">Messenger</option>
+        <option value="instagram">Instagram</option>
+        <option value="tiktok">TikTok</option>
+        <option value="other">Другое</option>
+      </select>
+      <input
+        type="text"
+        value={raw}
+        onChange={(e) => setRaw(e.target.value)}
+        placeholder="Номер телефона, @юзернейм или ссылка"
+        className="w-full bg-[#111010] text-white px-3 py-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#FAD5A5]"
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setIsOpen(false);
+            setRaw('');
+          }}
+          className="flex-1 bg-[#333] text-white px-3 py-2 rounded text-xs hover:bg-[#444] transition"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!raw.trim()) return;
+            onAdd(platform, raw);
+            setRaw('');
+            setIsOpen(false);
+          }}
+          className="flex-1 bg-[#FAD5A5] text-[#111010] px-3 py-2 rounded text-xs font-medium hover:bg-white transition"
+        >
+          Добавить
+        </button>
+      </div>
+    </div>
+  );
+}
+
