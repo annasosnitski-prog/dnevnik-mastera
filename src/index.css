@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #111010;
+  --color-card: #2A2A2A;
+  --color-border: #333;
+  --color-accent: #FAD5A5;
+  --color-text: #ffffff;
+  --color-muted: #999999;
+  --color-dim: #666666;
+}
+
+* {
+  -webkit-user-select: none;
+  user-select: none;
+  /* Removes the grey flash iOS shows on every tap — looks native without it */
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+button {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* iOS Safari auto-zooms the page when focusing any form field smaller than 16px.
+   Tailwind's text-sm (14px) would trigger this on every tap into a field, so
+   form elements are pinned to 16px regardless of utility classes applied to them. */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 300;
+}
+
+/* Full-height container that tracks the real visible viewport on iOS Safari.
+   100vh alone is the height with the address bar hidden, so it overshoots
+   when the bar is showing and form buttons end up hidden underneath it. */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-dim);
+}
+
+/* Input focus states */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+/* Button reset */
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Modal */
+.modal {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* iOS safe area — viewport-fit=cover (set in index.html) is required for these
+   env() values to resolve to anything other than 0. Top/bottom are applied
+   directly on the header/content elements in the component instead of here,
+   since they need to add to existing padding rather than replace it. */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}

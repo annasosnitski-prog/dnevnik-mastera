@@ -1,0 +1,31 @@
+{
+  "name": "INKA - Tattoo Master's Diary",
+  "short_name": "INKA",
+  "description": "Interactive client and session management diary for tattoo artists",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111010",
+  "theme_color": "#FAD5A5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["business", "productivity"]
+}
