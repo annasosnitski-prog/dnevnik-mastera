@@ -1,0 +1,305 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   INKA — Venetian Carnival Theme System
+   Casa di Vetro (Light) / Masquerade (Dark)
+   ============================================ */
+
+:root[data-theme="light"] {
+  --color-bg: #F7F4EE;
+  --color-bg-card: #FFFAF5;
+  --color-accent: #CBB48A;
+  --color-accent-hover: #E7D6A6;
+  --color-text: #5C4A3D;
+  --color-text-muted: #B8A896;
+  --color-text-secondary: #8B7D6B;
+  --color-border: #E0D5C7;
+  --color-border-strong: #D9D0C4;
+  --color-rose: #EED6D2;
+  --color-amber: #F3E4C4;
+  --color-error: #C97B6B;
+  --color-success: #8BAB7A;
+  --color-modal-overlay: rgba(237, 226, 207, 0.7);
+  --shadow-card: 0 2px 12px rgba(203, 180, 138, 0.15);
+  --shadow-glow: 0 0 20px rgba(203, 180, 138, 0.2);
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #111010;
+  --color-bg-card: #1A1A1A;
+  --color-accent: #D4A574;
+  --color-accent-hover: #E8C547;
+  --color-text: #E8DCC8;
+  --color-text-muted: #8B8B8B;
+  --color-text-secondary: #C9A55D;
+  --color-border: #3A3A3A;
+  --color-border-strong: #8B3A3A;
+  --color-rose: #2A1A1A;
+  --color-amber: #2A2010;
+  --color-error: #8B3A3A;
+  --color-success: #3A6B3A;
+  --color-modal-overlay: rgba(0, 0, 0, 0.85);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(212, 165, 116, 0.15);
+}
+
+* {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+button,
+select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 300;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Venetian card styling */
+.card-venetian {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.card-venetian:hover,
+.card-venetian:active {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-glow);
+  transform: scale(0.98);
+}
+
+/* Spring animation for tap */
+.tap-spring {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tap-spring:active {
+  transform: scale(0.95);
+}
+
+/* Venetian button */
+.btn-venetian {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.btn-venetian:hover {
+  background: var(--color-accent-hover);
+}
+
+.btn-venetian:active {
+  transform: scale(0.96);
+}
+
+/* Ghost button */
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.btn-ghost:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Input styling */
+.input-venetian {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 8px 0;
+  width: 100%;
+  font-family: 'Heebo', sans-serif;
+  font-weight: 300;
+  transition: border-color 0.2s ease;
+}
+
+.input-venetian:focus {
+  outline: none;
+  border-bottom-color: var(--color-accent);
+}
+
+.input-venetian::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Mask overlay on client cards */
+.mask-overlay {
+  position: absolute;
+  opacity: 0.25;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.card-venetian:hover .mask-overlay {
+  opacity: 0.4;
+}
+
+/* Vitrage background element */
+.vitrage-bg {
+  position: absolute;
+  opacity: 0.15;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+[data-theme="light"] .vitrage-bg {
+  mix-blend-mode: multiply;
+  opacity: 0.1;
+}
+
+/* Castle overlay */
+.castle-overlay {
+  position: absolute;
+  opacity: 0.12;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+}
+
+/* Texture background */
+.texture-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background-repeat: repeat;
+  background-size: 300px;
+  z-index: 0;
+}
+
+/* Tab styling */
+.tab-venetian {
+  color: var(--color-text-muted);
+  padding: 8px 16px;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.tab-venetian.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* Divider line */
+.divider-gold {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+  border: none;
+}
+
+/* Streak widget */
+.streak-widget {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Theme toggle */
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-card);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-glow);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+/* Safe area */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Session saved celebration */
+@keyframes celebrate {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+.celebration {
+  animation: celebrate 1.5s ease-out forwards;
+}
