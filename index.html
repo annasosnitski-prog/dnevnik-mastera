@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icon-192.png" />
@@ -8,6 +8,16 @@
     <meta name="theme-color" content="#111010" />
     <meta name="description" content="Tattoo Master's Diary - Client management and session logging" />
     <link rel="manifest" href="/manifest.json" />
+    <script>
+      // Set theme before CSS paints to prevent flash of wrong colors
+      try {
+        var t = localStorage.getItem('inka-theme');
+        if (t === 'light' || t === 'dark') {
+          document.documentElement.setAttribute('data-theme', t);
+          if (t === 'light') document.querySelector('meta[name="theme-color"]').content = '#F7F4EE';
+        }
+      } catch(e) {}
+    </script>
     <!-- iOS: makes "Add to Home Screen" open without Safari's browser chrome -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
