@@ -27,7 +27,11 @@ interface Session {
   duration: string; // e.g. "4 ч"
   style: string; // work style for this session
   area: string; // work zone, e.g. "Левое плечо"
+  colors: string; // inks / colours used
+  needles: string; // needle configuration
+  skinReaction: string; // how the skin reacted
   note: string;
+  photoUrl?: string; // optional captured/uploaded photo (data URL)
   done: boolean;
 }
 
@@ -39,6 +43,49 @@ interface ClientDocument {
   uploadedDate: string;
 }
 
+type ChatPlatform = 'whatsapp' | 'telegram' | 'instagram' | 'facebook' | 'messenger' | 'tiktok' | 'other';
+
+interface ChatLink {
+  id: string;
+  platform: ChatPlatform;
+  url: string;
+}
+
+const PLATFORM_LABELS: Record<ChatPlatform, string> = {
+  whatsapp: 'WhatsApp',
+  telegram: 'Telegram',
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  messenger: 'Messenger',
+  tiktok: 'TikTok',
+  other: 'Ссылка',
+};
+
+// Turns a raw input (phone, @handle or full URL) into an openable chat link.
+function buildChatLink(platform: ChatPlatform, raw: string): string {
+  const trimmed = raw.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const handle = trimmed.replace(/^@/, '');
+  switch (platform) {
+    case 'whatsapp': {
+      const digits = trimmed.replace(/[^\d]/g, '');
+      return digits ? `https://wa.me/${digits}` : trimmed;
+    }
+    case 'telegram':
+      return handle ? `https://t.me/${handle}` : trimmed;
+    case 'instagram':
+      return handle ? `https://ig.me/m/${handle}` : trimmed;
+    case 'facebook':
+      return handle ? `https://facebook.com/${handle}` : trimmed;
+    case 'messenger':
+      return handle ? `https://m.me/${handle}` : trimmed;
+    case 'tiktok':
+      return handle ? `https://tiktok.com/@${handle}` : trimmed;
+    default:
+      return trimmed;
+  }
+}
+
 interface Client {
   id: string;
   name: string; // first name, e.g. "Александра"
@@ -46,10 +93,23 @@ interface Client {
   style: string; // current style (mirrors the latest session's style)
   color: string; // accent hex
   note: string; // master's notes
+  phone: string; // contact phone number
+  skinType: string; // normal / sensitive / dry / oily / combination
+  skinNotes: string; // free notes about the client's skin
+  chatLinks: ChatLink[]; // WhatsApp / Telegram / Instagram / etc.
   sessions: Session[];
   documents: ClientDocument[];
   createdDate: string;
 }
+
+const SKIN_TYPES: { value: string; label: string }[] = [
+  { value: '', label: 'Не указан' },
+  { value: 'normal', label: 'Нормальная' },
+  { value: 'sensitive', label: 'Чувствительная' },
+  { value: 'dry', label: 'Сухая' },
+  { value: 'oily', label: 'Жирная' },
+  { value: 'combination', label: 'Комбинированная' },
+];
 
 // ===================== DERIVED HELPERS =====================
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
@@ -66,7 +126,11 @@ function normalizeClient(raw: any, index: number): Client {
         duration: s?.duration ?? '',
         style: s?.style ?? '',
         area: s?.area ?? s?.proportions ?? '',
+        colors: Array.isArray(s?.colors) ? s.colors.join(', ') : s?.colors ?? '',
+        needles: s?.needles ?? '',
+        skinReaction: s?.skinReaction ?? '',
         note: s?.note ?? s?.notes ?? '',
+        photoUrl: s?.photoUrl,
         done: s?.done ?? true,
       }))
     : [];
@@ -79,7 +143,11 @@ function normalizeClient(raw: any, index: number): Client {
     surname: raw?.surname ?? '',
     style: raw?.style ?? latestStyle ?? '',
     color: raw?.color ?? ACCENT_COLORS[index % ACCENT_COLORS.length],
-    note: raw?.note ?? raw?.skinNotes ?? raw?.chatHistory ?? '',
+    note: raw?.note ?? raw?.chatHistory ?? '',
+    phone: raw?.phone ?? '',
+    skinType: raw?.skinType ?? '',
+    skinNotes: raw?.skinNotes ?? '',
+    chatLinks: Array.isArray(raw?.chatLinks) ? raw.chatLinks : [],
     sessions,
     documents: Array.isArray(raw?.documents) ? raw.documents : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
@@ -257,7 +325,14 @@ export default function TattoDiary() {
     setShowNewSessionForm(false);
   };
 
-  const handleCreateClient = (data: { name: string; surname: string; note: string }) => {
+  const handleCreateClient = (data: {
+    name: string;
+    surname: string;
+    phone: string;
+    skinType: string;
+    skinNotes: string;
+    note: string;
+  }) => {
     const client: Client = {
       id: Date.now().toString(),
       name: data.name.trim(),
@@ -265,6 +340,10 @@ export default function TattoDiary() {
       style: '',
       color: ACCENT_COLORS[clients.length % ACCENT_COLORS.length],
       note: data.note.trim(),
+      phone: data.phone.trim(),
+      skinType: data.skinType,
+      skinNotes: data.skinNotes.trim(),
+      chatLinks: [],
       sessions: [],
       documents: [],
       createdDate: new Date().toISOString(),
@@ -273,7 +352,17 @@ export default function TattoDiary() {
     setShowNewClientForm(false);
   };
 
-  const handleAddSession = (data: { date: string; duration: string; style: string; area: string; note: string }) => {
+  const handleAddSession = (data: {
+    date: string;
+    duration: string;
+    style: string;
+    area: string;
+    colors: string;
+    needles: string;
+    skinReaction: string;
+    note: string;
+    photoUrl?: string;
+  }) => {
     if (!selectedClient) return;
     const session: Session = {
       id: Date.now().toString(),
@@ -281,7 +370,11 @@ export default function TattoDiary() {
       duration: data.duration,
       style: data.style,
       area: data.area.trim(),
+      colors: data.colors.trim(),
+      needles: data.needles.trim(),
+      skinReaction: data.skinReaction.trim(),
       note: data.note.trim(),
+      photoUrl: data.photoUrl,
       done: true,
     };
     const updated: Client = {
@@ -530,6 +623,7 @@ export default function TattoDiary() {
             activeTab={activeTab}
             onTab={setActiveTab}
             onBack={goBack}
+            onSave={saveClient}
             onAddSession={() => setShowNewSessionForm(true)}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
             onRemoveDocument={(docId) =>
@@ -766,6 +860,7 @@ function DetailScreen({
   activeTab,
   onTab,
   onBack,
+  onSave,
   onAddSession,
   onAddDocument,
   onRemoveDocument,
@@ -774,6 +869,7 @@ function DetailScreen({
   activeTab: 'info' | 'sessions' | 'documents';
   onTab: (t: 'info' | 'sessions' | 'documents') => void;
   onBack: () => void;
+  onSave: (client: Client) => void;
   onAddSession: () => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
@@ -882,7 +978,7 @@ function DetailScreen({
 
       {/* Tab content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '22px 24px 50px', background: COLORS.bg }}>
-        {activeTab === 'info' && <InfoTab client={client} />}
+        {activeTab === 'info' && <InfoTab client={client} onSave={onSave} />}
         {activeTab === 'sessions' && <SessionsTab client={client} onAddSession={onAddSession} />}
         {activeTab === 'documents' && (
           <DocumentsTab client={client} onAddDocument={onAddDocument} onRemoveDocument={onRemoveDocument} />
@@ -893,7 +989,7 @@ function DetailScreen({
 }
 
 // ── Info tab ──
-function InfoTab({ client }: { client: Client }) {
+function InfoTab({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
   const note = client.note || '';
   const metaCell = (span = false): React.CSSProperties => ({
     background: 'rgba(255,255,255,0.018)',
@@ -968,6 +1064,12 @@ function InfoTab({ client }: { client: Client }) {
           <MetaValue>{lastSessionDate(client)}</MetaValue>
         </div>
       </div>
+
+      {/* Skin: type + notes */}
+      <SkinSection client={client} onSave={onSave} />
+
+      {/* Contacts: phone + chat links */}
+      <ContactsSection client={client} onSave={onSave} />
     </div>
   );
 }
@@ -981,6 +1083,411 @@ function MetaLabel({ children }: { children: React.ReactNode }) {
 }
 function MetaValue({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 15, color: COLORS.textPrimary, fontWeight: 300 }}>{children}</div>;
+}
+
+// ── Skin (type + notes) ──
+function SectionDivider() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, clear: 'both' }}>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.28), transparent)' }} />
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+        <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="rgba(200,148,58,0.28)" />
+      </svg>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.28), transparent)' }} />
+    </div>
+  );
+}
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontFamily: "'Cinzel Decorative', serif",
+        fontSize: 8,
+        color: COLORS.textGhost,
+        letterSpacing: '3.5px',
+        textTransform: 'uppercase',
+        marginBottom: 12,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SkinSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
+  const [skinType, setSkinType] = useState(client.skinType || '');
+  const [skinNotes, setSkinNotes] = useState(client.skinNotes || '');
+
+  useEffect(() => {
+    setSkinType(client.skinType || '');
+    setSkinNotes(client.skinNotes || '');
+  }, [client.id]);
+
+  const saveType = (value: string) => {
+    setSkinType(value);
+    if (value !== (client.skinType || '')) onSave({ ...client, skinType: value });
+  };
+  const saveNotes = () => {
+    if (skinNotes.trim() !== (client.skinNotes || '')) onSave({ ...client, skinNotes: skinNotes.trim() });
+  };
+
+  return (
+    <div style={{ marginTop: 22 }}>
+      <SectionDivider />
+      <SectionHeader>Кожа</SectionHeader>
+
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: '8.5px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+          Тип кожи
+        </div>
+        <select
+          value={skinType}
+          onChange={(e) => saveType(e.target.value)}
+          style={{
+            width: '100%',
+            background: 'rgba(255,255,255,0.018)',
+            border: '1px solid rgba(200,148,58,0.1)',
+            borderRadius: 2,
+            padding: '11px 13px',
+            fontFamily: "'Cormorant Garamond', serif",
+            color: skinType ? COLORS.textPrimary : COLORS.textGhost,
+            outline: 'none',
+            appearance: 'none',
+          }}
+        >
+          {SKIN_TYPES.map((s) => (
+            <option key={s.value} value={s.value} style={{ background: COLORS.bg }}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <div style={{ fontSize: '8.5px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+          Заметки о коже
+        </div>
+        <textarea
+          value={skinNotes}
+          onChange={(e) => setSkinNotes(e.target.value)}
+          onBlur={saveNotes}
+          placeholder="Аллергии, чувствительные зоны, реакции..."
+          style={{
+            width: '100%',
+            background: 'rgba(255,255,255,0.018)',
+            border: '1px solid rgba(200,148,58,0.1)',
+            borderRadius: 2,
+            padding: '11px 13px',
+            fontFamily: "'Cormorant Garamond', serif",
+            color: COLORS.textPrimary,
+            outline: 'none',
+            resize: 'none',
+            height: 70,
+            letterSpacing: '0.3px',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Contacts (phone + chat links) ──
+function ContactsSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
+  const [phone, setPhone] = useState(client.phone || '');
+  const [editingPhone, setEditingPhone] = useState(false);
+
+  // Re-sync local phone when switching to another client.
+  useEffect(() => {
+    setPhone(client.phone || '');
+    setEditingPhone(false);
+  }, [client.id]);
+
+  const savePhone = () => {
+    setEditingPhone(false);
+    if (phone.trim() !== (client.phone || '')) onSave({ ...client, phone: phone.trim() });
+  };
+
+  const addLink = (platform: ChatPlatform, raw: string) => {
+    const link: ChatLink = { id: Date.now().toString(), platform, url: buildChatLink(platform, raw) };
+    onSave({ ...client, chatLinks: [...(client.chatLinks || []), link] });
+  };
+  const removeLink = (id: string) => onSave({ ...client, chatLinks: (client.chatLinks || []).filter((l) => l.id !== id) });
+
+  return (
+    <div style={{ marginTop: 22 }}>
+      {/* Ornamental divider */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, clear: 'both' }}>
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.28), transparent)' }} />
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="rgba(200,148,58,0.28)" />
+        </svg>
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.28), transparent)' }} />
+      </div>
+
+      <div
+        style={{
+          fontFamily: "'Cinzel Decorative', serif",
+          fontSize: 8,
+          color: COLORS.textGhost,
+          letterSpacing: '3.5px',
+          textTransform: 'uppercase',
+          marginBottom: 12,
+        }}
+      >
+        Контакты
+      </div>
+
+      {/* Phone row */}
+      <div
+        style={{
+          background: 'rgba(255,255,255,0.018)',
+          border: '1px solid rgba(200,148,58,0.1)',
+          borderRadius: 2,
+          padding: '11px 13px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 11,
+          marginBottom: 8,
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+          <path
+            d="M3 3.5C3 3 3.4 2.5 4 2.5H5.5C5.9 2.5 6.3 2.8 6.4 3.2L7 5.4C7.1 5.8 7 6.2 6.7 6.4L5.7 7.2C6.4 8.7 7.3 9.6 8.8 10.3L9.6 9.3C9.8 9 10.2 8.9 10.6 9L12.8 9.6C13.2 9.7 13.5 10.1 13.5 10.5V12C13.5 12.6 13 13 12.5 13C7.3 13 3 8.7 3 3.5Z"
+            stroke={COLORS.gold}
+            strokeWidth="1.2"
+            fill="rgba(200,148,58,0.06)"
+            strokeLinejoin="round"
+          />
+        </svg>
+        {editingPhone ? (
+          <input
+            autoFocus
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            onBlur={savePhone}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            placeholder="+7 999 123-45-67"
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              fontFamily: "'Cormorant Garamond', serif",
+              color: COLORS.textPrimary,
+              letterSpacing: '0.3px',
+            }}
+          />
+        ) : client.phone ? (
+          <>
+            <a
+              href={`tel:${client.phone.replace(/[^\d+]/g, '')}`}
+              style={{ flex: 1, fontSize: 15, color: COLORS.textPrimary, textDecoration: 'none', letterSpacing: '0.3px' }}
+            >
+              {client.phone}
+            </a>
+            <span
+              onClick={() => setEditingPhone(true)}
+              style={{ fontSize: 11, color: COLORS.textFaint, fontStyle: 'italic', cursor: 'pointer' }}
+            >
+              изменить
+            </span>
+          </>
+        ) : (
+          <span
+            onClick={() => setEditingPhone(true)}
+            style={{ flex: 1, fontSize: 14, color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer' }}
+          >
+            Добавить телефон
+          </span>
+        )}
+      </div>
+
+      {/* Chat links */}
+      {(client.chatLinks || []).map((link) => (
+        <div
+          key={link.id}
+          style={{
+            background: 'rgba(255,255,255,0.018)',
+            border: '1px solid rgba(200,148,58,0.1)',
+            borderRadius: 2,
+            padding: '11px 13px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 11,
+            marginBottom: 8,
+          }}
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: COLORS.gold,
+              flexShrink: 0,
+            }}
+          />
+          <a
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ flex: 1, minWidth: 0, textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 1 }}
+          >
+            <span style={{ fontSize: 13, color: COLORS.gold, letterSpacing: '0.5px' }}>{PLATFORM_LABELS[link.platform]}</span>
+            <span
+              style={{
+                fontSize: 11,
+                color: COLORS.textFaint,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {link.url.replace(/^https?:\/\//, '')}
+            </span>
+          </a>
+          <button
+            onClick={() => removeLink(link.id)}
+            style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: 14 }}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+
+      <AddChatLinkForm onAdd={addLink} />
+    </div>
+  );
+}
+
+function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [platform, setPlatform] = useState<ChatPlatform>('whatsapp');
+  const [raw, setRaw] = useState('');
+
+  if (!open) {
+    return (
+      <div
+        className="inka-dashed"
+        onClick={() => setOpen(true)}
+        style={{
+          marginTop: 4,
+          border: '1px dashed rgba(200,148,58,0.18)',
+          borderRadius: 2,
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="rgba(200,148,58,0.48)" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="rgba(200,148,58,0.48)" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <span style={{ fontSize: 11, color: 'rgba(200,148,58,0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+          Добавить ссылку
+        </span>
+      </div>
+    );
+  }
+
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    background: COLORS.bg,
+    border: '1px solid rgba(200,148,58,0.18)',
+    borderRadius: 2,
+    padding: '9px 12px',
+    fontFamily: "'Cormorant Garamond', serif",
+    color: COLORS.textPrimary,
+    outline: 'none',
+    marginBottom: 8,
+  };
+
+  return (
+    <div
+      style={{
+        marginTop: 4,
+        border: '1px solid rgba(200,148,58,0.18)',
+        borderRadius: 2,
+        padding: 13,
+        background: 'rgba(255,255,255,0.018)',
+      }}
+    >
+      <select value={platform} onChange={(e) => setPlatform(e.target.value as ChatPlatform)} style={selectStyle}>
+        {(Object.keys(PLATFORM_LABELS) as ChatPlatform[]).map((p) => (
+          <option key={p} value={p} style={{ background: COLORS.bg }}>
+            {PLATFORM_LABELS[p]}
+          </option>
+        ))}
+      </select>
+      <input
+        value={raw}
+        onChange={(e) => setRaw(e.target.value)}
+        placeholder="Телефон, @ник или ссылка"
+        style={{ ...INPUT_STYLE, marginBottom: 8 }}
+      />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div
+          onClick={() => {
+            setOpen(false);
+            setRaw('');
+          }}
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '9px',
+            borderRadius: 2,
+            border: '1px solid rgba(200,148,58,0.15)',
+            color: COLORS.textFaint,
+            fontSize: 11,
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Отмена
+        </div>
+        <div
+          className="inka-submit"
+          onClick={() => {
+            if (!raw.trim()) return;
+            onAdd(platform, raw);
+            setRaw('');
+            setOpen(false);
+          }}
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '9px',
+            borderRadius: 2,
+            border: '1px solid rgba(200,148,58,0.35)',
+            background: 'rgba(200,148,58,0.05)',
+            color: COLORS.gold,
+            fontSize: 11,
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Добавить
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// One "label: value" line inside a session card (краски / иглы / реакция кожи).
+function SessionMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, fontSize: 11, lineHeight: 1.4 }}>
+      <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: 9, paddingTop: 1 }}>
+        {label}
+      </span>
+      <span style={{ color: '#8A7E72', fontStyle: 'italic' }}>{value}</span>
+    </div>
+  );
 }
 
 // ── Sessions tab ──
@@ -1039,6 +1546,38 @@ function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: (
               </div>
             )}
             {session.note && <div style={{ fontSize: 12, color: '#4A4238', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+            {(session.colors || session.needles || session.skinReaction) && (
+              <div
+                style={{
+                  marginTop: 9,
+                  paddingTop: 9,
+                  borderTop: '1px solid rgba(200,148,58,0.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                }}
+              >
+                {session.colors && <SessionMeta label="Краски" value={session.colors} />}
+                {session.needles && <SessionMeta label="Иглы" value={session.needles} />}
+                {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
+              </div>
+            )}
+            {session.photoUrl && (
+              <a href={session.photoUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 10 }}>
+                <img
+                  src={session.photoUrl}
+                  alt=""
+                  style={{
+                    width: '100%',
+                    maxHeight: 180,
+                    objectFit: 'cover',
+                    borderRadius: 2,
+                    border: '1px solid rgba(200,148,58,0.15)',
+                    display: 'block',
+                  }}
+                />
+              </a>
+            )}
           </div>
         </div>
       ))}
@@ -1281,10 +1820,20 @@ function NewClientSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (data: { name: string; surname: string; note: string }) => void;
+  onCreate: (data: {
+    name: string;
+    surname: string;
+    phone: string;
+    skinType: string;
+    skinNotes: string;
+    note: string;
+  }) => void;
 }) {
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
+  const [phone, setPhone] = useState('');
+  const [skinType, setSkinType] = useState('');
+  const [skinNotes, setSkinNotes] = useState('');
   const [note, setNote] = useState('');
 
   // Reset fields whenever the sheet is closed.
@@ -1292,6 +1841,9 @@ function NewClientSheet({
     if (!open) {
       setName('');
       setSurname('');
+      setPhone('');
+      setSkinType('');
+      setSkinNotes('');
       setNote('');
     }
   }, [open]);
@@ -1318,6 +1870,35 @@ function NewClientSheet({
           <FieldLabel>Фамилия</FieldLabel>
           <input value={surname} onChange={(e) => setSurname(e.target.value)} placeholder="Вертинская" style={INPUT_STYLE} />
         </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Телефон</FieldLabel>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+7 999 123-45-67"
+            style={INPUT_STYLE}
+          />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Тип кожи</FieldLabel>
+          <select value={skinType} onChange={(e) => setSkinType(e.target.value)} style={{ ...INPUT_STYLE, appearance: 'none' }}>
+            {SKIN_TYPES.map((s) => (
+              <option key={s.value} value={s.value} style={{ background: COLORS.bg }}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Заметки о коже</FieldLabel>
+          <textarea
+            value={skinNotes}
+            onChange={(e) => setSkinNotes(e.target.value)}
+            placeholder="Аллергии, чувствительные зоны, реакции..."
+            style={{ ...INPUT_STYLE, resize: 'none', height: 70 }}
+          />
+        </div>
         <div style={{ marginBottom: 22 }}>
           <FieldLabel>Заметки</FieldLabel>
           <textarea
@@ -1329,7 +1910,7 @@ function NewClientSheet({
         </div>
         <div
           className="inka-submit"
-          onClick={() => canSubmit && onCreate({ name, surname, note })}
+          onClick={() => canSubmit && onCreate({ name, surname, phone, skinType, skinNotes, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
           <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
@@ -1351,13 +1932,36 @@ function NewSessionSheet({
   open: boolean;
   clientName: string;
   onClose: () => void;
-  onAdd: (data: { date: string; duration: string; style: string; area: string; note: string }) => void;
+  onAdd: (data: {
+    date: string;
+    duration: string;
+    style: string;
+    area: string;
+    colors: string;
+    needles: string;
+    skinReaction: string;
+    note: string;
+    photoUrl?: string;
+  }) => void;
 }) {
   const [date, setDate] = useState('');
   const [duration, setDuration] = useState('');
   const [style, setStyle] = useState('');
   const [area, setArea] = useState('');
+  const [colors, setColors] = useState('');
+  const [needles, setNeedles] = useState('');
+  const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [cameraActive, setCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const stopCamera = () => {
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((t) => t.stop());
+    setCameraActive(false);
+  };
 
   useEffect(() => {
     if (!open) {
@@ -1365,9 +1969,47 @@ function NewSessionSheet({
       setDuration('');
       setStyle('');
       setArea('');
+      setColors('');
+      setNeedles('');
+      setSkinReaction('');
       setNote('');
+      setPhotoUrl('');
+      stopCamera();
     }
+    // Stop the camera if the sheet closes while it's running.
+    return () => {
+      if (!open) stopCamera();
+    };
   }, [open]);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setCameraActive(true);
+      }
+    } catch (err) {
+      console.error('Camera error:', err);
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
+    setPhotoUrl(canvas.toDataURL('image/jpeg', 0.85));
+    stopCamera();
+  };
+
+  const onPickPhoto = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setPhotoUrl(reader.result as string);
+    reader.readAsDataURL(file);
+  };
 
   const chipStyle = (selected: boolean, big: boolean): React.CSSProperties => ({
     fontFamily: "'Cormorant Garamond', serif",
@@ -1426,7 +2068,27 @@ function NewSessionSheet({
           <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
         </div>
 
-        <div style={{ marginBottom: 22 }}>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Краски / чернила</FieldLabel>
+          <input value={colors} onChange={(e) => setColors(e.target.value)} placeholder="Чёрный, серые тона..." style={INPUT_STYLE} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Иглы</FieldLabel>
+          <input value={needles} onChange={(e) => setNeedles(e.target.value)} placeholder="Конфигурация игл..." style={INPUT_STYLE} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Реакция кожи</FieldLabel>
+          <input
+            value={skinReaction}
+            onChange={(e) => setSkinReaction(e.target.value)}
+            placeholder="Покраснение, отёк, спокойно..."
+            style={INPUT_STYLE}
+          />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
           <FieldLabel>Заметки</FieldLabel>
           <textarea
             value={note}
@@ -1436,7 +2098,135 @@ function NewSessionSheet({
           />
         </div>
 
-        <div className="inka-submit" onClick={() => onAdd({ date, duration, style, area, note })} style={SUBMIT_STYLE}>
+        {/* Photo: camera capture or upload */}
+        <div style={{ marginBottom: 22 }}>
+          <FieldLabel>Фото</FieldLabel>
+          {cameraActive ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: '100%', maxHeight: 200, borderRadius: 2, border: '1px solid rgba(200,148,58,0.18)', background: '#000' }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div className="inka-submit" onClick={capturePhoto} style={{ ...SUBMIT_STYLE, flex: 1, padding: 11 }}>
+                  <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 10, color: COLORS.gold, letterSpacing: '1.5px' }}>Снять</span>
+                </div>
+                <div
+                  onClick={stopCamera}
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: 11,
+                    borderRadius: 2,
+                    border: '1px solid rgba(200,148,58,0.15)',
+                    color: COLORS.textFaint,
+                    fontSize: 10,
+                    letterSpacing: '1.5px',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Отмена
+                </div>
+              </div>
+            </div>
+          ) : photoUrl ? (
+            <div style={{ position: 'relative' }}>
+              <img
+                src={photoUrl}
+                alt=""
+                style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, border: '1px solid rgba(200,148,58,0.18)', display: 'block' }}
+              />
+              <div
+                onClick={() => setPhotoUrl('')}
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: 'rgba(13,11,8,0.85)',
+                  border: '1px solid rgba(200,148,58,0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                  <line x1="3" y1="3" x2="13" y2="13" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" />
+                  <line x1="13" y1="3" x2="3" y2="13" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div
+                className="inka-doc-secondary"
+                onClick={startCamera}
+                style={{
+                  flex: 1,
+                  border: '1px solid rgba(200,148,58,0.18)',
+                  borderRadius: 2,
+                  padding: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <rect x="1.5" y="4.5" width="13" height="9" rx="1.5" stroke={COLORS.gold} strokeWidth="1.2" />
+                  <circle cx="8" cy="9" r="2.5" stroke={COLORS.gold} strokeWidth="1.2" />
+                  <path d="M5.5 4.5L6.3 3H9.7L10.5 4.5" stroke={COLORS.gold} strokeWidth="1.2" strokeLinejoin="round" />
+                </svg>
+                <span style={{ fontSize: 12, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Камера</span>
+              </div>
+              <div
+                className="inka-doc-secondary"
+                onClick={() => photoInputRef.current?.click()}
+                style={{
+                  flex: 1,
+                  border: '1px solid rgba(200,148,58,0.18)',
+                  borderRadius: 2,
+                  padding: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke={COLORS.gold} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke={COLORS.gold} strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+                <span style={{ fontSize: 12, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Загрузить</span>
+              </div>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  onPickPhoto(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        <div
+          className="inka-submit"
+          onClick={() => onAdd({ date, duration, style, area, colors, needles, skinReaction, note, photoUrl: photoUrl || undefined })}
+          style={SUBMIT_STYLE}
+        >
           <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
             Добавить сессию
           </span>
