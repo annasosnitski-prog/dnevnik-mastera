@@ -4,11 +4,73 @@
 
 /* ============================================
    INKA — Дневник Мастера
-   Venetian Carnival, dark-only. Most styling is
-   done with inline styles in the component for
-   pixel precision; this file holds globals,
-   keyframes and form-field behaviour.
+   Venetian Carnival. Two palettes share one set
+   of tokens; the component reads them through the
+   COLORS map (var(--…)) and a few rgba(var(--…-rgb))
+   literals, so switching data-theme re-skins
+   everything at runtime.
    ============================================ */
+
+/* ── Dark (default) ── */
+:root,
+:root[data-theme='dark'] {
+  --bg: #0D0B08;
+  --bg-rgb: 13, 11, 8;
+  --bg-card: linear-gradient(148deg, #191510, #0D0B09);
+  --sheet: #0F0D0A;
+  --hero-grad: linear-gradient(160deg, #131008 0%, #0D0B08 60%);
+
+  --gold: #C8943A;
+  --gold-rgb: 200, 148, 58;
+
+  /* Card / input surfaces are a translucent overlay on the background. */
+  --surface-rgb: 255, 255, 255;
+
+  --text: #EDE4CC;
+  --text-strong: #D4C8B8;
+  --text-secondary: #9A8E7A;
+  --text-soft: #8A7E72;
+  --text-soft2: #4A4238;
+  --text-muted: #6A6056;
+  --text-faint: #5A5248;
+  --surname: #5E5448;
+  --text-ghost: #3E3830;
+  --ink-faint: #2E2B28;
+  --text-trace: #2A2825;
+
+  --placeholder: rgba(80, 70, 60, 0.65);
+  --card-hover-shadow: 0 10px 36px rgba(var(--gold-rgb), 0.16), 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Light (warm parchment / "Casa di Vetro") ── */
+:root[data-theme='light'] {
+  --bg: #F4EEE1;
+  --bg-rgb: 244, 238, 225;
+  --bg-card: linear-gradient(148deg, #FFFCF5, #F5EFE3);
+  --sheet: #FBF6EC;
+  --hero-grad: linear-gradient(160deg, #FBF4E4 0%, #F4EEE1 60%);
+
+  --gold: #9C6F22;
+  --gold-rgb: 156, 111, 34;
+
+  /* Warm brown overlay so cards/inputs read on cream. */
+  --surface-rgb: 92, 68, 30;
+
+  --text: #463724;
+  --text-strong: #352819;
+  --text-secondary: #6B5942;
+  --text-soft: #6F5D46;
+  --text-soft2: #7C6A52;
+  --text-muted: #8A7860;
+  --text-faint: #9E8C72;
+  --surname: #8A7860;
+  --text-ghost: #A18E70;
+  --ink-faint: #B4A284;
+  --text-trace: #C2B196;
+
+  --placeholder: rgba(120, 100, 70, 0.55);
+  --card-hover-shadow: 0 10px 30px rgba(var(--gold-rgb), 0.18), 0 3px 10px rgba(80, 60, 20, 0.12);
+}
 
 * {
   box-sizing: border-box;
@@ -19,20 +81,30 @@
 }
 
 input,
-textarea {
+textarea,
+select {
   -webkit-user-select: text;
   user-select: text;
 }
 
 html,
 body {
-  background: #0D0B08;
+  background: var(--bg);
   overscroll-behavior-y: none;
 }
 
 body {
-  color: #EDE4CC;
+  color: var(--text);
   font-family: 'Cormorant Garamond', serif;
+  transition: background-color 0.35s ease, color 0.35s ease;
+}
+
+/* SVG icons paint with currentColor; default that to the themed gold so the
+   icon set re-skins with the palette. Non-gold icons set their own color
+   inline (var() works in the style attribute, unlike SVG presentation
+   attributes). */
+svg {
+  color: var(--gold);
 }
 
 /* Full-height container that tracks the real visible viewport on iOS Safari.
@@ -47,36 +119,35 @@ body {
    The design uses 14–15px inputs, so the visual size is pinned via inline
    styles while the actual font-size stays at 16px to suppress the zoom. */
 input,
-textarea {
+textarea,
+select {
   font-size: 16px;
 }
 
 /* Italic, muted placeholders matching the prototype. */
 input::placeholder,
 textarea::placeholder {
-  color: rgba(80, 70, 60, 0.65);
+  color: var(--placeholder);
   font-style: italic;
 }
 
 /* Gold focus ring on form fields (the design's signature focus state). */
 input:focus,
 textarea:focus {
-  border-color: rgba(200, 148, 58, 0.55) !important;
-  box-shadow: 0 0 0 2px rgba(200, 148, 58, 0.08);
+  border-color: rgba(var(--gold-rgb), 0.55) !important;
+  box-shadow: 0 0 0 2px rgba(var(--gold-rgb), 0.08);
 }
 
 /* ── Hover / press states ──
    Base appearance lives in inline styles on the elements; these classes only
-   carry the :hover and :active deltas that inline styles can't express. They
-   no-op on touch devices (which is the primary target) and add polish on
-   desktop. */
+   carry the :hover and :active deltas that inline styles can't express. */
 .inka-card {
   transition: transform 0.38s ease, border-color 0.25s, box-shadow 0.3s;
 }
 .inka-card:hover {
   transform: translateY(-5px) scale(1.018);
-  border-color: rgba(200, 148, 58, 0.62);
-  box-shadow: 0 10px 36px rgba(200, 148, 58, 0.16), 0 3px 10px rgba(0, 0, 0, 0.6);
+  border-color: rgba(var(--gold-rgb), 0.62);
+  box-shadow: var(--card-hover-shadow);
 }
 .inka-card:active {
   transform: scale(0.985);
@@ -86,40 +157,40 @@ textarea:focus {
   transition: border-color 0.3s, background 0.3s;
 }
 .inka-add-tile:hover {
-  border-color: rgba(200, 148, 58, 0.42);
-  background: rgba(200, 148, 58, 0.03);
+  border-color: rgba(var(--gold-rgb), 0.42);
+  background: rgba(var(--gold-rgb), 0.03);
 }
 
 .inka-dashed {
   transition: all 0.3s;
 }
 .inka-dashed:hover {
-  border-color: rgba(200, 148, 58, 0.45);
-  background: rgba(200, 148, 58, 0.03);
+  border-color: rgba(var(--gold-rgb), 0.45);
+  background: rgba(var(--gold-rgb), 0.03);
 }
 
 .inka-submit {
   transition: all 0.3s;
 }
 .inka-submit:hover {
-  background: rgba(200, 148, 58, 0.12);
-  border-color: rgba(200, 148, 58, 0.6);
+  background: rgba(var(--gold-rgb), 0.12);
+  border-color: rgba(var(--gold-rgb), 0.6);
 }
 
 .inka-doc-primary {
   transition: all 0.3s;
 }
 .inka-doc-primary:hover {
-  background: rgba(200, 148, 58, 0.1);
-  border-color: rgba(200, 148, 58, 0.6);
+  background: rgba(var(--gold-rgb), 0.1);
+  border-color: rgba(var(--gold-rgb), 0.6);
 }
 
 .inka-doc-secondary {
   transition: all 0.3s;
 }
 .inka-doc-secondary:hover {
-  background: rgba(200, 148, 58, 0.05);
-  border-color: rgba(200, 148, 58, 0.4);
+  background: rgba(var(--gold-rgb), 0.05);
+  border-color: rgba(var(--gold-rgb), 0.4);
 }
 
 .inka-back,
@@ -131,6 +202,17 @@ textarea:focus {
 }
 .inka-close:hover {
   opacity: 1 !important;
+}
+
+.inka-theme-toggle {
+  transition: border-color 0.25s, background 0.25s, transform 0.15s;
+}
+.inka-theme-toggle:hover {
+  border-color: rgba(var(--gold-rgb), 0.5);
+  background: rgba(var(--gold-rgb), 0.06);
+}
+.inka-theme-toggle:active {
+  transform: scale(0.9);
 }
 
 /* ── Animations ── */
@@ -148,14 +230,14 @@ textarea:focus {
 @keyframes goldGlow {
   0%,
   100% {
-    filter: drop-shadow(0 0 4px rgba(200, 148, 58, 0.25));
+    filter: drop-shadow(0 0 4px rgba(var(--gold-rgb), 0.25));
   }
   50% {
-    filter: drop-shadow(0 0 12px rgba(200, 148, 58, 0.55));
+    filter: drop-shadow(0 0 12px rgba(var(--gold-rgb), 0.55));
   }
 }
 
-/* ── Scrollbar (kept whisper-thin to match the dark surfaces) ── */
+/* ── Scrollbar (kept whisper-thin to match the surfaces) ── */
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -165,7 +247,7 @@ textarea:focus {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(200, 148, 58, 0.15);
+  background: rgba(var(--gold-rgb), 0.15);
   border-radius: 4px;
 }
 

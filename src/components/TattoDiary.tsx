@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 
 // ===================== DESIGN TOKENS =====================
+// Values resolve to CSS variables (see index.css), so the same component
+// re-skins itself when the document's data-theme switches between dark/light.
 const COLORS = {
-  bg: '#0D0B08',
-  card: 'linear-gradient(148deg, #191510, #0D0B09)',
-  sheet: '#0F0D0A',
-  gold: '#C8943A',
-  textPrimary: '#EDE4CC',
-  textSecondary: '#9A8E7A',
-  textMuted: '#6A6056',
-  textFaint: '#5A5248',
-  textGhost: '#3E3830',
-  textTrace: '#2A2825',
+  bg: 'var(--bg)',
+  card: 'var(--bg-card)',
+  sheet: 'var(--sheet)',
+  gold: 'var(--gold)',
+  textPrimary: 'var(--text)',
+  textSecondary: 'var(--text-secondary)',
+  textMuted: 'var(--text-muted)',
+  textFaint: 'var(--text-faint)',
+  textGhost: 'var(--text-ghost)',
+  textTrace: 'var(--text-trace)',
 };
 
 // Per-client accent colours, assigned on creation (rotated through the list).
@@ -174,18 +176,18 @@ function MaskSVG({ width, height, withSmile = false }: { width: number; height: 
     <svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg" width={width} height={height}>
       <path
         d="M100,14 L128,20 L156,34 L170,54 L165,74 L152,86 L138,94 L122,98 L114,112 L100,120 L86,112 L78,98 L62,94 L48,86 L35,74 L30,54 L44,34 L72,20 Z"
-        stroke={COLORS.gold}
+        stroke="currentColor"
         strokeWidth="4"
         fill="none"
         strokeLinejoin="round"
       />
-      <path d="M56,56 Q70,44 84,56 Q70,68 56,56 Z" stroke={COLORS.gold} strokeWidth="3" fill={COLORS.gold} fillOpacity="0.4" />
-      <path d="M116,56 Q130,44 144,56 Q130,68 116,56 Z" stroke={COLORS.gold} strokeWidth="3" fill={COLORS.gold} fillOpacity="0.4" />
-      <line x1="100" y1="14" x2="100" y2="4" stroke={COLORS.gold} strokeWidth="3" strokeLinecap="round" />
-      <circle cx="100" cy="2" r="4" fill={COLORS.gold} />
-      <path d="M100,8 Q88,5 79,9" stroke={COLORS.gold} strokeWidth="2.5" fill="none" strokeLinecap="round" />
-      <path d="M100,8 Q112,5 121,9" stroke={COLORS.gold} strokeWidth="2.5" fill="none" strokeLinecap="round" />
-      {withSmile && <path d="M88,112 Q100,122 112,112" stroke={COLORS.gold} strokeWidth="2" fill="none" />}
+      <path d="M56,56 Q70,44 84,56 Q70,68 56,56 Z" stroke="currentColor" strokeWidth="3" fill="currentColor" fillOpacity="0.4" />
+      <path d="M116,56 Q130,44 144,56 Q130,68 116,56 Z" stroke="currentColor" strokeWidth="3" fill="currentColor" fillOpacity="0.4" />
+      <line x1="100" y1="14" x2="100" y2="4" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="100" cy="2" r="4" fill="currentColor" />
+      <path d="M100,8 Q88,5 79,9" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <path d="M100,8 Q112,5 121,9" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      {withSmile && <path d="M88,112 Q100,122 112,112" stroke="currentColor" strokeWidth="2" fill="none" />}
     </svg>
   );
 }
@@ -193,17 +195,17 @@ function MaskSVG({ width, height, withSmile = false }: { width: number; height: 
 function StarDivider({ marginTop = 11 }: { marginTop?: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop }}>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.55), transparent)' }} />
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.55), transparent)' }} />
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <path
           d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z"
-          stroke={COLORS.gold}
+          stroke="currentColor"
           strokeWidth="0.8"
-          fill="rgba(200,148,58,0.18)"
+          fill="currentColor" fillOpacity="0.18"
           strokeLinejoin="round"
         />
       </svg>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.55), transparent)' }} />
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.55), transparent)' }} />
     </div>
   );
 }
@@ -211,11 +213,11 @@ function StarDivider({ marginTop = 11 }: { marginTop?: number }) {
 function SheetStarDivider() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.5), transparent)' }} />
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.5), transparent)' }} />
       <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-        <path d="M4.5 0.5L5.2 3.5H8.5L5.9 5.2L6.6 8.5L4.5 6.8L2.4 8.5L3.1 5.2L0.5 3.5H3.8Z" fill="rgba(200,148,58,0.3)" />
+        <path d="M4.5 0.5L5.2 3.5H8.5L5.9 5.2L6.6 8.5L4.5 6.8L2.4 8.5L3.1 5.2L0.5 3.5H3.8Z" fill="currentColor" fillOpacity="0.3" />
       </svg>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.5), transparent)' }} />
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.5), transparent)' }} />
     </div>
   );
 }
@@ -239,8 +241,8 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.03)',
-  border: '1px solid rgba(200,148,58,0.18)',
+  background: 'rgba(var(--surface-rgb),0.03)',
+  border: '1px solid rgba(var(--gold-rgb),0.18)',
   borderRadius: 2,
   padding: '10px 14px',
   fontFamily: "'Cormorant Garamond', serif",
@@ -250,19 +252,54 @@ const INPUT_STYLE: React.CSSProperties = {
 };
 
 const SUBMIT_STYLE: React.CSSProperties = {
-  border: '1px solid rgba(200,148,58,0.35)',
+  border: '1px solid rgba(var(--gold-rgb),0.35)',
   borderRadius: 2,
   padding: 14,
   textAlign: 'center',
   cursor: 'pointer',
-  background: 'rgba(200,148,58,0.05)',
+  background: 'rgba(var(--gold-rgb),0.05)',
 };
+
+// ===================== THEME =====================
+type Theme = 'dark' | 'light';
+
+function readInitialTheme(): Theme {
+  if (typeof document !== 'undefined') {
+    const attr = document.documentElement.getAttribute('data-theme');
+    if (attr === 'light' || attr === 'dark') return attr;
+  }
+  try {
+    const stored = localStorage.getItem('inka-theme');
+    if (stored === 'light' || stored === 'dark') return stored;
+  } catch {
+    /* ignore */
+  }
+  return 'dark';
+}
+
+function applyTheme(theme: Theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  try {
+    localStorage.setItem('inka-theme', theme);
+  } catch {
+    /* ignore */
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', theme === 'light' ? '#F4EEE1' : '#0D0B08');
+}
 
 // ===================== MAIN APP =====================
 export default function TattoDiary() {
   const [clients, setClients] = useState<Client[]>([]);
   const [db, setDb] = useState<IDBDatabase | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<Theme>(readInitialTheme);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
   const [screen, setScreen] = useState<'list' | 'detail'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -419,7 +456,7 @@ export default function TattoDiary() {
           style={{
             position: 'absolute',
             inset: 0,
-            backgroundImage: 'radial-gradient(circle, rgba(200,148,58,0.035) 1px, transparent 1px)',
+            backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
             backgroundSize: '22px 22px',
             pointerEvents: 'none',
             zIndex: 0,
@@ -428,6 +465,18 @@ export default function TattoDiary() {
 
         {/* Safe-area / status spacer */}
         <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)', flexShrink: 0 }} />
+
+        {/* Theme toggle (top-right) */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top) + 16px)',
+            right: 20,
+            zIndex: 20,
+          }}
+        >
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </div>
 
         {/* App header */}
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
@@ -462,8 +511,8 @@ export default function TattoDiary() {
         <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 10 }}>
           <div
             style={{
-              background: 'rgba(255,255,255,0.022)',
-              border: '1px solid rgba(200,148,58,0.11)',
+              background: 'rgba(var(--surface-rgb),0.022)',
+              border: '1px solid rgba(var(--gold-rgb),0.11)',
               borderRadius: 3,
               padding: '8px 14px',
               display: 'flex',
@@ -471,9 +520,9 @@ export default function TattoDiary() {
               gap: 9,
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
-              <circle cx="5.5" cy="5.5" r="4" stroke="#2E2B28" strokeWidth="1.2" />
-              <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="#2E2B28" strokeWidth="1.2" strokeLinecap="round" />
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0, color: 'var(--ink-faint)' }}>
+              <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
+              <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
             <input
               value={searchQuery}
@@ -540,7 +589,7 @@ export default function TattoDiary() {
             onClick={() => setShowNewClientForm(true)}
             style={{
               height: 210,
-              border: '1px dashed rgba(200,148,58,0.17)',
+              border: '1px dashed rgba(var(--gold-rgb),0.17)',
               borderRadius: 3,
               display: 'flex',
               flexDirection: 'column',
@@ -548,14 +597,14 @@ export default function TattoDiary() {
               justifyContent: 'center',
               gap: 11,
               cursor: 'pointer',
-              background: 'rgba(200,148,58,0.008)',
+              background: 'rgba(var(--gold-rgb),0.008)',
             }}
           >
             <div
               style={{
                 width: 36,
                 height: 36,
-                border: '1px solid rgba(200,148,58,0.22)',
+                border: '1px solid rgba(var(--gold-rgb),0.22)',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
@@ -563,14 +612,14 @@ export default function TattoDiary() {
               }}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <line x1="7" y1="2" x2="7" y2="12" stroke="rgba(200,148,58,0.45)" strokeWidth="1.2" strokeLinecap="round" />
-                <line x1="2" y1="7" x2="12" y2="7" stroke="rgba(200,148,58,0.45)" strokeWidth="1.2" strokeLinecap="round" />
+                <line x1="7" y1="2" x2="7" y2="12" stroke="currentColor" strokeOpacity="0.45" strokeWidth="1.2" strokeLinecap="round" />
+                <line x1="2" y1="7" x2="12" y2="7" stroke="currentColor" strokeOpacity="0.45" strokeWidth="1.2" strokeLinecap="round" />
               </svg>
             </div>
             <span
               style={{
                 fontSize: '9.5px',
-                color: 'rgba(200,148,58,0.32)',
+                color: 'rgba(var(--gold-rgb),0.32)',
                 letterSpacing: '1.5px',
                 textTransform: 'uppercase',
               }}
@@ -670,7 +719,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
       style={{
         position: 'relative',
         background: COLORS.card,
-        border: '1px solid rgba(200,148,58,0.2)',
+        border: '1px solid rgba(var(--gold-rgb),0.2)',
         borderRadius: 3,
         height: 210,
         overflow: 'hidden',
@@ -692,7 +741,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           height: 0,
           borderStyle: 'solid',
           borderWidth: '0 26px 26px 0',
-          borderColor: 'transparent rgba(200,148,58,0.13) transparent transparent',
+          borderColor: 'transparent rgba(var(--gold-rgb),0.13) transparent transparent',
           zIndex: 1,
           pointerEvents: 'none',
         }}
@@ -755,7 +804,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             <div
               style={{
                 fontSize: 10,
-                color: '#5E5448',
+                color: 'var(--surname)',
                 fontStyle: 'italic',
                 marginTop: 2,
                 whiteSpace: 'nowrap',
@@ -769,7 +818,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         </div>
 
         {/* Gold divider */}
-        <div style={{ height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.42), transparent)', margin: '7px 0' }} />
+        <div style={{ height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.42), transparent)', margin: '7px 0' }} />
 
         {/* Style tag + session count */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 6 }}>
@@ -804,6 +853,52 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
 }
 
 // ===================== BOTTOM NAV =====================
+// ===================== THEME TOGGLE =====================
+function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+  return (
+    <div
+      className="inka-theme-toggle"
+      onClick={onToggle}
+      role="button"
+      aria-label="Переключить тему"
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: '50%',
+        border: '1px solid rgba(var(--gold-rgb),0.25)',
+        background: 'rgba(var(--gold-rgb),0.03)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+      }}
+    >
+      {theme === 'dark' ? (
+        // Sun → switch to light
+        <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="3.4" stroke="currentColor" strokeWidth="1.3" />
+          <path
+            d="M9 1.5V3M9 15V16.5M1.5 9H3M15 9H16.5M3.7 3.7L4.8 4.8M13.2 13.2L14.3 14.3M3.7 14.3L4.8 13.2M13.2 4.8L14.3 3.7"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+          />
+        </svg>
+      ) : (
+        // Moon → switch to dark
+        <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+          <path
+            d="M14.5 10.6A6 6 0 1 1 7.4 3.5a4.7 4.7 0 0 0 7.1 7.1Z"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </div>
+  );
+}
+
 function BottomNav() {
   return (
     <div
@@ -813,10 +908,10 @@ function BottomNav() {
         left: 0,
         right: 0,
         height: 'calc(84px + env(safe-area-inset-bottom))',
-        background: 'linear-gradient(to top, rgba(13,11,8,0.97) 75%, transparent)',
+        background: 'linear-gradient(to top, rgba(var(--bg-rgb),0.97) 75%, transparent)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
-        borderTop: '1px solid rgba(200,148,58,0.07)',
+        borderTop: '1px solid rgba(var(--gold-rgb),0.07)',
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
@@ -826,24 +921,24 @@ function BottomNav() {
     >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke={COLORS.gold} strokeWidth="1.3" strokeLinejoin="round" fill="rgba(200,148,58,0.07)" />
+          <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="currentColor" fillOpacity="0.07" />
         </svg>
         <span style={{ fontSize: '8.5px', color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: 0.28 }}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <rect x="2.5" y="12" width="3.5" height="5.5" rx="0.5" stroke={COLORS.textPrimary} strokeWidth="1.2" />
-          <rect x="8.3" y="8" width="3.5" height="9.5" rx="0.5" stroke={COLORS.textPrimary} strokeWidth="1.2" />
-          <rect x="14" y="4" width="3.5" height="13.5" rx="0.5" stroke={COLORS.textPrimary} strokeWidth="1.2" />
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--text)' }}>
+          <rect x="2.5" y="12" width="3.5" height="5.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="8.3" y="8" width="3.5" height="9.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="14" y="4" width="3.5" height="13.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
         </svg>
         <span style={{ fontSize: '8.5px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: 0.28 }}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <circle cx="10" cy="10" r="2.8" stroke={COLORS.textPrimary} strokeWidth="1.2" />
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--text)' }}>
+          <circle cx="10" cy="10" r="2.8" stroke="currentColor" strokeWidth="1.2" />
           <path
             d="M10 2.5L10 4.5M10 15.5L10 17.5M2.5 10L4.5 10M15.5 10L17.5 10M5.05 5.05L6.46 6.46M13.54 13.54L14.95 14.95M5.05 14.95L6.46 13.54M13.54 6.46L14.95 5.05"
-            stroke={COLORS.textPrimary}
+            stroke="currentColor"
             strokeWidth="1.1"
             strokeLinecap="round"
           />
@@ -881,7 +976,7 @@ function DetailScreen({
     fontSize: 11,
     letterSpacing: '1.5px',
     textTransform: 'uppercase',
-    color: activeTab === tab ? COLORS.gold : '#2E2B28',
+    color: activeTab === tab ? COLORS.gold : 'var(--ink-faint)',
     borderBottom: activeTab === tab ? `1px solid ${COLORS.gold}` : '1px solid transparent',
     cursor: 'pointer',
     transition: 'color 0.25s',
@@ -894,7 +989,7 @@ function DetailScreen({
         style={{
           position: 'relative',
           overflow: 'hidden',
-          background: 'linear-gradient(160deg, #131008 0%, #0D0B08 60%)',
+          background: 'var(--hero-grad)',
           flexShrink: 0,
           paddingTop: 'env(safe-area-inset-top)',
         }}
@@ -918,7 +1013,7 @@ function DetailScreen({
         <div style={{ height: 56, padding: '18px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10 }}>
           <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M11 4L6 9L11 14" stroke={COLORS.gold} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span style={{ fontSize: 13, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
@@ -952,7 +1047,7 @@ function DetailScreen({
           {/* Style + session count */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13 }}>
             <div style={{ width: 22, height: 2, background: client.color, borderRadius: 1, flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: '#8A7E72', letterSpacing: '2.5px', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-soft)', letterSpacing: '2.5px', textTransform: 'uppercase' }}>
               {client.style || 'Без стиля'}
             </span>
             <span style={{ fontSize: 11, color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
@@ -964,7 +1059,7 @@ function DetailScreen({
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(200,148,58,0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
         <div onClick={() => onTab('info')} style={tabStyle('info')}>
           Инфо
         </div>
@@ -992,8 +1087,8 @@ function DetailScreen({
 function InfoTab({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
   const note = client.note || '';
   const metaCell = (span = false): React.CSSProperties => ({
-    background: 'rgba(255,255,255,0.018)',
-    border: '1px solid rgba(200,148,58,0.1)',
+    background: 'rgba(var(--surface-rgb),0.018)',
+    border: '1px solid rgba(var(--gold-rgb),0.1)',
     borderRadius: 2,
     padding: 13,
     gridColumn: span ? 'span 2' : undefined,
@@ -1022,7 +1117,7 @@ function InfoTab({ client, onSave }: { client: Client; onSave: (client: Client) 
                 fontFamily: "'Cinzel Decorative', serif",
                 fontSize: 50,
                 lineHeight: 0.81,
-                color: 'rgba(200,148,58,0.42)',
+                color: 'rgba(var(--gold-rgb),0.42)',
                 float: 'left',
                 marginRight: 7,
                 paddingBottom: 2,
@@ -1031,7 +1126,7 @@ function InfoTab({ client, onSave }: { client: Client; onSave: (client: Client) 
             >
               {note.charAt(0)}
             </span>
-            <span style={{ fontSize: 14, color: '#8A7E72', lineHeight: 1.75, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
+            <span style={{ fontSize: 14, color: 'var(--text-soft)', lineHeight: 1.75, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
               {note.slice(1)}
             </span>
           </div>
@@ -1042,11 +1137,11 @@ function InfoTab({ client, onSave }: { client: Client; onSave: (client: Client) 
 
       {/* Ornamental divider */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, clear: 'both' }}>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.28), transparent)' }} />
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.28), transparent)' }} />
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="rgba(200,148,58,0.28)" />
+          <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="currentColor" fillOpacity="0.28" />
         </svg>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.28), transparent)' }} />
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.28), transparent)' }} />
       </div>
 
       {/* Meta grid */}
@@ -1089,11 +1184,11 @@ function MetaValue({ children }: { children: React.ReactNode }) {
 function SectionDivider() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, clear: 'both' }}>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.28), transparent)' }} />
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.28), transparent)' }} />
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-        <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="rgba(200,148,58,0.28)" />
+        <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="currentColor" fillOpacity="0.28" />
       </svg>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.28), transparent)' }} />
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.28), transparent)' }} />
     </div>
   );
 }
@@ -1146,8 +1241,8 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
           onChange={(e) => saveType(e.target.value)}
           style={{
             width: '100%',
-            background: 'rgba(255,255,255,0.018)',
-            border: '1px solid rgba(200,148,58,0.1)',
+            background: 'rgba(var(--surface-rgb),0.018)',
+            border: '1px solid rgba(var(--gold-rgb),0.1)',
             borderRadius: 2,
             padding: '11px 13px',
             fontFamily: "'Cormorant Garamond', serif",
@@ -1175,8 +1270,8 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
           placeholder="Аллергии, чувствительные зоны, реакции..."
           style={{
             width: '100%',
-            background: 'rgba(255,255,255,0.018)',
-            border: '1px solid rgba(200,148,58,0.1)',
+            background: 'rgba(var(--surface-rgb),0.018)',
+            border: '1px solid rgba(var(--gold-rgb),0.1)',
             borderRadius: 2,
             padding: '11px 13px',
             fontFamily: "'Cormorant Garamond', serif",
@@ -1218,11 +1313,11 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
     <div style={{ marginTop: 22 }}>
       {/* Ornamental divider */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, clear: 'both' }}>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.28), transparent)' }} />
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.28), transparent)' }} />
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="rgba(200,148,58,0.28)" />
+          <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="currentColor" fillOpacity="0.28" />
         </svg>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.28), transparent)' }} />
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.28), transparent)' }} />
       </div>
 
       <div
@@ -1241,8 +1336,8 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
       {/* Phone row */}
       <div
         style={{
-          background: 'rgba(255,255,255,0.018)',
-          border: '1px solid rgba(200,148,58,0.1)',
+          background: 'rgba(var(--surface-rgb),0.018)',
+          border: '1px solid rgba(var(--gold-rgb),0.1)',
           borderRadius: 2,
           padding: '11px 13px',
           display: 'flex',
@@ -1254,9 +1349,9 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
           <path
             d="M3 3.5C3 3 3.4 2.5 4 2.5H5.5C5.9 2.5 6.3 2.8 6.4 3.2L7 5.4C7.1 5.8 7 6.2 6.7 6.4L5.7 7.2C6.4 8.7 7.3 9.6 8.8 10.3L9.6 9.3C9.8 9 10.2 8.9 10.6 9L12.8 9.6C13.2 9.7 13.5 10.1 13.5 10.5V12C13.5 12.6 13 13 12.5 13C7.3 13 3 8.7 3 3.5Z"
-            stroke={COLORS.gold}
+            stroke="currentColor"
             strokeWidth="1.2"
-            fill="rgba(200,148,58,0.06)"
+            fill="currentColor" fillOpacity="0.06"
             strokeLinejoin="round"
           />
         </svg>
@@ -1308,8 +1403,8 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
         <div
           key={link.id}
           style={{
-            background: 'rgba(255,255,255,0.018)',
-            border: '1px solid rgba(200,148,58,0.1)',
+            background: 'rgba(var(--surface-rgb),0.018)',
+            border: '1px solid rgba(var(--gold-rgb),0.1)',
             borderRadius: 2,
             padding: '11px 13px',
             display: 'flex',
@@ -1372,7 +1467,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
         onClick={() => setOpen(true)}
         style={{
           marginTop: 4,
-          border: '1px dashed rgba(200,148,58,0.18)',
+          border: '1px dashed rgba(var(--gold-rgb),0.18)',
           borderRadius: 2,
           padding: '10px 14px',
           display: 'flex',
@@ -1383,10 +1478,10 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
         }}
       >
         <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="rgba(200,148,58,0.48)" strokeWidth="1.2" strokeLinecap="round" />
-          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="rgba(200,148,58,0.48)" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: 11, color: 'rgba(200,148,58,0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+        <span style={{ fontSize: 11, color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
           Добавить ссылку
         </span>
       </div>
@@ -1396,7 +1491,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
   const selectStyle: React.CSSProperties = {
     width: '100%',
     background: COLORS.bg,
-    border: '1px solid rgba(200,148,58,0.18)',
+    border: '1px solid rgba(var(--gold-rgb),0.18)',
     borderRadius: 2,
     padding: '9px 12px',
     fontFamily: "'Cormorant Garamond', serif",
@@ -1409,10 +1504,10 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
     <div
       style={{
         marginTop: 4,
-        border: '1px solid rgba(200,148,58,0.18)',
+        border: '1px solid rgba(var(--gold-rgb),0.18)',
         borderRadius: 2,
         padding: 13,
-        background: 'rgba(255,255,255,0.018)',
+        background: 'rgba(var(--surface-rgb),0.018)',
       }}
     >
       <select value={platform} onChange={(e) => setPlatform(e.target.value as ChatPlatform)} style={selectStyle}>
@@ -1439,7 +1534,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             textAlign: 'center',
             padding: '9px',
             borderRadius: 2,
-            border: '1px solid rgba(200,148,58,0.15)',
+            border: '1px solid rgba(var(--gold-rgb),0.15)',
             color: COLORS.textFaint,
             fontSize: 11,
             letterSpacing: '1px',
@@ -1462,8 +1557,8 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             textAlign: 'center',
             padding: '9px',
             borderRadius: 2,
-            border: '1px solid rgba(200,148,58,0.35)',
-            background: 'rgba(200,148,58,0.05)',
+            border: '1px solid rgba(var(--gold-rgb),0.35)',
+            background: 'rgba(var(--gold-rgb),0.05)',
             color: COLORS.gold,
             fontSize: 11,
             letterSpacing: '1px',
@@ -1485,7 +1580,7 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
       <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: 9, paddingTop: 1 }}>
         {label}
       </span>
-      <span style={{ color: '#8A7E72', fontStyle: 'italic' }}>{value}</span>
+      <span style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>{value}</span>
     </div>
   );
 }
@@ -1522,22 +1617,22 @@ function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: (
                 flexShrink: 0,
                 marginTop: 4,
                 background: session.done ? client.color : 'transparent',
-                border: session.done ? 'none' : '1px solid rgba(200,148,58,0.25)',
+                border: session.done ? 'none' : '1px solid rgba(var(--gold-rgb),0.25)',
               }}
             />
-            <div style={{ width: 1, flex: 1, background: 'rgba(200,148,58,0.08)', marginTop: 5 }} />
+            <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
           </div>
           <div
             style={{
               flex: 1,
-              background: 'rgba(255,255,255,0.018)',
-              border: '1px solid rgba(200,148,58,0.1)',
+              background: 'rgba(var(--surface-rgb),0.018)',
+              border: '1px solid rgba(var(--gold-rgb),0.1)',
               borderRadius: 2,
               padding: '12px 14px',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-              <span style={{ fontSize: 13, color: '#D4C8B8', fontWeight: 500, letterSpacing: '0.3px' }}>{session.date}</span>
+              <span style={{ fontSize: 13, color: 'var(--text-strong)', fontWeight: 500, letterSpacing: '0.3px' }}>{session.date}</span>
               {session.duration && <span style={{ fontSize: 11, color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
             </div>
             {session.area && (
@@ -1545,13 +1640,13 @@ function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: (
                 {session.area}
               </div>
             )}
-            {session.note && <div style={{ fontSize: 12, color: '#4A4238', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+            {session.note && <div style={{ fontSize: 12, color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
             {(session.colors || session.needles || session.skinReaction) && (
               <div
                 style={{
                   marginTop: 9,
                   paddingTop: 9,
-                  borderTop: '1px solid rgba(200,148,58,0.08)',
+                  borderTop: '1px solid rgba(var(--gold-rgb),0.08)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 4,
@@ -1572,7 +1667,7 @@ function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: (
                     maxHeight: 180,
                     objectFit: 'cover',
                     borderRadius: 2,
-                    border: '1px solid rgba(200,148,58,0.15)',
+                    border: '1px solid rgba(var(--gold-rgb),0.15)',
                     display: 'block',
                   }}
                 />
@@ -1588,7 +1683,7 @@ function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: (
         onClick={onAddSession}
         style={{
           marginTop: 14,
-          border: '1px dashed rgba(200,148,58,0.18)',
+          border: '1px dashed rgba(var(--gold-rgb),0.18)',
           borderRadius: 2,
           padding: '10px 14px',
           display: 'flex',
@@ -1599,10 +1694,10 @@ function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: (
         }}
       >
         <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="rgba(200,148,58,0.48)" strokeWidth="1.2" strokeLinecap="round" />
-          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="rgba(200,148,58,0.48)" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: 11, color: 'rgba(200,148,58,0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+        <span style={{ fontSize: 11, color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
           Добавить сессию
         </span>
       </div>
@@ -1662,10 +1757,10 @@ function DocumentsTab({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
-                border: '1px solid rgba(200,148,58,0.12)',
+                border: '1px solid rgba(var(--gold-rgb),0.12)',
                 borderRadius: 2,
                 padding: '11px 14px',
-                background: 'rgba(255,255,255,0.018)',
+                background: 'rgba(var(--surface-rgb),0.018)',
               }}
             >
               <span style={{ fontSize: 11, color: COLORS.gold }}>{doc.kind === 'photo' ? '◈' : '▤'}</span>
@@ -1697,24 +1792,24 @@ function DocumentsTab({
           className="inka-doc-primary"
           onClick={() => docInput.current?.click()}
           style={{
-            border: '1px solid rgba(200,148,58,0.32)',
+            border: '1px solid rgba(var(--gold-rgb),0.32)',
             borderRadius: 2,
             padding: '13px 18px',
             cursor: 'pointer',
-            background: 'rgba(200,148,58,0.05)',
+            background: 'rgba(var(--gold-rgb),0.05)',
             display: 'flex',
             alignItems: 'center',
             gap: 12,
           }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="1" width="10" height="13" rx="1.5" stroke={COLORS.gold} strokeWidth="1.2" />
-            <line x1="5" y1="5.5" x2="9" y2="5.5" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
-            <line x1="5" y1="8" x2="9" y2="8" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
-            <line x1="5" y1="10.5" x2="7" y2="10.5" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
-            <circle cx="13" cy="13" r="3" fill={COLORS.sheet} stroke={COLORS.gold} strokeWidth="1" />
-            <line x1="13" y1="11.5" x2="13" y2="14.5" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
-            <line x1="11.5" y1="13" x2="14.5" y2="13" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
+            <rect x="2" y="1" width="10" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <line x1="5" y1="5.5" x2="9" y2="5.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            <line x1="5" y1="8" x2="9" y2="8" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            <line x1="5" y1="10.5" x2="7" y2="10.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            <circle cx="13" cy="13" r="3" style={{ fill: 'var(--sheet)' }} stroke="currentColor" strokeWidth="1" />
+            <line x1="13" y1="11.5" x2="13" y2="14.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            <line x1="11.5" y1="13" x2="14.5" y2="13" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
           </svg>
           <span style={{ fontSize: 13, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Добавить документ</span>
         </div>
@@ -1724,7 +1819,7 @@ function DocumentsTab({
           className="inka-doc-secondary"
           onClick={() => photoInput.current?.click()}
           style={{
-            border: '1px solid rgba(200,148,58,0.18)',
+            border: '1px solid rgba(var(--gold-rgb),0.18)',
             borderRadius: 2,
             padding: '13px 18px',
             cursor: 'pointer',
@@ -1733,10 +1828,10 @@ function DocumentsTab({
             gap: 12,
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke={COLORS.textFaint} strokeWidth="1.2" />
-            <rect x="5.5" y="5.5" width="5" height="4" rx="0.5" stroke={COLORS.textFaint} strokeWidth="1" />
-            <line x1="5.5" y1="11" x2="10.5" y2="11" stroke={COLORS.textFaint} strokeWidth="1" strokeLinecap="round" />
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ color: 'var(--text-faint)' }}>
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2" />
+            <rect x="5.5" y="5.5" width="5" height="4" rx="0.5" stroke="currentColor" strokeWidth="1" />
+            <line x1="5.5" y1="11" x2="10.5" y2="11" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
           </svg>
           <span style={{ fontSize: 13, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
             Добавить фото
@@ -1787,7 +1882,7 @@ function BottomSheet({
         height: `${heightPct}%`,
         background: COLORS.sheet,
         borderRadius: '20px 20px 0 0',
-        border: '1px solid rgba(200,148,58,0.18)',
+        border: '1px solid rgba(var(--gold-rgb),0.18)',
         borderBottom: 'none',
         zIndex: 15,
         overflowY: 'auto',
@@ -1795,7 +1890,7 @@ function BottomSheet({
         transition: 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
       }}
     >
-      <div style={{ width: 36, height: 3, background: 'rgba(200,148,58,0.2)', borderRadius: 2, margin: '14px auto 0' }} />
+      <div style={{ width: 36, height: 3, background: 'rgba(var(--gold-rgb),0.2)', borderRadius: 2, margin: '14px auto 0' }} />
       {children}
     </div>
   );
@@ -1805,8 +1900,8 @@ function SheetCloseButton({ onClose }: { onClose: () => void }) {
   return (
     <div className="inka-close" onClick={onClose} style={{ position: 'absolute', top: 18, right: 24, cursor: 'pointer', opacity: 0.4 }}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <line x1="3" y1="3" x2="13" y2="13" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="13" y1="3" x2="3" y2="13" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     </div>
   );
@@ -2017,9 +2112,9 @@ function NewSessionSheet({
     padding: big ? '7px 13px' : '6px 11px',
     borderRadius: 2,
     cursor: 'pointer',
-    border: selected ? '1px solid rgba(200,148,58,0.65)' : '1px solid rgba(200,148,58,0.15)',
+    border: selected ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
     color: selected ? COLORS.gold : COLORS.textFaint,
-    background: selected ? 'rgba(200,148,58,0.08)' : 'transparent',
+    background: selected ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
     letterSpacing: big ? undefined : '0.8px',
     textTransform: big ? undefined : 'uppercase',
     whiteSpace: 'nowrap',
@@ -2108,7 +2203,7 @@ function NewSessionSheet({
                 autoPlay
                 playsInline
                 muted
-                style={{ width: '100%', maxHeight: 200, borderRadius: 2, border: '1px solid rgba(200,148,58,0.18)', background: '#000' }}
+                style={{ width: '100%', maxHeight: 200, borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.18)', background: '#000' }}
               />
               <div style={{ display: 'flex', gap: 8 }}>
                 <div className="inka-submit" onClick={capturePhoto} style={{ ...SUBMIT_STYLE, flex: 1, padding: 11 }}>
@@ -2121,7 +2216,7 @@ function NewSessionSheet({
                     textAlign: 'center',
                     padding: 11,
                     borderRadius: 2,
-                    border: '1px solid rgba(200,148,58,0.15)',
+                    border: '1px solid rgba(var(--gold-rgb),0.15)',
                     color: COLORS.textFaint,
                     fontSize: 10,
                     letterSpacing: '1.5px',
@@ -2138,7 +2233,7 @@ function NewSessionSheet({
               <img
                 src={photoUrl}
                 alt=""
-                style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, border: '1px solid rgba(200,148,58,0.18)', display: 'block' }}
+                style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.18)', display: 'block' }}
               />
               <div
                 onClick={() => setPhotoUrl('')}
@@ -2149,8 +2244,8 @@ function NewSessionSheet({
                   width: 26,
                   height: 26,
                   borderRadius: '50%',
-                  background: 'rgba(13,11,8,0.85)',
-                  border: '1px solid rgba(200,148,58,0.4)',
+                  background: 'rgba(var(--bg-rgb),0.85)',
+                  border: '1px solid rgba(var(--gold-rgb),0.4)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -2158,8 +2253,8 @@ function NewSessionSheet({
                 }}
               >
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                  <line x1="3" y1="3" x2="13" y2="13" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="13" y1="3" x2="3" y2="13" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" />
+                  <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               </div>
             </div>
@@ -2170,7 +2265,7 @@ function NewSessionSheet({
                 onClick={startCamera}
                 style={{
                   flex: 1,
-                  border: '1px solid rgba(200,148,58,0.18)',
+                  border: '1px solid rgba(var(--gold-rgb),0.18)',
                   borderRadius: 2,
                   padding: '12px',
                   display: 'flex',
@@ -2181,9 +2276,9 @@ function NewSessionSheet({
                 }}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <rect x="1.5" y="4.5" width="13" height="9" rx="1.5" stroke={COLORS.gold} strokeWidth="1.2" />
-                  <circle cx="8" cy="9" r="2.5" stroke={COLORS.gold} strokeWidth="1.2" />
-                  <path d="M5.5 4.5L6.3 3H9.7L10.5 4.5" stroke={COLORS.gold} strokeWidth="1.2" strokeLinejoin="round" />
+                  <rect x="1.5" y="4.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+                  <circle cx="8" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.2" />
+                  <path d="M5.5 4.5L6.3 3H9.7L10.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
                 </svg>
                 <span style={{ fontSize: 12, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Камера</span>
               </div>
@@ -2192,7 +2287,7 @@ function NewSessionSheet({
                 onClick={() => photoInputRef.current?.click()}
                 style={{
                   flex: 1,
-                  border: '1px solid rgba(200,148,58,0.18)',
+                  border: '1px solid rgba(var(--gold-rgb),0.18)',
                   borderRadius: 2,
                   padding: '12px',
                   display: 'flex',
@@ -2203,8 +2298,8 @@ function NewSessionSheet({
                 }}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke={COLORS.gold} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke={COLORS.gold} strokeWidth="1.2" strokeLinecap="round" />
+                  <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
                 </svg>
                 <span style={{ fontSize: 12, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Загрузить</span>
               </div>

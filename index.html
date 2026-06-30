@@ -8,6 +8,19 @@
     <meta name="theme-color" content="#0D0B08" />
     <meta name="description" content="INKA — Дневник Мастера: клиенты, сессии и документы татуировщика" />
     <link rel="manifest" href="/manifest.json" />
+    <script>
+      // Apply the saved theme before first paint to avoid a flash of the wrong palette.
+      try {
+        var t = localStorage.getItem('inka-theme');
+        if (t !== 'light' && t !== 'dark') t = 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+        if (t === 'light') {
+          document.documentElement.style.background = '#F4EEE1';
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', '#F4EEE1');
+        }
+      } catch (e) {}
+    </script>
     <!-- iOS: makes "Add to Home Screen" open without Safari's browser chrome -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
