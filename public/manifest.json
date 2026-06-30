@@ -1,11 +1,11 @@
 {
-  "name": "INKA - Tattoo Master's Diary",
+  "name": "INKA — Дневник Мастера",
   "short_name": "INKA",
-  "description": "Interactive client and session management diary for tattoo artists",
+  "description": "Дневник татуировщика: клиенты, сессии и документы",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#111010",
-  "theme_color": "#FAD5A5",
+  "background_color": "#0D0B08",
+  "theme_color": "#0D0B08",
   "orientation": "portrait-primary",
   "icons": [
     {
