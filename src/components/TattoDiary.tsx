@@ -1,86 +1,94 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronRight, Plus, Search, Upload, Camera, X, Eye, MessageCircle, ExternalLink, Sun, Moon } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
-import { getRandomMask, getRandomVitrage, getRandomCastle, getTexturePath } from '../constants/assets';
 
-// ===================== DATA TYPES =====================
-interface TattooSession {
-  id: string;
-  clientId: string;
-  date: string;
-  photoUrl?: string;
-  colors: string[];
-  proportions: string;
-  needles: string;
-  duration: string;
-  notes: string;
-  skinReaction?: string;
-}
-
-interface Document {
-  id: string;
-  clientId: string;
-  type: 'contract' | 'healthForm' | 'receipt' | 'other';
-  name: string;
-  fileUrl?: string;
-  uploadedDate: string;
-}
-
-type ChatPlatform = 'whatsapp' | 'telegram' | 'messenger' | 'instagram' | 'tiktok' | 'other';
-
-interface ChatLink {
-  id: string;
-  platform: ChatPlatform;
-  url: string;
-}
-
-const PLATFORM_LABELS: Record<ChatPlatform, string> = {
-  whatsapp: 'WhatsApp',
-  telegram: 'Telegram',
-  messenger: 'Messenger',
-  instagram: 'Instagram',
-  tiktok: 'TikTok',
-  other: 'Other',
+// ===================== DESIGN TOKENS =====================
+const COLORS = {
+  bg: '#0D0B08',
+  card: 'linear-gradient(148deg, #191510, #0D0B09)',
+  sheet: '#0F0D0A',
+  gold: '#C8943A',
+  textPrimary: '#EDE4CC',
+  textSecondary: '#9A8E7A',
+  textMuted: '#6A6056',
+  textFaint: '#5A5248',
+  textGhost: '#3E3830',
+  textTrace: '#2A2825',
 };
 
-function buildChatLink(platform: ChatPlatform, raw: string): string {
-  const trimmed = raw.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (platform === 'whatsapp') {
-    const digits = trimmed.replace(/[^\d]/g, '');
-    return digits ? `https://wa.me/${digits}` : trimmed;
-  }
-  if (platform === 'telegram') {
-    const handle = trimmed.replace(/^@/, '');
-    return handle ? `https://t.me/${handle}` : trimmed;
-  }
-  if (platform === 'instagram') {
-    const handle = trimmed.replace(/^@/, '');
-    return handle ? `https://ig.me/m/${handle}` : trimmed;
-  }
-  if (platform === 'messenger') {
-    const handle = trimmed.replace(/^@/, '');
-    return handle ? `https://m.me/${handle}` : trimmed;
-  }
-  return trimmed;
+// Per-client accent colours, assigned on creation (rotated through the list).
+const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#7A6A3A', '#3A6A7A'];
+
+const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч'];
+const STYLES = ['Реализм', 'Графика', 'Орнамент', 'Японский', 'Акварель', 'Другой'];
+
+// ===================== DATA TYPES =====================
+interface Session {
+  id: string;
+  date: string; // free text, e.g. "15 фев 2025"
+  duration: string; // e.g. "4 ч"
+  style: string; // work style for this session
+  area: string; // work zone, e.g. "Левое плечо"
+  note: string;
+  done: boolean;
+}
+
+interface ClientDocument {
+  id: string;
+  name: string;
+  fileUrl: string;
+  kind: 'document' | 'photo';
+  uploadedDate: string;
 }
 
 interface Client {
   id: string;
-  name: string;
-  phone: string;
-  skinType: string;
-  skinNotes: string;
-  chatHistory: string;
-  chatLinks: ChatLink[];
-  sessions: TattooSession[];
-  documents: Document[];
+  name: string; // first name, e.g. "Александра"
+  surname: string;
+  style: string; // current style (mirrors the latest session's style)
+  color: string; // accent hex
+  note: string; // master's notes
+  sessions: Session[];
+  documents: ClientDocument[];
   createdDate: string;
 }
 
+// ===================== DERIVED HELPERS =====================
+const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
+const nameRest = (name: string) => (name ? name.slice(1) : '');
+const lastSessionDate = (c: Client) => (c.sessions.length ? c.sessions[c.sessions.length - 1].date : '—');
+
+// Normalises a raw IndexedDB record (which may predate this schema) into a
+// complete Client so the UI never has to guard against missing fields.
+function normalizeClient(raw: any, index: number): Client {
+  const sessions: Session[] = Array.isArray(raw?.sessions)
+    ? raw.sessions.map((s: any, i: number) => ({
+        id: String(s?.id ?? `${Date.now()}-${i}`),
+        date: s?.date ?? '',
+        duration: s?.duration ?? '',
+        style: s?.style ?? '',
+        area: s?.area ?? s?.proportions ?? '',
+        note: s?.note ?? s?.notes ?? '',
+        done: s?.done ?? true,
+      }))
+    : [];
+
+  const latestStyle = sessions.length ? sessions[sessions.length - 1].style : '';
+
+  return {
+    id: String(raw?.id ?? Date.now() + index),
+    name: raw?.name ?? '',
+    surname: raw?.surname ?? '',
+    style: raw?.style ?? latestStyle ?? '',
+    color: raw?.color ?? ACCENT_COLORS[index % ACCENT_COLORS.length],
+    note: raw?.note ?? raw?.skinNotes ?? raw?.chatHistory ?? '',
+    sessions,
+    documents: Array.isArray(raw?.documents) ? raw.documents : [],
+    createdDate: raw?.createdDate ?? new Date().toISOString(),
+  };
+}
+
 // ===================== DATABASE =====================
-const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
+const initDB = (): Promise<IDBDatabase> =>
+  new Promise((resolve, reject) => {
     const request = indexedDB.open('TattoDiaryDB', 1);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
@@ -91,707 +99,1349 @@ const initDB = (): Promise<IDBDatabase> => {
       }
     };
   });
-};
 
-// ===================== INSPIRATIONAL QUOTES =====================
-const QUOTES = [
-  "Ink is the dust of thought, traced into skin.",
-  "Every needle tells a story.",
-  "The skin remembers what the mind forgets.",
-  "Art lives where the needle meets the soul.",
-  "Behind every tattoo, a universe.",
-  "Scars become art when guided by light.",
-  "The mask reveals what the face conceals.",
-  "In stillness, the needle speaks.",
-];
-
-function getDailyQuote(): string {
-  const day = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
-  return QUOTES[day % QUOTES.length];
+// ===================== SHARED SVG =====================
+function MaskSVG({ width, height, withSmile = false }: { width: number; height: number; withSmile?: boolean }) {
+  return (
+    <svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg" width={width} height={height}>
+      <path
+        d="M100,14 L128,20 L156,34 L170,54 L165,74 L152,86 L138,94 L122,98 L114,112 L100,120 L86,112 L78,98 L62,94 L48,86 L35,74 L30,54 L44,34 L72,20 Z"
+        stroke={COLORS.gold}
+        strokeWidth="4"
+        fill="none"
+        strokeLinejoin="round"
+      />
+      <path d="M56,56 Q70,44 84,56 Q70,68 56,56 Z" stroke={COLORS.gold} strokeWidth="3" fill={COLORS.gold} fillOpacity="0.4" />
+      <path d="M116,56 Q130,44 144,56 Q130,68 116,56 Z" stroke={COLORS.gold} strokeWidth="3" fill={COLORS.gold} fillOpacity="0.4" />
+      <line x1="100" y1="14" x2="100" y2="4" stroke={COLORS.gold} strokeWidth="3" strokeLinecap="round" />
+      <circle cx="100" cy="2" r="4" fill={COLORS.gold} />
+      <path d="M100,8 Q88,5 79,9" stroke={COLORS.gold} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <path d="M100,8 Q112,5 121,9" stroke={COLORS.gold} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      {withSmile && <path d="M88,112 Q100,122 112,112" stroke={COLORS.gold} strokeWidth="2" fill="none" />}
+    </svg>
+  );
 }
 
-// ===================== MAIN APP =====================
-export default function TattoDiary() {
-  const { theme, toggleTheme } = useTheme();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showNewClientForm, setShowNewClientForm] = useState(false);
-  const [showNewSessionForm, setShowNewSessionForm] = useState(false);
-  const [db, setDb] = useState<IDBDatabase | null>(null);
-  const [dbError, setDbError] = useState<string | null>(null);
-  const [view, setView] = useState<'list' | 'client'>('list');
-  const [celebration, setCelebration] = useState(false);
-
-  useEffect(() => {
-    initDB()
-      .then((database) => {
-        setDb(database as IDBDatabase);
-        loadClients(database as IDBDatabase);
-      })
-      .catch((err) => {
-        console.error('IndexedDB init failed:', err);
-        setDbError('Storage unavailable. If using Private Browsing, switch to a regular tab.');
-      });
-  }, []);
-
-  const loadClients = async (database: IDBDatabase) => {
-    const tx = database.transaction('clients', 'readonly');
-    const store = tx.objectStore('clients');
-    const request = store.getAll();
-    request.onsuccess = () => setClients(request.result);
-    request.onerror = () => setDbError('Failed to load clients.');
-  };
-
-  const saveClient = async (client: Client) => {
-    if (!db) {
-      setDbError('Storage unavailable — client not saved.');
-      return;
-    }
-    const tx = db.transaction('clients', 'readwrite');
-    const store = tx.objectStore('clients');
-    store.put(client);
-    tx.oncomplete = () => loadClients(db);
-    tx.onerror = () => setDbError('Failed to save client.');
-  };
-
-  const filteredClients = clients.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const totalSessions = clients.reduce((sum, c) => sum + c.sessions.length, 0);
-  const texturePath = getTexturePath(theme);
-
+function StarDivider({ marginTop = 11 }: { marginTop?: number }) {
   return (
-    <div className="w-full app-shell flex flex-col relative" style={{ fontFamily: 'Heebo, sans-serif' }}>
-      {/* Texture background */}
-      <div className="texture-bg" style={{ backgroundImage: `url(${texturePath})` }} />
-
-      {/* Header */}
-      <div
-        className="flex-shrink-0 relative z-10 p-4"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          {(selectedClient || showNewSessionForm) ? (
-            <button
-              onClick={() => {
-                if (showNewSessionForm) setShowNewSessionForm(false);
-                else { setSelectedClient(null); setView('list'); }
-              }}
-              className="tap-spring"
-              style={{ color: 'var(--color-accent)' }}
-            >
-              ←
-            </button>
-          ) : (
-            <div style={{ width: 24 }} />
-          )}
-
-          <div className="text-center">
-            <h1 className="text-xl tracking-[0.3em] font-light" style={{ color: 'var(--color-accent)' }}>
-              INKA
-            </h1>
-            <p className="text-[9px] tracking-[0.2em] uppercase" style={{ color: 'var(--color-text-muted)' }}>
-              Tattoo Master
-            </p>
-          </div>
-
-          <button onClick={toggleTheme} className="theme-toggle tap-spring">
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Error banner */}
-      {dbError && (
-        <div className="flex-shrink-0 text-xs p-3 flex items-start gap-2 relative z-10"
-          style={{ background: 'var(--color-error)', color: 'var(--color-text)' }}>
-          <span className="flex-1">{dbError}</span>
-          <button onClick={() => setDbError(null)} className="flex-shrink-0"><X className="w-4 h-4" /></button>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto relative z-10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-
-        {/* ========== CLIENT LIST VIEW ========== */}
-        {view === 'list' && !showNewSessionForm && (
-          <div className="p-4 space-y-4">
-
-            {/* Streak + Daily Inspiration */}
-            <div className="flex gap-3">
-              <div className="streak-widget flex-1 p-4 text-center">
-                <div className="text-2xl font-light" style={{ color: 'var(--color-accent)' }}>
-                  {totalSessions}
-                </div>
-                <div className="text-[10px] tracking-[0.15em] uppercase mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                  Sessions
-                </div>
-              </div>
-              <div className="streak-widget flex-[1.5] p-4 relative overflow-hidden">
-                <div className="text-[10px] tracking-[0.15em] uppercase mb-2" style={{ color: 'var(--color-accent)' }}>
-                  Daily Inspiration
-                </div>
-                <p className="text-xs italic font-light leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-                  {getDailyQuote()}
-                </p>
-              </div>
-            </div>
-
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Search clients, tattoos, notes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="input-venetian pl-10 pr-4 py-2 rounded"
-                style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}
-              />
-            </div>
-
-            {/* New Client Button */}
-            <button
-              onClick={() => setShowNewClientForm(true)}
-              className="w-full btn-venetian py-3 flex items-center justify-center gap-2 tap-spring"
-            >
-              <Plus className="w-4 h-4" /> New Client
-            </button>
-
-            {/* Client Cards */}
-            <div className="space-y-2">
-              {filteredClients.length === 0 ? (
-                <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
-                  {clients.length === 0 ? 'No clients yet.' : 'No match.'}
-                </div>
-              ) : (
-                filteredClients.map((client) => {
-                  const maskUrl = getRandomMask(theme, client.id);
-                  const vitrage = getRandomVitrage(theme, client.id + '_v');
-                  const shouldShowCastle = theme === 'dark' && (parseInt(client.id, 36) % 3 === 0);
-                  const castleUrl = shouldShowCastle ? getRandomCastle(theme, client.id + '_c') : '';
-
-                  return (
-                    <button
-                      key={client.id}
-                      onClick={() => { setSelectedClient(client); setView('client'); }}
-                      className="card-venetian w-full p-4 text-left tap-spring"
-                    >
-                      {/* Vitrage bg */}
-                      {vitrage.path && (
-                        <img src={vitrage.path} alt="" className="vitrage-bg" 
-                          style={{ width: 120, height: 120, top: -20, right: -20, objectFit: 'contain' }} />
-                      )}
-                      {/* Castle overlay */}
-                      {castleUrl && (
-                        <img src={castleUrl} alt="" className="castle-overlay" 
-                          style={{ width: 100, height: 100, bottom: -10, right: 10, objectFit: 'contain' }} />
-                      )}
-
-                      <div className="flex items-center gap-3 relative z-10">
-                        {/* Mask avatar */}
-                        <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0"
-                          style={{ border: '1px solid var(--color-accent)', background: 'var(--color-bg)' }}>
-                          {maskUrl && <img src={maskUrl} alt="" className="w-full h-full object-cover" />}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-light" style={{ color: 'var(--color-text)' }}>{client.name}</h3>
-                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                            {client.sessions.length} tattoo{client.sessions.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ========== CLIENT CARD VIEW ========== */}
-        {view === 'client' && selectedClient && !showNewSessionForm && (
-          <ClientCard
-            client={selectedClient}
-            theme={theme}
-            onSave={(updated) => { saveClient(updated); setSelectedClient(updated); }}
-            onNewSession={() => setShowNewSessionForm(true)}
-          />
-        )}
-
-        {/* ========== NEW SESSION FORM ========== */}
-        {showNewSessionForm && selectedClient && (
-          <NewSessionForm
-            onSave={(session) => {
-              const updated = { ...selectedClient, sessions: [...selectedClient.sessions, session] };
-              saveClient(updated);
-              setSelectedClient(updated);
-              setShowNewSessionForm(false);
-              setCelebration(true);
-              setTimeout(() => setCelebration(false), 2000);
-            }}
-            onCancel={() => setShowNewSessionForm(false)}
-            clientId={selectedClient.id}
-          />
-        )}
-      </div>
-
-      {/* Celebration overlay */}
-      {celebration && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-          <div className="celebration text-center p-8">
-            <div className="text-4xl mb-2">🎭</div>
-            <div className="text-lg font-light tracking-widest" style={{ color: 'var(--color-accent)' }}>
-              Session Saved
-            </div>
-            <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-              Another mark has been written.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Client Modal */}
-      {showNewClientForm && (
-        <NewClientForm
-          onSave={(client) => { saveClient(client); setShowNewClientForm(false); }}
-          onCancel={() => setShowNewClientForm(false)}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop }}>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.55), transparent)' }} />
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path
+          d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z"
+          stroke={COLORS.gold}
+          strokeWidth="0.8"
+          fill="rgba(200,148,58,0.18)"
+          strokeLinejoin="round"
         />
-      )}
+      </svg>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.55), transparent)' }} />
     </div>
   );
 }
 
-// ===================== CLIENT CARD =====================
-function ClientCard({
-  client,
-  theme,
-  onSave,
-  onNewSession,
-}: {
-  client: Client;
-  theme: string;
-  onSave: (c: Client) => void;
-  onNewSession: () => void;
-}) {
-  const [activeTab, setActiveTab] = useState<'about' | 'documents' | 'sessions'>('about');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editClient, setEditClient] = useState(client);
-  const maskUrl = getRandomMask(theme as 'light' | 'dark', client.id);
+function SheetStarDivider() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.5), transparent)' }} />
+      <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+        <path d="M4.5 0.5L5.2 3.5H8.5L5.9 5.2L6.6 8.5L4.5 6.8L2.4 8.5L3.1 5.2L0.5 3.5H3.8Z" fill="rgba(200,148,58,0.3)" />
+      </svg>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.5), transparent)' }} />
+    </div>
+  );
+}
 
-  useEffect(() => { setEditClient(client); }, [client]);
+// Form field label — 8.5px uppercase, wide tracking.
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: '8.5px',
+        color: COLORS.textGhost,
+        letterSpacing: '2.5px',
+        textTransform: 'uppercase',
+        marginBottom: 7,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+const INPUT_STYLE: React.CSSProperties = {
+  width: '100%',
+  background: 'rgba(255,255,255,0.03)',
+  border: '1px solid rgba(200,148,58,0.18)',
+  borderRadius: 2,
+  padding: '10px 14px',
+  fontFamily: "'Cormorant Garamond', serif",
+  color: COLORS.textPrimary,
+  outline: 'none',
+  letterSpacing: '0.3px',
+};
+
+const SUBMIT_STYLE: React.CSSProperties = {
+  border: '1px solid rgba(200,148,58,0.35)',
+  borderRadius: 2,
+  padding: 14,
+  textAlign: 'center',
+  cursor: 'pointer',
+  background: 'rgba(200,148,58,0.05)',
+};
+
+// ===================== MAIN APP =====================
+export default function TattoDiary() {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [db, setDb] = useState<IDBDatabase | null>(null);
+  const [dbError, setDbError] = useState<string | null>(null);
+
+  const [screen, setScreen] = useState<'list' | 'detail'>('list');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'documents'>('info');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [showNewSessionForm, setShowNewSessionForm] = useState(false);
+
+  useEffect(() => {
+    initDB()
+      .then((database) => {
+        setDb(database);
+        loadClients(database);
+      })
+      .catch((err) => {
+        console.error('IndexedDB init failed:', err);
+        setDbError('Хранилище недоступно. В режиме приватного просмотра переключитесь на обычную вкладку.');
+      });
+  }, []);
+
+  const loadClients = (database: IDBDatabase) => {
+    const tx = database.transaction('clients', 'readonly');
+    const request = tx.objectStore('clients').getAll();
+    request.onsuccess = () => setClients((request.result || []).map(normalizeClient));
+    request.onerror = () => setDbError('Не удалось загрузить клиентов.');
+  };
+
+  const saveClient = (client: Client) => {
+    if (!db) {
+      setDbError('Хранилище недоступно — изменения не сохранены.');
+      return;
+    }
+    const tx = db.transaction('clients', 'readwrite');
+    tx.objectStore('clients').put(client);
+    tx.oncomplete = () => loadClients(db);
+    tx.onerror = () => setDbError('Не удалось сохранить изменения.');
+  };
+
+  const selectedClient = clients.find((c) => c.id === selectedId) || null;
+
+  const filteredClients = clients.filter((c) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return `${c.name} ${c.surname} ${c.style}`.toLowerCase().includes(q);
+  });
+
+  const openClient = (client: Client) => {
+    setSelectedId(client.id);
+    setActiveTab('info');
+    setScreen('detail');
+  };
+
+  const goBack = () => setScreen('list');
+
+  const closeNewClient = () => setShowNewClientForm(false);
+  const closeNewSession = () => setShowNewSessionForm(false);
+  const closeBackdrop = () => {
+    setShowNewClientForm(false);
+    setShowNewSessionForm(false);
+  };
+
+  const handleCreateClient = (data: { name: string; surname: string; note: string }) => {
+    const client: Client = {
+      id: Date.now().toString(),
+      name: data.name.trim(),
+      surname: data.surname.trim(),
+      style: '',
+      color: ACCENT_COLORS[clients.length % ACCENT_COLORS.length],
+      note: data.note.trim(),
+      sessions: [],
+      documents: [],
+      createdDate: new Date().toISOString(),
+    };
+    saveClient(client);
+    setShowNewClientForm(false);
+  };
+
+  const handleAddSession = (data: { date: string; duration: string; style: string; area: string; note: string }) => {
+    if (!selectedClient) return;
+    const session: Session = {
+      id: Date.now().toString(),
+      date: data.date.trim() || new Date().toLocaleDateString('ru-RU'),
+      duration: data.duration,
+      style: data.style,
+      area: data.area.trim(),
+      note: data.note.trim(),
+      done: true,
+    };
+    const updated: Client = {
+      ...selectedClient,
+      style: data.style || selectedClient.style,
+      sessions: [...selectedClient.sessions, session],
+    };
+    saveClient(updated);
+    setShowNewSessionForm(false);
+  };
+
+  const sheetOpen = showNewClientForm || showNewSessionForm;
 
   return (
-    <div className="p-4">
-      {/* Client header */}
-      <div className="text-center mb-6 relative">
-        <div className="w-20 h-20 rounded-full mx-auto mb-3 overflow-hidden"
-          style={{ border: '2px solid var(--color-accent)', background: 'var(--color-bg-card)' }}>
-          {maskUrl && <img src={maskUrl} alt="" className="w-full h-full object-cover" />}
-        </div>
-        <h2 className="text-xl font-light" style={{ color: 'var(--color-text)' }}>{client.name}</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{client.phone}</p>
-        <hr className="divider-gold my-4" />
-
-        <button
-          onClick={() => {
-            if (isEditing) { onSave(editClient); setIsEditing(false); }
-            else setIsEditing(true);
+    <div
+      className="app-shell"
+      style={{
+        position: 'relative',
+        width: '100%',
+        maxWidth: 480,
+        margin: '0 auto',
+        overflow: 'hidden',
+        background: COLORS.bg,
+        fontFamily: "'Cormorant Garamond', serif",
+      }}
+    >
+      {/* ═══════════ LIST SCREEN ═══════════ */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: screen === 'list' ? 'translateX(0)' : 'translateX(-110%)',
+          transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          zIndex: 1,
+          background: COLORS.bg,
+        }}
+      >
+        {/* Dot-grid texture overlay */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: 'radial-gradient(circle, rgba(200,148,58,0.035) 1px, transparent 1px)',
+            backgroundSize: '22px 22px',
+            pointerEvents: 'none',
+            zIndex: 0,
           }}
-          className="absolute top-0 right-0 text-xs" style={{ color: 'var(--color-accent)' }}
-        >
-          {isEditing ? 'Done' : 'Edit'}
-        </button>
-      </div>
+        />
 
-      {/* Tabs */}
-      <div className="flex justify-center gap-2 mb-6">
-        {(['about', 'documents', 'sessions'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`tab-venetian ${activeTab === tab ? 'active' : ''}`}
+        {/* Safe-area / status spacer */}
+        <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)', flexShrink: 0 }} />
+
+        {/* App header */}
+        <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
+          <div
+            style={{
+              fontFamily: "'Cinzel Decorative', serif",
+              fontSize: 26,
+              color: COLORS.gold,
+              letterSpacing: '6px',
+              lineHeight: 1,
+              textTransform: 'uppercase',
+            }}
           >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab content */}
-      {activeTab === 'about' && (
-        <div className="space-y-6">
-          {isEditing && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Name</label>
-                <input value={editClient.name} onChange={(e) => setEditClient({ ...editClient, name: e.target.value })} className="input-venetian" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Phone</label>
-                <input value={editClient.phone} onChange={(e) => setEditClient({ ...editClient, phone: e.target.value })} className="input-venetian" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Skin Type</label>
-                <select value={editClient.skinType} onChange={(e) => setEditClient({ ...editClient, skinType: e.target.value })} className="input-venetian">
-                  <option value="">Select...</option>
-                  <option value="normal">Normal</option>
-                  <option value="sensitive">Sensitive</option>
-                  <option value="dry">Dry</option>
-                  <option value="oily">Oily</option>
-                  <option value="combination">Combination</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Skin Notes</label>
-                <textarea value={editClient.skinNotes} onChange={(e) => setEditClient({ ...editClient, skinNotes: e.target.value })} className="input-venetian resize-none h-20" />
-              </div>
-            </div>
-          )}
-
-          {/* Chat Links */}
-          <div>
-            <label className="text-[10px] uppercase tracking-widest block mb-2" style={{ color: 'var(--color-text-muted)' }}>Links</label>
-            <div className="space-y-2">
-              {(client.chatLinks || []).map((link) => (
-                <div key={link.id} className="card-venetian p-3 flex items-center gap-2">
-                  <a href={link.url} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center gap-2 min-w-0 text-sm tap-spring"
-                    style={{ color: 'var(--color-text)' }}>
-                    <MessageCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
-                    <span className="flex-shrink-0 text-xs">{PLATFORM_LABELS[link.platform]}</span>
-                    <span className="truncate text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-                      {link.url.replace(/^https?:\/\//, '')}
-                    </span>
-                    <ExternalLink className="w-3 h-3 flex-shrink-0 ml-auto" style={{ color: 'var(--color-text-muted)' }} />
-                  </a>
-                  <button onClick={() => {
-                    const updated = { ...client, chatLinks: (client.chatLinks || []).filter((l) => l.id !== link.id) };
-                    onSave(updated);
-                  }} style={{ color: 'var(--color-text-muted)' }}><X className="w-4 h-4" /></button>
-                </div>
-              ))}
-              <AddChatLinkForm onAdd={(platform, raw) => {
-                const newLink: ChatLink = { id: Date.now().toString(), platform, url: buildChatLink(platform, raw) };
-                onSave({ ...client, chatLinks: [...(client.chatLinks || []), newLink] });
-              }} />
-            </div>
+            INKA
           </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: COLORS.textGhost,
+              letterSpacing: '5px',
+              textTransform: 'uppercase',
+              marginTop: 3,
+              fontStyle: 'italic',
+            }}
+          >
+            Дневник Мастера
+          </div>
+          <StarDivider />
+        </div>
 
-          {/* Notes */}
-          <div>
-            <label className="text-[10px] uppercase tracking-widest block mb-2" style={{ color: 'var(--color-text-muted)' }}>Notes</label>
-            <textarea
-              value={client.chatHistory}
-              onChange={(e) => onSave({ ...client, chatHistory: e.target.value })}
-              placeholder="Add notes about the client..."
-              className="input-venetian resize-none h-24"
-              style={{ background: 'var(--color-bg-card)', borderRadius: 8, padding: 12, border: '1px solid var(--color-border)' }}
+        {/* Search bar */}
+        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 10 }}>
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.022)',
+              border: '1px solid rgba(200,148,58,0.11)',
+              borderRadius: 3,
+              padding: '8px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
+              <circle cx="5.5" cy="5.5" r="4" stroke="#2E2B28" strokeWidth="1.2" />
+              <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="#2E2B28" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Найти клиента..."
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                fontFamily: "'Cormorant Garamond', serif",
+                color: COLORS.textPrimary,
+                fontStyle: searchQuery ? 'normal' : 'italic',
+                letterSpacing: '0.3px',
+              }}
             />
           </div>
         </div>
+
+        {/* Error banner */}
+        {dbError && (
+          <div
+            style={{
+              margin: '0 16px 12px',
+              padding: '10px 14px',
+              borderRadius: 3,
+              border: '1px solid rgba(138,48,64,0.5)',
+              background: 'rgba(138,48,64,0.12)',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+              position: 'relative',
+              zIndex: 10,
+            }}
+          >
+            <span style={{ flex: 1, fontSize: 13, color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
+            <button
+              onClick={() => setDbError(null)}
+              style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Cards grid */}
+        <div
+          style={{
+            padding: '2px 16px 110px',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
+            position: 'relative',
+            zIndex: 5,
+          }}
+        >
+          {filteredClients.map((client) => (
+            <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} />
+          ))}
+
+          {/* Add new client tile */}
+          <div
+            className="inka-add-tile"
+            onClick={() => setShowNewClientForm(true)}
+            style={{
+              height: 210,
+              border: '1px dashed rgba(200,148,58,0.17)',
+              borderRadius: 3,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 11,
+              cursor: 'pointer',
+              background: 'rgba(200,148,58,0.008)',
+            }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                border: '1px solid rgba(200,148,58,0.22)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <line x1="7" y1="2" x2="7" y2="12" stroke="rgba(200,148,58,0.45)" strokeWidth="1.2" strokeLinecap="round" />
+                <line x1="2" y1="7" x2="12" y2="7" stroke="rgba(200,148,58,0.45)" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <span
+              style={{
+                fontSize: '9.5px',
+                color: 'rgba(200,148,58,0.32)',
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+              }}
+            >
+              Новый
+            </span>
+          </div>
+        </div>
+
+        {/* Empty state */}
+        {clients.length > 0 && filteredClients.length === 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 280,
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              fontSize: 14,
+              fontStyle: 'italic',
+              color: COLORS.textGhost,
+              pointerEvents: 'none',
+            }}
+          >
+            Ничего не найдено
+          </div>
+        )}
+
+        {/* Bottom navigation */}
+        <BottomNav />
+      </div>
+
+      {/* ═══════════ DETAIL SCREEN ═══════════ */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: screen === 'detail' ? 'translateX(0)' : 'translateX(110%)',
+          transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          overflow: 'hidden',
+          zIndex: 2,
+          background: COLORS.bg,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {selectedClient && (
+          <DetailScreen
+            client={selectedClient}
+            activeTab={activeTab}
+            onTab={setActiveTab}
+            onBack={goBack}
+            onAddSession={() => setShowNewSessionForm(true)}
+            onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
+            onRemoveDocument={(docId) =>
+              saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
+            }
+          />
+        )}
+      </div>
+
+      {/* ═══════════ BACKDROP ═══════════ */}
+      <div
+        onClick={closeBackdrop}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0,0,0,0.65)',
+          zIndex: 14,
+          opacity: sheetOpen ? 1 : 0,
+          pointerEvents: sheetOpen ? 'auto' : 'none',
+          transition: 'opacity 0.3s',
+        }}
+      />
+
+      {/* ═══════════ NEW CLIENT SHEET ═══════════ */}
+      <NewClientSheet open={showNewClientForm} onClose={closeNewClient} onCreate={handleCreateClient} />
+
+      {/* ═══════════ NEW SESSION SHEET ═══════════ */}
+      <NewSessionSheet
+        open={showNewSessionForm}
+        clientName={selectedClient?.name || ''}
+        onClose={closeNewSession}
+        onAdd={handleAddSession}
+      />
+    </div>
+  );
+}
+
+// ===================== CLIENT GRID CARD =====================
+function ClientGridCard({ client, onClick }: { client: Client; onClick: () => void }) {
+  return (
+    <div
+      className="inka-card"
+      onClick={onClick}
+      style={{
+        position: 'relative',
+        background: COLORS.card,
+        border: '1px solid rgba(200,148,58,0.2)',
+        borderRadius: 3,
+        height: 210,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Top accent stripe */}
+      <div style={{ height: 2, background: client.color, flexShrink: 0 }} />
+
+      {/* Corner triangle accent */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: 0,
+          height: 0,
+          borderStyle: 'solid',
+          borderWidth: '0 26px 26px 0',
+          borderColor: 'transparent rgba(200,148,58,0.13) transparent transparent',
+          zIndex: 1,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Mask watermark */}
+      <div
+        style={{
+          position: 'absolute',
+          right: -10,
+          bottom: -8,
+          opacity: 0.042,
+          color: COLORS.gold,
+          pointerEvents: 'none',
+          animation: 'goldGlow 5s ease-in-out infinite',
+        }}
+      >
+        <MaskSVG width={88} height={62} />
+      </div>
+
+      {/* Content */}
+      <div
+        style={{
+          padding: '10px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          height: 'calc(100% - 2px)',
+          position: 'relative',
+          zIndex: 2,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, flex: 1, minHeight: 0 }}>
+          <span
+            style={{
+              fontFamily: "'Cinzel Decorative', serif",
+              fontSize: 52,
+              lineHeight: 0.79,
+              color: COLORS.gold,
+              letterSpacing: '-2px',
+              flexShrink: 0,
+              marginTop: -1,
+            }}
+          >
+            {firstLetter(client.name)}
+          </span>
+          <div style={{ paddingTop: 7, minWidth: 0, overflow: 'hidden' }}>
+            <div
+              style={{
+                fontSize: 13,
+                color: COLORS.textPrimary,
+                lineHeight: 1.2,
+                letterSpacing: '0.3px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {nameRest(client.name)}
+            </div>
+            <div
+              style={{
+                fontSize: 10,
+                color: '#5E5448',
+                fontStyle: 'italic',
+                marginTop: 2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {client.surname}
+            </div>
+          </div>
+        </div>
+
+        {/* Gold divider */}
+        <div style={{ height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.42), transparent)', margin: '7px 0' }} />
+
+        {/* Style tag + session count */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 6 }}>
+          {client.style ? (
+            <span
+              style={{
+                fontSize: 9,
+                color: client.color,
+                border: `0.5px solid ${client.color}`,
+                padding: '2px 7px',
+                borderRadius: 1,
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {client.style}
+            </span>
+          ) : (
+            <span style={{ fontSize: 9, color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.5px' }}>—</span>
+          )}
+          <span style={{ fontSize: 10, color: COLORS.textGhost, flexShrink: 0 }}>{client.sessions.length} сес.</span>
+        </div>
+
+        {/* Date */}
+        <div style={{ fontSize: 9, color: COLORS.textTrace, letterSpacing: '0.4px' }}>{lastSessionDate(client)}</div>
+      </div>
+    </div>
+  );
+}
+
+// ===================== BOTTOM NAV =====================
+function BottomNav() {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 'calc(84px + env(safe-area-inset-bottom))',
+        background: 'linear-gradient(to top, rgba(13,11,8,0.97) 75%, transparent)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        borderTop: '1px solid rgba(200,148,58,0.07)',
+        display: 'flex',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
+        zIndex: 50,
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke={COLORS.gold} strokeWidth="1.3" strokeLinejoin="round" fill="rgba(200,148,58,0.07)" />
+        </svg>
+        <span style={{ fontSize: '8.5px', color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: 0.28 }}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <rect x="2.5" y="12" width="3.5" height="5.5" rx="0.5" stroke={COLORS.textPrimary} strokeWidth="1.2" />
+          <rect x="8.3" y="8" width="3.5" height="9.5" rx="0.5" stroke={COLORS.textPrimary} strokeWidth="1.2" />
+          <rect x="14" y="4" width="3.5" height="13.5" rx="0.5" stroke={COLORS.textPrimary} strokeWidth="1.2" />
+        </svg>
+        <span style={{ fontSize: '8.5px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: 0.28 }}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="2.8" stroke={COLORS.textPrimary} strokeWidth="1.2" />
+          <path
+            d="M10 2.5L10 4.5M10 15.5L10 17.5M2.5 10L4.5 10M15.5 10L17.5 10M5.05 5.05L6.46 6.46M13.54 13.54L14.95 14.95M5.05 14.95L6.46 13.54M13.54 6.46L14.95 5.05"
+            stroke={COLORS.textPrimary}
+            strokeWidth="1.1"
+            strokeLinecap="round"
+          />
+        </svg>
+        <span style={{ fontSize: '8.5px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Настройки</span>
+      </div>
+    </div>
+  );
+}
+
+// ===================== DETAIL SCREEN =====================
+function DetailScreen({
+  client,
+  activeTab,
+  onTab,
+  onBack,
+  onAddSession,
+  onAddDocument,
+  onRemoveDocument,
+}: {
+  client: Client;
+  activeTab: 'info' | 'sessions' | 'documents';
+  onTab: (t: 'info' | 'sessions' | 'documents') => void;
+  onBack: () => void;
+  onAddSession: () => void;
+  onAddDocument: (doc: ClientDocument) => void;
+  onRemoveDocument: (docId: string) => void;
+}) {
+  const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
+    flex: 1,
+    textAlign: 'center',
+    padding: '11px 0',
+    fontSize: 11,
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    color: activeTab === tab ? COLORS.gold : '#2E2B28',
+    borderBottom: activeTab === tab ? `1px solid ${COLORS.gold}` : '1px solid transparent',
+    cursor: 'pointer',
+    transition: 'color 0.25s',
+  });
+
+  return (
+    <>
+      {/* Hero header */}
+      <div
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          background: 'linear-gradient(160deg, #131008 0%, #0D0B08 60%)',
+          flexShrink: 0,
+          paddingTop: 'env(safe-area-inset-top)',
+        }}
+      >
+        {/* Large mask decoration */}
+        <div
+          style={{
+            position: 'absolute',
+            right: -28,
+            top: 18,
+            opacity: 0.068,
+            color: COLORS.gold,
+            pointerEvents: 'none',
+            animation: 'goldGlow 4s ease-in-out infinite',
+          }}
+        >
+          <MaskSVG width={220} height={155} withSmile />
+        </div>
+
+        {/* Status bar with back */}
+        <div style={{ height: 56, padding: '18px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10 }}>
+          <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M11 4L6 9L11 14" stroke={COLORS.gold} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span style={{ fontSize: 13, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+          </div>
+        </div>
+
+        {/* Giant drop cap hero */}
+        <div style={{ padding: '12px 24px 18px', position: 'relative', zIndex: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+            <span
+              style={{
+                fontFamily: "'Cinzel Decorative', serif",
+                fontSize: 96,
+                lineHeight: 0.79,
+                color: COLORS.gold,
+                letterSpacing: '-4px',
+                flexShrink: 0,
+                marginLeft: -5,
+              }}
+            >
+              {firstLetter(client.name)}
+            </span>
+            <div style={{ paddingTop: 16, paddingLeft: 6, minWidth: 0 }}>
+              <div style={{ fontSize: 26, color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
+                {nameRest(client.name)}
+              </div>
+              <div style={{ fontSize: 13, color: COLORS.textMuted, fontStyle: 'italic', marginTop: 5, letterSpacing: '0.5px' }}>
+                {client.surname}
+              </div>
+            </div>
+          </div>
+          {/* Style + session count */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13 }}>
+            <div style={{ width: 22, height: 2, background: client.color, borderRadius: 1, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: '#8A7E72', letterSpacing: '2.5px', textTransform: 'uppercase' }}>
+              {client.style || 'Без стиля'}
+            </span>
+            <span style={{ fontSize: 11, color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
+          </div>
+        </div>
+
+        {/* Client color stripe */}
+        <div style={{ height: 3, background: client.color, width: '100%', flexShrink: 0 }} />
+      </div>
+
+      {/* Tab bar */}
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(200,148,58,0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
+        <div onClick={() => onTab('info')} style={tabStyle('info')}>
+          Инфо
+        </div>
+        <div onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
+          Сессии
+        </div>
+        <div onClick={() => onTab('documents')} style={tabStyle('documents')}>
+          Документы
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '22px 24px 50px', background: COLORS.bg }}>
+        {activeTab === 'info' && <InfoTab client={client} />}
+        {activeTab === 'sessions' && <SessionsTab client={client} onAddSession={onAddSession} />}
+        {activeTab === 'documents' && (
+          <DocumentsTab client={client} onAddDocument={onAddDocument} onRemoveDocument={onRemoveDocument} />
+        )}
+      </div>
+    </>
+  );
+}
+
+// ── Info tab ──
+function InfoTab({ client }: { client: Client }) {
+  const note = client.note || '';
+  const metaCell = (span = false): React.CSSProperties => ({
+    background: 'rgba(255,255,255,0.018)',
+    border: '1px solid rgba(200,148,58,0.1)',
+    borderRadius: 2,
+    padding: 13,
+    gridColumn: span ? 'span 2' : undefined,
+  });
+
+  return (
+    <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+      {/* Notes with drop cap */}
+      <div style={{ marginBottom: 22 }}>
+        <div
+          style={{
+            fontFamily: "'Cinzel Decorative', serif",
+            fontSize: 8,
+            color: COLORS.textGhost,
+            letterSpacing: '3.5px',
+            textTransform: 'uppercase',
+            marginBottom: 12,
+          }}
+        >
+          Заметки мастера
+        </div>
+        {note ? (
+          <div style={{ overflow: 'hidden', lineHeight: 1 }}>
+            <span
+              style={{
+                fontFamily: "'Cinzel Decorative', serif",
+                fontSize: 50,
+                lineHeight: 0.81,
+                color: 'rgba(200,148,58,0.42)',
+                float: 'left',
+                marginRight: 7,
+                paddingBottom: 2,
+                marginTop: 1,
+              }}
+            >
+              {note.charAt(0)}
+            </span>
+            <span style={{ fontSize: 14, color: '#8A7E72', lineHeight: 1.75, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
+              {note.slice(1)}
+            </span>
+          </div>
+        ) : (
+          <div style={{ fontSize: 14, color: COLORS.textGhost, fontStyle: 'italic' }}>Заметок пока нет.</div>
+        )}
+      </div>
+
+      {/* Ornamental divider */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, clear: 'both' }}>
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.28), transparent)' }} />
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="rgba(200,148,58,0.28)" />
+        </svg>
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.28), transparent)' }} />
+      </div>
+
+      {/* Meta grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={metaCell()}>
+          <MetaLabel>Стиль</MetaLabel>
+          <MetaValue>{client.style || '—'}</MetaValue>
+        </div>
+        <div style={metaCell()}>
+          <MetaLabel>Сессий</MetaLabel>
+          <MetaValue>{String(client.sessions.length)}</MetaValue>
+        </div>
+        <div style={metaCell(true)}>
+          <MetaLabel>Последняя сессия</MetaLabel>
+          <MetaValue>{lastSessionDate(client)}</MetaValue>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetaLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ fontSize: '8.5px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+      {children}
+    </div>
+  );
+}
+function MetaValue({ children }: { children: React.ReactNode }) {
+  return <div style={{ fontSize: 15, color: COLORS.textPrimary, fontWeight: 300 }}>{children}</div>;
+}
+
+// ── Sessions tab ──
+function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: () => void }) {
+  return (
+    <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+      <div
+        style={{
+          fontFamily: "'Cinzel Decorative', serif",
+          fontSize: 8,
+          color: COLORS.textGhost,
+          letterSpacing: '3.5px',
+          textTransform: 'uppercase',
+          marginBottom: 18,
+        }}
+      >
+        История работы
+      </div>
+
+      {client.sessions.length === 0 && (
+        <div style={{ fontSize: 13, color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
       )}
 
-      {activeTab === 'documents' && (
-        <div className="space-y-3">
-          <label className="card-venetian p-3 cursor-pointer flex items-center gap-3 tap-spring">
-            <Upload className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Upload Document</span>
-            <input type="file" className="hidden" onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onload = () => {
-                const newDoc: Document = {
-                  id: Date.now().toString(), clientId: client.id,
-                  type: 'other', name: file.name,
-                  fileUrl: reader.result as string,
-                  uploadedDate: new Date().toLocaleDateString(),
-                };
-                onSave({ ...client, documents: [...client.documents, newDoc] });
-              };
-              reader.readAsDataURL(file);
-            }} />
-          </label>
-
-          {client.documents.map((doc) => (
-            <div key={doc.id} className="card-venetian p-3 flex items-center gap-3">
-              <div className="flex-1">
-                <p className="text-sm" style={{ color: 'var(--color-text)' }}>{doc.name}</p>
-                <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{doc.uploadedDate}</p>
+      {client.sessions.map((session) => (
+        <div key={session.id} style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                flexShrink: 0,
+                marginTop: 4,
+                background: session.done ? client.color : 'transparent',
+                border: session.done ? 'none' : '1px solid rgba(200,148,58,0.25)',
+              }}
+            />
+            <div style={{ width: 1, flex: 1, background: 'rgba(200,148,58,0.08)', marginTop: 5 }} />
+          </div>
+          <div
+            style={{
+              flex: 1,
+              background: 'rgba(255,255,255,0.018)',
+              border: '1px solid rgba(200,148,58,0.1)',
+              borderRadius: 2,
+              padding: '12px 14px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+              <span style={{ fontSize: 13, color: '#D4C8B8', fontWeight: 500, letterSpacing: '0.3px' }}>{session.date}</span>
+              {session.duration && <span style={{ fontSize: 11, color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+            </div>
+            {session.area && (
+              <div style={{ fontSize: 10, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
+                {session.area}
               </div>
-              {doc.fileUrl && (
-                <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="tap-spring">
-                  <Eye className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
-                </a>
-              )}
-              <button onClick={() => onSave({ ...client, documents: client.documents.filter(d => d.id !== doc.id) })}>
-                <X className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+            )}
+            {session.note && <div style={{ fontSize: 12, color: '#4A4238', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+          </div>
+        </div>
+      ))}
+
+      {/* Add session button */}
+      <div
+        className="inka-dashed"
+        onClick={onAddSession}
+        style={{
+          marginTop: 14,
+          border: '1px dashed rgba(200,148,58,0.18)',
+          borderRadius: 2,
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="rgba(200,148,58,0.48)" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="rgba(200,148,58,0.48)" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <span style={{ fontSize: 11, color: 'rgba(200,148,58,0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+          Добавить сессию
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Documents tab ──
+function DocumentsTab({
+  client,
+  onAddDocument,
+  onRemoveDocument,
+}: {
+  client: Client;
+  onAddDocument: (doc: ClientDocument) => void;
+  onRemoveDocument: (docId: string) => void;
+}) {
+  const docInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+
+  const handleFile = (file: File | undefined, kind: 'document' | 'photo') => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      onAddDocument({
+        id: Date.now().toString(),
+        name: file.name,
+        fileUrl: reader.result as string,
+        kind,
+        uploadedDate: new Date().toLocaleDateString('ru-RU'),
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const hasDocs = client.documents.length > 0;
+
+  return (
+    <div style={{ animation: 'fadeSlideIn 0.3s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: hasDocs ? 0 : '40px 0 0', gap: 14 }}>
+      {!hasDocs && (
+        <>
+          <div style={{ opacity: 0.13, color: COLORS.gold, animation: 'goldGlow 3s ease-in-out infinite' }}>
+            <MaskSVG width={80} height={56} />
+          </div>
+          <div style={{ fontSize: 13, color: COLORS.textGhost, fontStyle: 'italic', textAlign: 'center', letterSpacing: '0.2px' }}>
+            Документы не добавлены
+          </div>
+        </>
+      )}
+
+      {hasDocs && (
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 6 }}>
+          {client.documents.map((doc) => (
+            <div
+              key={doc.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                border: '1px solid rgba(200,148,58,0.12)',
+                borderRadius: 2,
+                padding: '11px 14px',
+                background: 'rgba(255,255,255,0.018)',
+              }}
+            >
+              <span style={{ fontSize: 11, color: COLORS.gold }}>{doc.kind === 'photo' ? '◈' : '▤'}</span>
+              <a
+                href={doc.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}
+              >
+                <div style={{ fontSize: 13, color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {doc.name}
+                </div>
+                <div style={{ fontSize: 9, color: COLORS.textGhost, letterSpacing: '0.4px', marginTop: 2 }}>{doc.uploadedDate}</div>
+              </a>
+              <button
+                onClick={() => onRemoveDocument(doc.id)}
+                style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: 14 }}
+              >
+                ✕
               </button>
             </div>
           ))}
         </div>
       )}
 
-      {activeTab === 'sessions' && (
-        <div className="space-y-3">
-          <button onClick={onNewSession} className="w-full btn-venetian py-3 flex items-center justify-center gap-2 tap-spring">
-            <Plus className="w-4 h-4" /> New Tattoo Session
-          </button>
-
-          {[...client.sessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session) => (
-            <div key={session.id} className="card-venetian p-3 flex gap-3 tap-spring">
-              {session.photoUrl && (
-                <div className="w-20 h-20 rounded overflow-hidden flex-shrink-0"
-                  style={{ border: '1px solid var(--color-border)' }}>
-                  <img src={session.photoUrl} alt="" className="w-full h-full object-cover" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-light" style={{ color: 'var(--color-text)' }}>
-                  {new Date(session.date).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}
-                </p>
-                <div className="flex items-center gap-2 mt-1">
-                  {session.colors.slice(0, 3).map((c, i) => (
-                    <span key={i} className="w-3 h-3 rounded-full" style={{ background: c || 'var(--color-accent)', border: '1px solid var(--color-border)' }} />
-                  ))}
-                  {session.duration && <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>⏱ {session.duration}</span>}
-                </div>
-                {session.proportions && (
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>📍 {session.proportions}</p>
-                )}
-              </div>
-              <ChevronRight className="w-4 h-4 flex-shrink-0 self-center" style={{ color: 'var(--color-text-muted)' }} />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ===================== NEW CLIENT FORM =====================
-function NewClientForm({ onSave, onCancel }: { onSave: (c: Client) => void; onCancel: () => void }) {
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [skinType, setSkinType] = useState('');
-  const [skinNotes, setSkinNotes] = useState('');
-
-  return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 p-6"
-      style={{ background: 'var(--color-modal-overlay)' }}>
-      <div className="card-venetian p-6 w-full max-w-sm">
-        <h2 className="text-center text-lg font-light mb-1" style={{ color: 'var(--color-text)' }}>New Client</h2>
-        <hr className="divider-gold mb-6" />
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="input-venetian" placeholder="Name" />
-          </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Phone</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="input-venetian" placeholder="Phone" />
-          </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Skin Type</label>
-            <select value={skinType} onChange={(e) => setSkinType(e.target.value)} className="input-venetian">
-              <option value="">Select...</option>
-              <option value="normal">Normal</option>
-              <option value="sensitive">Sensitive</option>
-              <option value="dry">Dry</option>
-              <option value="oily">Oily</option>
-              <option value="combination">Combination</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Skin Notes</label>
-            <textarea value={skinNotes} onChange={(e) => setSkinNotes(e.target.value)} className="input-venetian resize-none h-16" placeholder="Notes about skin..." />
-          </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: hasDocs ? 0 : 4 }}>
+        {/* Add document */}
+        <div
+          className="inka-doc-primary"
+          onClick={() => docInput.current?.click()}
+          style={{
+            border: '1px solid rgba(200,148,58,0.32)',
+            borderRadius: 2,
+            padding: '13px 18px',
+            cursor: 'pointer',
+            background: 'rgba(200,148,58,0.05)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="1" width="10" height="13" rx="1.5" stroke={COLORS.gold} strokeWidth="1.2" />
+            <line x1="5" y1="5.5" x2="9" y2="5.5" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
+            <line x1="5" y1="8" x2="9" y2="8" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
+            <line x1="5" y1="10.5" x2="7" y2="10.5" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
+            <circle cx="13" cy="13" r="3" fill={COLORS.sheet} stroke={COLORS.gold} strokeWidth="1" />
+            <line x1="13" y1="11.5" x2="13" y2="14.5" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
+            <line x1="11.5" y1="13" x2="14.5" y2="13" stroke={COLORS.gold} strokeWidth="1" strokeLinecap="round" />
+          </svg>
+          <span style={{ fontSize: 13, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Добавить документ</span>
         </div>
 
-        <div className="flex gap-3 mt-6">
-          <button onClick={onCancel} className="flex-1 btn-ghost tap-spring">Cancel</button>
-          <button onClick={() => {
-            if (!name.trim()) return;
-            onSave({
-              id: Date.now().toString(), name: name.trim(), phone, skinType, skinNotes,
-              chatHistory: '', chatLinks: [], sessions: [], documents: [],
-              createdDate: new Date().toISOString(),
-            });
-          }} className="flex-1 btn-venetian tap-spring">Create</button>
+        {/* Add photo */}
+        <div
+          className="inka-doc-secondary"
+          onClick={() => photoInput.current?.click()}
+          style={{
+            border: '1px solid rgba(200,148,58,0.18)',
+            borderRadius: 2,
+            padding: '13px 18px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke={COLORS.textFaint} strokeWidth="1.2" />
+            <rect x="5.5" y="5.5" width="5" height="4" rx="0.5" stroke={COLORS.textFaint} strokeWidth="1" />
+            <line x1="5.5" y1="11" x2="10.5" y2="11" stroke={COLORS.textFaint} strokeWidth="1" strokeLinecap="round" />
+          </svg>
+          <span style={{ fontSize: 13, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+            Добавить фото
+          </span>
         </div>
       </div>
+
+      <input
+        ref={docInput}
+        type="file"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          handleFile(e.target.files?.[0], 'document');
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={photoInput}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          handleFile(e.target.files?.[0], 'photo');
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }
 
-// ===================== NEW SESSION FORM =====================
-function NewSessionForm({ onSave, onCancel, clientId }: {
-  onSave: (s: TattooSession) => void; onCancel: () => void; clientId: string;
+// ===================== BOTTOM SHEET SHELL =====================
+function BottomSheet({
+  open,
+  heightPct,
+  children,
+}: {
+  open: boolean;
+  heightPct: number;
+  children: React.ReactNode;
 }) {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [colors, setColors] = useState('');
-  const [proportions, setProportions] = useState('');
-  const [needles, setNeedles] = useState('');
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: `${heightPct}%`,
+        background: COLORS.sheet,
+        borderRadius: '20px 20px 0 0',
+        border: '1px solid rgba(200,148,58,0.18)',
+        borderBottom: 'none',
+        zIndex: 15,
+        overflowY: 'auto',
+        transform: open ? 'translateY(0)' : 'translateY(105%)',
+        transition: 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+      }}
+    >
+      <div style={{ width: 36, height: 3, background: 'rgba(200,148,58,0.2)', borderRadius: 2, margin: '14px auto 0' }} />
+      {children}
+    </div>
+  );
+}
+
+function SheetCloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="inka-close" onClick={onClose} style={{ position: 'absolute', top: 18, right: 24, cursor: 'pointer', opacity: 0.4 }}>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <line x1="3" y1="3" x2="13" y2="13" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="13" y1="3" x2="3" y2="13" stroke={COLORS.gold} strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
+// ===================== NEW CLIENT SHEET =====================
+function NewClientSheet({
+  open,
+  onClose,
+  onCreate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreate: (data: { name: string; surname: string; note: string }) => void;
+}) {
+  const [name, setName] = useState('');
+  const [surname, setSurname] = useState('');
+  const [note, setNote] = useState('');
+
+  // Reset fields whenever the sheet is closed.
+  useEffect(() => {
+    if (!open) {
+      setName('');
+      setSurname('');
+      setNote('');
+    }
+  }, [open]);
+
+  const canSubmit = name.trim().length > 0;
+
+  return (
+    <BottomSheet open={open} heightPct={88}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 9, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+          INKA
+        </div>
+        <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
+        <SheetStarDivider />
+      </div>
+
+      <div style={{ padding: '4px 24px 50px' }}>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Имя *</FieldLabel>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Александра" style={INPUT_STYLE} />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Фамилия</FieldLabel>
+          <input value={surname} onChange={(e) => setSurname(e.target.value)} placeholder="Вертинская" style={INPUT_STYLE} />
+        </div>
+        <div style={{ marginBottom: 22 }}>
+          <FieldLabel>Заметки</FieldLabel>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Идеи, пожелания, особенности..."
+            style={{ ...INPUT_STYLE, resize: 'none', height: 100 }}
+          />
+        </div>
+        <div
+          className="inka-submit"
+          onClick={() => canSubmit && onCreate({ name, surname, note })}
+          style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
+        >
+          <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
+            Создать клиента
+          </span>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// ===================== NEW SESSION SHEET =====================
+function NewSessionSheet({
+  open,
+  clientName,
+  onClose,
+  onAdd,
+}: {
+  open: boolean;
+  clientName: string;
+  onClose: () => void;
+  onAdd: (data: { date: string; duration: string; style: string; area: string; note: string }) => void;
+}) {
+  const [date, setDate] = useState('');
   const [duration, setDuration] = useState('');
-  const [skinReaction, setSkinReaction] = useState('');
-  const [notes, setNotes] = useState('');
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [style, setStyle] = useState('');
+  const [area, setArea] = useState('');
+  const [note, setNote] = useState('');
 
   useEffect(() => {
-    return () => {
-      const stream = videoRef.current?.srcObject as MediaStream | null;
-      stream?.getTracks().forEach((track) => track.stop());
-    };
-  }, []);
+    if (!open) {
+      setDate('');
+      setDuration('');
+      setStyle('');
+      setArea('');
+      setNote('');
+    }
+  }, [open]);
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      if (videoRef.current) { videoRef.current.srcObject = stream; setIsCameraActive(true); }
-    } catch (err) { console.error('Camera error:', err); }
-  };
-
-  const capturePhoto = () => {
-    if (!videoRef.current) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
-    setPhotoUrl(canvas.toDataURL('image/jpeg'));
-    const stream = videoRef.current.srcObject as MediaStream;
-    stream?.getTracks().forEach((track) => track.stop());
-    setIsCameraActive(false);
-  };
-
-  return (
-    <div className="p-4 space-y-4">
-      <h2 className="text-center text-lg font-light" style={{ color: 'var(--color-text)' }}>New Tattoo Session</h2>
-      <hr className="divider-gold mb-4" />
-
-      <div>
-        <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Date</label>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-venetian" />
-      </div>
-
-      <div>
-        <label className="text-[10px] uppercase tracking-widest block mb-2" style={{ color: 'var(--color-text-muted)' }}>Photo</label>
-        {isCameraActive ? (
-          <div className="space-y-2">
-            <video ref={videoRef} autoPlay playsInline muted className="w-full rounded max-h-48" style={{ background: 'var(--color-bg-card)' }} />
-            <button onClick={capturePhoto} className="w-full btn-venetian tap-spring">Capture</button>
-          </div>
-        ) : photoUrl ? (
-          <div className="relative">
-            <img src={photoUrl} alt="" className="w-full rounded max-h-48 object-cover" style={{ border: '1px solid var(--color-border)' }} />
-            <button onClick={() => setPhotoUrl('')} className="absolute top-2 right-2 tap-spring"
-              style={{ background: 'var(--color-bg)', borderRadius: '50%', padding: 4 }}>
-              <X className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <button onClick={startCamera} className="flex-1 btn-ghost tap-spring flex items-center justify-center gap-2">
-              <Camera className="w-4 h-4" /> Take Photo
-            </button>
-            <label className="flex-1 btn-ghost tap-spring flex items-center justify-center gap-2 cursor-pointer">
-              <Upload className="w-4 h-4" /> Upload
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => setPhotoUrl(reader.result as string);
-                reader.readAsDataURL(file);
-              }} />
-            </label>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Inks</label>
-        <input value={colors} onChange={(e) => setColors(e.target.value)} className="input-venetian" placeholder="Colors used..." />
-      </div>
-      <div>
-        <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Proportions</label>
-        <input value={proportions} onChange={(e) => setProportions(e.target.value)} className="input-venetian" placeholder="e.g. 3:1:1" />
-      </div>
-      <div>
-        <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Needles</label>
-        <input value={needles} onChange={(e) => setNeedles(e.target.value)} className="input-venetian" placeholder="Needle config..." />
-      </div>
-      <div>
-        <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Duration</label>
-        <input value={duration} onChange={(e) => setDuration(e.target.value)} className="input-venetian" placeholder="e.g. 03:30" />
-      </div>
-      <div>
-        <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Skin Reaction</label>
-        <input value={skinReaction} onChange={(e) => setSkinReaction(e.target.value)} className="input-venetian" placeholder="Reaction..." />
-      </div>
-      <div>
-        <label className="text-[10px] uppercase tracking-widest block mb-1" style={{ color: 'var(--color-text-muted)' }}>Work Notes</label>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input-venetian resize-none h-20" placeholder="Notes..." />
-      </div>
-
-      <div className="flex gap-3 pt-4">
-        <button onClick={onCancel} className="flex-1 btn-ghost tap-spring">Cancel</button>
-        <button onClick={() => {
-          onSave({
-            id: Date.now().toString(), clientId, date, photoUrl: photoUrl || undefined,
-            colors: colors.split(',').map((c) => c.trim()).filter(Boolean),
-            proportions, needles, duration, notes, skinReaction: skinReaction || undefined,
-          });
-        }} className="flex-1 btn-venetian tap-spring">Save Session</button>
-      </div>
-    </div>
-  );
-}
-
-// ===================== ADD CHAT LINK FORM =====================
-function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: string) => void }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [platform, setPlatform] = useState<ChatPlatform>('whatsapp');
-  const [raw, setRaw] = useState('');
-
-  if (!isOpen) {
-    return (
-      <button onClick={() => setIsOpen(true)}
-        className="w-full text-xs py-2 flex items-center justify-center gap-1 tap-spring"
-        style={{ color: 'var(--color-accent)', border: '1px dashed var(--color-border)', borderRadius: 6 }}>
-        <Plus className="w-3 h-3" /> Add Link
-      </button>
-    );
-  }
+  const chipStyle = (selected: boolean, big: boolean): React.CSSProperties => ({
+    fontFamily: "'Cormorant Garamond', serif",
+    fontSize: big ? 12 : 10,
+    padding: big ? '7px 13px' : '6px 11px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    border: selected ? '1px solid rgba(200,148,58,0.65)' : '1px solid rgba(200,148,58,0.15)',
+    color: selected ? COLORS.gold : COLORS.textFaint,
+    background: selected ? 'rgba(200,148,58,0.08)' : 'transparent',
+    letterSpacing: big ? undefined : '0.8px',
+    textTransform: big ? undefined : 'uppercase',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.2s',
+  });
 
   return (
-    <div className="card-venetian p-3 space-y-2">
-      <select value={platform} onChange={(e) => setPlatform(e.target.value as ChatPlatform)} className="input-venetian"
-        style={{ background: 'var(--color-bg)', borderRadius: 6, padding: '8px 12px' }}>
-        <option value="whatsapp">WhatsApp</option>
-        <option value="telegram">Telegram</option>
-        <option value="messenger">Messenger</option>
-        <option value="instagram">Instagram</option>
-        <option value="tiktok">TikTok</option>
-        <option value="other">Other</option>
-      </select>
-      <input value={raw} onChange={(e) => setRaw(e.target.value)} className="input-venetian"
-        placeholder="Phone, @username, or link"
-        style={{ background: 'var(--color-bg)', borderRadius: 6, padding: '8px 12px' }} />
-      <div className="flex gap-2">
-        <button onClick={() => { setIsOpen(false); setRaw(''); }} className="flex-1 btn-ghost text-xs tap-spring">Cancel</button>
-        <button onClick={() => {
-          if (!raw.trim()) return;
-          onAdd(platform, raw);
-          setRaw('');
-          setIsOpen(false);
-        }} className="flex-1 btn-venetian text-xs tap-spring">Add</button>
+    <BottomSheet open={open} heightPct={80}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: 13, color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
+        <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новая сессия</div>
+        <SheetStarDivider />
       </div>
-    </div>
+
+      <div style={{ padding: '4px 24px 50px' }}>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Дата</FieldLabel>
+          <input value={date} onChange={(e) => setDate(e.target.value)} placeholder="15 фев 2025" style={INPUT_STYLE} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Продолжительность</FieldLabel>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {DURATIONS.map((d) => (
+              <div key={d} onClick={() => setDuration(d)} style={chipStyle(duration === d, true)}>
+                {d}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Стиль работы</FieldLabel>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {STYLES.map((s) => (
+              <div key={s} onClick={() => setStyle(s)} style={chipStyle(style === s, false)}>
+                {s}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Зона работы</FieldLabel>
+          <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
+        </div>
+
+        <div style={{ marginBottom: 22 }}>
+          <FieldLabel>Заметки</FieldLabel>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Что делали, наблюдения..."
+            style={{ ...INPUT_STYLE, resize: 'none', height: 80 }}
+          />
+        </div>
+
+        <div className="inka-submit" onClick={() => onAdd({ date, duration, style, area, note })} style={SUBMIT_STYLE}>
+          <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
+            Добавить сессию
+          </span>
+        </div>
+      </div>
+    </BottomSheet>
   );
 }
