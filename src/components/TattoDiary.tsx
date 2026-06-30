@@ -27,6 +27,9 @@ interface Session {
   duration: string; // e.g. "4 ч"
   style: string; // work style for this session
   area: string; // work zone, e.g. "Левое плечо"
+  colors: string; // inks / colours used
+  needles: string; // needle configuration
+  skinReaction: string; // how the skin reacted
   note: string;
   photoUrl?: string; // optional captured/uploaded photo (data URL)
   done: boolean;
@@ -91,11 +94,22 @@ interface Client {
   color: string; // accent hex
   note: string; // master's notes
   phone: string; // contact phone number
+  skinType: string; // normal / sensitive / dry / oily / combination
+  skinNotes: string; // free notes about the client's skin
   chatLinks: ChatLink[]; // WhatsApp / Telegram / Instagram / etc.
   sessions: Session[];
   documents: ClientDocument[];
   createdDate: string;
 }
+
+const SKIN_TYPES: { value: string; label: string }[] = [
+  { value: '', label: 'Не указан' },
+  { value: 'normal', label: 'Нормальная' },
+  { value: 'sensitive', label: 'Чувствительная' },
+  { value: 'dry', label: 'Сухая' },
+  { value: 'oily', label: 'Жирная' },
+  { value: 'combination', label: 'Комбинированная' },
+];
 
 // ===================== DERIVED HELPERS =====================
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
@@ -112,6 +126,9 @@ function normalizeClient(raw: any, index: number): Client {
         duration: s?.duration ?? '',
         style: s?.style ?? '',
         area: s?.area ?? s?.proportions ?? '',
+        colors: Array.isArray(s?.colors) ? s.colors.join(', ') : s?.colors ?? '',
+        needles: s?.needles ?? '',
+        skinReaction: s?.skinReaction ?? '',
         note: s?.note ?? s?.notes ?? '',
         photoUrl: s?.photoUrl,
         done: s?.done ?? true,
@@ -126,8 +143,10 @@ function normalizeClient(raw: any, index: number): Client {
     surname: raw?.surname ?? '',
     style: raw?.style ?? latestStyle ?? '',
     color: raw?.color ?? ACCENT_COLORS[index % ACCENT_COLORS.length],
-    note: raw?.note ?? raw?.skinNotes ?? raw?.chatHistory ?? '',
+    note: raw?.note ?? raw?.chatHistory ?? '',
     phone: raw?.phone ?? '',
+    skinType: raw?.skinType ?? '',
+    skinNotes: raw?.skinNotes ?? '',
     chatLinks: Array.isArray(raw?.chatLinks) ? raw.chatLinks : [],
     sessions,
     documents: Array.isArray(raw?.documents) ? raw.documents : [],
@@ -306,7 +325,14 @@ export default function TattoDiary() {
     setShowNewSessionForm(false);
   };
 
-  const handleCreateClient = (data: { name: string; surname: string; phone: string; note: string }) => {
+  const handleCreateClient = (data: {
+    name: string;
+    surname: string;
+    phone: string;
+    skinType: string;
+    skinNotes: string;
+    note: string;
+  }) => {
     const client: Client = {
       id: Date.now().toString(),
       name: data.name.trim(),
@@ -315,6 +341,8 @@ export default function TattoDiary() {
       color: ACCENT_COLORS[clients.length % ACCENT_COLORS.length],
       note: data.note.trim(),
       phone: data.phone.trim(),
+      skinType: data.skinType,
+      skinNotes: data.skinNotes.trim(),
       chatLinks: [],
       sessions: [],
       documents: [],
@@ -329,6 +357,9 @@ export default function TattoDiary() {
     duration: string;
     style: string;
     area: string;
+    colors: string;
+    needles: string;
+    skinReaction: string;
     note: string;
     photoUrl?: string;
   }) => {
@@ -339,6 +370,9 @@ export default function TattoDiary() {
       duration: data.duration,
       style: data.style,
       area: data.area.trim(),
+      colors: data.colors.trim(),
+      needles: data.needles.trim(),
+      skinReaction: data.skinReaction.trim(),
       note: data.note.trim(),
       photoUrl: data.photoUrl,
       done: true,
@@ -1031,6 +1065,9 @@ function InfoTab({ client, onSave }: { client: Client; onSave: (client: Client) 
         </div>
       </div>
 
+      {/* Skin: type + notes */}
+      <SkinSection client={client} onSave={onSave} />
+
       {/* Contacts: phone + chat links */}
       <ContactsSection client={client} onSave={onSave} />
     </div>
@@ -1046,6 +1083,113 @@ function MetaLabel({ children }: { children: React.ReactNode }) {
 }
 function MetaValue({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 15, color: COLORS.textPrimary, fontWeight: 300 }}>{children}</div>;
+}
+
+// ── Skin (type + notes) ──
+function SectionDivider() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, clear: 'both' }}>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(200,148,58,0.28), transparent)' }} />
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+        <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="rgba(200,148,58,0.28)" />
+      </svg>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(200,148,58,0.28), transparent)' }} />
+    </div>
+  );
+}
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontFamily: "'Cinzel Decorative', serif",
+        fontSize: 8,
+        color: COLORS.textGhost,
+        letterSpacing: '3.5px',
+        textTransform: 'uppercase',
+        marginBottom: 12,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SkinSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
+  const [skinType, setSkinType] = useState(client.skinType || '');
+  const [skinNotes, setSkinNotes] = useState(client.skinNotes || '');
+
+  useEffect(() => {
+    setSkinType(client.skinType || '');
+    setSkinNotes(client.skinNotes || '');
+  }, [client.id]);
+
+  const saveType = (value: string) => {
+    setSkinType(value);
+    if (value !== (client.skinType || '')) onSave({ ...client, skinType: value });
+  };
+  const saveNotes = () => {
+    if (skinNotes.trim() !== (client.skinNotes || '')) onSave({ ...client, skinNotes: skinNotes.trim() });
+  };
+
+  return (
+    <div style={{ marginTop: 22 }}>
+      <SectionDivider />
+      <SectionHeader>Кожа</SectionHeader>
+
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: '8.5px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+          Тип кожи
+        </div>
+        <select
+          value={skinType}
+          onChange={(e) => saveType(e.target.value)}
+          style={{
+            width: '100%',
+            background: 'rgba(255,255,255,0.018)',
+            border: '1px solid rgba(200,148,58,0.1)',
+            borderRadius: 2,
+            padding: '11px 13px',
+            fontFamily: "'Cormorant Garamond', serif",
+            color: skinType ? COLORS.textPrimary : COLORS.textGhost,
+            outline: 'none',
+            appearance: 'none',
+          }}
+        >
+          {SKIN_TYPES.map((s) => (
+            <option key={s.value} value={s.value} style={{ background: COLORS.bg }}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <div style={{ fontSize: '8.5px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+          Заметки о коже
+        </div>
+        <textarea
+          value={skinNotes}
+          onChange={(e) => setSkinNotes(e.target.value)}
+          onBlur={saveNotes}
+          placeholder="Аллергии, чувствительные зоны, реакции..."
+          style={{
+            width: '100%',
+            background: 'rgba(255,255,255,0.018)',
+            border: '1px solid rgba(200,148,58,0.1)',
+            borderRadius: 2,
+            padding: '11px 13px',
+            fontFamily: "'Cormorant Garamond', serif",
+            color: COLORS.textPrimary,
+            outline: 'none',
+            resize: 'none',
+            height: 70,
+            letterSpacing: '0.3px',
+          }}
+        />
+      </div>
+    </div>
+  );
 }
 
 // ── Contacts (phone + chat links) ──
@@ -1334,6 +1478,18 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
   );
 }
 
+// One "label: value" line inside a session card (краски / иглы / реакция кожи).
+function SessionMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, fontSize: 11, lineHeight: 1.4 }}>
+      <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: 9, paddingTop: 1 }}>
+        {label}
+      </span>
+      <span style={{ color: '#8A7E72', fontStyle: 'italic' }}>{value}</span>
+    </div>
+  );
+}
+
 // ── Sessions tab ──
 function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: () => void }) {
   return (
@@ -1390,6 +1546,22 @@ function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: (
               </div>
             )}
             {session.note && <div style={{ fontSize: 12, color: '#4A4238', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+            {(session.colors || session.needles || session.skinReaction) && (
+              <div
+                style={{
+                  marginTop: 9,
+                  paddingTop: 9,
+                  borderTop: '1px solid rgba(200,148,58,0.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                }}
+              >
+                {session.colors && <SessionMeta label="Краски" value={session.colors} />}
+                {session.needles && <SessionMeta label="Иглы" value={session.needles} />}
+                {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
+              </div>
+            )}
             {session.photoUrl && (
               <a href={session.photoUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 10 }}>
                 <img
@@ -1648,11 +1820,20 @@ function NewClientSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (data: { name: string; surname: string; phone: string; note: string }) => void;
+  onCreate: (data: {
+    name: string;
+    surname: string;
+    phone: string;
+    skinType: string;
+    skinNotes: string;
+    note: string;
+  }) => void;
 }) {
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
   const [phone, setPhone] = useState('');
+  const [skinType, setSkinType] = useState('');
+  const [skinNotes, setSkinNotes] = useState('');
   const [note, setNote] = useState('');
 
   // Reset fields whenever the sheet is closed.
@@ -1661,6 +1842,8 @@ function NewClientSheet({
       setName('');
       setSurname('');
       setPhone('');
+      setSkinType('');
+      setSkinNotes('');
       setNote('');
     }
   }, [open]);
@@ -1697,6 +1880,25 @@ function NewClientSheet({
             style={INPUT_STYLE}
           />
         </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Тип кожи</FieldLabel>
+          <select value={skinType} onChange={(e) => setSkinType(e.target.value)} style={{ ...INPUT_STYLE, appearance: 'none' }}>
+            {SKIN_TYPES.map((s) => (
+              <option key={s.value} value={s.value} style={{ background: COLORS.bg }}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Заметки о коже</FieldLabel>
+          <textarea
+            value={skinNotes}
+            onChange={(e) => setSkinNotes(e.target.value)}
+            placeholder="Аллергии, чувствительные зоны, реакции..."
+            style={{ ...INPUT_STYLE, resize: 'none', height: 70 }}
+          />
+        </div>
         <div style={{ marginBottom: 22 }}>
           <FieldLabel>Заметки</FieldLabel>
           <textarea
@@ -1708,7 +1910,7 @@ function NewClientSheet({
         </div>
         <div
           className="inka-submit"
-          onClick={() => canSubmit && onCreate({ name, surname, phone, note })}
+          onClick={() => canSubmit && onCreate({ name, surname, phone, skinType, skinNotes, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
           <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
@@ -1730,12 +1932,25 @@ function NewSessionSheet({
   open: boolean;
   clientName: string;
   onClose: () => void;
-  onAdd: (data: { date: string; duration: string; style: string; area: string; note: string; photoUrl?: string }) => void;
+  onAdd: (data: {
+    date: string;
+    duration: string;
+    style: string;
+    area: string;
+    colors: string;
+    needles: string;
+    skinReaction: string;
+    note: string;
+    photoUrl?: string;
+  }) => void;
 }) {
   const [date, setDate] = useState('');
   const [duration, setDuration] = useState('');
   const [style, setStyle] = useState('');
   const [area, setArea] = useState('');
+  const [colors, setColors] = useState('');
+  const [needles, setNeedles] = useState('');
+  const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
@@ -1754,6 +1969,9 @@ function NewSessionSheet({
       setDuration('');
       setStyle('');
       setArea('');
+      setColors('');
+      setNeedles('');
+      setSkinReaction('');
       setNote('');
       setPhotoUrl('');
       stopCamera();
@@ -1848,6 +2066,26 @@ function NewSessionSheet({
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Зона работы</FieldLabel>
           <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Краски / чернила</FieldLabel>
+          <input value={colors} onChange={(e) => setColors(e.target.value)} placeholder="Чёрный, серые тона..." style={INPUT_STYLE} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Иглы</FieldLabel>
+          <input value={needles} onChange={(e) => setNeedles(e.target.value)} placeholder="Конфигурация игл..." style={INPUT_STYLE} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Реакция кожи</FieldLabel>
+          <input
+            value={skinReaction}
+            onChange={(e) => setSkinReaction(e.target.value)}
+            placeholder="Покраснение, отёк, спокойно..."
+            style={INPUT_STYLE}
+          />
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -1986,7 +2224,7 @@ function NewSessionSheet({
 
         <div
           className="inka-submit"
-          onClick={() => onAdd({ date, duration, style, area, note, photoUrl: photoUrl || undefined })}
+          onClick={() => onAdd({ date, duration, style, area, colors, needles, skinReaction, note, photoUrl: photoUrl || undefined })}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
