@@ -33,7 +33,7 @@ interface Session {
   needles: string; // needle configuration
   skinReaction: string; // how the skin reacted
   note: string;
-  photoUrl?: string; // optional captured/uploaded photo (data URL)
+  photos: string[]; // captured/uploaded photos (data URLs)
   done: boolean;
 }
 
@@ -132,7 +132,7 @@ function normalizeClient(raw: any, index: number): Client {
         needles: s?.needles ?? '',
         skinReaction: s?.skinReaction ?? '',
         note: s?.note ?? s?.notes ?? '',
-        photoUrl: s?.photoUrl,
+        photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
         done: s?.done ?? true,
       }))
     : [];
@@ -308,6 +308,7 @@ export default function TattoDiary() {
 
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [showNewSessionForm, setShowNewSessionForm] = useState(false);
+  const [showEditClientForm, setShowEditClientForm] = useState(false);
 
   useEffect(() => {
     initDB()
@@ -339,6 +340,21 @@ export default function TattoDiary() {
     tx.onerror = () => setDbError('Не удалось сохранить изменения.');
   };
 
+  const deleteClient = (id: string) => {
+    if (!db) {
+      setDbError('Хранилище недоступно — клиент не удалён.');
+      return;
+    }
+    const tx = db.transaction('clients', 'readwrite');
+    tx.objectStore('clients').delete(id);
+    tx.oncomplete = () => {
+      loadClients(db);
+      setScreen('list');
+      setSelectedId(null);
+    };
+    tx.onerror = () => setDbError('Не удалось удалить клиента.');
+  };
+
   const selectedClient = clients.find((c) => c.id === selectedId) || null;
 
   const filteredClients = clients.filter((c) => {
@@ -357,9 +373,36 @@ export default function TattoDiary() {
 
   const closeNewClient = () => setShowNewClientForm(false);
   const closeNewSession = () => setShowNewSessionForm(false);
+  const closeEditClient = () => setShowEditClientForm(false);
   const closeBackdrop = () => {
     setShowNewClientForm(false);
     setShowNewSessionForm(false);
+    setShowEditClientForm(false);
+  };
+
+  const handleUpdateClient = (data: { name: string; surname: string; style: string; note: string }) => {
+    if (!selectedClient) return;
+    saveClient({
+      ...selectedClient,
+      name: data.name.trim(),
+      surname: data.surname.trim(),
+      style: data.style,
+      note: data.note.trim(),
+    });
+    setShowEditClientForm(false);
+  };
+
+  const deleteSession = (sessionId: string) => {
+    if (!selectedClient) return;
+    saveClient({ ...selectedClient, sessions: selectedClient.sessions.filter((s) => s.id !== sessionId) });
+  };
+
+  const updateSessionPhotos = (sessionId: string, photos: string[]) => {
+    if (!selectedClient) return;
+    saveClient({
+      ...selectedClient,
+      sessions: selectedClient.sessions.map((s) => (s.id === sessionId ? { ...s, photos } : s)),
+    });
   };
 
   const handleCreateClient = (data: {
@@ -411,7 +454,7 @@ export default function TattoDiary() {
       needles: data.needles.trim(),
       skinReaction: data.skinReaction.trim(),
       note: data.note.trim(),
-      photoUrl: data.photoUrl,
+      photos: data.photoUrl ? [data.photoUrl] : [],
       done: true,
     };
     const updated: Client = {
@@ -423,7 +466,7 @@ export default function TattoDiary() {
     setShowNewSessionForm(false);
   };
 
-  const sheetOpen = showNewClientForm || showNewSessionForm;
+  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm;
 
   return (
     <div
@@ -673,7 +716,11 @@ export default function TattoDiary() {
             onTab={setActiveTab}
             onBack={goBack}
             onSave={saveClient}
+            onEditClient={() => setShowEditClientForm(true)}
+            onDeleteClient={() => deleteClient(selectedClient.id)}
             onAddSession={() => setShowNewSessionForm(true)}
+            onDeleteSession={deleteSession}
+            onUpdateSessionPhotos={updateSessionPhotos}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
             onRemoveDocument={(docId) =>
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
@@ -698,6 +745,14 @@ export default function TattoDiary() {
 
       {/* ═══════════ NEW CLIENT SHEET ═══════════ */}
       <NewClientSheet open={showNewClientForm} onClose={closeNewClient} onCreate={handleCreateClient} />
+
+      {/* ═══════════ EDIT CLIENT SHEET ═══════════ */}
+      <EditClientSheet
+        open={showEditClientForm}
+        client={selectedClient}
+        onClose={closeEditClient}
+        onSave={handleUpdateClient}
+      />
 
       {/* ═══════════ NEW SESSION SHEET ═══════════ */}
       <NewSessionSheet
@@ -956,7 +1011,11 @@ function DetailScreen({
   onTab,
   onBack,
   onSave,
+  onEditClient,
+  onDeleteClient,
   onAddSession,
+  onDeleteSession,
+  onUpdateSessionPhotos,
   onAddDocument,
   onRemoveDocument,
 }: {
@@ -965,7 +1024,11 @@ function DetailScreen({
   onTab: (t: 'info' | 'sessions' | 'documents') => void;
   onBack: () => void;
   onSave: (client: Client) => void;
+  onEditClient: () => void;
+  onDeleteClient: () => void;
   onAddSession: () => void;
+  onDeleteSession: (sessionId: string) => void;
+  onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
 }) {
@@ -1016,6 +1079,17 @@ function DetailScreen({
               <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span style={{ fontSize: 13, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+          </div>
+          {/* Edit client */}
+          <div
+            className="inka-back"
+            onClick={onEditClient}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+          >
+            <span style={{ fontSize: 13, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+              <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+            </svg>
           </div>
         </div>
 
@@ -1073,8 +1147,15 @@ function DetailScreen({
 
       {/* Tab content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '22px 24px 50px', background: COLORS.bg }}>
-        {activeTab === 'info' && <InfoTab client={client} onSave={onSave} />}
-        {activeTab === 'sessions' && <SessionsTab client={client} onAddSession={onAddSession} />}
+        {activeTab === 'info' && <InfoTab client={client} onSave={onSave} onDeleteClient={onDeleteClient} />}
+        {activeTab === 'sessions' && (
+          <SessionsTab
+            client={client}
+            onAddSession={onAddSession}
+            onDeleteSession={onDeleteSession}
+            onUpdateSessionPhotos={onUpdateSessionPhotos}
+          />
+        )}
         {activeTab === 'documents' && (
           <DocumentsTab client={client} onAddDocument={onAddDocument} onRemoveDocument={onRemoveDocument} />
         )}
@@ -1084,7 +1165,15 @@ function DetailScreen({
 }
 
 // ── Info tab ──
-function InfoTab({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
+function InfoTab({
+  client,
+  onSave,
+  onDeleteClient,
+}: {
+  client: Client;
+  onSave: (client: Client) => void;
+  onDeleteClient: () => void;
+}) {
   const note = client.note || '';
   const metaCell = (span = false): React.CSSProperties => ({
     background: 'rgba(var(--surface-rgb),0.018)',
@@ -1165,6 +1254,94 @@ function InfoTab({ client, onSave }: { client: Client; onSave: (client: Client) 
 
       {/* Contacts: phone + chat links */}
       <ContactsSection client={client} onSave={onSave} />
+
+      {/* Danger zone: delete client */}
+      <div style={{ marginTop: 28 }}>
+        <DeleteButton label="Удалить клиента" confirmLabel="Удалить клиента безвозвратно?" onConfirm={onDeleteClient} />
+      </div>
+    </div>
+  );
+}
+
+// Two-step delete control: first tap reveals an inline confirm row.
+function DeleteButton({
+  label,
+  confirmLabel,
+  onConfirm,
+  compact = false,
+}: {
+  label: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  compact?: boolean;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <div
+        onClick={() => setConfirming(true)}
+        style={{
+          border: '1px solid rgba(138,48,64,0.3)',
+          borderRadius: 2,
+          padding: compact ? '6px 10px' : '11px 14px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          color: '#A85A66',
+          fontSize: compact ? 10 : 11,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
+          fontStyle: 'italic',
+        }}
+      >
+        {label}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px solid rgba(138,48,64,0.45)',
+        borderRadius: 2,
+        padding: compact ? '6px 8px' : '11px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        background: 'rgba(138,48,64,0.06)',
+      }}
+    >
+      <span style={{ flex: 1, fontSize: compact ? 10 : 12, color: '#A85A66', fontStyle: 'italic', letterSpacing: '0.3px' }}>
+        {confirmLabel}
+      </span>
+      <span
+        onClick={onConfirm}
+        style={{
+          fontSize: compact ? 10 : 11,
+          color: '#C56676',
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          padding: '4px 8px',
+          border: '1px solid rgba(138,48,64,0.5)',
+          borderRadius: 2,
+        }}
+      >
+        Да
+      </span>
+      <span
+        onClick={() => setConfirming(false)}
+        style={{
+          fontSize: compact ? 10 : 11,
+          color: COLORS.textFaint,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          padding: '4px 8px',
+        }}
+      >
+        Нет
+      </span>
     </div>
   );
 }
@@ -1585,8 +1762,210 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Small ✕ on a session card; a tap reveals "Удалить? Да/Нет" inline.
+function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (confirming) {
+    return (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 10, color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
+        <span onClick={onDelete} style={{ fontSize: 10, color: '#C56676', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
+          Да
+        </span>
+        <span
+          onClick={() => setConfirming(false)}
+          style={{ fontSize: 10, color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
+        >
+          Нет
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <span onClick={() => setConfirming(true)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label="Удалить сессию">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.textFaint }}>
+        <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
+// Photo gallery + capture/upload for a single session card.
+function SessionPhotos({ photos, onChange }: { photos: string[]; onChange: (photos: string[]) => void }) {
+  const [cameraActive, setCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const stopCamera = () => {
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((t) => t.stop());
+    setCameraActive(false);
+  };
+
+  useEffect(() => () => stopCamera(), []);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setCameraActive(true);
+      }
+    } catch (err) {
+      console.error('Camera error:', err);
+    }
+  };
+
+  const capture = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
+    onChange([...photos, canvas.toDataURL('image/jpeg', 0.85)]);
+    stopCamera();
+  };
+
+  const onPick = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onChange([...photos, reader.result as string]);
+    reader.readAsDataURL(file);
+  };
+
+  const remove = (i: number) => onChange(photos.filter((_, idx) => idx !== i));
+
+  const miniBtn: React.CSSProperties = {
+    flex: 1,
+    border: '1px solid rgba(var(--gold-rgb),0.18)',
+    borderRadius: 2,
+    padding: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    cursor: 'pointer',
+    fontSize: 10,
+    color: COLORS.gold,
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+  };
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {/* Thumbnails */}
+      {photos.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {photos.map((src, i) => (
+            <div key={i} style={{ position: 'relative', width: 70, height: 70 }}>
+              <a href={src} target="_blank" rel="noopener noreferrer">
+                <img
+                  src={src}
+                  alt=""
+                  style={{
+                    width: 70,
+                    height: 70,
+                    objectFit: 'cover',
+                    borderRadius: 2,
+                    border: '1px solid rgba(var(--gold-rgb),0.2)',
+                    display: 'block',
+                  }}
+                />
+              </a>
+              <div
+                onClick={() => remove(i)}
+                style={{
+                  position: 'absolute',
+                  top: -6,
+                  right: -6,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: 'var(--bg)',
+                  border: '1px solid rgba(var(--gold-rgb),0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+                  <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Capture / upload controls */}
+      {cameraActive ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ width: '100%', maxHeight: 180, borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.18)', background: '#000' }}
+          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div className="inka-submit" onClick={capture} style={{ ...miniBtn, background: 'rgba(var(--gold-rgb),0.06)' }}>
+              Снять
+            </div>
+            <div onClick={stopCamera} style={{ ...miniBtn, color: COLORS.textFaint, borderColor: 'rgba(var(--gold-rgb),0.12)' }}>
+              Отмена
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <div className="inka-doc-secondary" onClick={startCamera} style={miniBtn}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <rect x="1.5" y="4.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+              <circle cx="8" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M5.5 4.5L6.3 3H9.7L10.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            </svg>
+            Камера
+          </div>
+          <div className="inka-doc-secondary" onClick={() => fileRef.current?.click()} style={miniBtn}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            Фото
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              onPick(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Sessions tab ──
-function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: () => void }) {
+function SessionsTab({
+  client,
+  onAddSession,
+  onDeleteSession,
+  onUpdateSessionPhotos,
+}: {
+  client: Client;
+  onAddSession: () => void;
+  onDeleteSession: (sessionId: string) => void;
+  onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
+}) {
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
       <div
@@ -1631,9 +2010,12 @@ function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: (
               padding: '12px 14px',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 5 }}>
               <span style={{ fontSize: 13, color: 'var(--text-strong)', fontWeight: 500, letterSpacing: '0.3px' }}>{session.date}</span>
-              {session.duration && <span style={{ fontSize: 11, color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {session.duration && <span style={{ fontSize: 11, color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+                <SessionDeleteControl onDelete={() => onDeleteSession(session.id)} />
+              </div>
             </div>
             {session.area && (
               <div style={{ fontSize: 10, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
@@ -1657,22 +2039,10 @@ function SessionsTab({ client, onAddSession }: { client: Client; onAddSession: (
                 {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
               </div>
             )}
-            {session.photoUrl && (
-              <a href={session.photoUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 10 }}>
-                <img
-                  src={session.photoUrl}
-                  alt=""
-                  style={{
-                    width: '100%',
-                    maxHeight: 180,
-                    objectFit: 'cover',
-                    borderRadius: 2,
-                    border: '1px solid rgba(var(--gold-rgb),0.15)',
-                    display: 'block',
-                  }}
-                />
-              </a>
-            )}
+            <SessionPhotos
+              photos={session.photos}
+              onChange={(photos) => onUpdateSessionPhotos(session.id, photos)}
+            />
           </div>
         </div>
       ))}
@@ -2010,6 +2380,103 @@ function NewClientSheet({
         >
           <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
             Создать клиента
+          </span>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// ===================== EDIT CLIENT SHEET =====================
+function EditClientSheet({
+  open,
+  client,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  client: Client | null;
+  onClose: () => void;
+  onSave: (data: { name: string; surname: string; style: string; note: string }) => void;
+}) {
+  const [name, setName] = useState('');
+  const [surname, setSurname] = useState('');
+  const [style, setStyle] = useState('');
+  const [note, setNote] = useState('');
+
+  // Populate fields from the client each time the sheet opens.
+  useEffect(() => {
+    if (open && client) {
+      setName(client.name);
+      setSurname(client.surname);
+      setStyle(client.style);
+      setNote(client.note);
+    }
+  }, [open, client?.id]);
+
+  const canSubmit = name.trim().length > 0;
+
+  const chipStyle = (selected: boolean): React.CSSProperties => ({
+    fontFamily: "'Cormorant Garamond', serif",
+    fontSize: 10,
+    padding: '6px 11px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    border: selected ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
+    color: selected ? COLORS.gold : COLORS.textFaint,
+    background: selected ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+    letterSpacing: '0.8px',
+    textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.2s',
+  });
+
+  return (
+    <BottomSheet open={open} heightPct={84}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 9, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+          INKA
+        </div>
+        <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Редактировать</div>
+        <SheetStarDivider />
+      </div>
+
+      <div style={{ padding: '4px 24px 50px' }}>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Имя *</FieldLabel>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Александра" style={INPUT_STYLE} />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Фамилия</FieldLabel>
+          <input value={surname} onChange={(e) => setSurname(e.target.value)} placeholder="Вертинская" style={INPUT_STYLE} />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Стиль</FieldLabel>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {STYLES.map((s) => (
+              <div key={s} onClick={() => setStyle(style === s ? '' : s)} style={chipStyle(style === s)}>
+                {s}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ marginBottom: 22 }}>
+          <FieldLabel>Заметки</FieldLabel>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Идеи, пожелания, особенности..."
+            style={{ ...INPUT_STYLE, resize: 'none', height: 100 }}
+          />
+        </div>
+        <div
+          className="inka-submit"
+          onClick={() => canSubmit && onSave({ name, surname, style, note })}
+          style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
+        >
+          <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
+            Сохранить
           </span>
         </div>
       </div>
