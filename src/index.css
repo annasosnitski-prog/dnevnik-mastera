@@ -54,11 +54,11 @@
 
 /* ── Light (warm parchment / "Casa di Vetro") ── */
 :root[data-theme='light'] {
-  --bg: #F4EEE1;
-  --bg-rgb: 244, 238, 225;
-  --bg-card: linear-gradient(148deg, #FFFCF5, #F5EFE3);
-  --sheet: #FBF6EC;
-  --hero-grad: linear-gradient(160deg, #FBF4E4 0%, #F4EEE1 60%);
+  --bg: #E4E1D8;
+  --bg-rgb: 228, 225, 216;
+  --bg-card: linear-gradient(148deg, #EFEFEC, #E5E2DA);
+  --sheet: #EBE9E3;
+  --hero-grad: linear-gradient(160deg, #EBE7DB 0%, #E4E1D8 60%);
 
   --gold: #9C6F22;
   --gold-rgb: 156, 111, 34;

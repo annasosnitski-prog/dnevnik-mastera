@@ -112,6 +112,10 @@ const SKIN_TYPES: { value: string; label: string }[] = [
   { value: 'dry', label: 'Сухая' },
   { value: 'oily', label: 'Жирная' },
   { value: 'combination', label: 'Комбинированная' },
+  { value: 'porous', label: 'Пористая' },
+  { value: 'dense', label: 'Плотная' },
+  { value: 'thick', label: 'Толстая' },
+  { value: 'thin', label: 'Тонкая' },
 ];
 
 // ===================== DERIVED HELPERS =====================
@@ -285,7 +289,7 @@ function applyTheme(theme: Theme) {
     /* ignore */
   }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'light' ? '#F4EEE1' : '#0D0B08');
+  if (meta) meta.setAttribute('content', theme === 'light' ? '#E4E1D8' : '#0D0B08');
 }
 
 // ===================== MAIN APP =====================
@@ -309,6 +313,8 @@ export default function TattoDiary() {
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [showNewSessionForm, setShowNewSessionForm] = useState(false);
   const [showEditClientForm, setShowEditClientForm] = useState(false);
+  // Session being edited (null when adding a new one).
+  const [editSession, setEditSession] = useState<Session | null>(null);
 
   useEffect(() => {
     initDB()
@@ -372,12 +378,16 @@ export default function TattoDiary() {
   const goBack = () => setScreen('list');
 
   const closeNewClient = () => setShowNewClientForm(false);
-  const closeNewSession = () => setShowNewSessionForm(false);
+  const closeNewSession = () => {
+    setShowNewSessionForm(false);
+    setEditSession(null);
+  };
   const closeEditClient = () => setShowEditClientForm(false);
   const closeBackdrop = () => {
     setShowNewClientForm(false);
     setShowNewSessionForm(false);
     setShowEditClientForm(false);
+    setEditSession(null);
   };
 
   const handleUpdateClient = (data: { name: string; surname: string; style: string; note: string }) => {
@@ -445,8 +455,7 @@ export default function TattoDiary() {
     photos: string[];
   }) => {
     if (!selectedClient) return;
-    const session: Session = {
-      id: Date.now().toString(),
+    const fields = {
       name: data.name.trim(),
       date: data.date || new Date().toISOString().slice(0, 10),
       duration: data.duration,
@@ -457,15 +466,23 @@ export default function TattoDiary() {
       skinReaction: data.skinReaction.trim(),
       note: data.note.trim(),
       photos: data.photos,
-      done: true,
     };
-    const updated: Client = {
+    let sessions: Session[];
+    if (editSession) {
+      // Update the existing session in place, keeping its id and done flag.
+      sessions = selectedClient.sessions.map((s) =>
+        s.id === editSession.id ? { ...s, ...fields } : s,
+      );
+    } else {
+      sessions = [...selectedClient.sessions, { id: Date.now().toString(), done: true, ...fields }];
+    }
+    saveClient({
       ...selectedClient,
       style: data.style || selectedClient.style,
-      sessions: [...selectedClient.sessions, session],
-    };
-    saveClient(updated);
+      sessions,
+    });
     setShowNewSessionForm(false);
+    setEditSession(null);
   };
 
   const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm;
@@ -722,7 +739,8 @@ export default function TattoDiary() {
             onSave={saveClient}
             onEditClient={() => setShowEditClientForm(true)}
             onDeleteClient={() => deleteClient(selectedClient.id)}
-            onAddSession={() => setShowNewSessionForm(true)}
+            onAddSession={() => { setEditSession(null); setShowNewSessionForm(true); }}
+            onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
             onDeleteSession={deleteSession}
             onUpdateSessionPhotos={updateSessionPhotos}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
@@ -758,10 +776,11 @@ export default function TattoDiary() {
         onSave={handleUpdateClient}
       />
 
-      {/* ═══════════ NEW SESSION SHEET ═══════════ */}
+      {/* ═══════════ NEW / EDIT SESSION SHEET ═══════════ */}
       <NewSessionSheet
         open={showNewSessionForm}
         clientName={selectedClient?.name || ''}
+        initial={editSession}
         onClose={closeNewSession}
         onAdd={handleAddSession}
       />
@@ -785,10 +804,29 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         cursor: 'pointer',
         display: 'flex',
         flexDirection: 'column',
+        // Isolate each card's layout/paint so the two grid columns don't repaint
+        // out of sync during fast momentum scrolling (a compositing artifact).
+        contain: 'content',
       }}
     >
       {/* Top accent stripe */}
       <div style={{ height: 2, background: client.color, flexShrink: 0 }} />
+
+      {/* Gilded corner accent (top-right) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 2,
+          right: 0,
+          width: 0,
+          height: 0,
+          borderStyle: 'solid',
+          borderWidth: '0 26px 26px 0',
+          borderColor: 'transparent rgba(var(--gold-rgb),0.13) transparent transparent',
+          zIndex: 1,
+          pointerEvents: 'none',
+        }}
+      />
 
       {/* Content */}
       <div
@@ -981,15 +1019,16 @@ function BottomNav() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: 'calc(84px + env(safe-area-inset-bottom))',
-        background: 'linear-gradient(to top, rgba(var(--bg-rgb),0.97) 75%, transparent)',
+        height: 'calc(56px + env(safe-area-inset-bottom))',
+        background: 'linear-gradient(to top, rgba(var(--bg-rgb),0.98), rgba(var(--bg-rgb),0.95))',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         borderTop: '1px solid rgba(var(--gold-rgb),0.07)',
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
+        paddingTop: 7,
+        paddingBottom: 'calc(7px + env(safe-area-inset-bottom))',
         zIndex: 50,
       }}
     >
@@ -1033,6 +1072,7 @@ function DetailScreen({
   onEditClient,
   onDeleteClient,
   onAddSession,
+  onEditSession,
   onDeleteSession,
   onUpdateSessionPhotos,
   onAddDocument,
@@ -1046,6 +1086,7 @@ function DetailScreen({
   onEditClient: () => void;
   onDeleteClient: () => void;
   onAddSession: () => void;
+  onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
   onAddDocument: (doc: ClientDocument) => void;
@@ -1156,6 +1197,7 @@ function DetailScreen({
           <SessionsTab
             client={client}
             onAddSession={onAddSession}
+            onEditSession={onEditSession}
             onDeleteSession={onDeleteSession}
             onUpdateSessionPhotos={onUpdateSessionPhotos}
           />
@@ -1800,7 +1842,15 @@ function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
 // Photo gallery + upload for a session. On mobile the native file picker
 // already offers "Take Photo", so there's no separate camera button. Deleting
 // a photo takes two taps (✕ → confirm) so it can't happen by accident.
-function SessionPhotos({ photos, onChange }: { photos: string[]; onChange: (photos: string[]) => void }) {
+function SessionPhotos({
+  photos,
+  onChange,
+  allowDelete = true,
+}: {
+  photos: string[];
+  onChange: (photos: string[]) => void;
+  allowDelete?: boolean;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
 
@@ -1842,7 +1892,7 @@ function SessionPhotos({ photos, onChange }: { photos: string[]; onChange: (phot
                   }}
                 />
               </a>
-              {confirmIndex === i ? (
+              {allowDelete && (confirmIndex === i ? (
                 <div
                   style={{
                     position: 'absolute',
@@ -1888,7 +1938,7 @@ function SessionPhotos({ photos, onChange }: { photos: string[]; onChange: (phot
                     <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                   </svg>
                 </div>
-              )}
+              ))}
             </div>
           ))}
         </div>
@@ -1937,11 +1987,13 @@ function SessionPhotos({ photos, onChange }: { photos: string[]; onChange: (phot
 function SessionsTab({
   client,
   onAddSession,
+  onEditSession,
   onDeleteSession,
   onUpdateSessionPhotos,
 }: {
   client: Client;
   onAddSession: () => void;
+  onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
 }) {
@@ -1998,8 +2050,18 @@ function SessionsTab({
                   <div style={{ fontSize: 12, color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
                 )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
                 {session.duration && <span style={{ fontSize: 13, color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+                <div
+                  className="inka-back"
+                  onClick={() => onEditSession(session)}
+                  style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+                  title="Редактировать сессию"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                    <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  </svg>
+                </div>
                 <SessionDeleteControl onDelete={() => onDeleteSession(session.id)} />
               </div>
             </div>
@@ -2028,6 +2090,7 @@ function SessionsTab({
             <SessionPhotos
               photos={session.photos}
               onChange={(photos) => onUpdateSessionPhotos(session.id, photos)}
+              allowDelete={false}
             />
           </div>
         </div>
@@ -2469,11 +2532,13 @@ function EditClientSheet({
 function NewSessionSheet({
   open,
   clientName,
+  initial,
   onClose,
   onAdd,
 }: {
   open: boolean;
   clientName: string;
+  initial?: Session | null;
   onClose: () => void;
   onAdd: (data: {
     name: string;
@@ -2488,6 +2553,7 @@ function NewSessionSheet({
     photos: string[];
   }) => void;
 }) {
+  const isEdit = !!initial;
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
   const [duration, setDuration] = useState('');
@@ -2500,18 +2566,20 @@ function NewSessionSheet({
   const [photos, setPhotos] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!open) {
-      setName('');
-      setDate('');
-      setDuration('');
-      setStyle('');
-      setArea('');
-      setColors('');
-      setNeedles('');
-      setSkinReaction('');
-      setNote('');
-      setPhotos([]);
+    if (open) {
+      // Prefill from the session being edited, or start blank for a new one.
+      setName(initial?.name ?? '');
+      setDate(initial?.date ?? '');
+      setDuration(initial?.duration ?? '');
+      setStyle(initial?.style ?? '');
+      setArea(initial?.area ?? '');
+      setColors(initial?.colors ?? '');
+      setNeedles(initial?.needles ?? '');
+      setSkinReaction(initial?.skinReaction ?? '');
+      setNote(initial?.note ?? '');
+      setPhotos(initial?.photos ?? []);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const chipStyle = (selected: boolean, big: boolean): React.CSSProperties => ({
@@ -2534,7 +2602,9 @@ function NewSessionSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: 15, color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
-        <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новая сессия</div>
+        <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
+          {isEdit ? 'Редактировать сессию' : 'Новая сессия'}
+        </div>
         <SheetStarDivider />
       </div>
 
@@ -2618,7 +2688,7 @@ function NewSessionSheet({
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
-            Добавить сессию
+            {isEdit ? 'Сохранить' : 'Добавить сессию'}
           </span>
         </div>
       </div>
