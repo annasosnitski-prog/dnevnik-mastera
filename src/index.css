@@ -5,8 +5,8 @@
 /* Decorative drop-cap face used for the буквица on client cards / hero / notes.
    Bundled locally (public/fonts). Covers Latin and Cyrillic alike. */
 @font-face {
-  font-family: 'Marggraff Kursiv Zarte';
-  src: url('/fonts/MarggraffKursivZarte.ttf') format('truetype');
+  font-family: 'Loreley Antiqua';
+  src: url('/fonts/LoreleyAntiqua.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

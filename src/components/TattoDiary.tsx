@@ -126,9 +126,9 @@ function formatDate(value: string): string {
   return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
 }
 
-// Decorative drop-cap face (Marggraff Kursiv Zarte, 1929 revival — supports both
-// Latin and Cyrillic). Playfair/serif fall back if the webfont hasn't loaded.
-const DROP_CAP_FONT = "'Marggraff Kursiv Zarte', 'Playfair Display', serif";
+// Decorative drop-cap face (Loreley Antiqua — supports both Latin and Cyrillic).
+// Playfair/serif fall back if the webfont hasn't loaded.
+const DROP_CAP_FONT = "'Loreley Antiqua', 'Playfair Display', serif";
 
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
