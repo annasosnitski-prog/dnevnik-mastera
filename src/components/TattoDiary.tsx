@@ -19,13 +19,14 @@ const COLORS = {
 // Per-client accent colours, assigned on creation (rotated through the list).
 const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#7A6A3A', '#3A6A7A'];
 
-const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч'];
+const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч', '7 ч', '8 ч'];
 const STYLES = ['Реализм', 'Графика', 'Орнамент', 'Японский', 'Акварель', 'Другой'];
 
 // ===================== DATA TYPES =====================
 interface Session {
   id: string;
-  date: string; // free text, e.g. "15 фев 2025"
+  name: string; // session title, e.g. "Первая", "Голубика"
+  date: string; // ISO yyyy-mm-dd (or legacy free text)
   duration: string; // e.g. "4 ч"
   style: string; // work style for this session
   area: string; // work zone, e.g. "Левое плечо"
@@ -114,9 +115,24 @@ const SKIN_TYPES: { value: string; label: string }[] = [
 ];
 
 // ===================== DERIVED HELPERS =====================
+const MONTHS_RU = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+// Formats an ISO yyyy-mm-dd as "24 мая 2026"; leaves legacy free-text as-is.
+function formatDate(value: string): string {
+  if (!value) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return value;
+  const [, y, mo, d] = m;
+  return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
+}
+
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
-const lastSessionDate = (c: Client) => (c.sessions.length ? c.sessions[c.sessions.length - 1].date : '—');
+const lastSession = (c: Client): Session | null => (c.sessions.length ? c.sessions[c.sessions.length - 1] : null);
+const lastSessionDate = (c: Client) => {
+  const s = lastSession(c);
+  return s ? formatDate(s.date) || '—' : '—';
+};
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
@@ -124,6 +140,7 @@ function normalizeClient(raw: any, index: number): Client {
   const sessions: Session[] = Array.isArray(raw?.sessions)
     ? raw.sessions.map((s: any, i: number) => ({
         id: String(s?.id ?? `${Date.now()}-${i}`),
+        name: s?.name ?? '',
         date: s?.date ?? '',
         duration: s?.duration ?? '',
         style: s?.style ?? '',
@@ -192,6 +209,26 @@ function MaskSVG({ width, height, withSmile = false }: { width: number; height: 
   );
 }
 
+// Venetian corner flourish drawn in code (currentColor → themed gold, transparent
+// background). Rendered top-right and mirrored bottom-left to wreath the card.
+function CornerOrnament() {
+  return (
+    <svg viewBox="0 0 44 44" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* outer bracket hugging the corner */}
+      <path d="M40 30 L40 9 Q40 4 35 4 L14 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      {/* inner parallel line */}
+      <path d="M35.5 26 L35.5 12.5 Q35.5 9.5 32.5 9.5 L20 9.5" stroke="currentColor" strokeWidth="0.85" strokeLinecap="round" opacity="0.6" />
+      {/* little inward scroll near the elbow */}
+      <path d="M28.5 4 Q28.5 8.5 33 8.5" stroke="currentColor" strokeWidth="0.7" strokeLinecap="round" opacity="0.5" />
+      {/* diamond accent at the very corner */}
+      <path d="M39 4.4 L40.9 6.3 L39 8.2 L37.1 6.3 Z" fill="currentColor" fillOpacity="0.55" />
+      {/* teardrop finials at the open ends */}
+      <circle cx="14" cy="4" r="1.35" fill="currentColor" fillOpacity="0.8" />
+      <circle cx="40" cy="30" r="1.35" fill="currentColor" fillOpacity="0.8" />
+    </svg>
+  );
+}
+
 function StarDivider({ marginTop = 11 }: { marginTop?: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop }}>
@@ -227,7 +264,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontSize: '8.5px',
+        fontSize: '11px',
         color: COLORS.textGhost,
         letterSpacing: '2.5px',
         textTransform: 'uppercase',
@@ -433,6 +470,7 @@ export default function TattoDiary() {
   };
 
   const handleAddSession = (data: {
+    name: string;
     date: string;
     duration: string;
     style: string;
@@ -441,12 +479,13 @@ export default function TattoDiary() {
     needles: string;
     skinReaction: string;
     note: string;
-    photoUrl?: string;
+    photos: string[];
   }) => {
     if (!selectedClient) return;
     const session: Session = {
       id: Date.now().toString(),
-      date: data.date.trim() || new Date().toLocaleDateString('ru-RU'),
+      name: data.name.trim(),
+      date: data.date || new Date().toISOString().slice(0, 10),
       duration: data.duration,
       style: data.style,
       area: data.area.trim(),
@@ -454,7 +493,7 @@ export default function TattoDiary() {
       needles: data.needles.trim(),
       skinReaction: data.skinReaction.trim(),
       note: data.note.trim(),
-      photos: data.photoUrl ? [data.photoUrl] : [],
+      photos: data.photos,
       done: true,
     };
     const updated: Client = {
@@ -537,7 +576,7 @@ export default function TattoDiary() {
           </div>
           <div
             style={{
-              fontSize: 11,
+              fontSize: 13,
               color: COLORS.textGhost,
               letterSpacing: '5px',
               textTransform: 'uppercase',
@@ -601,7 +640,7 @@ export default function TattoDiary() {
               zIndex: 10,
             }}
           >
-            <span style={{ flex: 1, fontSize: 13, color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
+            <span style={{ flex: 1, fontSize: 15, color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
             <button
               onClick={() => setDbError(null)}
               style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
@@ -631,7 +670,7 @@ export default function TattoDiary() {
             className="inka-add-tile"
             onClick={() => setShowNewClientForm(true)}
             style={{
-              height: 210,
+              height: 250,
               border: '1px dashed rgba(var(--gold-rgb),0.17)',
               borderRadius: 3,
               display: 'flex',
@@ -661,7 +700,7 @@ export default function TattoDiary() {
             </div>
             <span
               style={{
-                fontSize: '9.5px',
+                fontSize: '11px',
                 color: 'rgba(var(--gold-rgb),0.32)',
                 letterSpacing: '1.5px',
                 textTransform: 'uppercase',
@@ -681,7 +720,7 @@ export default function TattoDiary() {
               left: 0,
               right: 0,
               textAlign: 'center',
-              fontSize: 14,
+              fontSize: 15,
               fontStyle: 'italic',
               color: COLORS.textGhost,
               pointerEvents: 'none',
@@ -776,7 +815,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         background: COLORS.card,
         border: '1px solid rgba(var(--gold-rgb),0.2)',
         borderRadius: 3,
-        height: 210,
+        height: 250,
         overflow: 'hidden',
         cursor: 'pointer',
         display: 'flex',
@@ -786,21 +825,38 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
       {/* Top accent stripe */}
       <div style={{ height: 2, background: client.color, flexShrink: 0 }} />
 
-      {/* Corner triangle accent */}
+      {/* Gilded corner flourishes — top-right + mirrored bottom-left */}
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          right: 0,
-          width: 0,
-          height: 0,
-          borderStyle: 'solid',
-          borderWidth: '0 26px 26px 0',
-          borderColor: 'transparent rgba(var(--gold-rgb),0.13) transparent transparent',
+          top: 6,
+          right: 6,
+          width: 38,
+          height: 38,
+          color: COLORS.gold,
+          opacity: 0.5,
           zIndex: 1,
           pointerEvents: 'none',
         }}
-      />
+      >
+        <CornerOrnament />
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 6,
+          left: 6,
+          width: 38,
+          height: 38,
+          color: COLORS.gold,
+          opacity: 0.5,
+          zIndex: 1,
+          pointerEvents: 'none',
+          transform: 'rotate(180deg)',
+        }}
+      >
+        <CornerOrnament />
+      </div>
 
       {/* Mask watermark */}
       <div
@@ -828,10 +884,10 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           zIndex: 2,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, flex: 1, minHeight: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, flexShrink: 0 }}>
           <span
             style={{
-              fontFamily: "'Cinzel Decorative', serif",
+              fontFamily: "'Playfair Display', serif",
               fontSize: 52,
               lineHeight: 0.79,
               color: COLORS.gold,
@@ -845,7 +901,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           <div style={{ paddingTop: 7, minWidth: 0, overflow: 'hidden' }}>
             <div
               style={{
-                fontSize: 13,
+                fontSize: 15,
                 color: COLORS.textPrimary,
                 lineHeight: 1.2,
                 letterSpacing: '0.3px',
@@ -858,7 +914,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             </div>
             <div
               style={{
-                fontSize: 10,
+                fontSize: 12,
                 color: 'var(--surname)',
                 fontStyle: 'italic',
                 marginTop: 2,
@@ -875,12 +931,58 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         {/* Gold divider */}
         <div style={{ height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.42), transparent)', margin: '7px 0' }} />
 
+        {/* Note preview fills the middle */}
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {client.note ? (
+            <div
+              style={{
+                fontSize: 12,
+                color: COLORS.textMuted,
+                fontStyle: 'italic',
+                lineHeight: 1.35,
+                display: '-webkit-box',
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {client.note}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: COLORS.textTrace, fontStyle: 'italic' }}>Без заметок</div>
+          )}
+        </div>
+
+        {/* Last session name + date */}
+        <div style={{ marginBottom: 6, minWidth: 0 }}>
+          <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+            Последний сеанс
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: 'var(--text-strong)',
+              marginTop: 2,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {(() => {
+              const s = lastSession(client);
+              if (!s) return 'Нет сеансов';
+              const d = formatDate(s.date);
+              return [s.name, d].filter(Boolean).join(' · ') || '—';
+            })()}
+          </div>
+        </div>
+
         {/* Style tag + session count */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
           {client.style ? (
             <span
               style={{
-                fontSize: 9,
+                fontSize: 11,
                 color: client.color,
                 border: `0.5px solid ${client.color}`,
                 padding: '2px 7px',
@@ -895,13 +997,10 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
               {client.style}
             </span>
           ) : (
-            <span style={{ fontSize: 9, color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.5px' }}>—</span>
+            <span style={{ fontSize: 11, color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.5px' }}>—</span>
           )}
-          <span style={{ fontSize: 10, color: COLORS.textGhost, flexShrink: 0 }}>{client.sessions.length} сес.</span>
+          <span style={{ fontSize: 12, color: COLORS.textGhost, flexShrink: 0 }}>{client.sessions.length} сес.</span>
         </div>
-
-        {/* Date */}
-        <div style={{ fontSize: 9, color: COLORS.textTrace, letterSpacing: '0.4px' }}>{lastSessionDate(client)}</div>
       </div>
     </div>
   );
@@ -978,7 +1077,7 @@ function BottomNav() {
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
           <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="currentColor" fillOpacity="0.07" />
         </svg>
-        <span style={{ fontSize: '8.5px', color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
+        <span style={{ fontSize: '11px', color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: 0.28 }}>
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--text)' }}>
@@ -986,7 +1085,7 @@ function BottomNav() {
           <rect x="8.3" y="8" width="3.5" height="9.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
           <rect x="14" y="4" width="3.5" height="13.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
         </svg>
-        <span style={{ fontSize: '8.5px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
+        <span style={{ fontSize: '11px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: 0.28 }}>
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--text)' }}>
@@ -998,7 +1097,7 @@ function BottomNav() {
             strokeLinecap="round"
           />
         </svg>
-        <span style={{ fontSize: '8.5px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Настройки</span>
+        <span style={{ fontSize: '11px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Настройки</span>
       </div>
     </div>
   );
@@ -1036,7 +1135,7 @@ function DetailScreen({
     flex: 1,
     textAlign: 'center',
     padding: '11px 0',
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: '1.5px',
     textTransform: 'uppercase',
     color: activeTab === tab ? COLORS.gold : 'var(--ink-faint)',
@@ -1078,7 +1177,7 @@ function DetailScreen({
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span style={{ fontSize: 13, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+            <span style={{ fontSize: 15, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
           {/* Edit client */}
           <div
@@ -1086,7 +1185,7 @@ function DetailScreen({
             onClick={onEditClient}
             style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
           >
-            <span style={{ fontSize: 13, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
+            <span style={{ fontSize: 15, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
               <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
             </svg>
@@ -1098,7 +1197,7 @@ function DetailScreen({
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
             <span
               style={{
-                fontFamily: "'Cinzel Decorative', serif",
+                fontFamily: "'Playfair Display', serif",
                 fontSize: 96,
                 lineHeight: 0.79,
                 color: COLORS.gold,
@@ -1113,7 +1212,7 @@ function DetailScreen({
               <div style={{ fontSize: 26, color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
                 {nameRest(client.name)}
               </div>
-              <div style={{ fontSize: 13, color: COLORS.textMuted, fontStyle: 'italic', marginTop: 5, letterSpacing: '0.5px' }}>
+              <div style={{ fontSize: 15, color: COLORS.textMuted, fontStyle: 'italic', marginTop: 5, letterSpacing: '0.5px' }}>
                 {client.surname}
               </div>
             </div>
@@ -1121,10 +1220,10 @@ function DetailScreen({
           {/* Style + session count */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13 }}>
             <div style={{ width: 22, height: 2, background: client.color, borderRadius: 1, flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: 'var(--text-soft)', letterSpacing: '2.5px', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-soft)', letterSpacing: '2.5px', textTransform: 'uppercase' }}>
               {client.style || 'Без стиля'}
             </span>
-            <span style={{ fontSize: 11, color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
+            <span style={{ fontSize: 13, color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
           </div>
         </div>
 
@@ -1189,8 +1288,8 @@ function InfoTab({
       <div style={{ marginBottom: 22 }}>
         <div
           style={{
-            fontFamily: "'Cinzel Decorative', serif",
-            fontSize: 8,
+            fontFamily: "'Playfair Display', serif",
+            fontSize: 11,
             color: COLORS.textGhost,
             letterSpacing: '3.5px',
             textTransform: 'uppercase',
@@ -1203,7 +1302,7 @@ function InfoTab({
           <div style={{ overflow: 'hidden', lineHeight: 1 }}>
             <span
               style={{
-                fontFamily: "'Cinzel Decorative', serif",
+                fontFamily: "'Playfair Display', serif",
                 fontSize: 50,
                 lineHeight: 0.81,
                 color: 'rgba(var(--gold-rgb),0.42)',
@@ -1215,12 +1314,12 @@ function InfoTab({
             >
               {note.charAt(0)}
             </span>
-            <span style={{ fontSize: 14, color: 'var(--text-soft)', lineHeight: 1.75, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
+            <span style={{ fontSize: 15, color: 'var(--text-soft)', lineHeight: 1.75, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
               {note.slice(1)}
             </span>
           </div>
         ) : (
-          <div style={{ fontSize: 14, color: COLORS.textGhost, fontStyle: 'italic' }}>Заметок пока нет.</div>
+          <div style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic' }}>Заметок пока нет.</div>
         )}
       </div>
 
@@ -1348,7 +1447,7 @@ function DeleteButton({
 
 function MetaLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: '8.5px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+    <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
       {children}
     </div>
   );
@@ -1374,8 +1473,8 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontFamily: "'Cinzel Decorative', serif",
-        fontSize: 8,
+        fontFamily: "'Playfair Display', serif",
+        fontSize: 11,
         color: COLORS.textGhost,
         letterSpacing: '3.5px',
         textTransform: 'uppercase',
@@ -1410,7 +1509,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
       <SectionHeader>Кожа</SectionHeader>
 
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: '8.5px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+        <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
           Тип кожи
         </div>
         <select
@@ -1437,7 +1536,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
       </div>
 
       <div>
-        <div style={{ fontSize: '8.5px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+        <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
           Заметки о коже
         </div>
         <textarea
@@ -1499,8 +1598,8 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
 
       <div
         style={{
-          fontFamily: "'Cinzel Decorative', serif",
-          fontSize: 8,
+          fontFamily: "'Playfair Display', serif",
+          fontSize: 11,
           color: COLORS.textGhost,
           letterSpacing: '3.5px',
           textTransform: 'uppercase',
@@ -1560,7 +1659,7 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
             </a>
             <span
               onClick={() => setEditingPhone(true)}
-              style={{ fontSize: 11, color: COLORS.textFaint, fontStyle: 'italic', cursor: 'pointer' }}
+              style={{ fontSize: 13, color: COLORS.textFaint, fontStyle: 'italic', cursor: 'pointer' }}
             >
               изменить
             </span>
@@ -1568,7 +1667,7 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
         ) : (
           <span
             onClick={() => setEditingPhone(true)}
-            style={{ flex: 1, fontSize: 14, color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer' }}
+            style={{ flex: 1, fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer' }}
           >
             Добавить телефон
           </span>
@@ -1605,10 +1704,10 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
             rel="noopener noreferrer"
             style={{ flex: 1, minWidth: 0, textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 1 }}
           >
-            <span style={{ fontSize: 13, color: COLORS.gold, letterSpacing: '0.5px' }}>{PLATFORM_LABELS[link.platform]}</span>
+            <span style={{ fontSize: 15, color: COLORS.gold, letterSpacing: '0.5px' }}>{PLATFORM_LABELS[link.platform]}</span>
             <span
               style={{
-                fontSize: 11,
+                fontSize: 13,
                 color: COLORS.textFaint,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -1620,7 +1719,7 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
           </a>
           <button
             onClick={() => removeLink(link.id)}
-            style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: 14 }}
+            style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: 15 }}
           >
             ✕
           </button>
@@ -1658,7 +1757,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
           <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
           <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: 11, color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+        <span style={{ fontSize: 13, color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
           Добавить ссылку
         </span>
       </div>
@@ -1713,7 +1812,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             borderRadius: 2,
             border: '1px solid rgba(var(--gold-rgb),0.15)',
             color: COLORS.textFaint,
-            fontSize: 11,
+            fontSize: 13,
             letterSpacing: '1px',
             textTransform: 'uppercase',
             cursor: 'pointer',
@@ -1737,7 +1836,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             border: '1px solid rgba(var(--gold-rgb),0.35)',
             background: 'rgba(var(--gold-rgb),0.05)',
             color: COLORS.gold,
-            fontSize: 11,
+            fontSize: 13,
             letterSpacing: '1px',
             textTransform: 'uppercase',
             cursor: 'pointer',
@@ -1753,8 +1852,8 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
 // One "label: value" line inside a session card (краски / иглы / реакция кожи).
 function SessionMeta({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', gap: 6, fontSize: 11, lineHeight: 1.4 }}>
-      <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: 9, paddingTop: 1 }}>
+    <div style={{ display: 'flex', gap: 6, fontSize: 13, lineHeight: 1.4 }}>
+      <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: 11, paddingTop: 1 }}>
         {label}
       </span>
       <span style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>{value}</span>
@@ -1769,13 +1868,13 @@ function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
   if (confirming) {
     return (
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 10, color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
-        <span onClick={onDelete} style={{ fontSize: 10, color: '#C56676', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
+        <span style={{ fontSize: 12, color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
+        <span onClick={onDelete} style={{ fontSize: 12, color: '#C56676', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
           Да
         </span>
         <span
           onClick={() => setConfirming(false)}
-          style={{ fontSize: 10, color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
+          style={{ fontSize: 12, color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
         >
           Нет
         </span>
@@ -1793,81 +1892,44 @@ function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
   );
 }
 
-// Photo gallery + capture/upload for a single session card.
+// Photo gallery + upload for a session. On mobile the native file picker
+// already offers "Take Photo", so there's no separate camera button. Deleting
+// a photo takes two taps (✕ → confirm) so it can't happen by accident.
 function SessionPhotos({ photos, onChange }: { photos: string[]; onChange: (photos: string[]) => void }) {
-  const [cameraActive, setCameraActive] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
 
-  const stopCamera = () => {
-    const stream = videoRef.current?.srcObject as MediaStream | null;
-    stream?.getTracks().forEach((t) => t.stop());
-    setCameraActive(false);
+  const onPick = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const readers = Array.from(files).map(
+      (file) =>
+        new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        }),
+    );
+    Promise.all(readers).then((urls) => onChange([...photos, ...urls]));
   };
 
-  useEffect(() => () => stopCamera(), []);
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setCameraActive(true);
-      }
-    } catch (err) {
-      console.error('Camera error:', err);
-    }
-  };
-
-  const capture = () => {
-    if (!videoRef.current) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
-    onChange([...photos, canvas.toDataURL('image/jpeg', 0.85)]);
-    stopCamera();
-  };
-
-  const onPick = (file: File | undefined) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onChange([...photos, reader.result as string]);
-    reader.readAsDataURL(file);
-  };
-
-  const remove = (i: number) => onChange(photos.filter((_, idx) => idx !== i));
-
-  const miniBtn: React.CSSProperties = {
-    flex: 1,
-    border: '1px solid rgba(var(--gold-rgb),0.18)',
-    borderRadius: 2,
-    padding: '8px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    cursor: 'pointer',
-    fontSize: 10,
-    color: COLORS.gold,
-    letterSpacing: '1px',
-    textTransform: 'uppercase',
+  const remove = (i: number) => {
+    onChange(photos.filter((_, idx) => idx !== i));
+    setConfirmIndex(null);
   };
 
   return (
     <div style={{ marginTop: 10 }}>
-      {/* Thumbnails */}
       {photos.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           {photos.map((src, i) => (
-            <div key={i} style={{ position: 'relative', width: 70, height: 70 }}>
+            <div key={i} style={{ position: 'relative', width: 78, height: 78 }}>
               <a href={src} target="_blank" rel="noopener noreferrer">
                 <img
                   src={src}
                   alt=""
                   style={{
-                    width: 70,
-                    height: 70,
+                    width: 78,
+                    height: 78,
                     objectFit: 'cover',
                     borderRadius: 2,
                     border: '1px solid rgba(var(--gold-rgb),0.2)',
@@ -1875,81 +1937,93 @@ function SessionPhotos({ photos, onChange }: { photos: string[]; onChange: (phot
                   }}
                 />
               </a>
-              <div
-                onClick={() => remove(i)}
-                style={{
-                  position: 'absolute',
-                  top: -6,
-                  right: -6,
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: 'var(--bg)',
-                  border: '1px solid rgba(var(--gold-rgb),0.4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
-                  <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </div>
+              {confirmIndex === i ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    borderRadius: 2,
+                    background: 'rgba(0,0,0,0.72)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <span style={{ fontSize: 11, color: '#EDE4CC', fontStyle: 'italic' }}>Удалить?</span>
+                  <span style={{ display: 'flex', gap: 10 }}>
+                    <span onClick={() => remove(i)} style={{ fontSize: 12, color: '#E08694', textTransform: 'uppercase', cursor: 'pointer' }}>
+                      Да
+                    </span>
+                    <span onClick={() => setConfirmIndex(null)} style={{ fontSize: 12, color: '#CFC3AE', textTransform: 'uppercase', cursor: 'pointer' }}>
+                      Нет
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                <div
+                  onClick={() => setConfirmIndex(i)}
+                  style={{
+                    position: 'absolute',
+                    bottom: 4,
+                    right: 4,
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.55)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ color: '#EDE4CC' }}>
+                    <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {/* Capture / upload controls */}
-      {cameraActive ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{ width: '100%', maxHeight: 180, borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.18)', background: '#000' }}
-          />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <div className="inka-submit" onClick={capture} style={{ ...miniBtn, background: 'rgba(var(--gold-rgb),0.06)' }}>
-              Снять
-            </div>
-            <div onClick={stopCamera} style={{ ...miniBtn, color: COLORS.textFaint, borderColor: 'rgba(var(--gold-rgb),0.12)' }}>
-              Отмена
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <div className="inka-doc-secondary" onClick={startCamera} style={miniBtn}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <rect x="1.5" y="4.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-              <circle cx="8" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.2" />
-              <path d="M5.5 4.5L6.3 3H9.7L10.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-            </svg>
-            Камера
-          </div>
-          <div className="inka-doc-secondary" onClick={() => fileRef.current?.click()} style={miniBtn}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-            Фото
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              onPick(e.target.files?.[0]);
-              e.target.value = '';
-            }}
-          />
-        </div>
-      )}
+      <div
+        className="inka-doc-secondary"
+        onClick={() => fileRef.current?.click()}
+        style={{
+          border: '1px solid rgba(var(--gold-rgb),0.2)',
+          borderRadius: 2,
+          padding: '11px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 9,
+          cursor: 'pointer',
+          fontSize: 12,
+          color: COLORS.gold,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+          <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        Добавить фото
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          onPick(e.target.files);
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }
@@ -1970,8 +2044,8 @@ function SessionsTab({
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
       <div
         style={{
-          fontFamily: "'Cinzel Decorative', serif",
-          fontSize: 8,
+          fontFamily: "'Playfair Display', serif",
+          fontSize: 11,
           color: COLORS.textGhost,
           letterSpacing: '3.5px',
           textTransform: 'uppercase',
@@ -1982,7 +2056,7 @@ function SessionsTab({
       </div>
 
       {client.sessions.length === 0 && (
-        <div style={{ fontSize: 13, color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
+        <div style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
       )}
 
       {client.sessions.map((session) => (
@@ -2010,19 +2084,26 @@ function SessionsTab({
               padding: '12px 14px',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-              <span style={{ fontSize: 13, color: 'var(--text-strong)', fontWeight: 500, letterSpacing: '0.3px' }}>{session.date}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {session.duration && <span style={{ fontSize: 11, color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 15, color: 'var(--text-strong)', fontWeight: 500, letterSpacing: '0.3px' }}>
+                  {session.name || formatDate(session.date) || 'Сессия'}
+                </div>
+                {session.name && formatDate(session.date) && (
+                  <div style={{ fontSize: 12, color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                {session.duration && <span style={{ fontSize: 13, color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
                 <SessionDeleteControl onDelete={() => onDeleteSession(session.id)} />
               </div>
             </div>
             {session.area && (
-              <div style={{ fontSize: 10, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
+              <div style={{ fontSize: 12, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
                 {session.area}
               </div>
             )}
-            {session.note && <div style={{ fontSize: 12, color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+            {session.note && <div style={{ fontSize: 13, color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
             {(session.colors || session.needles || session.skinReaction) && (
               <div
                 style={{
@@ -2067,7 +2148,7 @@ function SessionsTab({
           <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
           <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: 11, color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+        <span style={{ fontSize: 13, color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
           Добавить сессию
         </span>
       </div>
@@ -2112,7 +2193,7 @@ function DocumentsTab({
           <div style={{ opacity: 0.13, color: COLORS.gold, animation: 'goldGlow 3s ease-in-out infinite' }}>
             <MaskSVG width={80} height={56} />
           </div>
-          <div style={{ fontSize: 13, color: COLORS.textGhost, fontStyle: 'italic', textAlign: 'center', letterSpacing: '0.2px' }}>
+          <div style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', textAlign: 'center', letterSpacing: '0.2px' }}>
             Документы не добавлены
           </div>
         </>
@@ -2133,21 +2214,21 @@ function DocumentsTab({
                 background: 'rgba(var(--surface-rgb),0.018)',
               }}
             >
-              <span style={{ fontSize: 11, color: COLORS.gold }}>{doc.kind === 'photo' ? '◈' : '▤'}</span>
+              <span style={{ fontSize: 13, color: COLORS.gold }}>{doc.kind === 'photo' ? '◈' : '▤'}</span>
               <a
                 href={doc.fileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}
               >
-                <div style={{ fontSize: 13, color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ fontSize: 15, color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {doc.name}
                 </div>
-                <div style={{ fontSize: 9, color: COLORS.textGhost, letterSpacing: '0.4px', marginTop: 2 }}>{doc.uploadedDate}</div>
+                <div style={{ fontSize: 11, color: COLORS.textGhost, letterSpacing: '0.4px', marginTop: 2 }}>{doc.uploadedDate}</div>
               </a>
               <button
                 onClick={() => onRemoveDocument(doc.id)}
-                style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: 14 }}
+                style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: 15 }}
               >
                 ✕
               </button>
@@ -2181,7 +2262,7 @@ function DocumentsTab({
             <line x1="13" y1="11.5" x2="13" y2="14.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
             <line x1="11.5" y1="13" x2="14.5" y2="13" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
           </svg>
-          <span style={{ fontSize: 13, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Добавить документ</span>
+          <span style={{ fontSize: 15, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Добавить документ</span>
         </div>
 
         {/* Add photo */}
@@ -2203,7 +2284,7 @@ function DocumentsTab({
             <rect x="5.5" y="5.5" width="5" height="4" rx="0.5" stroke="currentColor" strokeWidth="1" />
             <line x1="5.5" y1="11" x2="10.5" y2="11" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
           </svg>
-          <span style={{ fontSize: 13, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+          <span style={{ fontSize: 15, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
             Добавить фото
           </span>
         </div>
@@ -2319,7 +2400,7 @@ function NewClientSheet({
     <BottomSheet open={open} heightPct={88}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 9, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
         <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
@@ -2378,7 +2459,7 @@ function NewClientSheet({
           onClick={() => canSubmit && onCreate({ name, surname, phone, skinType, skinNotes, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
-          <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
             Создать клиента
           </span>
         </div>
@@ -2418,7 +2499,7 @@ function EditClientSheet({
 
   const chipStyle = (selected: boolean): React.CSSProperties => ({
     fontFamily: "'Cormorant Garamond', serif",
-    fontSize: 10,
+    fontSize: 12,
     padding: '6px 11px',
     borderRadius: 2,
     cursor: 'pointer',
@@ -2435,7 +2516,7 @@ function EditClientSheet({
     <BottomSheet open={open} heightPct={84}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 9, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
         <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Редактировать</div>
@@ -2475,7 +2556,7 @@ function EditClientSheet({
           onClick={() => canSubmit && onSave({ name, surname, style, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
-          <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
             Сохранить
           </span>
         </div>
@@ -2495,6 +2576,7 @@ function NewSessionSheet({
   clientName: string;
   onClose: () => void;
   onAdd: (data: {
+    name: string;
     date: string;
     duration: string;
     style: string;
@@ -2503,9 +2585,10 @@ function NewSessionSheet({
     needles: string;
     skinReaction: string;
     note: string;
-    photoUrl?: string;
+    photos: string[];
   }) => void;
 }) {
+  const [name, setName] = useState('');
   const [date, setDate] = useState('');
   const [duration, setDuration] = useState('');
   const [style, setStyle] = useState('');
@@ -2514,19 +2597,11 @@ function NewSessionSheet({
   const [needles, setNeedles] = useState('');
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [cameraActive, setCameraActive] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
-
-  const stopCamera = () => {
-    const stream = videoRef.current?.srcObject as MediaStream | null;
-    stream?.getTracks().forEach((t) => t.stop());
-    setCameraActive(false);
-  };
+  const [photos, setPhotos] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) {
+      setName('');
       setDate('');
       setDuration('');
       setStyle('');
@@ -2535,47 +2610,13 @@ function NewSessionSheet({
       setNeedles('');
       setSkinReaction('');
       setNote('');
-      setPhotoUrl('');
-      stopCamera();
+      setPhotos([]);
     }
-    // Stop the camera if the sheet closes while it's running.
-    return () => {
-      if (!open) stopCamera();
-    };
   }, [open]);
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setCameraActive(true);
-      }
-    } catch (err) {
-      console.error('Camera error:', err);
-    }
-  };
-
-  const capturePhoto = () => {
-    if (!videoRef.current) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
-    setPhotoUrl(canvas.toDataURL('image/jpeg', 0.85));
-    stopCamera();
-  };
-
-  const onPickPhoto = (file: File | undefined) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setPhotoUrl(reader.result as string);
-    reader.readAsDataURL(file);
-  };
 
   const chipStyle = (selected: boolean, big: boolean): React.CSSProperties => ({
     fontFamily: "'Cormorant Garamond', serif",
-    fontSize: big ? 12 : 10,
+    fontSize: big ? 13 : 12,
     padding: big ? '7px 13px' : '6px 11px',
     borderRadius: 2,
     cursor: 'pointer',
@@ -2592,15 +2633,20 @@ function NewSessionSheet({
     <BottomSheet open={open} heightPct={80}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontSize: 13, color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
+        <div style={{ fontSize: 15, color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новая сессия</div>
         <SheetStarDivider />
       </div>
 
       <div style={{ padding: '4px 24px 50px' }}>
         <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Название сессии</FieldLabel>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
           <FieldLabel>Дата</FieldLabel>
-          <input value={date} onChange={(e) => setDate(e.target.value)} placeholder="15 фев 2025" style={INPUT_STYLE} />
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={INPUT_STYLE} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -2660,136 +2706,18 @@ function NewSessionSheet({
           />
         </div>
 
-        {/* Photo: camera capture or upload */}
+        {/* Photos: upload (native picker offers "Take Photo" on mobile) */}
         <div style={{ marginBottom: 22 }}>
           <FieldLabel>Фото</FieldLabel>
-          {cameraActive ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{ width: '100%', maxHeight: 200, borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.18)', background: '#000' }}
-              />
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div className="inka-submit" onClick={capturePhoto} style={{ ...SUBMIT_STYLE, flex: 1, padding: 11 }}>
-                  <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 10, color: COLORS.gold, letterSpacing: '1.5px' }}>Снять</span>
-                </div>
-                <div
-                  onClick={stopCamera}
-                  style={{
-                    flex: 1,
-                    textAlign: 'center',
-                    padding: 11,
-                    borderRadius: 2,
-                    border: '1px solid rgba(var(--gold-rgb),0.15)',
-                    color: COLORS.textFaint,
-                    fontSize: 10,
-                    letterSpacing: '1.5px',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Отмена
-                </div>
-              </div>
-            </div>
-          ) : photoUrl ? (
-            <div style={{ position: 'relative' }}>
-              <img
-                src={photoUrl}
-                alt=""
-                style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.18)', display: 'block' }}
-              />
-              <div
-                onClick={() => setPhotoUrl('')}
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                  width: 26,
-                  height: 26,
-                  borderRadius: '50%',
-                  background: 'rgba(var(--bg-rgb),0.85)',
-                  border: '1px solid rgba(var(--gold-rgb),0.4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                  <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div
-                className="inka-doc-secondary"
-                onClick={startCamera}
-                style={{
-                  flex: 1,
-                  border: '1px solid rgba(var(--gold-rgb),0.18)',
-                  borderRadius: 2,
-                  padding: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <rect x="1.5" y="4.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-                  <circle cx="8" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.2" />
-                  <path d="M5.5 4.5L6.3 3H9.7L10.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-                </svg>
-                <span style={{ fontSize: 12, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Камера</span>
-              </div>
-              <div
-                className="inka-doc-secondary"
-                onClick={() => photoInputRef.current?.click()}
-                style={{
-                  flex: 1,
-                  border: '1px solid rgba(var(--gold-rgb),0.18)',
-                  borderRadius: 2,
-                  padding: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                </svg>
-                <span style={{ fontSize: 12, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Загрузить</span>
-              </div>
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  onPickPhoto(e.target.files?.[0]);
-                  e.target.value = '';
-                }}
-              />
-            </div>
-          )}
+          <SessionPhotos photos={photos} onChange={setPhotos} />
         </div>
 
         <div
           className="inka-submit"
-          onClick={() => onAdd({ date, duration, style, area, colors, needles, skinReaction, note, photoUrl: photoUrl || undefined })}
+          onClick={() => onAdd({ name, date, duration, style, area, colors, needles, skinReaction, note, photos })}
           style={SUBMIT_STYLE}
         >
-          <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
             Добавить сессию
           </span>
         </div>

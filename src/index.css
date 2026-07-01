@@ -138,6 +138,14 @@ textarea:focus {
   box-shadow: 0 0 0 2px rgba(var(--gold-rgb), 0.08);
 }
 
+/* Native date picker follows the theme (calendar popup + glyph colours). */
+input[type='date'] {
+  color-scheme: dark;
+}
+:root[data-theme='light'] input[type='date'] {
+  color-scheme: light;
+}
+
 /* ── Hover / press states ──
    Base appearance lives in inline styles on the elements; these classes only
    carry the :hover and :active deltas that inline styles can't express. */
