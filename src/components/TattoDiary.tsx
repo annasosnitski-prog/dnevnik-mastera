@@ -840,16 +840,18 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           zIndex: 2,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
           <span
             style={{
               fontFamily: DROP_CAP_FONT,
-              fontSize: 54,
-              lineHeight: 0.79,
+              fontSize: 46,
+              // Taller line box so the ornate letter's descending swash stays
+              // within its own line and doesn't hang down onto the note text.
+              lineHeight: 1.12,
               color: COLORS.gold,
-              letterSpacing: '-1px',
+              letterSpacing: '0px',
               flexShrink: 0,
-              marginTop: -1,
+              marginTop: -2,
             }}
           >
             {firstLetter(client.name)}
@@ -892,10 +894,10 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           {client.note ? (
             <div
               style={{
-                fontSize: 12,
-                color: COLORS.textMuted,
+                fontSize: 13,
+                color: 'var(--text-secondary)',
                 fontStyle: 'italic',
-                lineHeight: 1.35,
+                lineHeight: 1.42,
                 display: '-webkit-box',
                 WebkitLineClamp: 3,
                 WebkitBoxOrient: 'vertical',
