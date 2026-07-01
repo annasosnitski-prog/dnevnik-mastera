@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Decorative drop-cap face used for the буквица on client cards / hero / notes.
+   Bundled locally (public/fonts). Covers Latin and Cyrillic alike. */
+@font-face {
+  font-family: 'Marggraff Kursiv Zarte';
+  src: url('/fonts/MarggraffKursivZarte.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ============================================
    INKA — Дневник Мастера
    Venetian Carnival. Two palettes share one set
