@@ -188,19 +188,24 @@ const initDB = (): Promise<IDBDatabase> =>
   });
 
 // ===================== SHARED SVG =====================
-// Colourful Venetian face-mask artwork (public/mask-art.svg), used as a decorative
-// watermark. It's a full-colour illustration, so unlike the old line-drawing it
-// doesn't take currentColor — the caller controls only its size and opacity.
-function MaskArt({ size }: { size: number }) {
+function MaskSVG({ width, height, withSmile = false }: { width: number; height: number; withSmile?: boolean }) {
   return (
-    <img
-      src="/mask-art.svg"
-      alt=""
-      width={size}
-      height={size}
-      draggable={false}
-      style={{ display: 'block', width: size, height: size, objectFit: 'contain', pointerEvents: 'none' }}
-    />
+    <svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg" width={width} height={height}>
+      <path
+        d="M100,14 L128,20 L156,34 L170,54 L165,74 L152,86 L138,94 L122,98 L114,112 L100,120 L86,112 L78,98 L62,94 L48,86 L35,74 L30,54 L44,34 L72,20 Z"
+        stroke="currentColor"
+        strokeWidth="4"
+        fill="none"
+        strokeLinejoin="round"
+      />
+      <path d="M56,56 Q70,44 84,56 Q70,68 56,56 Z" stroke="currentColor" strokeWidth="3" fill="currentColor" fillOpacity="0.4" />
+      <path d="M116,56 Q130,44 144,56 Q130,68 116,56 Z" stroke="currentColor" strokeWidth="3" fill="currentColor" fillOpacity="0.4" />
+      <line x1="100" y1="14" x2="100" y2="4" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="100" cy="2" r="4" fill="currentColor" />
+      <path d="M100,8 Q88,5 79,9" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <path d="M100,8 Q112,5 121,9" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      {withSmile && <path d="M88,112 Q100,122 112,112" stroke="currentColor" strokeWidth="2" fill="none" />}
+    </svg>
   );
 }
 
@@ -820,13 +825,15 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
       <div
         style={{
           position: 'absolute',
-          right: -14,
-          bottom: -14,
-          opacity: 0.16,
+          right: -10,
+          bottom: -8,
+          opacity: 0.042,
+          color: COLORS.gold,
           pointerEvents: 'none',
+          animation: 'goldGlow 5s ease-in-out infinite',
         }}
       >
-        <MaskArt size={96} />
+        <MaskSVG width={88} height={62} />
       </div>
 
       {/* Content */}
@@ -1116,13 +1123,15 @@ function DetailScreen({
         <div
           style={{
             position: 'absolute',
-            right: -34,
-            top: 6,
-            opacity: 0.13,
+            right: -28,
+            top: 18,
+            opacity: 0.068,
+            color: COLORS.gold,
             pointerEvents: 'none',
+            animation: 'goldGlow 4s ease-in-out infinite',
           }}
         >
-          <MaskArt size={230} />
+          <MaskSVG width={220} height={155} withSmile />
         </div>
 
         {/* Status bar with back */}
@@ -2144,8 +2153,8 @@ function DocumentsTab({
     <div style={{ animation: 'fadeSlideIn 0.3s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: hasDocs ? 0 : '40px 0 0', gap: 14 }}>
       {!hasDocs && (
         <>
-          <div style={{ opacity: 0.9 }}>
-            <MaskArt size={104} />
+          <div style={{ opacity: 0.13, color: COLORS.gold, animation: 'goldGlow 3s ease-in-out infinite' }}>
+            <MaskSVG width={80} height={56} />
           </div>
           <div style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', textAlign: 'center', letterSpacing: '0.2px' }}>
             Документы не добавлены
