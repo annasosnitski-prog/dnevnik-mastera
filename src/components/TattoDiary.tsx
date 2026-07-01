@@ -633,12 +633,16 @@ export default function TattoDiary() {
         {/* Cards grid */}
         <div
           style={{
-            padding: '2px 16px 110px',
+            padding: '2px 16px 88px',
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             gap: 10,
             position: 'relative',
             zIndex: 5,
+            // Promote the whole grid to a single GPU layer so both columns move
+            // together during momentum scroll (prevents the columns from
+            // desyncing/"jumping" as the compositor re-tiles the scroll area).
+            transform: 'translateZ(0)',
           }}
         >
           {filteredClients.map((client) => (
@@ -804,9 +808,6 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         cursor: 'pointer',
         display: 'flex',
         flexDirection: 'column',
-        // Isolate each card's layout/paint so the two grid columns don't repaint
-        // out of sync during fast momentum scrolling (a compositing artifact).
-        contain: 'content',
       }}
     >
       {/* Top accent stripe */}
@@ -1019,16 +1020,17 @@ function BottomNav() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: 'calc(56px + env(safe-area-inset-bottom))',
-        background: 'linear-gradient(to top, rgba(var(--bg-rgb),0.98), rgba(var(--bg-rgb),0.95))',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        borderTop: '1px solid rgba(var(--gold-rgb),0.07)',
+        height: 'calc(48px + env(safe-area-inset-bottom))',
+        // Solid (no backdrop-filter): the blur repainted every frame during
+        // scroll and was a major source of jank. A flat bar is also visually
+        // slimmer, hugging the icons.
+        background: 'var(--bg)',
+        borderTop: '1px solid rgba(var(--gold-rgb),0.08)',
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        paddingTop: 7,
-        paddingBottom: 'calc(7px + env(safe-area-inset-bottom))',
+        paddingTop: 4,
+        paddingBottom: 'calc(4px + env(safe-area-inset-bottom))',
         zIndex: 50,
       }}
     >
