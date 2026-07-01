@@ -289,7 +289,7 @@ function applyTheme(theme: Theme) {
     /* ignore */
   }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'light' ? '#F4EEE1' : '#0D0B08');
+  if (meta) meta.setAttribute('content', theme === 'light' ? '#E4E1D8' : '#1D1811');
 }
 
 // ===================== MAIN APP =====================
@@ -804,22 +804,25 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         cursor: 'pointer',
         display: 'flex',
         flexDirection: 'column',
+        // Isolate each card's layout/paint so the two grid columns don't repaint
+        // out of sync during fast momentum scrolling (a compositing artifact).
+        contain: 'content',
       }}
     >
       {/* Top accent stripe */}
       <div style={{ height: 2, background: client.color, flexShrink: 0 }} />
 
-      {/* Gilded corner accent (top-left) */}
+      {/* Gilded corner accent (top-right) */}
       <div
         style={{
           position: 'absolute',
           top: 2,
-          left: 0,
+          right: 0,
           width: 0,
           height: 0,
           borderStyle: 'solid',
-          borderWidth: '26px 26px 0 0',
-          borderColor: 'rgba(var(--gold-rgb),0.13) transparent transparent transparent',
+          borderWidth: '0 26px 26px 0',
+          borderColor: 'transparent rgba(var(--gold-rgb),0.13) transparent transparent',
           zIndex: 1,
           pointerEvents: 'none',
         }}

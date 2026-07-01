@@ -24,11 +24,11 @@
 /* ── Dark (default) ── */
 :root,
 :root[data-theme='dark'] {
-  --bg: #0D0B08;
-  --bg-rgb: 13, 11, 8;
-  --bg-card: linear-gradient(148deg, #191510, #0D0B09);
-  --sheet: #0F0D0A;
-  --hero-grad: linear-gradient(160deg, #131008 0%, #0D0B08 60%);
+  --bg: #1D1811;
+  --bg-rgb: 29, 24, 17;
+  --bg-card: linear-gradient(148deg, #292219, #1D1812);
+  --sheet: #1F1A13;
+  --hero-grad: linear-gradient(160deg, #231D11 0%, #1D1811 60%);
 
   --gold: #C8943A;
   --gold-rgb: 200, 148, 58;
@@ -54,11 +54,11 @@
 
 /* ── Light (warm parchment / "Casa di Vetro") ── */
 :root[data-theme='light'] {
-  --bg: #F4EEE1;
-  --bg-rgb: 244, 238, 225;
-  --bg-card: linear-gradient(148deg, #FFFCF5, #F5EFE3);
-  --sheet: #FBF6EC;
-  --hero-grad: linear-gradient(160deg, #FBF4E4 0%, #F4EEE1 60%);
+  --bg: #E4E1D8;
+  --bg-rgb: 228, 225, 216;
+  --bg-card: linear-gradient(148deg, #EFEFEC, #E5E2DA);
+  --sheet: #EBE9E3;
+  --hero-grad: linear-gradient(160deg, #EBE7DB 0%, #E4E1D8 60%);
 
   --gold: #9C6F22;
   --gold-rgb: 156, 111, 34;
