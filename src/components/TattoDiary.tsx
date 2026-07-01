@@ -850,7 +850,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, flexShrink: 0 }}>
           <span
             style={{
-              fontFamily: "'Cinzel Decorative', serif",
+              fontFamily: "'Playfair Display', serif",
               fontSize: 52,
               lineHeight: 0.79,
               color: COLORS.gold,
@@ -1160,7 +1160,7 @@ function DetailScreen({
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
             <span
               style={{
-                fontFamily: "'Cinzel Decorative', serif",
+                fontFamily: "'Playfair Display', serif",
                 fontSize: 96,
                 lineHeight: 0.79,
                 color: COLORS.gold,
@@ -1251,7 +1251,7 @@ function InfoTab({
       <div style={{ marginBottom: 22 }}>
         <div
           style={{
-            fontFamily: "'Cinzel Decorative', serif",
+            fontFamily: "'Playfair Display', serif",
             fontSize: 11,
             color: COLORS.textGhost,
             letterSpacing: '3.5px',
@@ -1265,7 +1265,7 @@ function InfoTab({
           <div style={{ overflow: 'hidden', lineHeight: 1 }}>
             <span
               style={{
-                fontFamily: "'Cinzel Decorative', serif",
+                fontFamily: "'Playfair Display', serif",
                 fontSize: 50,
                 lineHeight: 0.81,
                 color: 'rgba(var(--gold-rgb),0.42)',
@@ -1436,7 +1436,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontFamily: "'Cinzel Decorative', serif",
+        fontFamily: "'Playfair Display', serif",
         fontSize: 11,
         color: COLORS.textGhost,
         letterSpacing: '3.5px',
@@ -1561,7 +1561,7 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
 
       <div
         style={{
-          fontFamily: "'Cinzel Decorative', serif",
+          fontFamily: "'Playfair Display', serif",
           fontSize: 11,
           color: COLORS.textGhost,
           letterSpacing: '3.5px',
@@ -2007,7 +2007,7 @@ function SessionsTab({
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
       <div
         style={{
-          fontFamily: "'Cinzel Decorative', serif",
+          fontFamily: "'Playfair Display', serif",
           fontSize: 11,
           color: COLORS.textGhost,
           letterSpacing: '3.5px',
@@ -2422,7 +2422,7 @@ function NewClientSheet({
           onClick={() => canSubmit && onCreate({ name, surname, phone, skinType, skinNotes, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
-          <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
             Создать клиента
           </span>
         </div>
@@ -2519,7 +2519,7 @@ function EditClientSheet({
           onClick={() => canSubmit && onSave({ name, surname, style, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
-          <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
             Сохранить
           </span>
         </div>
@@ -2680,7 +2680,7 @@ function NewSessionSheet({
           onClick={() => onAdd({ name, date, duration, style, area, colors, needles, skinReaction, note, photos })}
           style={SUBMIT_STYLE}
         >
-          <span style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
             Добавить сессию
           </span>
         </div>
