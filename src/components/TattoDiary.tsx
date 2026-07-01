@@ -126,6 +126,10 @@ function formatDate(value: string): string {
   return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
 }
 
+// Decorative drop-cap face (Loreley Antiqua — supports both Latin and Cyrillic).
+// Playfair/serif fall back if the webfont hasn't loaded.
+const DROP_CAP_FONT = "'Loreley Antiqua', 'Playfair Display', serif";
+
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
 const lastSession = (c: Client): Session | null => (c.sessions.length ? c.sessions[c.sessions.length - 1] : null);
@@ -188,47 +192,6 @@ const initDB = (): Promise<IDBDatabase> =>
   });
 
 // ===================== SHARED SVG =====================
-function MaskSVG({ width, height, withSmile = false }: { width: number; height: number; withSmile?: boolean }) {
-  return (
-    <svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg" width={width} height={height}>
-      <path
-        d="M100,14 L128,20 L156,34 L170,54 L165,74 L152,86 L138,94 L122,98 L114,112 L100,120 L86,112 L78,98 L62,94 L48,86 L35,74 L30,54 L44,34 L72,20 Z"
-        stroke="currentColor"
-        strokeWidth="4"
-        fill="none"
-        strokeLinejoin="round"
-      />
-      <path d="M56,56 Q70,44 84,56 Q70,68 56,56 Z" stroke="currentColor" strokeWidth="3" fill="currentColor" fillOpacity="0.4" />
-      <path d="M116,56 Q130,44 144,56 Q130,68 116,56 Z" stroke="currentColor" strokeWidth="3" fill="currentColor" fillOpacity="0.4" />
-      <line x1="100" y1="14" x2="100" y2="4" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="100" cy="2" r="4" fill="currentColor" />
-      <path d="M100,8 Q88,5 79,9" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-      <path d="M100,8 Q112,5 121,9" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-      {withSmile && <path d="M88,112 Q100,122 112,112" stroke="currentColor" strokeWidth="2" fill="none" />}
-    </svg>
-  );
-}
-
-// Venetian corner flourish drawn in code (currentColor → themed gold, transparent
-// background). Rendered top-right and mirrored bottom-left to wreath the card.
-function CornerOrnament() {
-  return (
-    <svg viewBox="0 0 44 44" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* outer bracket hugging the corner */}
-      <path d="M40 30 L40 9 Q40 4 35 4 L14 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      {/* inner parallel line */}
-      <path d="M35.5 26 L35.5 12.5 Q35.5 9.5 32.5 9.5 L20 9.5" stroke="currentColor" strokeWidth="0.85" strokeLinecap="round" opacity="0.6" />
-      {/* little inward scroll near the elbow */}
-      <path d="M28.5 4 Q28.5 8.5 33 8.5" stroke="currentColor" strokeWidth="0.7" strokeLinecap="round" opacity="0.5" />
-      {/* diamond accent at the very corner */}
-      <path d="M39 4.4 L40.9 6.3 L39 8.2 L37.1 6.3 Z" fill="currentColor" fillOpacity="0.55" />
-      {/* teardrop finials at the open ends */}
-      <circle cx="14" cy="4" r="1.35" fill="currentColor" fillOpacity="0.8" />
-      <circle cx="40" cy="30" r="1.35" fill="currentColor" fillOpacity="0.8" />
-    </svg>
-  );
-}
-
 function StarDivider({ marginTop = 11 }: { marginTop?: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop }}>
@@ -729,10 +692,12 @@ export default function TattoDiary() {
             Ничего не найдено
           </div>
         )}
-
-        {/* Bottom navigation */}
-        <BottomNav />
       </div>
+
+      {/* Bottom navigation — sibling of the screens so it pins to the shell
+          bottom (never scrolls). Shown only on the list screen, and hidden while
+          a bottom sheet is open so it can't sit over the sheet's controls. */}
+      {screen === 'list' && !sheetOpen && <BottomNav />}
 
       {/* ═══════════ DETAIL SCREEN ═══════════ */}
       <div
@@ -825,54 +790,6 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
       {/* Top accent stripe */}
       <div style={{ height: 2, background: client.color, flexShrink: 0 }} />
 
-      {/* Gilded corner flourishes — top-right + mirrored bottom-left */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 6,
-          right: 6,
-          width: 38,
-          height: 38,
-          color: COLORS.gold,
-          opacity: 0.5,
-          zIndex: 1,
-          pointerEvents: 'none',
-        }}
-      >
-        <CornerOrnament />
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 6,
-          left: 6,
-          width: 38,
-          height: 38,
-          color: COLORS.gold,
-          opacity: 0.5,
-          zIndex: 1,
-          pointerEvents: 'none',
-          transform: 'rotate(180deg)',
-        }}
-      >
-        <CornerOrnament />
-      </div>
-
-      {/* Mask watermark */}
-      <div
-        style={{
-          position: 'absolute',
-          right: -10,
-          bottom: -8,
-          opacity: 0.042,
-          color: COLORS.gold,
-          pointerEvents: 'none',
-          animation: 'goldGlow 5s ease-in-out infinite',
-        }}
-      >
-        <MaskSVG width={88} height={62} />
-      </div>
-
       {/* Content */}
       <div
         style={{
@@ -887,11 +804,11 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, flexShrink: 0 }}>
           <span
             style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 52,
+              fontFamily: DROP_CAP_FONT,
+              fontSize: 54,
               lineHeight: 0.79,
               color: COLORS.gold,
-              letterSpacing: '-2px',
+              letterSpacing: '-1px',
               flexShrink: 0,
               marginTop: -1,
             }}
@@ -1057,6 +974,9 @@ function BottomNav() {
   return (
     <div
       style={{
+        // Rendered as a direct child of the (non-scrolling) app shell, so
+        // absolute bottom:0 pins the ribbon to the bottom of the screen and it
+        // no longer scrolls away with the card list.
         position: 'absolute',
         bottom: 0,
         left: 0,
@@ -1156,21 +1076,6 @@ function DetailScreen({
           paddingTop: 'env(safe-area-inset-top)',
         }}
       >
-        {/* Large mask decoration */}
-        <div
-          style={{
-            position: 'absolute',
-            right: -28,
-            top: 18,
-            opacity: 0.068,
-            color: COLORS.gold,
-            pointerEvents: 'none',
-            animation: 'goldGlow 4s ease-in-out infinite',
-          }}
-        >
-          <MaskSVG width={220} height={155} withSmile />
-        </div>
-
         {/* Status bar with back */}
         <div style={{ height: 56, padding: '18px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10 }}>
           <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
@@ -1197,11 +1102,11 @@ function DetailScreen({
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
             <span
               style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: 96,
+                fontFamily: DROP_CAP_FONT,
+                fontSize: 100,
                 lineHeight: 0.79,
                 color: COLORS.gold,
-                letterSpacing: '-4px',
+                letterSpacing: '-2px',
                 flexShrink: 0,
                 marginLeft: -5,
               }}
@@ -1302,8 +1207,8 @@ function InfoTab({
           <div style={{ overflow: 'hidden', lineHeight: 1 }}>
             <span
               style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: 50,
+                fontFamily: DROP_CAP_FONT,
+                fontSize: 52,
                 lineHeight: 0.81,
                 color: 'rgba(var(--gold-rgb),0.42)',
                 float: 'left',
@@ -2189,14 +2094,9 @@ function DocumentsTab({
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: hasDocs ? 0 : '40px 0 0', gap: 14 }}>
       {!hasDocs && (
-        <>
-          <div style={{ opacity: 0.13, color: COLORS.gold, animation: 'goldGlow 3s ease-in-out infinite' }}>
-            <MaskSVG width={80} height={56} />
-          </div>
-          <div style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', textAlign: 'center', letterSpacing: '0.2px' }}>
-            Документы не добавлены
-          </div>
-        </>
+        <div style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', textAlign: 'center', letterSpacing: '0.2px' }}>
+          Документы не добавлены
+        </div>
       )}
 
       {hasDocs && (
