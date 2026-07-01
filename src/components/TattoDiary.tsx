@@ -289,7 +289,7 @@ function applyTheme(theme: Theme) {
     /* ignore */
   }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'light' ? '#E4E1D8' : '#1D1811');
+  if (meta) meta.setAttribute('content', theme === 'light' ? '#E4E1D8' : '#0D0B08');
 }
 
 // ===================== MAIN APP =====================
