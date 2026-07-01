@@ -209,6 +209,26 @@ function MaskSVG({ width, height, withSmile = false }: { width: number; height: 
   );
 }
 
+// Venetian corner flourish drawn in code (currentColor → themed gold, transparent
+// background). Rendered top-right and mirrored bottom-left to wreath the card.
+function CornerOrnament() {
+  return (
+    <svg viewBox="0 0 44 44" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* outer bracket hugging the corner */}
+      <path d="M40 30 L40 9 Q40 4 35 4 L14 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      {/* inner parallel line */}
+      <path d="M35.5 26 L35.5 12.5 Q35.5 9.5 32.5 9.5 L20 9.5" stroke="currentColor" strokeWidth="0.85" strokeLinecap="round" opacity="0.6" />
+      {/* little inward scroll near the elbow */}
+      <path d="M28.5 4 Q28.5 8.5 33 8.5" stroke="currentColor" strokeWidth="0.7" strokeLinecap="round" opacity="0.5" />
+      {/* diamond accent at the very corner */}
+      <path d="M39 4.4 L40.9 6.3 L39 8.2 L37.1 6.3 Z" fill="currentColor" fillOpacity="0.55" />
+      {/* teardrop finials at the open ends */}
+      <circle cx="14" cy="4" r="1.35" fill="currentColor" fillOpacity="0.8" />
+      <circle cx="40" cy="30" r="1.35" fill="currentColor" fillOpacity="0.8" />
+    </svg>
+  );
+}
+
 function StarDivider({ marginTop = 11 }: { marginTop?: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop }}>
@@ -805,21 +825,38 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
       {/* Top accent stripe */}
       <div style={{ height: 2, background: client.color, flexShrink: 0 }} />
 
-      {/* Corner triangle accent */}
+      {/* Gilded corner flourishes — top-right + mirrored bottom-left */}
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          right: 0,
-          width: 0,
-          height: 0,
-          borderStyle: 'solid',
-          borderWidth: '0 26px 26px 0',
-          borderColor: 'transparent rgba(var(--gold-rgb),0.13) transparent transparent',
+          top: 6,
+          right: 6,
+          width: 38,
+          height: 38,
+          color: COLORS.gold,
+          opacity: 0.5,
           zIndex: 1,
           pointerEvents: 'none',
         }}
-      />
+      >
+        <CornerOrnament />
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 6,
+          left: 6,
+          width: 38,
+          height: 38,
+          color: COLORS.gold,
+          opacity: 0.5,
+          zIndex: 1,
+          pointerEvents: 'none',
+          transform: 'rotate(180deg)',
+        }}
+      >
+        <CornerOrnament />
+      </div>
 
       {/* Mask watermark */}
       <div
