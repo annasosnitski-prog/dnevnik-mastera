@@ -16,8 +16,18 @@ const COLORS = {
   textTrace: 'var(--text-trace)',
 };
 
-// Per-client accent colours, assigned on creation (rotated through the list).
+// Per-client accent colours, assigned on creation (rotated through the list
+// when the master doesn't pick one explicitly).
 const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#7A6A3A', '#3A6A7A'];
+
+// Marker palette the master picks from at creation to tag/colour a client card.
+const MARKER_COLORS = ['#B0413E', '#C67A32', '#C9A227', '#5E8C4A', '#3E7CA6', '#7A5AA0', '#A0555F', '#6E7B8B'];
+
+// Skin-tone swatches (light → deep) the master picks from when creating a card.
+const SKIN_TONES = [
+  '#F6E0D0', '#F0D0B8', '#E8C0A0', '#E0B090', '#D8A47E', '#C89268', '#B67E52',
+  '#A66E44', '#925C38', '#7E4C2E', '#6A3C24', '#54301C', '#3E2416', '#2C1810',
+];
 
 const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч', '7 ч', '8 ч'];
 const STYLES = ['Реализм', 'Графика', 'Орнамент', 'Японский', 'Акварель', 'Другой'];
@@ -93,17 +103,26 @@ interface Client {
   id: string;
   name: string; // first name, e.g. "Александра"
   surname: string;
-  style: string; // current style (mirrors the latest session's style)
-  color: string; // accent hex
-  note: string; // master's notes
+  styles: string[]; // one or more tattoo styles
+  style: string; // joined styles, kept for search / back-compat
+  color: string; // marker colour (master-chosen at creation)
+  note: string; // notes about the client ("Заметки о клиенте")
+  masterNote: string; // master's own notes, written inline from the info tab
   phone: string; // contact phone number
   skinType: string; // normal / sensitive / dry / oily / combination
+  skinTone: string; // skin-tone hex chosen from the palette
   skinNotes: string; // free notes about the client's skin
   chatLinks: ChatLink[]; // WhatsApp / Telegram / Instagram / etc.
   sessions: Session[];
   documents: ClientDocument[];
   createdDate: string;
 }
+
+// Styles as an array regardless of legacy shape; joined label for display.
+const clientStyles = (c: { styles?: string[]; style?: string }): string[] =>
+  c.styles && c.styles.length ? c.styles : c.style ? [c.style] : [];
+const stylesLabel = (c: { styles?: string[]; style?: string }): string =>
+  clientStyles(c).join(' · ');
 
 const SKIN_TYPES: { value: string; label: string }[] = [
   { value: '', label: 'Не указан' },
@@ -163,16 +182,26 @@ function normalizeClient(raw: any, index: number): Client {
     : [];
 
   const latestStyle = sessions.length ? sessions[sessions.length - 1].style : '';
+  const styles: string[] = Array.isArray(raw?.styles)
+    ? raw.styles.filter(Boolean)
+    : raw?.style
+    ? [raw.style]
+    : latestStyle
+    ? [latestStyle]
+    : [];
 
   return {
     id: String(raw?.id ?? Date.now() + index),
     name: raw?.name ?? '',
     surname: raw?.surname ?? '',
-    style: raw?.style ?? latestStyle ?? '',
+    styles,
+    style: styles.join(' · '),
     color: raw?.color ?? ACCENT_COLORS[index % ACCENT_COLORS.length],
     note: raw?.note ?? raw?.chatHistory ?? '',
+    masterNote: raw?.masterNote ?? '',
     phone: raw?.phone ?? '',
     skinType: raw?.skinType ?? '',
+    skinTone: raw?.skinTone ?? '',
     skinNotes: raw?.skinNotes ?? '',
     chatLinks: Array.isArray(raw?.chatLinks) ? raw.chatLinks : [],
     sessions,
@@ -292,6 +321,32 @@ function applyTheme(theme: Theme) {
   if (meta) meta.setAttribute('content', theme === 'light' ? '#E4E1D8' : '#0D0B08');
 }
 
+// ===================== USER PREFERENCES =====================
+// Master-adjustable display settings (Settings tab), persisted locally.
+interface Prefs {
+  brightness: number; // app brightness 0.75–1.15 (CSS filter)
+  textScale: number; // text/UI size 0.9–1.25 (CSS zoom)
+  textBright: 'normal' | 'high' | 'max'; // text tone level (dark theme)
+}
+const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal' };
+
+function readInitialPrefs(): Prefs {
+  try {
+    const raw = localStorage.getItem('inka-prefs');
+    if (raw) {
+      const p = JSON.parse(raw);
+      return {
+        brightness: typeof p.brightness === 'number' ? p.brightness : 1,
+        textScale: typeof p.textScale === 'number' ? p.textScale : 1,
+        textBright: p.textBright === 'high' || p.textBright === 'max' ? p.textBright : 'normal',
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { ...DEFAULT_PREFS };
+}
+
 // ===================== MAIN APP =====================
 export default function TattoDiary() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -305,7 +360,18 @@ export default function TattoDiary() {
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
-  const [screen, setScreen] = useState<'list' | 'detail'>('list');
+  // Display preferences (brightness / text size / text tone).
+  const [prefs, setPrefs] = useState<Prefs>(readInitialPrefs);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-textbright', prefs.textBright);
+    try {
+      localStorage.setItem('inka-prefs', JSON.stringify(prefs));
+    } catch {
+      /* ignore */
+    }
+  }, [prefs]);
+
+  const [screen, setScreen] = useState<'list' | 'detail' | 'settings'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'documents'>('info');
   const [searchQuery, setSearchQuery] = useState('');
@@ -390,13 +456,15 @@ export default function TattoDiary() {
     setEditSession(null);
   };
 
-  const handleUpdateClient = (data: { name: string; surname: string; style: string; note: string }) => {
+  const handleUpdateClient = (data: { name: string; surname: string; styles: string[]; color: string; note: string }) => {
     if (!selectedClient) return;
     saveClient({
       ...selectedClient,
       name: data.name.trim(),
       surname: data.surname.trim(),
-      style: data.style,
+      styles: data.styles,
+      style: data.styles.join(' · '),
+      color: data.color,
       note: data.note.trim(),
     });
     setShowEditClientForm(false);
@@ -419,7 +487,10 @@ export default function TattoDiary() {
     name: string;
     surname: string;
     phone: string;
+    styles: string[];
+    color: string;
     skinType: string;
+    skinTone: string;
     skinNotes: string;
     note: string;
   }) => {
@@ -427,11 +498,14 @@ export default function TattoDiary() {
       id: Date.now().toString(),
       name: data.name.trim(),
       surname: data.surname.trim(),
-      style: '',
-      color: ACCENT_COLORS[clients.length % ACCENT_COLORS.length],
+      styles: data.styles,
+      style: data.styles.join(' · '),
+      color: data.color || ACCENT_COLORS[clients.length % ACCENT_COLORS.length],
       note: data.note.trim(),
+      masterNote: '',
       phone: data.phone.trim(),
       skinType: data.skinType,
+      skinTone: data.skinTone,
       skinNotes: data.skinNotes.trim(),
       chatLinks: [],
       sessions: [],
@@ -476,9 +550,14 @@ export default function TattoDiary() {
     } else {
       sessions = [...selectedClient.sessions, { id: Date.now().toString(), done: true, ...fields }];
     }
+    const mergedStyles =
+      data.style && !clientStyles(selectedClient).includes(data.style)
+        ? [...clientStyles(selectedClient), data.style]
+        : clientStyles(selectedClient);
     saveClient({
       ...selectedClient,
-      style: data.style || selectedClient.style,
+      styles: mergedStyles,
+      style: mergedStyles.join(' · '),
       sessions,
     });
     setShowNewSessionForm(false);
@@ -492,12 +571,18 @@ export default function TattoDiary() {
       className="app-shell"
       style={{
         position: 'relative',
-        width: '100%',
+        // width is divided by the zoom so the zoomed shell still fills exactly
+        // the viewport width (no horizontal overflow when text size > 1).
+        width: `calc(100% / ${prefs.textScale})`,
         maxWidth: 480,
         margin: '0 auto',
         overflow: 'hidden',
         background: COLORS.bg,
         fontFamily: "'Cormorant Garamond', serif",
+        filter: prefs.brightness !== 1 ? `brightness(${prefs.brightness})` : undefined,
+        // `zoom` scales text + UI together — the pragmatic "text size" lever for
+        // a layout built on fixed px. (Cast: zoom isn't in the CSS types.)
+        ...(prefs.textScale !== 1 ? ({ zoom: prefs.textScale } as React.CSSProperties) : {}),
       }}
     >
       {/* ═══════════ LIST SCREEN ═══════════ */}
@@ -716,9 +801,30 @@ export default function TattoDiary() {
       </div>
 
       {/* Bottom navigation — sibling of the screens so it pins to the shell
-          bottom (never scrolls). Shown only on the list screen, and hidden while
-          a bottom sheet is open so it can't sit over the sheet's controls. */}
-      {screen === 'list' && !sheetOpen && <BottomNav />}
+          bottom (never scrolls). Shown on the list and settings screens, hidden
+          while a bottom sheet is open so it can't sit over the sheet's controls. */}
+      {(screen === 'list' || screen === 'settings') && !sheetOpen && (
+        <BottomNav
+          active={screen}
+          onNavigate={(s) => setScreen(s)}
+        />
+      )}
+
+      {/* ═══════════ SETTINGS SCREEN ═══════════ */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: screen === 'settings' ? 'translateX(0)' : 'translateX(110%)',
+          transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          zIndex: 3,
+          background: COLORS.bg,
+        }}
+      >
+        <SettingsScreen theme={theme} onToggleTheme={toggleTheme} prefs={prefs} onChange={setPrefs} />
+      </div>
 
       {/* ═══════════ DETAIL SCREEN ═══════════ */}
       <div
@@ -810,21 +916,19 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         flexDirection: 'column',
       }}
     >
-      {/* Top accent stripe */}
-      <div style={{ height: 2, background: client.color, flexShrink: 0 }} />
-
-      {/* Gilded corner accent (top-right) */}
+      {/* Client marker — the top stripe and corner merged into one coloured
+          element (master picks the colour at creation to tag the client). */}
       <div
         style={{
           position: 'absolute',
-          top: 2,
+          top: 0,
           right: 0,
           width: 0,
           height: 0,
           borderStyle: 'solid',
-          borderWidth: '0 26px 26px 0',
-          borderColor: 'transparent rgba(var(--gold-rgb),0.13) transparent transparent',
-          zIndex: 1,
+          borderWidth: '0 40px 40px 0',
+          borderColor: `transparent ${client.color} transparent transparent`,
+          zIndex: 3,
           pointerEvents: 'none',
         }}
       />
@@ -835,7 +939,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           padding: '10px 12px',
           display: 'flex',
           flexDirection: 'column',
-          height: 'calc(100% - 2px)',
+          height: '100%',
           position: 'relative',
           zIndex: 2,
         }}
@@ -1012,7 +1116,13 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
   );
 }
 
-function BottomNav() {
+function BottomNav({
+  active,
+  onNavigate,
+}: {
+  active: 'list' | 'settings';
+  onNavigate: (screen: 'list' | 'settings') => void;
+}) {
   return (
     <div
       style={{
@@ -1041,11 +1151,14 @@ function BottomNav() {
         zIndex: 50,
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <div
+        onClick={() => onNavigate('list')}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'list' ? 1 : 0.4 }}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
           <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="currentColor" fillOpacity="0.07" />
         </svg>
-        <span style={{ fontSize: '11px', color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
+        <span style={{ fontSize: '11px', color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: 0.28 }}>
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--text)' }}>
@@ -1055,8 +1168,11 @@ function BottomNav() {
         </svg>
         <span style={{ fontSize: '11px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: 0.28 }}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--text)' }}>
+      <div
+        onClick={() => onNavigate('settings')}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'settings' ? 1 : 0.4 }}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
           <circle cx="10" cy="10" r="2.8" stroke="currentColor" strokeWidth="1.2" />
           <path
             d="M10 2.5L10 4.5M10 15.5L10 17.5M2.5 10L4.5 10M15.5 10L17.5 10M5.05 5.05L6.46 6.46M13.54 13.54L14.95 14.95M5.05 14.95L6.46 13.54M13.54 6.46L14.95 5.05"
@@ -1065,8 +1181,214 @@ function BottomNav() {
             strokeLinecap="round"
           />
         </svg>
-        <span style={{ fontSize: '11px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Настройки</span>
+        <span style={{ fontSize: '11px', color: active === 'settings' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Настройки</span>
       </div>
+    </div>
+  );
+}
+
+// ===================== SETTINGS SCREEN =====================
+function SettingsScreen({
+  theme,
+  onToggleTheme,
+  prefs,
+  onChange,
+}: {
+  theme: Theme;
+  onToggleTheme: () => void;
+  prefs: Prefs;
+  onChange: (p: Prefs) => void;
+}) {
+  const rowStyle: React.CSSProperties = {
+    background: 'rgba(var(--surface-rgb),0.018)',
+    border: '1px solid rgba(var(--gold-rgb),0.1)',
+    borderRadius: 3,
+    padding: '16px 16px 18px',
+    marginBottom: 12,
+  };
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "'Playfair Display', serif",
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    letterSpacing: '2.5px',
+    textTransform: 'uppercase',
+    marginBottom: 14,
+  };
+
+  return (
+    <div style={{ minHeight: '100%', background: COLORS.bg }}>
+      {/* Dot-grid texture overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
+          backgroundSize: '22px 22px',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+      <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        <div
+          style={{
+            fontFamily: "'Cinzel Decorative', serif",
+            fontSize: 24,
+            color: COLORS.gold,
+            letterSpacing: '5px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Настройки
+        </div>
+        <div style={{ fontSize: 13, color: COLORS.textGhost, letterSpacing: '4px', textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+          Оформление
+        </div>
+        <StarDivider />
+      </div>
+
+      <div style={{ padding: '4px 20px 110px', position: 'relative', zIndex: 1 }}>
+        {/* Theme */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Тема</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['dark', 'light'] as Theme[]).map((t) => (
+              <div
+                key={t}
+                onClick={() => t !== theme && onToggleTheme()}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  border: theme === t ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: theme === t ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: theme === t ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {t === 'dark' ? 'Тёмная' : 'Светлая'}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* App brightness */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Яркость приложения</div>
+          <SettingSlider
+            min={0.75}
+            max={1.15}
+            step={0.05}
+            value={prefs.brightness}
+            onChange={(v) => onChange({ ...prefs, brightness: v })}
+          />
+        </div>
+
+        {/* Text size */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Размер текста</div>
+          <SettingSlider
+            min={0.9}
+            max={1.25}
+            step={0.05}
+            value={prefs.textScale}
+            onChange={(v) => onChange({ ...prefs, textScale: v })}
+            sample="Аа"
+          />
+        </div>
+
+        {/* Text brightness */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Яркость текста</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {([
+              { v: 'normal', label: 'Обычная' },
+              { v: 'high', label: 'Ярче' },
+              { v: 'max', label: 'Ярко' },
+            ] as { v: Prefs['textBright']; label: string }[]).map((o) => (
+              <div
+                key={o.v}
+                onClick={() => onChange({ ...prefs, textBright: o.v })}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '9px 0',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                  border: prefs.textBright === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: prefs.textBright === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: prefs.textBright === o.v ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Reset */}
+        <div
+          onClick={() => onChange({ ...DEFAULT_PREFS })}
+          style={{
+            marginTop: 6,
+            textAlign: 'center',
+            padding: '11px 0',
+            fontSize: 12,
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            fontStyle: 'italic',
+            color: COLORS.textFaint,
+            cursor: 'pointer',
+          }}
+        >
+          Сбросить по умолчанию
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A themed range slider with a live value chip.
+function SettingSlider({
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  sample,
+}: {
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (v: number) => void;
+  sample?: string;
+}) {
+  // Shown as a multiplier of normal (100% = default), which reads clearer than
+  // the slider's raw position.
+  const pct = Math.round(value * 100);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      {sample && <span style={{ fontSize: 13, color: COLORS.textFaint, flexShrink: 0 }}>{sample}</span>}
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="inka-range"
+        style={{ flex: 1 }}
+      />
+      {sample && <span style={{ fontSize: 20, color: COLORS.textFaint, flexShrink: 0 }}>{sample}</span>}
+      <span style={{ fontSize: 12, color: COLORS.gold, width: 42, textAlign: 'right', flexShrink: 0 }}>{pct}%</span>
     </div>
   );
 }
@@ -1172,17 +1494,41 @@ function DetailScreen({
               </div>
             </div>
           </div>
-          {/* Style + session count */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13 }}>
+          {/* Style(s) + session count — styles carry the client's marker colour */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13, flexWrap: 'wrap' }}>
             <div style={{ width: 22, height: 2, background: client.color, borderRadius: 1, flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: 'var(--text-soft)', letterSpacing: '2.5px', textTransform: 'uppercase' }}>
-              {client.style || 'Без стиля'}
+            <span style={{ fontSize: 13, color: client.color, letterSpacing: '2.5px', textTransform: 'uppercase', fontWeight: 600 }}>
+              {stylesLabel(client) || 'Без стиля'}
             </span>
             <span style={{ fontSize: 13, color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
           </div>
+
+          {/* Notes about the client — moved up into the header (per design). */}
+          {client.note && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 10, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 6 }}>
+                Заметки о клиенте
+              </div>
+              <div
+                dir="auto"
+                style={{
+                  fontSize: 15,
+                  color: 'var(--text-soft)',
+                  fontStyle: 'italic',
+                  lineHeight: 1.5,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 4,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {client.note}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Client color stripe */}
+        {/* Client marker stripe */}
         <div style={{ height: 3, background: client.color, width: '100%', flexShrink: 0 }} />
       </div>
 
@@ -1229,7 +1575,6 @@ function InfoTab({
   onSave: (client: Client) => void;
   onDeleteClient: () => void;
 }) {
-  const note = client.note || '';
   const metaCell = (span = false): React.CSSProperties => ({
     background: 'rgba(var(--surface-rgb),0.018)',
     border: '1px solid rgba(var(--gold-rgb),0.1)',
@@ -1240,59 +1585,16 @@ function InfoTab({
 
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-      {/* Notes with drop cap */}
-      <div style={{ marginBottom: 22 }}>
-        <div
-          style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 11,
-            color: COLORS.textGhost,
-            letterSpacing: '3.5px',
-            textTransform: 'uppercase',
-            marginBottom: 12,
-          }}
-        >
-          Заметки мастера
-        </div>
-        {note ? (
-          <div style={{ overflow: 'hidden', lineHeight: 1 }}>
-            <span
-              style={{
-                fontFamily: DROP_CAP_FONT,
-                fontSize: 52,
-                lineHeight: 0.81,
-                color: 'rgba(var(--gold-rgb),0.42)',
-                float: 'left',
-                marginRight: 7,
-                paddingBottom: 2,
-                marginTop: 1,
-              }}
-            >
-              {note.charAt(0)}
-            </span>
-            <span style={{ fontSize: 17, color: 'var(--text-soft)', lineHeight: 1.7, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
-              {note.slice(1)}
-            </span>
-          </div>
-        ) : (
-          <div style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic' }}>Заметок пока нет.</div>
-        )}
-      </div>
+      {/* Contacts — moved to the top (was master notes) */}
+      <ContactsSection client={client} onSave={onSave} first />
 
-      {/* Ornamental divider */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, clear: 'both' }}>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.28), transparent)' }} />
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="currentColor" fillOpacity="0.28" />
-        </svg>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.28), transparent)' }} />
-      </div>
+      <SectionDivider />
 
       {/* Meta grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div style={metaCell()}>
           <MetaLabel>Стиль</MetaLabel>
-          <MetaValue>{client.style || '—'}</MetaValue>
+          <div style={{ fontSize: 15, color: client.color, fontWeight: 600 }}>{stylesLabel(client) || '—'}</div>
         </div>
         <div style={metaCell()}>
           <MetaLabel>Сессий</MetaLabel>
@@ -1304,16 +1606,96 @@ function InfoTab({
         </div>
       </div>
 
-      {/* Skin: type + notes */}
+      {/* Skin: type + tone + notes */}
       <SkinSection client={client} onSave={onSave} />
 
-      {/* Contacts: phone + chat links */}
-      <ContactsSection client={client} onSave={onSave} />
+      {/* Master's own notes — written inline right here, at the bottom */}
+      <MasterNoteSection client={client} onSave={onSave} />
 
       {/* Danger zone: delete client */}
       <div style={{ marginTop: 28 }}>
         <DeleteButton label="Удалить клиента" confirmLabel="Удалить клиента безвозвратно?" onConfirm={onDeleteClient} />
       </div>
+    </div>
+  );
+}
+
+// ── Master notes (written inline from the info tab, drop-cap styled) ──
+function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
+  const [value, setValue] = useState(client.masterNote || '');
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setValue(client.masterNote || '');
+    setEditing(false);
+  }, [client.id]);
+
+  const save = () => {
+    setEditing(false);
+    if (value.trim() !== (client.masterNote || '')) onSave({ ...client, masterNote: value.trim() });
+  };
+
+  const note = client.masterNote || '';
+  return (
+    <div style={{ marginTop: 22 }}>
+      <SectionDivider />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <SectionHeader>Заметки мастера</SectionHeader>
+        {!editing && (
+          <span onClick={() => setEditing(true)} style={{ fontSize: 13, color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer', marginTop: -10 }}>
+            {note ? 'править' : 'добавить'}
+          </span>
+        )}
+      </div>
+      {editing ? (
+        <textarea
+          dir="auto"
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={save}
+          placeholder="Ваши личные заметки о работе с клиентом..."
+          style={{
+            width: '100%',
+            background: 'rgba(var(--surface-rgb),0.018)',
+            border: '1px solid rgba(var(--gold-rgb),0.1)',
+            borderRadius: 2,
+            padding: '11px 13px',
+            fontFamily: "'Cormorant Garamond', serif",
+            color: COLORS.textPrimary,
+            outline: 'none',
+            resize: 'none',
+            height: 110,
+            fontStyle: 'italic',
+            lineHeight: 1.6,
+            letterSpacing: '0.3px',
+          }}
+        />
+      ) : note ? (
+        <div onClick={() => setEditing(true)} style={{ overflow: 'hidden', lineHeight: 1, cursor: 'text' }}>
+          <span
+            style={{
+              fontFamily: DROP_CAP_FONT,
+              fontSize: 52,
+              lineHeight: 0.81,
+              color: 'rgba(var(--gold-rgb),0.42)',
+              float: 'left',
+              marginRight: 7,
+              paddingBottom: 2,
+              marginTop: 1,
+            }}
+          >
+            {note.charAt(0)}
+          </span>
+          <span style={{ fontSize: 17, color: 'var(--text-soft)', lineHeight: 1.7, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
+            {note.slice(1)}
+          </span>
+        </div>
+      ) : (
+        <div onClick={() => setEditing(true)} style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', cursor: 'text' }}>
+          Заметок пока нет — нажмите, чтобы добавить.
+        </div>
+      )}
     </div>
   );
 }
@@ -1442,6 +1824,90 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ── Reusable pickers (skin tone / marker colour / styles) ──
+function SkinTonePalette({ value, onPick }: { value: string; onPick: (hex: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {SKIN_TONES.map((t) => {
+        const sel = value.toLowerCase() === t.toLowerCase();
+        return (
+          <div
+            key={t}
+            onClick={() => onPick(t)}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              background: t,
+              cursor: 'pointer',
+              border: sel ? '2px solid var(--gold)' : '1px solid rgba(var(--gold-rgb),0.2)',
+              boxShadow: sel ? '0 0 0 2px rgba(var(--gold-rgb),0.3)' : undefined,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function MarkerColorPalette({ value, onPick }: { value: string; onPick: (hex: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+      {MARKER_COLORS.map((c) => {
+        const sel = value.toLowerCase() === c.toLowerCase();
+        return (
+          <div
+            key={c}
+            onClick={() => onPick(c)}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              background: c,
+              cursor: 'pointer',
+              border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
+              boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function StyleChips({ selected, onToggle }: { selected: string[]; onToggle: (s: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {STYLES.map((s) => {
+        const on = selected.includes(s);
+        return (
+          <div
+            key={s}
+            onClick={() => onToggle(s)}
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 12,
+              padding: '6px 11px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              border: on ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              color: on ? COLORS.gold : COLORS.textFaint,
+              background: on ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+              letterSpacing: '0.8px',
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s',
+              fontWeight: 500,
+            }}
+          >
+            {s}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SkinSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
   const [skinType, setSkinType] = useState(client.skinType || '');
   const [skinNotes, setSkinNotes] = useState(client.skinNotes || '');
@@ -1454,6 +1920,10 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
   const saveType = (value: string) => {
     setSkinType(value);
     if (value !== (client.skinType || '')) onSave({ ...client, skinType: value });
+  };
+  const saveTone = (tone: string) => {
+    const next = tone === client.skinTone ? '' : tone;
+    onSave({ ...client, skinTone: next });
   };
   const saveNotes = () => {
     if (skinNotes.trim() !== (client.skinNotes || '')) onSave({ ...client, skinNotes: skinNotes.trim() });
@@ -1491,6 +1961,13 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
         </select>
       </div>
 
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 8 }}>
+          Тон кожи
+        </div>
+        <SkinTonePalette value={client.skinTone || ''} onPick={saveTone} />
+      </div>
+
       <div>
         <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
           Заметки о коже
@@ -1520,7 +1997,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
 }
 
 // ── Contacts (phone + chat links) ──
-function ContactsSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
+function ContactsSection({ client, onSave, first }: { client: Client; onSave: (client: Client) => void; first?: boolean }) {
   const [phone, setPhone] = useState(client.phone || '');
   const [editingPhone, setEditingPhone] = useState(false);
 
@@ -1542,15 +2019,8 @@ function ContactsSection({ client, onSave }: { client: Client; onSave: (client: 
   const removeLink = (id: string) => onSave({ ...client, chatLinks: (client.chatLinks || []).filter((l) => l.id !== id) });
 
   return (
-    <div style={{ marginTop: 22 }}>
-      {/* Ornamental divider */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, clear: 'both' }}>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.28), transparent)' }} />
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="currentColor" fillOpacity="0.28" />
-        </svg>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.28), transparent)' }} />
-      </div>
+    <div style={{ marginTop: first ? 0 : 22 }}>
+      {!first && <SectionDivider />}
 
       <div
         style={{
@@ -2342,7 +2812,10 @@ function NewClientSheet({
     name: string;
     surname: string;
     phone: string;
+    styles: string[];
+    color: string;
     skinType: string;
+    skinTone: string;
     skinNotes: string;
     note: string;
   }) => void;
@@ -2350,7 +2823,10 @@ function NewClientSheet({
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
   const [phone, setPhone] = useState('');
+  const [styles, setStyles] = useState<string[]>([]);
+  const [color, setColor] = useState(MARKER_COLORS[0]);
   const [skinType, setSkinType] = useState('');
+  const [skinTone, setSkinTone] = useState('');
   const [skinNotes, setSkinNotes] = useState('');
   const [note, setNote] = useState('');
 
@@ -2360,11 +2836,16 @@ function NewClientSheet({
       setName('');
       setSurname('');
       setPhone('');
+      setStyles([]);
+      setColor(MARKER_COLORS[0]);
       setSkinType('');
+      setSkinTone('');
       setSkinNotes('');
       setNote('');
     }
   }, [open]);
+
+  const toggleStyle = (s: string) => setStyles((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
 
   const canSubmit = name.trim().length > 0;
 
@@ -2400,6 +2881,14 @@ function NewClientSheet({
             style={INPUT_STYLE}
           />
         </div>
+        <div style={{ marginBottom: 18 }}>
+          <FieldLabel>Цвет-маркер</FieldLabel>
+          <MarkerColorPalette value={color} onPick={setColor} />
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <FieldLabel>Стиль</FieldLabel>
+          <StyleChips selected={styles} onToggle={toggleStyle} />
+        </div>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Тип кожи</FieldLabel>
           <select value={skinType} onChange={(e) => setSkinType(e.target.value)} style={{ ...INPUT_STYLE, appearance: 'none' }}>
@@ -2409,6 +2898,10 @@ function NewClientSheet({
               </option>
             ))}
           </select>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <FieldLabel>Тон кожи</FieldLabel>
+          <SkinTonePalette value={skinTone} onPick={(t) => setSkinTone(t === skinTone ? '' : t)} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Заметки о коже</FieldLabel>
@@ -2421,7 +2914,7 @@ function NewClientSheet({
           />
         </div>
         <div style={{ marginBottom: 22 }}>
-          <FieldLabel>Заметки</FieldLabel>
+          <FieldLabel>Заметки о клиенте</FieldLabel>
           <textarea
             dir="auto"
             value={note}
@@ -2432,7 +2925,7 @@ function NewClientSheet({
         </div>
         <div
           className="inka-submit"
-          onClick={() => canSubmit && onCreate({ name, surname, phone, skinType, skinNotes, note })}
+          onClick={() => canSubmit && onCreate({ name, surname, phone, styles, color, skinType, skinTone, skinNotes, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
           <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
@@ -2454,11 +2947,12 @@ function EditClientSheet({
   open: boolean;
   client: Client | null;
   onClose: () => void;
-  onSave: (data: { name: string; surname: string; style: string; note: string }) => void;
+  onSave: (data: { name: string; surname: string; styles: string[]; color: string; note: string }) => void;
 }) {
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
-  const [style, setStyle] = useState('');
+  const [styles, setStyles] = useState<string[]>([]);
+  const [color, setColor] = useState(MARKER_COLORS[0]);
   const [note, setNote] = useState('');
 
   // Populate fields from the client each time the sheet opens.
@@ -2466,27 +2960,14 @@ function EditClientSheet({
     if (open && client) {
       setName(client.name);
       setSurname(client.surname);
-      setStyle(client.style);
+      setStyles(clientStyles(client));
+      setColor(client.color || MARKER_COLORS[0]);
       setNote(client.note);
     }
   }, [open, client?.id]);
 
   const canSubmit = name.trim().length > 0;
-
-  const chipStyle = (selected: boolean): React.CSSProperties => ({
-    fontFamily: "'Cormorant Garamond', serif",
-    fontSize: 12,
-    padding: '6px 11px',
-    borderRadius: 2,
-    cursor: 'pointer',
-    border: selected ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
-    color: selected ? COLORS.gold : COLORS.textFaint,
-    background: selected ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-    letterSpacing: '0.8px',
-    textTransform: 'uppercase',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.2s',
-  });
+  const toggleStyle = (s: string) => setStyles((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
 
   return (
     <BottomSheet open={open} heightPct={84}>
@@ -2508,18 +2989,16 @@ function EditClientSheet({
           <FieldLabel>Фамилия</FieldLabel>
           <input dir="auto" value={surname} onChange={(e) => setSurname(e.target.value)} placeholder="Вертинская" style={INPUT_STYLE} />
         </div>
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 18 }}>
+          <FieldLabel>Цвет-маркер</FieldLabel>
+          <MarkerColorPalette value={color} onPick={setColor} />
+        </div>
+        <div style={{ marginBottom: 18 }}>
           <FieldLabel>Стиль</FieldLabel>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {STYLES.map((s) => (
-              <div key={s} onClick={() => setStyle(style === s ? '' : s)} style={chipStyle(style === s)}>
-                {s}
-              </div>
-            ))}
-          </div>
+          <StyleChips selected={styles} onToggle={toggleStyle} />
         </div>
         <div style={{ marginBottom: 22 }}>
-          <FieldLabel>Заметки</FieldLabel>
+          <FieldLabel>Заметки о клиенте</FieldLabel>
           <textarea
             dir="auto"
             value={note}
@@ -2530,7 +3009,7 @@ function EditClientSheet({
         </div>
         <div
           className="inka-submit"
-          onClick={() => canSubmit && onSave({ name, surname, style, note })}
+          onClick={() => canSubmit && onSave({ name, surname, styles, color, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
           <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
