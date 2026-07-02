@@ -872,7 +872,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             </div>
             <div
               style={{
-                fontSize: 12,
+                fontSize: 13,
                 color: 'var(--surname)',
                 fontStyle: 'italic',
                 marginTop: 2,
@@ -893,6 +893,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {client.note ? (
             <div
+              dir="auto"
               style={{
                 fontSize: 15,
                 color: 'var(--text-secondary)',
@@ -1269,7 +1270,7 @@ function InfoTab({
             >
               {note.charAt(0)}
             </span>
-            <span style={{ fontSize: 15, color: 'var(--text-soft)', lineHeight: 1.75, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
+            <span style={{ fontSize: 17, color: 'var(--text-soft)', lineHeight: 1.7, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
               {note.slice(1)}
             </span>
           </div>
@@ -1807,8 +1808,8 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
 // One "label: value" line inside a session card (краски / иглы / реакция кожи).
 function SessionMeta({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', gap: 6, fontSize: 13, lineHeight: 1.4 }}>
-      <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: 11, paddingTop: 1 }}>
+    <div style={{ display: 'flex', gap: 6, fontSize: 15, lineHeight: 1.4 }}>
+      <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: 11, paddingTop: 2 }}>
         {label}
       </span>
       <span style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>{value}</span>
@@ -2078,7 +2079,7 @@ function SessionsTab({
                 {session.area}
               </div>
             )}
-            {session.note && <div style={{ fontSize: 13, color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+            {session.note && <div style={{ fontSize: 15, color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
             {(session.colors || session.needles || session.skinReaction) && (
               <div
                 style={{
@@ -2381,11 +2382,13 @@ function NewClientSheet({
       <div style={{ padding: '4px 24px 50px' }}>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Имя *</FieldLabel>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Александра" style={INPUT_STYLE} />
+          {/* dir="auto": Hebrew/Arabic names flow right-to-left automatically,
+              Latin/Cyrillic stay left-to-right. */}
+          <input dir="auto" value={name} onChange={(e) => setName(e.target.value)} placeholder="Александра" style={INPUT_STYLE} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Фамилия</FieldLabel>
-          <input value={surname} onChange={(e) => setSurname(e.target.value)} placeholder="Вертинская" style={INPUT_STYLE} />
+          <input dir="auto" value={surname} onChange={(e) => setSurname(e.target.value)} placeholder="Вертинская" style={INPUT_STYLE} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Телефон</FieldLabel>
@@ -2410,6 +2413,7 @@ function NewClientSheet({
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Заметки о коже</FieldLabel>
           <textarea
+            dir="auto"
             value={skinNotes}
             onChange={(e) => setSkinNotes(e.target.value)}
             placeholder="Аллергии, чувствительные зоны, реакции..."
@@ -2419,6 +2423,7 @@ function NewClientSheet({
         <div style={{ marginBottom: 22 }}>
           <FieldLabel>Заметки</FieldLabel>
           <textarea
+            dir="auto"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Идеи, пожелания, особенности..."
@@ -2497,11 +2502,11 @@ function EditClientSheet({
       <div style={{ padding: '4px 24px 50px' }}>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Имя *</FieldLabel>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Александра" style={INPUT_STYLE} />
+          <input dir="auto" value={name} onChange={(e) => setName(e.target.value)} placeholder="Александра" style={INPUT_STYLE} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Фамилия</FieldLabel>
-          <input value={surname} onChange={(e) => setSurname(e.target.value)} placeholder="Вертинская" style={INPUT_STYLE} />
+          <input dir="auto" value={surname} onChange={(e) => setSurname(e.target.value)} placeholder="Вертинская" style={INPUT_STYLE} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Стиль</FieldLabel>
@@ -2516,6 +2521,7 @@ function EditClientSheet({
         <div style={{ marginBottom: 22 }}>
           <FieldLabel>Заметки</FieldLabel>
           <textarea
+            dir="auto"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Идеи, пожелания, особенности..."

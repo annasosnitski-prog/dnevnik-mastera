@@ -6,7 +6,12 @@
    Bundled locally (public/fonts). Covers Latin and Cyrillic alike. */
 @font-face {
   font-family: 'Loreley Antiqua';
-  src: url('/fonts/LoreleyAntiqua.ttf') format('truetype');
+  /* WOFF2 first (smaller, most reliable on iOS Safari); TTF fallback. The bundled
+     files carry only Unicode cmap subtables — the Macintosh (Latin-only) subtable
+     was stripped because iOS/CoreText could prefer it and drop Cyrillic буквицы
+     back to a system serif while Latin stayed ornate. */
+  src: url('/fonts/LoreleyAntiqua.woff2') format('woff2'),
+    url('/fonts/LoreleyAntiqua.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -36,17 +41,19 @@
   /* Card / input surfaces are a translucent overlay on the background. */
   --surface-rgb: 255, 255, 255;
 
-  --text: #EDE4CC;
-  --text-strong: #D4C8B8;
-  --text-secondary: #9A8E7A;
-  --text-soft: #8A7E72;
-  --text-soft2: #4A4238;
-  --text-muted: #6A6056;
-  --text-faint: #5A5248;
-  --surname: #5E5448;
-  --text-ghost: #3E3830;
-  --ink-faint: #2E2B28;
-  --text-trace: #2A2825;
+  /* Text tones brightened so body copy (notes, session details, secondary
+     lines) reads clearly on the dark palette without losing the warm mood. */
+  --text: #F3EBD6;
+  --text-strong: #E4DACA;
+  --text-secondary: #C2B6A0;
+  --text-soft: #B0A392;
+  --text-soft2: #8A7E6C;
+  --text-muted: #988C7A;
+  --text-faint: #877C6C;
+  --surname: #948872;
+  --text-ghost: #6E6454;
+  --ink-faint: #38342E;
+  --text-trace: #322F2A;
 
   --placeholder: rgba(80, 70, 60, 0.65);
   --card-hover-shadow: 0 10px 36px rgba(var(--gold-rgb), 0.16), 0 3px 10px rgba(0, 0, 0, 0.6);
