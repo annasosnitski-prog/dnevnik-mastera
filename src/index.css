@@ -113,7 +113,63 @@ body {
 body {
   color: var(--text);
   font-family: 'Cormorant Garamond', serif;
+  /* Heavier base weight — the 300/400 Cormorant read too thin on phones. */
+  font-weight: 500;
   transition: background-color 0.35s ease, color 0.35s ease;
+}
+
+/* ── Text brightness levels (Settings → «Яркость текста»). Lightens the body
+   text tones in the dark theme; light theme keeps its darker ink. ── */
+:root[data-theme='dark'][data-textbright='high'] {
+  --text: #F8F1DE;
+  --text-strong: #EFE6D6;
+  --text-secondary: #D2C7B2;
+  --text-soft: #C2B5A2;
+  --text-soft2: #9C907C;
+  --text-muted: #A89C88;
+  --text-faint: #978B79;
+  --surname: #A99C84;
+  --text-ghost: #80765F;
+}
+:root[data-theme='dark'][data-textbright='max'] {
+  --text: #FDF8EC;
+  --text-strong: #F6EEDF;
+  --text-secondary: #E0D6C2;
+  --text-soft: #D2C6B2;
+  --text-soft2: #AEA28C;
+  --text-muted: #B8AC96;
+  --text-faint: #A99D89;
+  --surname: #BBAE94;
+  --text-ghost: #928768;
+}
+
+/* ── Settings range slider ── */
+.inka-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(var(--gold-rgb), 0.22);
+  outline: none;
+}
+.inka-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 1px rgba(var(--gold-rgb), 0.5);
+  cursor: pointer;
+}
+.inka-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 3px solid var(--bg);
+  cursor: pointer;
 }
 
 /* SVG icons paint with currentColor; default that to the themed gold so the
