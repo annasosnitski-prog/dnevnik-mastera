@@ -894,10 +894,10 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           {client.note ? (
             <div
               style={{
-                fontSize: 13,
+                fontSize: 15,
                 color: 'var(--text-secondary)',
                 fontStyle: 'italic',
-                lineHeight: 1.42,
+                lineHeight: 1.4,
                 display: '-webkit-box',
                 WebkitLineClamp: 3,
                 WebkitBoxOrient: 'vertical',
@@ -1022,7 +1022,11 @@ function BottomNav() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: 'calc(48px + env(safe-area-inset-bottom))',
+        // Only a slim slice of the iOS home-indicator inset is reserved (capped
+        // at 10px) instead of the full ~34px — otherwise a big empty band opens
+        // up under the labels and the bar looks huge. The labels still clear the
+        // home indicator.
+        height: 'calc(42px + min(10px, env(safe-area-inset-bottom)))',
         // Solid (no backdrop-filter): the blur repainted every frame during
         // scroll and was a major source of jank. A flat bar is also visually
         // slimmer, hugging the icons.
@@ -1032,7 +1036,7 @@ function BottomNav() {
         justifyContent: 'space-around',
         alignItems: 'center',
         paddingTop: 4,
-        paddingBottom: 'calc(4px + env(safe-area-inset-bottom))',
+        paddingBottom: 'calc(4px + min(10px, env(safe-area-inset-bottom)))',
         zIndex: 50,
       }}
     >
