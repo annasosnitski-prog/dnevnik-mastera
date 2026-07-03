@@ -57,6 +57,9 @@
 
   --placeholder: rgba(80, 70, 60, 0.65);
   --card-hover-shadow: 0 10px 36px rgba(var(--gold-rgb), 0.16), 0 3px 10px rgba(0, 0, 0, 0.6);
+  /* Dark cards glow on their own (light surface over a dark ground), so no
+     resting elevation is needed. */
+  --card-rest-shadow: none;
 }
 
 /* ── Light (warm parchment / "Casa di Vetro") ── */
@@ -87,6 +90,10 @@
 
   --placeholder: rgba(120, 100, 70, 0.55);
   --card-hover-shadow: 0 10px 30px rgba(var(--gold-rgb), 0.18), 0 3px 10px rgba(80, 60, 20, 0.12);
+  /* Light theme can't "glow"; the analogous premium cue is letterpress — a top
+     highlight catching the light plus a soft warm elevation shadow. */
+  --card-rest-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 2px rgba(80, 60, 20, 0.06),
+    0 6px 18px rgba(80, 60, 20, 0.07);
 }
 
 * {
@@ -224,6 +231,7 @@ input[type='date'] {
    carry the :hover and :active deltas that inline styles can't express. */
 .inka-card {
   transition: transform 0.38s ease, border-color 0.25s, box-shadow 0.3s;
+  box-shadow: var(--card-rest-shadow);
 }
 .inka-card:hover {
   transform: translateY(-5px) scale(1.018);
