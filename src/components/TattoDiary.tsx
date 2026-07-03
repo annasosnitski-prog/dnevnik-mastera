@@ -1015,9 +1015,10 @@ export default function TattoDiary() {
 }
 
 // ===================== CLIENT MARKER (stripe + gem corner) =====================
-// Top accent stripe: a gilded foil with a bright sheen in the middle, tapered to
-// a point on both ends (via .inka-stripe clip-path in index.css) in both themes.
-// The right point sits over the gem corner. Reused on card + hero.
+// Gilded foil stripes with a bright sheen in the middle. The top stripe runs
+// along the top edge (tapered to a nib on the left); the right stripe runs down
+// the card's right edge (tapered to a nib at the bottom). They meet over the gem
+// corner. Clip-path tapers live in index.css. Used in both themes.
 function TopStripe({ color }: { color: string }) {
   return (
     <div
@@ -1032,6 +1033,27 @@ function TopStripe({ color }: { color: string }) {
         pointerEvents: 'none',
         background: `linear-gradient(90deg, ${color} 0%, #f6e8c4 48%, ${color} 100%)`,
         boxShadow: `0 1px 2px ${hexToRgba(color, 0.4)}`,
+      }}
+    />
+  );
+}
+
+// Vertical stripe dropping down the card's right edge from the top-right corner,
+// tapered to a point at the bottom (nib), over the gem corner.
+function RightStripe({ color }: { color: string }) {
+  return (
+    <div
+      className="inka-stripe-right"
+      style={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: 3,
+        zIndex: 6,
+        pointerEvents: 'none',
+        background: `linear-gradient(180deg, ${color} 0%, #f6e8c4 48%, ${color} 100%)`,
+        boxShadow: `-1px 0 2px ${hexToRgba(color, 0.4)}`,
       }}
     />
   );
@@ -1094,8 +1116,9 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         flexDirection: 'column',
       }}
     >
-      {/* Client marker — coloured top stripe + glass-gem corner. */}
+      {/* Client marker — coloured top + right stripes and glass-gem corner. */}
       <TopStripe color={client.color} />
+      <RightStripe color={client.color} />
       <GemCorner color={client.color} />
 
       {/* Content */}
