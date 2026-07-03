@@ -203,11 +203,9 @@ function formatDate(value: string): string {
   return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
 }
 
-// Decorative drop-cap face. Loreley Antiqua was dropped: its ornate glyphs
-// misread across scripts (Latin "H" looks like Cyrillic "Б", Cyrillic caps
-// read poorly). Playfair Display gives elegant, unambiguous capitals for both
-// Latin and Cyrillic.
-const DROP_CAP_FONT = "'Playfair Display', 'Cormorant Garamond', serif";
+// Decorative drop-cap + heading face: Kelly Slab (slab serif with Cyrillic +
+// Latin), with Playfair Display as a graceful fallback while the webfont loads.
+const DROP_CAP_FONT = "'Kelly Slab', 'Playfair Display', 'Cormorant Garamond', serif";
 
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
@@ -403,7 +401,7 @@ function applyTheme(theme: Theme) {
 // Master-adjustable display settings (Settings tab), persisted locally.
 interface Prefs {
   brightness: number; // app brightness 0.75–1.15 (CSS filter)
-  textScale: number; // text/UI size 0.9–1.25 (CSS zoom)
+  textScale: number; // text size 1.0–1.75 (font multiplier; 1.0 shown as 80%)
   textBright: 'normal' | 'high' | 'max'; // text tone level (dark theme)
 }
 const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal' };
@@ -415,7 +413,8 @@ function readInitialPrefs(): Prefs {
       const p = JSON.parse(raw);
       return {
         brightness: typeof p.brightness === 'number' ? p.brightness : 1,
-        textScale: typeof p.textScale === 'number' ? p.textScale : 1,
+        // Clamp to the new floor (1.0): older values below it are lifted.
+        textScale: typeof p.textScale === 'number' ? Math.max(1, p.textScale) : 1,
         textBright: p.textBright === 'high' || p.textBright === 'max' ? p.textBright : 'normal',
       };
     }
@@ -1112,7 +1111,11 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
       style={{
         position: 'relative',
         background: COLORS.card,
-        border: '1px solid rgba(var(--gold-rgb),0.2)',
+        // No top border: the coloured stripe is the top edge, so the frame's
+        // corner no longer pokes out above the (tapered) stripe.
+        borderLeft: '1px solid rgba(var(--gold-rgb),0.2)',
+        borderRight: '1px solid rgba(var(--gold-rgb),0.2)',
+        borderBottom: '1px solid rgba(var(--gold-rgb),0.2)',
         borderRadius: 3,
         height: 250,
         overflow: 'hidden',
@@ -1422,7 +1425,7 @@ function SettingsScreen({
     marginBottom: 12,
   };
   const labelStyle: React.CSSProperties = {
-    fontFamily: "'Playfair Display', serif",
+    fontFamily: "'Kelly Slab', 'Playfair Display', serif",
     fontSize: fs(12),
     color: 'var(--text-secondary)',
     letterSpacing: '2.5px',
@@ -1447,7 +1450,7 @@ function SettingsScreen({
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
           style={{
-            fontFamily: "'Cinzel Decorative', serif",
+            fontFamily: DROP_CAP_FONT,
             fontSize: fs(24),
             color: COLORS.gold,
             letterSpacing: '5px',
@@ -1503,16 +1506,18 @@ function SettingsScreen({
           />
         </div>
 
-        {/* Text size */}
+        {/* Text size — the previous default (1.0) is now the smallest step, shown
+            as 80%; the scale runs up from there for larger, more readable text. */}
         <div style={rowStyle}>
           <div style={labelStyle}>Размер текста</div>
           <SettingSlider
-            min={0.9}
-            max={1.25}
+            min={1}
+            max={1.75}
             step={0.05}
             value={prefs.textScale}
             onChange={(v) => onChange({ ...prefs, textScale: v })}
             sample="Аа"
+            pctFactor={80}
           />
         </div>
 
@@ -1639,7 +1644,7 @@ function SummaryScreen({
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
           style={{
-            fontFamily: "'Cinzel Decorative', serif",
+            fontFamily: DROP_CAP_FONT,
             fontSize: fs(24),
             color: COLORS.gold,
             letterSpacing: '5px',
@@ -1693,6 +1698,7 @@ function SettingSlider({
   value,
   onChange,
   sample,
+  pctFactor = 100,
 }: {
   min: number;
   max: number;
@@ -1700,10 +1706,11 @@ function SettingSlider({
   value: number;
   onChange: (v: number) => void;
   sample?: string;
+  pctFactor?: number;
 }) {
-  // Shown as a multiplier of normal (100% = default), which reads clearer than
-  // the slider's raw position.
-  const pct = Math.round(value * 100);
+  // Shown as a percentage (pctFactor lets the text-size scale read 80% at its
+  // smallest step instead of 100%), which reads clearer than the raw position.
+  const pct = Math.round(value * pctFactor);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
       {sample && <span style={{ fontSize: fs(13), color: COLORS.textFaint, flexShrink: 0 }}>{sample}</span>}
@@ -1840,7 +1847,7 @@ function DetailScreen({
           {/* Notes about the client — moved up into the header (per design). */}
           {client.note && (
             <div style={{ marginTop: 16 }}>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 6 }}>
+              <div style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 6 }}>
                 Заметки о клиенте
               </div>
               <div
@@ -2151,7 +2158,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontFamily: "'Playfair Display', serif",
+        fontFamily: "'Kelly Slab', 'Playfair Display', serif",
         fontSize: fs(11),
         color: COLORS.textGhost,
         letterSpacing: '3.5px',
@@ -2384,7 +2391,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
 
       <div
         style={{
-          fontFamily: "'Playfair Display', serif",
+          fontFamily: "'Kelly Slab', 'Playfair Display', serif",
           fontSize: fs(11),
           color: COLORS.textGhost,
           letterSpacing: '3.5px',
@@ -2840,7 +2847,7 @@ function SessionsTab({
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
       <div
         style={{
-          fontFamily: "'Playfair Display', serif",
+          fontFamily: "'Kelly Slab', 'Playfair Display', serif",
           fontSize: fs(11),
           color: COLORS.textGhost,
           letterSpacing: '3.5px',
@@ -3443,7 +3450,7 @@ function NewClientSheet({
           onClick={() => canSubmit && onCreate({ name, surname, phone, styles, color, skinType, skinTone, skinNotes, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
-          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
             Создать клиента
           </span>
         </div>
@@ -3527,7 +3534,7 @@ function EditClientSheet({
           onClick={() => canSubmit && onSave({ name, surname, styles, color, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
-          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
             Сохранить
           </span>
         </div>
@@ -3695,7 +3702,7 @@ function NewSessionSheet({
           onClick={() => onAdd({ name, date, duration, style, area, colors, needles, skinReaction, note, photos })}
           style={SUBMIT_STYLE}
         >
-          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
             {isEdit ? 'Сохранить' : 'Добавить сессию'}
           </span>
         </div>
