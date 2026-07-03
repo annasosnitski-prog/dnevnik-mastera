@@ -234,17 +234,10 @@ input[type='date'] {
   box-shadow: var(--card-rest-shadow);
 }
 
-/* Taper the marker stripe to a point on BOTH ends (a calligraphic nib), in both
-   themes. The right point sits over the gem corner. */
+/* Top marker stripe: tapered to a point on the LEFT (a calligraphic nib), full
+   on the right where it meets the right-edge stripe over the gem corner. */
 .inka-stripe {
-  clip-path: polygon(
-    0 50%,
-    34px 0,
-    calc(100% - 34px) 0,
-    100% 50%,
-    calc(100% - 34px) 100%,
-    34px 100%
-  );
+  clip-path: polygon(0 50%, 34px 0, 100% 0, 100% 100%, 34px 100%);
 }
 .inka-card:hover {
   transform: translateY(-5px) scale(1.018);
