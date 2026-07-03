@@ -1029,7 +1029,8 @@ function TopStripe({ color, theme, height = 3 }: { color: string; theme: Theme; 
         left: 0,
         right: 0,
         height,
-        zIndex: 4,
+        // Sits above the gem corner so the corner tucks neatly under the stripe.
+        zIndex: 6,
         pointerEvents: 'none',
         background:
           theme === 'light'
@@ -1044,23 +1045,23 @@ function TopStripe({ color, theme, height = 3 }: { color: string; theme: Theme; 
   );
 }
 
-// Coloured-glass "gem" corner: a translucent bevelled triangle with a specular
-// glint (блик), gradient depth (глубина) and a soft colour reflection spilling
-// onto the card surface (цветной отсвет). Works in both themes.
-function GemCorner({ color, size = 42 }: { color: string; size?: number }) {
+// Coloured-glass "gem" corner: a small translucent bevelled triangle with
+// gradient depth (глубина) and a soft colour reflection spilling onto the card
+// surface (цветной отсвет). Tucked under the top stripe; no specular glint.
+function GemCorner({ color, size = 28 }: { color: string; size?: number }) {
   return (
     <>
       {/* colour reflection cast onto the surface */}
       <div
         style={{
           position: 'absolute',
-          top: -8,
-          right: -8,
-          width: size + 26,
-          height: size + 26,
-          background: `radial-gradient(circle at top right, ${hexToRgba(color, 0.5)}, transparent 66%)`,
+          top: -6,
+          right: -6,
+          width: size + 20,
+          height: size + 20,
+          background: `radial-gradient(circle at top right, ${hexToRgba(color, 0.45)}, transparent 66%)`,
           filter: 'blur(5px)',
-          zIndex: 3,
+          zIndex: 2,
           pointerEvents: 'none',
         }}
       />
@@ -1074,22 +1075,8 @@ function GemCorner({ color, size = 42 }: { color: string; size?: number }) {
           height: size,
           clipPath: 'polygon(100% 0, 0 0, 100% 100%)',
           background: `linear-gradient(215deg, ${color} 0%, ${hexToRgba(color, 0.6)} 52%, ${hexToRgba(color, 0.12)} 100%)`,
-          boxShadow: `inset -1.5px 1.5px 1.5px rgba(255,255,255,0.45), inset 3px -3px 4px ${hexToRgba(color, 0.5)}`,
-          zIndex: 4,
-          pointerEvents: 'none',
-        }}
-      />
-      {/* specular glint */}
-      <div
-        style={{
-          position: 'absolute',
-          top: Math.round(size * 0.12),
-          right: Math.round(size * 0.16),
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255,255,255,0.95), rgba(255,255,255,0) 70%)',
-          zIndex: 5,
+          boxShadow: `inset 2px -2px 3px ${hexToRgba(color, 0.5)}`,
+          zIndex: 3,
           pointerEvents: 'none',
         }}
       />
