@@ -721,7 +721,7 @@ export default function TattoDiary() {
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
           <div
             style={{
-              fontFamily: DROP_CAP_FONT,
+              fontFamily: "'Cinzel Decorative', serif",
               fontSize: fs(26),
               color: COLORS.gold,
               letterSpacing: '6px',
@@ -1111,10 +1111,10 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
       style={{
         position: 'relative',
         background: COLORS.card,
-        // No top border: the coloured stripe is the top edge, so the frame's
-        // corner no longer pokes out above the (tapered) stripe.
+        // No top/right borders: the coloured stripes are the top and right edges,
+        // so the frame corner no longer pokes past the tapered stripe nibs
+        // (top-left and bottom-right). Left + bottom borders remain for definition.
         borderLeft: '1px solid rgba(var(--gold-rgb),0.2)',
-        borderRight: '1px solid rgba(var(--gold-rgb),0.2)',
         borderBottom: '1px solid rgba(var(--gold-rgb),0.2)',
         borderRadius: 3,
         height: 250,
@@ -3375,7 +3375,7 @@ function NewClientSheet({
     <BottomSheet open={open} heightPct={88}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
@@ -3495,7 +3495,7 @@ function EditClientSheet({
     <BottomSheet open={open} heightPct={84}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Редактировать</div>
