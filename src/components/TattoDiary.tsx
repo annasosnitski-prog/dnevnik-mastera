@@ -203,14 +203,11 @@ function formatDate(value: string): string {
   return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
 }
 
-// Decorative drop-cap face (Loreley Antiqua — ornate, but its Cyrillic glyphs
-// read poorly). Latin буквицы keep Loreley; Cyrillic falls to Playfair Display,
-// whose Cyrillic capitals are elegant and consistent.
-const DROP_CAP_FONT = "'Loreley Antiqua', 'Playfair Display', serif";
-const DROP_CAP_FONT_CYRILLIC = "'Playfair Display', 'Cormorant Garamond', serif";
-const isCyrillic = (ch: string) => /[Ѐ-ӿ]/.test(ch || '');
-// Picks the drop-cap face for a given first character.
-const dropCapFontFor = (ch: string) => (isCyrillic(ch) ? DROP_CAP_FONT_CYRILLIC : DROP_CAP_FONT);
+// Decorative drop-cap face. Loreley Antiqua was dropped: its ornate glyphs
+// misread across scripts (Latin "H" looks like Cyrillic "Б", Cyrillic caps
+// read poorly). Playfair Display gives elegant, unambiguous capitals for both
+// Latin and Cyrillic.
+const DROP_CAP_FONT = "'Playfair Display', 'Cormorant Garamond', serif";
 
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
@@ -822,7 +819,7 @@ export default function TattoDiary() {
           }}
         >
           {filteredClients.map((client) => (
-            <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} theme={theme} />
+            <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} />
           ))}
 
           {/* Add new client tile */}
@@ -1018,9 +1015,10 @@ export default function TattoDiary() {
 }
 
 // ===================== CLIENT MARKER (stripe + gem corner) =====================
-// Top accent stripe: a neon-lit line in the dark theme, a gilded foil sheen in
-// the light theme. Reused on the card and the detail hero.
-function TopStripe({ color, theme, height = 3 }: { color: string; theme: Theme; height?: number }) {
+// Top accent stripe: a gilded foil with a bright sheen in the middle — the same
+// elegant treatment in both themes (the dark-theme neon glow was dropped).
+// Reused on the card and the detail hero.
+function TopStripe({ color }: { color: string }) {
   return (
     <div
       style={{
@@ -1028,18 +1026,11 @@ function TopStripe({ color, theme, height = 3 }: { color: string; theme: Theme; 
         top: 0,
         left: 0,
         right: 0,
-        height,
-        // Sits above the gem corner so the corner tucks neatly under the stripe.
-        zIndex: 6,
+        height: 3,
+        zIndex: 6, // above the gem corner so it tucks under the stripe
         pointerEvents: 'none',
-        background:
-          theme === 'light'
-            ? `linear-gradient(90deg, ${color} 0%, #f6e8c4 48%, ${color} 100%)`
-            : color,
-        boxShadow:
-          theme === 'light'
-            ? `0 1px 2px ${hexToRgba(color, 0.4)}`
-            : `0 0 4px ${color}, 0 0 9px ${hexToRgba(color, 0.6)}`,
+        background: `linear-gradient(90deg, ${color} 0%, #f6e8c4 48%, ${color} 100%)`,
+        boxShadow: `0 1px 2px ${hexToRgba(color, 0.4)}`,
       }}
     />
   );
@@ -1085,7 +1076,7 @@ function GemCorner({ color, size = 28 }: { color: string; size?: number }) {
 }
 
 // ===================== CLIENT GRID CARD =====================
-function ClientGridCard({ client, onClick, theme }: { client: Client; onClick: () => void; theme: Theme }) {
+function ClientGridCard({ client, onClick }: { client: Client; onClick: () => void }) {
   return (
     <div
       className="inka-card"
@@ -1103,7 +1094,7 @@ function ClientGridCard({ client, onClick, theme }: { client: Client; onClick: (
       }}
     >
       {/* Client marker — coloured top stripe + glass-gem corner. */}
-      <TopStripe color={client.color} theme={theme} />
+      <TopStripe color={client.color} />
       <GemCorner color={client.color} />
 
       {/* Content */}
@@ -1120,7 +1111,7 @@ function ClientGridCard({ client, onClick, theme }: { client: Client; onClick: (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
           <span
             style={{
-              fontFamily: dropCapFontFor(client.name),
+              fontFamily: DROP_CAP_FONT,
               fontSize: fs(46),
               // Taller line box so the ornate letter's descending swash stays
               // within its own line and doesn't hang down onto the note text.
@@ -1785,7 +1776,7 @@ function DetailScreen({
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
             <span
               style={{
-                fontFamily: dropCapFontFor(client.name),
+                fontFamily: DROP_CAP_FONT,
                 fontSize: fs(100),
                 lineHeight: 0.79,
                 color: COLORS.gold,
@@ -1992,7 +1983,7 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
         <div onClick={() => setEditing(true)} style={{ overflow: 'hidden', lineHeight: 1, cursor: 'text' }}>
           <span
             style={{
-              fontFamily: dropCapFontFor(note.charAt(0)),
+              fontFamily: DROP_CAP_FONT,
               fontSize: fs(52),
               lineHeight: 0.81,
               color: 'rgba(var(--gold-rgb),0.42)',
