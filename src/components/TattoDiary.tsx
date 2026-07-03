@@ -217,6 +217,11 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}, ${alpha})`;
 }
 
+// True for strings that start in a right-to-left script (Hebrew, Arabic, …), so
+// the layout can flip the drop-cap + name into their natural reading order.
+const RTL_RE = /[֐-׿؀-ۿ܀-ݏހ-޿יִ-﷿ﹰ-﻿]/;
+const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
+
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
 const lastSession = (c: Client): Session | null => (c.sessions.length ? c.sessions[c.sessions.length - 1] : null);
@@ -1132,7 +1137,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           zIndex: 2,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flexShrink: 0, direction: isRTL(client.name) ? 'rtl' : 'ltr' }}>
           <span
             style={{
               fontFamily: DROP_CAP_FONT,
@@ -1150,6 +1155,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           </span>
           <div style={{ paddingTop: 7, minWidth: 0, overflow: 'hidden' }}>
             <div
+              dir="auto"
               style={{
                 fontSize: fs(15),
                 color: COLORS.textPrimary,
@@ -1163,6 +1169,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
               {nameRest(client.name)}
             </div>
             <div
+              dir="auto"
               style={{
                 fontSize: fs(13),
                 color: 'var(--surname)',
@@ -1210,6 +1217,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             Последний сеанс
           </div>
           <div
+            dir="auto"
             style={{
               fontSize: fs(12),
               color: 'var(--text-strong)',
@@ -1797,7 +1805,7 @@ function DetailScreen({
 
         {/* Giant drop cap hero */}
         <div style={{ padding: '12px 24px 18px', position: 'relative', zIndex: 5 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2, direction: isRTL(client.name) ? 'rtl' : 'ltr' }}>
             <span
               style={{
                 fontFamily: DROP_CAP_FONT,
@@ -1812,10 +1820,10 @@ function DetailScreen({
               {firstLetter(client.name)}
             </span>
             <div style={{ paddingTop: 16, paddingLeft: 6, minWidth: 0 }}>
-              <div style={{ fontSize: fs(26), color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
+              <div dir="auto" style={{ fontSize: fs(26), color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
                 {nameRest(client.name)}
               </div>
-              <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginTop: 5, letterSpacing: '0.5px' }}>
+              <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginTop: 5, letterSpacing: '0.5px' }}>
                 {client.surname}
               </div>
             </div>
@@ -2004,15 +2012,15 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
           }}
         />
       ) : note ? (
-        <div onClick={() => setEditing(true)} style={{ overflow: 'hidden', lineHeight: 1, cursor: 'text' }}>
+        <div dir="auto" onClick={() => setEditing(true)} style={{ overflow: 'hidden', lineHeight: 1, cursor: 'text' }}>
           <span
             style={{
               fontFamily: DROP_CAP_FONT,
               fontSize: fs(52),
               lineHeight: 0.81,
               color: 'rgba(var(--gold-rgb),0.42)',
-              float: 'left',
-              marginRight: 7,
+              float: isRTL(note) ? 'right' : 'left',
+              [isRTL(note) ? 'marginLeft' : 'marginRight']: 7,
               paddingBottom: 2,
               marginTop: 1,
             }}
@@ -2634,7 +2642,7 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
       <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: fs(11), paddingTop: 2 }}>
         {label}
       </span>
-      <span style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>{value}</span>
+      <span dir="auto" style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>{value}</span>
     </div>
   );
 }
@@ -2874,7 +2882,7 @@ function SessionsTab({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: fs(15), color: 'var(--text-strong)', fontWeight: 500, letterSpacing: '0.3px' }}>
+                <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-strong)', fontWeight: 500, letterSpacing: '0.3px' }}>
                   {session.name || formatDate(session.date) || 'Сессия'}
                 </div>
                 {session.name && formatDate(session.date) && (
@@ -2897,11 +2905,11 @@ function SessionsTab({
               </div>
             </div>
             {session.area && (
-              <div style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
+              <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
                 {session.area}
               </div>
             )}
-            {session.note && <div style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+            {session.note && <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
             {(session.colors || session.needles || session.skinReaction) && (
               <div
                 style={{
@@ -3034,7 +3042,7 @@ function NoteItem({
         {client && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: client.color, flexShrink: 0 }} />
-            <span style={{ fontSize: fs(12), color: 'var(--text-strong)', letterSpacing: '0.3px' }}>
+            <span dir="auto" style={{ fontSize: fs(12), color: 'var(--text-strong)', letterSpacing: '0.3px' }}>
               {[client.name, client.surname].filter(Boolean).join(' ')}
             </span>
           </div>
