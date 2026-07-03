@@ -245,6 +245,14 @@ input[type='date'] {
 .inka-stripe-right {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 34px), 50% 100%, 0 calc(100% - 34px));
 }
+
+/* Dark theme: slimmer stripes (2px instead of the 3px set inline). Light keeps 3px. */
+:root[data-theme='dark'] .inka-stripe {
+  height: 2px !important;
+}
+:root[data-theme='dark'] .inka-stripe-right {
+  width: 2px !important;
+}
 .inka-card:hover {
   transform: translateY(-5px) scale(1.018);
   border-color: rgba(var(--gold-rgb), 0.62);
