@@ -1038,11 +1038,12 @@ function TopStripe({ color }: { color: string }) {
   );
 }
 
-// Straight vertical stripe dropping down the card's right edge from the
-// top-right corner (no taper), over the gem corner.
+// Vertical stripe dropping down the card's right edge from the top-right corner,
+// tapered to a point at the bottom (nib), over the gem corner.
 function RightStripe({ color }: { color: string }) {
   return (
     <div
+      className="inka-stripe-right"
       style={{
         position: 'absolute',
         top: 0,

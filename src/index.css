@@ -239,6 +239,12 @@ input[type='date'] {
 .inka-stripe {
   clip-path: polygon(0 50%, 34px 0, 100% 0, 100% 100%, 34px 100%);
 }
+
+/* Right-edge marker stripe: full at the top (over the gem corner), tapered to a
+   point at the bottom. */
+.inka-stripe-right {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 34px), 50% 100%, 0 calc(100% - 34px));
+}
 .inka-card:hover {
   transform: translateY(-5px) scale(1.018);
   border-color: rgba(var(--gold-rgb), 0.62);
