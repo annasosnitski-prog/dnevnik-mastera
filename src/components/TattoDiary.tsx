@@ -16,6 +16,15 @@ const COLORS = {
   textTrace: 'var(--text-trace)',
 };
 
+// ── Text-size scaling ──
+// "Размер текста" (Settings) scales only typography, not the whole app. The
+// layout is built on fixed px, so we thread a single multiplier through a
+// module-level value that the root sets at the top of every render (React
+// renders top-down synchronously, so children read the current value). Font
+// sizes go through fs(); box dimensions stay fixed — the OS "text size" model.
+let TEXT_SCALE = 1;
+const fs = (px: number): number => Math.round(px * TEXT_SCALE * 100) / 100;
+
 // Per-client accent colours, assigned on creation (rotated through the list
 // when the master doesn't pick one explicitly).
 const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#7A6A3A', '#3A6A7A'];
@@ -30,7 +39,41 @@ const SKIN_TONES = [
 ];
 
 const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч', '7 ч', '8 ч'];
-const STYLES = ['Реализм', 'Графика', 'Орнамент', 'Японский', 'Акварель', 'Другой'];
+const STYLES = [
+  'Реализм',
+  'Графика',
+  'Геометрия',
+  'Традиционная',
+  'Нео-трайбл',
+  'Трайбл',
+  'Орнамент',
+  'Орнаментальная',
+  'Ориентальная',
+  'Японский',
+  'Акварель',
+  'Другой',
+];
+
+// ── Note urgency (Eisenhower-style) markers ──
+// Colour is reserved for the client marker, so urgency is encoded by emoji glyph
+// + rank (used for sorting in «Дополнительно» and filtering in «Сводка»).
+type UrgencyKey =
+  | 'urgent_important'
+  | 'urgent_not'
+  | 'important_not_urgent'
+  | 'not_not'
+  | 'interesting';
+
+const URGENCY: { key: UrgencyKey; emoji: string; label: string; short: string }[] = [
+  { key: 'urgent_important', emoji: '‼️', label: 'Срочно и важно', short: 'Срочно · важно' },
+  { key: 'urgent_not', emoji: '❗️', label: 'Срочно, не важно', short: 'Срочно' },
+  { key: 'important_not_urgent', emoji: '🔆', label: 'Важно, не срочно', short: 'Важно' },
+  { key: 'not_not', emoji: '🌙', label: 'Не срочно, не важно', short: 'Спокойно' },
+  { key: 'interesting', emoji: '⚡️', label: 'Интересно', short: 'Интересно' },
+];
+const DONE_EMOJI = '🍀';
+const urgencyRank = (k: UrgencyKey): number => URGENCY.findIndex((u) => u.key === k);
+const urgencyMeta = (k: UrgencyKey) => URGENCY.find((u) => u.key === k) || URGENCY[URGENCY.length - 1];
 
 // ===================== DATA TYPES =====================
 interface Session {
@@ -54,6 +97,16 @@ interface ClientDocument {
   fileUrl: string;
   kind: 'document' | 'photo';
   uploadedDate: string;
+}
+
+// A free-form note/task with an urgency marker and a done flag. Lives in the
+// client's «Дополнительно» tab and is aggregated across clients in «Сводка».
+interface ClientNote {
+  id: string;
+  text: string;
+  urgency: UrgencyKey;
+  done: boolean;
+  createdDate: string;
 }
 
 type ChatPlatform = 'whatsapp' | 'telegram' | 'instagram' | 'facebook' | 'messenger' | 'tiktok' | 'other';
@@ -115,6 +168,7 @@ interface Client {
   chatLinks: ChatLink[]; // WhatsApp / Telegram / Instagram / etc.
   sessions: Session[];
   documents: ClientDocument[];
+  notes: ClientNote[]; // structured notes/tasks with urgency markers
   createdDate: string;
 }
 
@@ -149,9 +203,22 @@ function formatDate(value: string): string {
   return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
 }
 
-// Decorative drop-cap face (Loreley Antiqua — supports both Latin and Cyrillic).
-// Playfair/serif fall back if the webfont hasn't loaded.
+// Decorative drop-cap face (Loreley Antiqua — ornate, but its Cyrillic glyphs
+// read poorly). Latin буквицы keep Loreley; Cyrillic falls to Playfair Display,
+// whose Cyrillic capitals are elegant and consistent.
 const DROP_CAP_FONT = "'Loreley Antiqua', 'Playfair Display', serif";
+const DROP_CAP_FONT_CYRILLIC = "'Playfair Display', 'Cormorant Garamond', serif";
+const isCyrillic = (ch: string) => /[Ѐ-ӿ]/.test(ch || '');
+// Picks the drop-cap face for a given first character.
+const dropCapFontFor = (ch: string) => (isCyrillic(ch) ? DROP_CAP_FONT_CYRILLIC : DROP_CAP_FONT);
+
+// Converts a #rrggbb hex to an rgba() string at the given alpha.
+function hexToRgba(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return hex;
+  const int = parseInt(m[1], 16);
+  return `rgba(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}, ${alpha})`;
+}
 
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
@@ -206,6 +273,15 @@ function normalizeClient(raw: any, index: number): Client {
     chatLinks: Array.isArray(raw?.chatLinks) ? raw.chatLinks : [],
     sessions,
     documents: Array.isArray(raw?.documents) ? raw.documents : [],
+    notes: Array.isArray(raw?.notes)
+      ? raw.notes.map((n: any, i: number): ClientNote => ({
+          id: String(n?.id ?? `${Date.now()}-n${i}`),
+          text: n?.text ?? '',
+          urgency: URGENCY.some((u) => u.key === n?.urgency) ? n.urgency : 'important_not_urgent',
+          done: Boolean(n?.done),
+          createdDate: n?.createdDate ?? new Date().toISOString(),
+        }))
+      : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
   };
 }
@@ -260,7 +336,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontSize: '11px',
+        fontSize: fs(11),
         color: COLORS.textGhost,
         letterSpacing: '2.5px',
         textTransform: 'uppercase',
@@ -371,9 +447,9 @@ export default function TattoDiary() {
     }
   }, [prefs]);
 
-  const [screen, setScreen] = useState<'list' | 'detail' | 'settings'>('list');
+  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'documents'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('info');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [showNewClientForm, setShowNewClientForm] = useState(false);
@@ -475,6 +551,22 @@ export default function TattoDiary() {
     saveClient({ ...selectedClient, sessions: selectedClient.sessions.filter((s) => s.id !== sessionId) });
   };
 
+  // ── Notes (used by the client «Дополнительно» tab and the «Сводка» screen) ──
+  const upsertNote = (clientId: string, note: ClientNote) => {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    const exists = c.notes.some((n) => n.id === note.id);
+    saveClient({
+      ...c,
+      notes: exists ? c.notes.map((n) => (n.id === note.id ? note : n)) : [...c.notes, note],
+    });
+  };
+  const deleteNote = (clientId: string, noteId: string) => {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    saveClient({ ...c, notes: c.notes.filter((n) => n.id !== noteId) });
+  };
+
   const updateSessionPhotos = (sessionId: string, photos: string[]) => {
     if (!selectedClient) return;
     saveClient({
@@ -510,6 +602,7 @@ export default function TattoDiary() {
       chatLinks: [],
       sessions: [],
       documents: [],
+      notes: [],
       createdDate: new Date().toISOString(),
     };
     saveClient(client);
@@ -566,23 +659,21 @@ export default function TattoDiary() {
 
   const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm;
 
+  // Set the text-size multiplier for this render pass before any child renders.
+  TEXT_SCALE = prefs.textScale;
+
   return (
     <div
       className="app-shell"
       style={{
         position: 'relative',
-        // width is divided by the zoom so the zoomed shell still fills exactly
-        // the viewport width (no horizontal overflow when text size > 1).
-        width: `calc(100% / ${prefs.textScale})`,
+        width: '100%',
         maxWidth: 480,
         margin: '0 auto',
         overflow: 'hidden',
         background: COLORS.bg,
         fontFamily: "'Cormorant Garamond', serif",
         filter: prefs.brightness !== 1 ? `brightness(${prefs.brightness})` : undefined,
-        // `zoom` scales text + UI together — the pragmatic "text size" lever for
-        // a layout built on fixed px. (Cast: zoom isn't in the CSS types.)
-        ...(prefs.textScale !== 1 ? ({ zoom: prefs.textScale } as React.CSSProperties) : {}),
       }}
     >
       {/* ═══════════ LIST SCREEN ═══════════ */}
@@ -630,7 +721,7 @@ export default function TattoDiary() {
           <div
             style={{
               fontFamily: "'Cinzel Decorative', serif",
-              fontSize: 26,
+              fontSize: fs(26),
               color: COLORS.gold,
               letterSpacing: '6px',
               lineHeight: 1,
@@ -641,7 +732,7 @@ export default function TattoDiary() {
           </div>
           <div
             style={{
-              fontSize: 13,
+              fontSize: fs(13),
               color: COLORS.textGhost,
               letterSpacing: '5px',
               textTransform: 'uppercase',
@@ -705,7 +796,7 @@ export default function TattoDiary() {
               zIndex: 10,
             }}
           >
-            <span style={{ flex: 1, fontSize: 15, color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
+            <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
             <button
               onClick={() => setDbError(null)}
               style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
@@ -731,7 +822,7 @@ export default function TattoDiary() {
           }}
         >
           {filteredClients.map((client) => (
-            <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} />
+            <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} theme={theme} />
           ))}
 
           {/* Add new client tile */}
@@ -769,7 +860,7 @@ export default function TattoDiary() {
             </div>
             <span
               style={{
-                fontSize: '11px',
+                fontSize: fs(11),
                 color: 'rgba(var(--gold-rgb),0.32)',
                 letterSpacing: '1.5px',
                 textTransform: 'uppercase',
@@ -789,7 +880,7 @@ export default function TattoDiary() {
               left: 0,
               right: 0,
               textAlign: 'center',
-              fontSize: 15,
+              fontSize: fs(15),
               fontStyle: 'italic',
               color: COLORS.textGhost,
               pointerEvents: 'none',
@@ -803,12 +894,38 @@ export default function TattoDiary() {
       {/* Bottom navigation — sibling of the screens so it pins to the shell
           bottom (never scrolls). Shown on the list and settings screens, hidden
           while a bottom sheet is open so it can't sit over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings') && !sheetOpen && (
+      {(screen === 'list' || screen === 'settings' || screen === 'summary') && !sheetOpen && (
         <BottomNav
           active={screen}
           onNavigate={(s) => setScreen(s)}
         />
       )}
+
+      {/* ═══════════ SUMMARY SCREEN ═══════════ */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: screen === 'summary' ? 'translateX(0)' : 'translateX(110%)',
+          transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          zIndex: 3,
+          background: COLORS.bg,
+        }}
+      >
+        {screen === 'summary' && (
+          <SummaryScreen
+            clients={clients}
+            onToggleDone={(clientId, note) => upsertNote(clientId, note)}
+            onOpenClient={(id) => {
+              setSelectedId(id);
+              setActiveTab('extra');
+              setScreen('detail');
+            }}
+          />
+        )}
+      </div>
 
       {/* ═══════════ SETTINGS SCREEN ═══════════ */}
       <div
@@ -857,6 +974,8 @@ export default function TattoDiary() {
             onRemoveDocument={(docId) =>
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
             }
+            onUpsertNote={(note) => upsertNote(selectedClient.id, note)}
+            onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
           />
         )}
       </div>
@@ -898,8 +1017,88 @@ export default function TattoDiary() {
   );
 }
 
+// ===================== CLIENT MARKER (stripe + gem corner) =====================
+// Top accent stripe: a neon-lit line in the dark theme, a gilded foil sheen in
+// the light theme. Reused on the card and the detail hero.
+function TopStripe({ color, theme, height = 3 }: { color: string; theme: Theme; height?: number }) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height,
+        zIndex: 4,
+        pointerEvents: 'none',
+        background:
+          theme === 'light'
+            ? `linear-gradient(90deg, ${color} 0%, #f6e8c4 48%, ${color} 100%)`
+            : color,
+        boxShadow:
+          theme === 'light'
+            ? `0 1px 2px ${hexToRgba(color, 0.4)}`
+            : `0 0 4px ${color}, 0 0 9px ${hexToRgba(color, 0.6)}`,
+      }}
+    />
+  );
+}
+
+// Coloured-glass "gem" corner: a translucent bevelled triangle with a specular
+// glint (блик), gradient depth (глубина) and a soft colour reflection spilling
+// onto the card surface (цветной отсвет). Works in both themes.
+function GemCorner({ color, size = 42 }: { color: string; size?: number }) {
+  return (
+    <>
+      {/* colour reflection cast onto the surface */}
+      <div
+        style={{
+          position: 'absolute',
+          top: -8,
+          right: -8,
+          width: size + 26,
+          height: size + 26,
+          background: `radial-gradient(circle at top right, ${hexToRgba(color, 0.5)}, transparent 66%)`,
+          filter: 'blur(5px)',
+          zIndex: 3,
+          pointerEvents: 'none',
+        }}
+      />
+      {/* glass body */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: size,
+          height: size,
+          clipPath: 'polygon(100% 0, 0 0, 100% 100%)',
+          background: `linear-gradient(215deg, ${color} 0%, ${hexToRgba(color, 0.6)} 52%, ${hexToRgba(color, 0.12)} 100%)`,
+          boxShadow: `inset -1.5px 1.5px 1.5px rgba(255,255,255,0.45), inset 3px -3px 4px ${hexToRgba(color, 0.5)}`,
+          zIndex: 4,
+          pointerEvents: 'none',
+        }}
+      />
+      {/* specular glint */}
+      <div
+        style={{
+          position: 'absolute',
+          top: Math.round(size * 0.12),
+          right: Math.round(size * 0.16),
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.95), rgba(255,255,255,0) 70%)',
+          zIndex: 5,
+          pointerEvents: 'none',
+        }}
+      />
+    </>
+  );
+}
+
 // ===================== CLIENT GRID CARD =====================
-function ClientGridCard({ client, onClick }: { client: Client; onClick: () => void }) {
+function ClientGridCard({ client, onClick, theme }: { client: Client; onClick: () => void; theme: Theme }) {
   return (
     <div
       className="inka-card"
@@ -916,22 +1115,9 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         flexDirection: 'column',
       }}
     >
-      {/* Client marker — the top stripe and corner merged into one coloured
-          element (master picks the colour at creation to tag the client). */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          width: 0,
-          height: 0,
-          borderStyle: 'solid',
-          borderWidth: '0 40px 40px 0',
-          borderColor: `transparent ${client.color} transparent transparent`,
-          zIndex: 3,
-          pointerEvents: 'none',
-        }}
-      />
+      {/* Client marker — coloured top stripe + glass-gem corner. */}
+      <TopStripe color={client.color} theme={theme} />
+      <GemCorner color={client.color} />
 
       {/* Content */}
       <div
@@ -947,8 +1133,8 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
           <span
             style={{
-              fontFamily: DROP_CAP_FONT,
-              fontSize: 46,
+              fontFamily: dropCapFontFor(client.name),
+              fontSize: fs(46),
               // Taller line box so the ornate letter's descending swash stays
               // within its own line and doesn't hang down onto the note text.
               lineHeight: 1.12,
@@ -963,7 +1149,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           <div style={{ paddingTop: 7, minWidth: 0, overflow: 'hidden' }}>
             <div
               style={{
-                fontSize: 15,
+                fontSize: fs(15),
                 color: COLORS.textPrimary,
                 lineHeight: 1.2,
                 letterSpacing: '0.3px',
@@ -976,7 +1162,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             </div>
             <div
               style={{
-                fontSize: 13,
+                fontSize: fs(13),
                 color: 'var(--surname)',
                 fontStyle: 'italic',
                 marginTop: 2,
@@ -999,7 +1185,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             <div
               dir="auto"
               style={{
-                fontSize: 15,
+                fontSize: fs(15),
                 color: 'var(--text-secondary)',
                 fontStyle: 'italic',
                 lineHeight: 1.4,
@@ -1012,18 +1198,18 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
               {client.note}
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: COLORS.textTrace, fontStyle: 'italic' }}>Без заметок</div>
+            <div style={{ fontSize: fs(12), color: COLORS.textTrace, fontStyle: 'italic' }}>Без заметок</div>
           )}
         </div>
 
         {/* Last session name + date */}
         <div style={{ marginBottom: 6, minWidth: 0 }}>
-          <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             Последний сеанс
           </div>
           <div
             style={{
-              fontSize: 12,
+              fontSize: fs(12),
               color: 'var(--text-strong)',
               marginTop: 2,
               whiteSpace: 'nowrap',
@@ -1045,7 +1231,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           {client.style ? (
             <span
               style={{
-                fontSize: 11,
+                fontSize: fs(11),
                 color: client.color,
                 border: `0.5px solid ${client.color}`,
                 padding: '2px 7px',
@@ -1060,9 +1246,25 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
               {client.style}
             </span>
           ) : (
-            <span style={{ fontSize: 11, color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.5px' }}>—</span>
+            <span style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.5px' }}>—</span>
           )}
-          <span style={{ fontSize: 12, color: COLORS.textGhost, flexShrink: 0 }}>{client.sessions.length} сес.</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+            {client.skinTone && (
+              <span
+                title="Тон кожи"
+                style={{
+                  width: 13,
+                  height: 13,
+                  borderRadius: '50%',
+                  background: client.skinTone,
+                  border: '1px solid rgba(var(--gold-rgb),0.35)',
+                  boxShadow: '0 0 0 1px rgba(var(--bg-rgb),0.6)',
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            <span style={{ fontSize: fs(12), color: COLORS.textGhost }}>{client.sessions.length} сес.</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1120,8 +1322,8 @@ function BottomNav({
   active,
   onNavigate,
 }: {
-  active: 'list' | 'settings';
-  onNavigate: (screen: 'list' | 'settings') => void;
+  active: 'list' | 'settings' | 'summary';
+  onNavigate: (screen: 'list' | 'settings' | 'summary') => void;
 }) {
   return (
     <div
@@ -1158,15 +1360,18 @@ function BottomNav({
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
           <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="currentColor" fillOpacity="0.07" />
         </svg>
-        <span style={{ fontSize: '11px', color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
+        <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: 0.28 }}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--text)' }}>
+      <div
+        onClick={() => onNavigate('summary')}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.4 }}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
           <rect x="2.5" y="12" width="3.5" height="5.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
           <rect x="8.3" y="8" width="3.5" height="9.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
           <rect x="14" y="4" width="3.5" height="13.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
         </svg>
-        <span style={{ fontSize: '11px', color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
+        <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
       </div>
       <div
         onClick={() => onNavigate('settings')}
@@ -1181,7 +1386,7 @@ function BottomNav({
             strokeLinecap="round"
           />
         </svg>
-        <span style={{ fontSize: '11px', color: active === 'settings' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Настройки</span>
+        <span style={{ fontSize: fs(11), color: active === 'settings' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Настройки</span>
       </div>
     </div>
   );
@@ -1208,7 +1413,7 @@ function SettingsScreen({
   };
   const labelStyle: React.CSSProperties = {
     fontFamily: "'Playfair Display', serif",
-    fontSize: 12,
+    fontSize: fs(12),
     color: 'var(--text-secondary)',
     letterSpacing: '2.5px',
     textTransform: 'uppercase',
@@ -1233,7 +1438,7 @@ function SettingsScreen({
         <div
           style={{
             fontFamily: "'Cinzel Decorative', serif",
-            fontSize: 24,
+            fontSize: fs(24),
             color: COLORS.gold,
             letterSpacing: '5px',
             textTransform: 'uppercase',
@@ -1241,7 +1446,7 @@ function SettingsScreen({
         >
           Настройки
         </div>
-        <div style={{ fontSize: 13, color: COLORS.textGhost, letterSpacing: '4px', textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, letterSpacing: '4px', textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Оформление
         </div>
         <StarDivider />
@@ -1262,7 +1467,7 @@ function SettingsScreen({
                   padding: '10px 0',
                   borderRadius: 2,
                   cursor: 'pointer',
-                  fontSize: 13,
+                  fontSize: fs(13),
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                   border: theme === t ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
@@ -1319,7 +1524,7 @@ function SettingsScreen({
                   padding: '9px 0',
                   borderRadius: 2,
                   cursor: 'pointer',
-                  fontSize: 12,
+                  fontSize: fs(12),
                   letterSpacing: '0.5px',
                   textTransform: 'uppercase',
                   border: prefs.textBright === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
@@ -1340,7 +1545,7 @@ function SettingsScreen({
             marginTop: 6,
             textAlign: 'center',
             padding: '11px 0',
-            fontSize: 12,
+            fontSize: fs(12),
             letterSpacing: '1px',
             textTransform: 'uppercase',
             fontStyle: 'italic',
@@ -1350,6 +1555,121 @@ function SettingsScreen({
         >
           Сбросить по умолчанию
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ===================== SUMMARY SCREEN («Сводка») =====================
+// Aggregates notes from every client, tagged with the client's colour + name
+// (plain type, no drop-cap). Filter by urgency and optionally include closed
+// (🍀) notes; toggling done fades a note out.
+function SummaryScreen({
+  clients,
+  onToggleDone,
+  onOpenClient,
+}: {
+  clients: Client[];
+  onToggleDone: (clientId: string, note: ClientNote) => void;
+  onOpenClient: (id: string) => void;
+}) {
+  const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
+  const [showClosed, setShowClosed] = useState(false);
+
+  const items = clients
+    .flatMap((c) => c.notes.map((note) => ({ note, client: c })))
+    .filter(({ note }) => {
+      if (!showClosed && note.done) return false;
+      if (filter !== 'all' && note.urgency !== filter) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (a.note.done !== b.note.done) return a.note.done ? 1 : -1;
+      const r = urgencyRank(a.note.urgency) - urgencyRank(b.note.urgency);
+      return r !== 0 ? r : b.note.createdDate.localeCompare(a.note.createdDate);
+    });
+
+  const filterChip = (label: string, active: boolean, onClick: () => void) => (
+    <div
+      onClick={onClick}
+      style={{
+        fontSize: fs(12),
+        padding: '5px 10px',
+        borderRadius: 2,
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        whiteSpace: 'nowrap',
+        border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+        background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+        color: active ? COLORS.gold : COLORS.textFaint,
+        letterSpacing: '0.4px',
+        transition: 'all 0.2s',
+      }}
+    >
+      {label}
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: '100%', background: COLORS.bg }}>
+      {/* Dot-grid texture overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
+          backgroundSize: '22px 22px',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+      <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        <div
+          style={{
+            fontFamily: "'Cinzel Decorative', serif",
+            fontSize: fs(24),
+            color: COLORS.gold,
+            letterSpacing: '5px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Сводка
+        </div>
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, letterSpacing: '4px', textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+          Заметки клиентов
+        </div>
+        <StarDivider />
+      </div>
+
+      {/* Filters */}
+      <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {filterChip('Все', filter === 'all', () => setFilter('all'))}
+          {URGENCY.map((u) =>
+            <span key={u.key}>{filterChip(`${u.emoji} ${u.short}`, filter === u.key, () => setFilter(u.key))}</span>,
+          )}
+        </div>
+        <div style={{ marginTop: 8 }}>
+          {filterChip(`${DONE_EMOJI} Показывать закрытые`, showClosed, () => setShowClosed((v) => !v))}
+        </div>
+      </div>
+
+      {/* Aggregated notes */}
+      <div style={{ padding: '16px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.length === 0 ? (
+          <div style={{ textAlign: 'center', marginTop: 40, fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic' }}>
+            {clients.some((c) => c.notes.length) ? 'Нет заметок по этому фильтру' : 'Заметок пока нет'}
+          </div>
+        ) : (
+          items.map(({ note, client }) => (
+            <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
+              <NoteItem note={note} client={client} onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })} />
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
@@ -1376,7 +1696,7 @@ function SettingSlider({
   const pct = Math.round(value * 100);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-      {sample && <span style={{ fontSize: 13, color: COLORS.textFaint, flexShrink: 0 }}>{sample}</span>}
+      {sample && <span style={{ fontSize: fs(13), color: COLORS.textFaint, flexShrink: 0 }}>{sample}</span>}
       <input
         type="range"
         min={min}
@@ -1387,8 +1707,8 @@ function SettingSlider({
         className="inka-range"
         style={{ flex: 1 }}
       />
-      {sample && <span style={{ fontSize: 20, color: COLORS.textFaint, flexShrink: 0 }}>{sample}</span>}
-      <span style={{ fontSize: 12, color: COLORS.gold, width: 42, textAlign: 'right', flexShrink: 0 }}>{pct}%</span>
+      {sample && <span style={{ fontSize: fs(20), color: COLORS.textFaint, flexShrink: 0 }}>{sample}</span>}
+      <span style={{ fontSize: fs(12), color: COLORS.gold, width: 42, textAlign: 'right', flexShrink: 0 }}>{pct}%</span>
     </div>
   );
 }
@@ -1408,10 +1728,12 @@ function DetailScreen({
   onUpdateSessionPhotos,
   onAddDocument,
   onRemoveDocument,
+  onUpsertNote,
+  onDeleteNote,
 }: {
   client: Client;
-  activeTab: 'info' | 'sessions' | 'documents';
-  onTab: (t: 'info' | 'sessions' | 'documents') => void;
+  activeTab: 'info' | 'sessions' | 'extra';
+  onTab: (t: 'info' | 'sessions' | 'extra') => void;
   onBack: () => void;
   onSave: (client: Client) => void;
   onEditClient: () => void;
@@ -1422,12 +1744,14 @@ function DetailScreen({
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
+  onUpsertNote: (note: ClientNote) => void;
+  onDeleteNote: (noteId: string) => void;
 }) {
   const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
     flex: 1,
     textAlign: 'center',
     padding: '11px 0',
-    fontSize: 13,
+    fontSize: fs(13),
     letterSpacing: '1.5px',
     textTransform: 'uppercase',
     color: activeTab === tab ? COLORS.gold : 'var(--ink-faint)',
@@ -1454,7 +1778,7 @@ function DetailScreen({
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span style={{ fontSize: 15, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+            <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
           {/* Edit client */}
           <div
@@ -1462,7 +1786,7 @@ function DetailScreen({
             onClick={onEditClient}
             style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
           >
-            <span style={{ fontSize: 15, color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
+            <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
               <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
             </svg>
@@ -1474,8 +1798,8 @@ function DetailScreen({
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
             <span
               style={{
-                fontFamily: DROP_CAP_FONT,
-                fontSize: 100,
+                fontFamily: dropCapFontFor(client.name),
+                fontSize: fs(100),
                 lineHeight: 0.79,
                 color: COLORS.gold,
                 letterSpacing: '-2px',
@@ -1486,10 +1810,10 @@ function DetailScreen({
               {firstLetter(client.name)}
             </span>
             <div style={{ paddingTop: 16, paddingLeft: 6, minWidth: 0 }}>
-              <div style={{ fontSize: 26, color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
+              <div style={{ fontSize: fs(26), color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
                 {nameRest(client.name)}
               </div>
-              <div style={{ fontSize: 15, color: COLORS.textMuted, fontStyle: 'italic', marginTop: 5, letterSpacing: '0.5px' }}>
+              <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginTop: 5, letterSpacing: '0.5px' }}>
                 {client.surname}
               </div>
             </div>
@@ -1497,22 +1821,22 @@ function DetailScreen({
           {/* Style(s) + session count — styles carry the client's marker colour */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13, flexWrap: 'wrap' }}>
             <div style={{ width: 22, height: 2, background: client.color, borderRadius: 1, flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: client.color, letterSpacing: '2.5px', textTransform: 'uppercase', fontWeight: 600 }}>
+            <span style={{ fontSize: fs(13), color: client.color, letterSpacing: '2.5px', textTransform: 'uppercase', fontWeight: 600 }}>
               {stylesLabel(client) || 'Без стиля'}
             </span>
-            <span style={{ fontSize: 13, color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
+            <span style={{ fontSize: fs(13), color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
           </div>
 
           {/* Notes about the client — moved up into the header (per design). */}
           {client.note && (
             <div style={{ marginTop: 16 }}>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 10, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 6 }}>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 6 }}>
                 Заметки о клиенте
               </div>
               <div
                 dir="auto"
                 style={{
-                  fontSize: 15,
+                  fontSize: fs(15),
                   color: 'var(--text-soft)',
                   fontStyle: 'italic',
                   lineHeight: 1.5,
@@ -1540,8 +1864,8 @@ function DetailScreen({
         <div onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
           Сессии
         </div>
-        <div onClick={() => onTab('documents')} style={tabStyle('documents')}>
-          Документы
+        <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
+          Доп.
         </div>
       </div>
 
@@ -1557,8 +1881,14 @@ function DetailScreen({
             onUpdateSessionPhotos={onUpdateSessionPhotos}
           />
         )}
-        {activeTab === 'documents' && (
-          <DocumentsTab client={client} onAddDocument={onAddDocument} onRemoveDocument={onRemoveDocument} />
+        {activeTab === 'extra' && (
+          <AdditionalTab
+            client={client}
+            onAddDocument={onAddDocument}
+            onRemoveDocument={onRemoveDocument}
+            onUpsertNote={onUpsertNote}
+            onDeleteNote={onDeleteNote}
+          />
         )}
       </div>
     </>
@@ -1594,7 +1924,7 @@ function InfoTab({
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div style={metaCell()}>
           <MetaLabel>Стиль</MetaLabel>
-          <div style={{ fontSize: 15, color: client.color, fontWeight: 600 }}>{stylesLabel(client) || '—'}</div>
+          <div style={{ fontSize: fs(15), color: client.color, fontWeight: 600 }}>{stylesLabel(client) || '—'}</div>
         </div>
         <div style={metaCell()}>
           <MetaLabel>Сессий</MetaLabel>
@@ -1642,7 +1972,7 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <SectionHeader>Заметки мастера</SectionHeader>
         {!editing && (
-          <span onClick={() => setEditing(true)} style={{ fontSize: 13, color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer', marginTop: -10 }}>
+          <span onClick={() => setEditing(true)} style={{ fontSize: fs(13), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer', marginTop: -10 }}>
             {note ? 'править' : 'добавить'}
           </span>
         )}
@@ -1675,8 +2005,8 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
         <div onClick={() => setEditing(true)} style={{ overflow: 'hidden', lineHeight: 1, cursor: 'text' }}>
           <span
             style={{
-              fontFamily: DROP_CAP_FONT,
-              fontSize: 52,
+              fontFamily: dropCapFontFor(note.charAt(0)),
+              fontSize: fs(52),
               lineHeight: 0.81,
               color: 'rgba(var(--gold-rgb),0.42)',
               float: 'left',
@@ -1687,12 +2017,12 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
           >
             {note.charAt(0)}
           </span>
-          <span style={{ fontSize: 17, color: 'var(--text-soft)', lineHeight: 1.7, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
+          <span style={{ fontSize: fs(17), color: 'var(--text-soft)', lineHeight: 1.7, fontStyle: 'italic', display: 'block', overflow: 'hidden' }}>
             {note.slice(1)}
           </span>
         </div>
       ) : (
-        <div onClick={() => setEditing(true)} style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', cursor: 'text' }}>
+        <div onClick={() => setEditing(true)} style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', cursor: 'text' }}>
           Заметок пока нет — нажмите, чтобы добавить.
         </div>
       )}
@@ -1785,13 +2115,13 @@ function DeleteButton({
 
 function MetaLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+    <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
       {children}
     </div>
   );
 }
 function MetaValue({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 15, color: COLORS.textPrimary, fontWeight: 300 }}>{children}</div>;
+  return <div style={{ fontSize: fs(15), color: COLORS.textPrimary, fontWeight: 300 }}>{children}</div>;
 }
 
 // ── Skin (type + notes) ──
@@ -1812,7 +2142,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
     <div
       style={{
         fontFamily: "'Playfair Display', serif",
-        fontSize: 11,
+        fontSize: fs(11),
         color: COLORS.textGhost,
         letterSpacing: '3.5px',
         textTransform: 'uppercase',
@@ -1826,26 +2156,46 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 // ── Reusable pickers (skin tone / marker colour / styles) ──
 function SkinTonePalette({ value, onPick }: { value: string; onPick: (hex: string) => void }) {
+  const selected = value ? value.toLowerCase() : '';
+  const hasSel = !!selected;
+  // Once a tone is picked the rest collapse away and the chosen swatch grows for
+  // readability; picking again (or «изменить») expands the full palette back.
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
       {SKIN_TONES.map((t) => {
-        const sel = value.toLowerCase() === t.toLowerCase();
+        const sel = selected === t.toLowerCase();
+        const hidden = hasSel && !sel;
+        const size = sel ? 46 : 26;
         return (
           <div
             key={t}
             onClick={() => onPick(t)}
             style={{
-              width: 26,
-              height: 26,
+              width: hidden ? 0 : size,
+              height: hidden ? 0 : size,
+              margin: hidden ? 0 : 4,
               borderRadius: '50%',
               background: t,
               cursor: 'pointer',
+              opacity: hidden ? 0 : 1,
+              overflow: 'hidden',
+              flexShrink: 0,
               border: sel ? '2px solid var(--gold)' : '1px solid rgba(var(--gold-rgb),0.2)',
-              boxShadow: sel ? '0 0 0 2px rgba(var(--gold-rgb),0.3)' : undefined,
+              boxShadow: sel ? '0 0 0 3px rgba(var(--gold-rgb),0.28), 0 4px 12px rgba(0,0,0,0.25)' : undefined,
+              transition:
+                'width 0.42s cubic-bezier(0.34,1.56,0.64,1), height 0.42s cubic-bezier(0.34,1.56,0.64,1), margin 0.42s ease, opacity 0.3s ease, box-shadow 0.3s',
             }}
           />
         );
       })}
+      {hasSel && (
+        <span
+          onClick={() => onPick(value)}
+          style={{ marginLeft: 12, fontSize: fs(13), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
+        >
+          изменить
+        </span>
+      )}
     </div>
   );
 }
@@ -1886,7 +2236,7 @@ function StyleChips({ selected, onToggle }: { selected: string[]; onToggle: (s: 
             onClick={() => onToggle(s)}
             style={{
               fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 12,
+              fontSize: fs(12),
               padding: '6px 11px',
               borderRadius: 2,
               cursor: 'pointer',
@@ -1935,7 +2285,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
       <SectionHeader>Кожа</SectionHeader>
 
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
           Тип кожи
         </div>
         <select
@@ -1962,14 +2312,14 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 8 }}>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 8 }}>
           Тон кожи
         </div>
         <SkinTonePalette value={client.skinTone || ''} onPick={saveTone} />
       </div>
 
       <div>
-        <div style={{ fontSize: '11px', color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
           Заметки о коже
         </div>
         <textarea
@@ -2025,7 +2375,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
       <div
         style={{
           fontFamily: "'Playfair Display', serif",
-          fontSize: 11,
+          fontSize: fs(11),
           color: COLORS.textGhost,
           letterSpacing: '3.5px',
           textTransform: 'uppercase',
@@ -2079,13 +2429,13 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
           <>
             <a
               href={`tel:${client.phone.replace(/[^\d+]/g, '')}`}
-              style={{ flex: 1, fontSize: 15, color: COLORS.textPrimary, textDecoration: 'none', letterSpacing: '0.3px' }}
+              style={{ flex: 1, fontSize: fs(15), color: COLORS.textPrimary, textDecoration: 'none', letterSpacing: '0.3px' }}
             >
               {client.phone}
             </a>
             <span
               onClick={() => setEditingPhone(true)}
-              style={{ fontSize: 13, color: COLORS.textFaint, fontStyle: 'italic', cursor: 'pointer' }}
+              style={{ fontSize: fs(13), color: COLORS.textFaint, fontStyle: 'italic', cursor: 'pointer' }}
             >
               изменить
             </span>
@@ -2093,7 +2443,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
         ) : (
           <span
             onClick={() => setEditingPhone(true)}
-            style={{ flex: 1, fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer' }}
+            style={{ flex: 1, fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer' }}
           >
             Добавить телефон
           </span>
@@ -2130,10 +2480,10 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
             rel="noopener noreferrer"
             style={{ flex: 1, minWidth: 0, textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 1 }}
           >
-            <span style={{ fontSize: 15, color: COLORS.gold, letterSpacing: '0.5px' }}>{PLATFORM_LABELS[link.platform]}</span>
+            <span style={{ fontSize: fs(15), color: COLORS.gold, letterSpacing: '0.5px' }}>{PLATFORM_LABELS[link.platform]}</span>
             <span
               style={{
-                fontSize: 13,
+                fontSize: fs(13),
                 color: COLORS.textFaint,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -2145,7 +2495,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
           </a>
           <button
             onClick={() => removeLink(link.id)}
-            style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: 15 }}
+            style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15) }}
           >
             ✕
           </button>
@@ -2183,7 +2533,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
           <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
           <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: 13, color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+        <span style={{ fontSize: fs(13), color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
           Добавить ссылку
         </span>
       </div>
@@ -2238,7 +2588,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             borderRadius: 2,
             border: '1px solid rgba(var(--gold-rgb),0.15)',
             color: COLORS.textFaint,
-            fontSize: 13,
+            fontSize: fs(13),
             letterSpacing: '1px',
             textTransform: 'uppercase',
             cursor: 'pointer',
@@ -2262,7 +2612,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             border: '1px solid rgba(var(--gold-rgb),0.35)',
             background: 'rgba(var(--gold-rgb),0.05)',
             color: COLORS.gold,
-            fontSize: 13,
+            fontSize: fs(13),
             letterSpacing: '1px',
             textTransform: 'uppercase',
             cursor: 'pointer',
@@ -2278,8 +2628,8 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
 // One "label: value" line inside a session card (краски / иглы / реакция кожи).
 function SessionMeta({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', gap: 6, fontSize: 15, lineHeight: 1.4 }}>
-      <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: 11, paddingTop: 2 }}>
+    <div style={{ display: 'flex', gap: 6, fontSize: fs(15), lineHeight: 1.4 }}>
+      <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: fs(11), paddingTop: 2 }}>
         {label}
       </span>
       <span style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>{value}</span>
@@ -2294,13 +2644,13 @@ function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
   if (confirming) {
     return (
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 12, color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
-        <span onClick={onDelete} style={{ fontSize: 12, color: '#C56676', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
+        <span style={{ fontSize: fs(12), color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
+        <span onClick={onDelete} style={{ fontSize: fs(12), color: '#C56676', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
           Да
         </span>
         <span
           onClick={() => setConfirming(false)}
-          style={{ fontSize: 12, color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
+          style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
         >
           Нет
         </span>
@@ -2385,12 +2735,12 @@ function SessionPhotos({
                     gap: 6,
                   }}
                 >
-                  <span style={{ fontSize: 11, color: '#EDE4CC', fontStyle: 'italic' }}>Удалить?</span>
+                  <span style={{ fontSize: fs(11), color: '#EDE4CC', fontStyle: 'italic' }}>Удалить?</span>
                   <span style={{ display: 'flex', gap: 10 }}>
-                    <span onClick={() => remove(i)} style={{ fontSize: 12, color: '#E08694', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <span onClick={() => remove(i)} style={{ fontSize: fs(12), color: '#E08694', textTransform: 'uppercase', cursor: 'pointer' }}>
                       Да
                     </span>
-                    <span onClick={() => setConfirmIndex(null)} style={{ fontSize: 12, color: '#CFC3AE', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <span onClick={() => setConfirmIndex(null)} style={{ fontSize: fs(12), color: '#CFC3AE', textTransform: 'uppercase', cursor: 'pointer' }}>
                       Нет
                     </span>
                   </span>
@@ -2435,7 +2785,7 @@ function SessionPhotos({
           justifyContent: 'center',
           gap: 9,
           cursor: 'pointer',
-          fontSize: 12,
+          fontSize: fs(12),
           color: COLORS.gold,
           letterSpacing: '1px',
           textTransform: 'uppercase',
@@ -2481,7 +2831,7 @@ function SessionsTab({
       <div
         style={{
           fontFamily: "'Playfair Display', serif",
-          fontSize: 11,
+          fontSize: fs(11),
           color: COLORS.textGhost,
           letterSpacing: '3.5px',
           textTransform: 'uppercase',
@@ -2492,7 +2842,7 @@ function SessionsTab({
       </div>
 
       {client.sessions.length === 0 && (
-        <div style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
+        <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
       )}
 
       {client.sessions.map((session) => (
@@ -2522,15 +2872,15 @@ function SessionsTab({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 15, color: 'var(--text-strong)', fontWeight: 500, letterSpacing: '0.3px' }}>
+                <div style={{ fontSize: fs(15), color: 'var(--text-strong)', fontWeight: 500, letterSpacing: '0.3px' }}>
                   {session.name || formatDate(session.date) || 'Сессия'}
                 </div>
                 {session.name && formatDate(session.date) && (
-                  <div style={{ fontSize: 12, color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
+                  <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
-                {session.duration && <span style={{ fontSize: 13, color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+                {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
                 <div
                   className="inka-back"
                   onClick={() => onEditSession(session)}
@@ -2545,11 +2895,11 @@ function SessionsTab({
               </div>
             </div>
             {session.area && (
-              <div style={{ fontSize: 12, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
+              <div style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
                 {session.area}
               </div>
             )}
-            {session.note && <div style={{ fontSize: 15, color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+            {session.note && <div style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
             {(session.colors || session.needles || session.skinReaction) && (
               <div
                 style={{
@@ -2595,7 +2945,7 @@ function SessionsTab({
           <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
           <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: 13, color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+        <span style={{ fontSize: fs(13), color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
           Добавить сессию
         </span>
       </div>
@@ -2603,20 +2953,201 @@ function SessionsTab({
   );
 }
 
-// ── Documents tab ──
-function DocumentsTab({
+// ── Urgency picker (single-select chips, emoji + label) ──
+function UrgencyChips({ value, onPick }: { value: UrgencyKey; onPick: (u: UrgencyKey) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {URGENCY.map((u) => {
+        const on = value === u.key;
+        return (
+          <div
+            key={u.key}
+            onClick={() => onPick(u.key)}
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: fs(12),
+              padding: '5px 9px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              border: on ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              color: on ? COLORS.gold : COLORS.textFaint,
+              background: on ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+              letterSpacing: '0.4px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span style={{ fontSize: fs(12) }}>{u.emoji}</span>
+            {u.label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// A single note row. In the client tab it shows text + urgency; in «Сводка» a
+// client label (colour dot + name in plain type) is prepended.
+function NoteItem({
+  note,
+  onToggleDone,
+  onDelete,
+  client,
+}: {
+  note: ClientNote;
+  onToggleDone: () => void;
+  onDelete?: () => void;
+  client?: Client;
+}) {
+  const meta = urgencyMeta(note.urgency);
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        border: '1px solid rgba(var(--gold-rgb),0.12)',
+        borderRadius: 2,
+        padding: '10px 12px',
+        background: 'rgba(var(--surface-rgb),0.018)',
+        opacity: note.done ? 0.45 : 1,
+        transition: 'opacity 0.3s',
+      }}
+    >
+      {/* Done toggle — tapping the marker flips done; shows 🍀 when closed. */}
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleDone();
+        }}
+        title={note.done ? 'Вернуть в работу' : 'Отметить выполненным'}
+        style={{ fontSize: fs(16), cursor: 'pointer', lineHeight: 1.2, flexShrink: 0 }}
+      >
+        {note.done ? DONE_EMOJI : meta.emoji}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {client && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: client.color, flexShrink: 0 }} />
+            <span style={{ fontSize: fs(12), color: 'var(--text-strong)', letterSpacing: '0.3px' }}>
+              {[client.name, client.surname].filter(Boolean).join(' ')}
+            </span>
+          </div>
+        )}
+        <div
+          dir="auto"
+          style={{
+            fontSize: fs(15),
+            color: note.done ? COLORS.textGhost : 'var(--text-soft)',
+            fontStyle: 'italic',
+            lineHeight: 1.5,
+            textDecoration: note.done ? 'line-through' : 'none',
+            wordBreak: 'break-word',
+          }}
+        >
+          {note.text}
+        </div>
+        {!client && (
+          <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginTop: 4 }}>
+            {meta.emoji} {meta.label}
+          </div>
+        )}
+      </div>
+      {onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(14) }}
+          aria-label="Удалить заметку"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Compose a new note: text + urgency marker.
+function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) => void }) {
+  const [text, setText] = useState('');
+  const [urgency, setUrgency] = useState<UrgencyKey>('important_not_urgent');
+  const submit = () => {
+    const t = text.trim();
+    if (!t) return;
+    onAdd(t, urgency);
+    setText('');
+    setUrgency('important_not_urgent');
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <textarea
+        dir="auto"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Новая заметка или задача..."
+        style={{
+          width: '100%',
+          background: 'rgba(var(--surface-rgb),0.018)',
+          border: '1px solid rgba(var(--gold-rgb),0.1)',
+          borderRadius: 2,
+          padding: '11px 13px',
+          fontFamily: "'Cormorant Garamond', serif",
+          color: COLORS.textPrimary,
+          outline: 'none',
+          resize: 'none',
+          height: 64,
+          fontStyle: 'italic',
+          lineHeight: 1.5,
+          letterSpacing: '0.3px',
+        }}
+      />
+      <UrgencyChips value={urgency} onPick={setUrgency} />
+      <div
+        className="inka-submit"
+        onClick={submit}
+        style={{
+          border: '1px solid rgba(var(--gold-rgb),0.35)',
+          borderRadius: 2,
+          padding: '10px 0',
+          textAlign: 'center',
+          cursor: text.trim() ? 'pointer' : 'not-allowed',
+          background: 'rgba(var(--gold-rgb),0.05)',
+          opacity: text.trim() ? 1 : 0.4,
+          fontSize: fs(13),
+          color: COLORS.gold,
+          letterSpacing: '1.5px',
+          textTransform: 'uppercase',
+        }}
+      >
+        Добавить заметку
+      </div>
+    </div>
+  );
+}
+
+// ── «Дополнительно» tab — notes (with urgency + done) sorted by urgency,
+//     plus a single-button attachments area for documents / photos / files. ──
+function AdditionalTab({
   client,
   onAddDocument,
   onRemoveDocument,
+  onUpsertNote,
+  onDeleteNote,
 }: {
   client: Client;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
+  onUpsertNote: (note: ClientNote) => void;
+  onDeleteNote: (noteId: string) => void;
 }) {
-  const docInput = useRef<HTMLInputElement>(null);
-  const photoInput = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const handleFile = (file: File | undefined, kind: 'document' | 'photo') => {
+  const handleFile = (file: File | undefined) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
@@ -2624,25 +3155,44 @@ function DocumentsTab({
         id: Date.now().toString(),
         name: file.name,
         fileUrl: reader.result as string,
-        kind,
+        kind: file.type.startsWith('image/') ? 'photo' : 'document',
         uploadedDate: new Date().toLocaleDateString('ru-RU'),
       });
     };
     reader.readAsDataURL(file);
   };
 
-  const hasDocs = client.documents.length > 0;
+  const addNote = (text: string, urgency: UrgencyKey) => {
+    onUpsertNote({ id: Date.now().toString(), text, urgency, done: false, createdDate: new Date().toISOString() });
+  };
+  const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
+
+  // Sorted by urgency (most urgent first); done notes sink to the bottom.
+  const sortedNotes = [...client.notes].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    const r = urgencyRank(a.urgency) - urgencyRank(b.urgency);
+    return r !== 0 ? r : b.createdDate.localeCompare(a.createdDate);
+  });
 
   return (
-    <div style={{ animation: 'fadeSlideIn 0.3s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: hasDocs ? 0 : '40px 0 0', gap: 14 }}>
-      {!hasDocs && (
-        <div style={{ fontSize: 15, color: COLORS.textGhost, fontStyle: 'italic', textAlign: 'center', letterSpacing: '0.2px' }}>
-          Документы не добавлены
+    <div style={{ animation: 'fadeSlideIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Notes */}
+      <SectionHeader>Заметки</SectionHeader>
+      {sortedNotes.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {sortedNotes.map((n) => (
+            <NoteItem key={n.id} note={n} onToggleDone={() => toggleDone(n)} onDelete={() => onDeleteNote(n.id)} />
+          ))}
         </div>
       )}
+      <NoteComposer onAdd={addNote} />
 
-      {hasDocs && (
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 6 }}>
+      <SectionDivider />
+
+      {/* Attachments */}
+      <SectionHeader>Вложения</SectionHeader>
+      {client.documents.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {client.documents.map((doc) => (
             <div
               key={doc.id}
@@ -2656,21 +3206,16 @@ function DocumentsTab({
                 background: 'rgba(var(--surface-rgb),0.018)',
               }}
             >
-              <span style={{ fontSize: 13, color: COLORS.gold }}>{doc.kind === 'photo' ? '◈' : '▤'}</span>
-              <a
-                href={doc.fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}
-              >
-                <div style={{ fontSize: 15, color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span style={{ fontSize: fs(13), color: COLORS.gold }}>{doc.kind === 'photo' ? '◈' : '▤'}</span>
+              <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
+                <div style={{ fontSize: fs(15), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {doc.name}
                 </div>
-                <div style={{ fontSize: 11, color: COLORS.textGhost, letterSpacing: '0.4px', marginTop: 2 }}>{doc.uploadedDate}</div>
+                <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '0.4px', marginTop: 2 }}>{doc.uploadedDate}</div>
               </a>
               <button
                 onClick={() => onRemoveDocument(doc.id)}
-                style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: 15 }}
+                style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15) }}
               >
                 ✕
               </button>
@@ -2679,75 +3224,35 @@ function DocumentsTab({
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: hasDocs ? 0 : 4 }}>
-        {/* Add document */}
-        <div
-          className="inka-doc-primary"
-          onClick={() => docInput.current?.click()}
-          style={{
-            border: '1px solid rgba(var(--gold-rgb),0.32)',
-            borderRadius: 2,
-            padding: '13px 18px',
-            cursor: 'pointer',
-            background: 'rgba(var(--gold-rgb),0.05)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="1" width="10" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="5" y1="5.5" x2="9" y2="5.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-            <line x1="5" y1="8" x2="9" y2="8" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-            <line x1="5" y1="10.5" x2="7" y2="10.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-            <circle cx="13" cy="13" r="3" style={{ fill: 'var(--sheet)' }} stroke="currentColor" strokeWidth="1" />
-            <line x1="13" y1="11.5" x2="13" y2="14.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-            <line x1="11.5" y1="13" x2="14.5" y2="13" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-          </svg>
-          <span style={{ fontSize: 15, color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Добавить документ</span>
-        </div>
-
-        {/* Add photo */}
-        <div
-          className="inka-doc-secondary"
-          onClick={() => photoInput.current?.click()}
-          style={{
-            border: '1px solid rgba(var(--gold-rgb),0.18)',
-            borderRadius: 2,
-            padding: '13px 18px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ color: 'var(--text-faint)' }}>
-            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2" />
-            <rect x="5.5" y="5.5" width="5" height="4" rx="0.5" stroke="currentColor" strokeWidth="1" />
-            <line x1="5.5" y1="11" x2="10.5" y2="11" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-          </svg>
-          <span style={{ fontSize: 15, color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
-            Добавить фото
-          </span>
-        </div>
+      {/* Single attach button (document / photo / any file), like in a session. */}
+      <div
+        className="inka-doc-primary"
+        onClick={() => fileInput.current?.click()}
+        style={{
+          border: '1px solid rgba(var(--gold-rgb),0.32)',
+          borderRadius: 2,
+          padding: '13px 18px',
+          cursor: 'pointer',
+          background: 'rgba(var(--gold-rgb),0.05)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+          <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <span style={{ fontSize: fs(15), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Прикрепить файл</span>
       </div>
 
       <input
-        ref={docInput}
+        ref={fileInput}
         type="file"
         style={{ display: 'none' }}
         onChange={(e) => {
-          handleFile(e.target.files?.[0], 'document');
-          e.target.value = '';
-        }}
-      />
-      <input
-        ref={photoInput}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          handleFile(e.target.files?.[0], 'photo');
+          handleFile(e.target.files?.[0]);
           e.target.value = '';
         }}
       />
@@ -2853,10 +3358,10 @@ function NewClientSheet({
     <BottomSheet open={open} heightPct={88}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
-        <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
         <SheetStarDivider />
       </div>
 
@@ -2928,7 +3433,7 @@ function NewClientSheet({
           onClick={() => canSubmit && onCreate({ name, surname, phone, styles, color, skinType, skinTone, skinNotes, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
-          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
             Создать клиента
           </span>
         </div>
@@ -2973,10 +3478,10 @@ function EditClientSheet({
     <BottomSheet open={open} heightPct={84}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: 11, color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
-        <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Редактировать</div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Редактировать</div>
         <SheetStarDivider />
       </div>
 
@@ -3012,7 +3517,7 @@ function EditClientSheet({
           onClick={() => canSubmit && onSave({ name, surname, styles, color, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
-          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
             Сохранить
           </span>
         </div>
@@ -3094,8 +3599,8 @@ function NewSessionSheet({
     <BottomSheet open={open} heightPct={80}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontSize: 15, color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
-        <div style={{ fontSize: 22, color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
+        <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
           {isEdit ? 'Редактировать сессию' : 'Новая сессия'}
         </div>
         <SheetStarDivider />
@@ -3180,7 +3685,7 @@ function NewSessionSheet({
           onClick={() => onAdd({ name, date, duration, style, area, colors, needles, skinReaction, note, photos })}
           style={SUBMIT_STYLE}
         >
-          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: COLORS.gold, letterSpacing: '2px' }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
             {isEdit ? 'Сохранить' : 'Добавить сессию'}
           </span>
         </div>
