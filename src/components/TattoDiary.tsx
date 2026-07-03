@@ -721,7 +721,7 @@ export default function TattoDiary() {
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
           <div
             style={{
-              fontFamily: "'Cinzel Decorative', serif",
+              fontFamily: DROP_CAP_FONT,
               fontSize: fs(26),
               color: COLORS.gold,
               letterSpacing: '6px',
@@ -3375,7 +3375,7 @@ function NewClientSheet({
     <BottomSheet open={open} heightPct={88}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
@@ -3495,7 +3495,7 @@ function EditClientSheet({
     <BottomSheet open={open} heightPct={84}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Редактировать</div>
