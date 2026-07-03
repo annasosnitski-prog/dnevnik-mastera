@@ -233,6 +233,12 @@ input[type='date'] {
   transition: transform 0.38s ease, border-color 0.25s, box-shadow 0.3s;
   box-shadow: var(--card-rest-shadow);
 }
+
+/* Dark theme only: taper the marker stripe's left edge to a point (a calligraphic
+   nib). Light theme keeps a full-width bar. */
+:root[data-theme='dark'] .inka-stripe {
+  clip-path: polygon(0 50%, 34px 0, 100% 0, 100% 100%, 34px 100%);
+}
 .inka-card:hover {
   transform: translateY(-5px) scale(1.018);
   border-color: rgba(var(--gold-rgb), 0.62);

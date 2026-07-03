@@ -1015,12 +1015,13 @@ export default function TattoDiary() {
 }
 
 // ===================== CLIENT MARKER (stripe + gem corner) =====================
-// Top accent stripe: a gilded foil with a bright sheen in the middle — the same
-// elegant treatment in both themes (the dark-theme neon glow was dropped).
-// Reused on the card and the detail hero.
+// Top accent stripe: a gilded foil with a bright sheen in the middle. The dark
+// theme additionally tapers the left edge to a point (via .inka-stripe clip-path
+// in index.css); the light theme stays a full bar. Reused on card + hero.
 function TopStripe({ color }: { color: string }) {
   return (
     <div
+      className="inka-stripe"
       style={{
         position: 'absolute',
         top: 0,
