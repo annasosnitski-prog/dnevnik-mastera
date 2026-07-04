@@ -56,10 +56,10 @@
   --text-trace: #322F2A;
 
   --placeholder: rgba(80, 70, 60, 0.65);
-  --card-hover-shadow: 0 10px 36px rgba(var(--gold-rgb), 0.16), 0 3px 10px rgba(0, 0, 0, 0.6);
-  /* Dark cards glow on their own (light surface over a dark ground), so no
-     resting elevation is needed. */
-  --card-rest-shadow: none;
+  --card-hover-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.5), 0 10px 36px rgba(var(--gold-rgb), 0.16),
+    0 3px 10px rgba(0, 0, 0, 0.6);
+  /* Frame drawn as a smooth inset ring (covered by the stripes on top/right). */
+  --card-rest-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.2);
 }
 
 /* ── Light (warm parchment / "Casa di Vetro") ── */
@@ -89,10 +89,10 @@
   --text-trace: #C2B196;
 
   --placeholder: rgba(120, 100, 70, 0.55);
-  --card-hover-shadow: 0 10px 30px rgba(var(--gold-rgb), 0.18), 0 3px 10px rgba(80, 60, 20, 0.12);
-  /* Light theme can't "glow"; the analogous premium cue is letterpress — a top
-     highlight catching the light plus a soft warm elevation shadow. */
-  --card-rest-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 2px rgba(80, 60, 20, 0.06),
+  --card-hover-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.5), 0 10px 30px rgba(var(--gold-rgb), 0.18),
+    0 3px 10px rgba(80, 60, 20, 0.12);
+  /* Smooth inset frame ring + a soft warm elevation shadow (letterpress lift). */
+  --card-rest-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.2), 0 1px 2px rgba(80, 60, 20, 0.06),
     0 6px 18px rgba(80, 60, 20, 0.07);
 }
 
@@ -255,7 +255,6 @@ input[type='date'] {
 }
 .inka-card:hover {
   transform: translateY(-5px) scale(1.018);
-  border-color: rgba(var(--gold-rgb), 0.62);
   box-shadow: var(--card-hover-shadow);
 }
 .inka-card:active {
