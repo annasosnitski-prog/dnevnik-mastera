@@ -1111,11 +1111,9 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
       style={{
         position: 'relative',
         background: COLORS.card,
-        // No top/right borders: the coloured stripes are the top and right edges,
-        // so the frame corner no longer pokes past the tapered stripe nibs
-        // (top-left and bottom-right). Left + bottom borders remain for definition.
-        borderLeft: '1px solid rgba(var(--gold-rgb),0.2)',
-        borderBottom: '1px solid rgba(var(--gold-rgb),0.2)',
+        // The frame is a smooth inset ring (see --card-rest-shadow) rather than a
+        // border, so it hugs the rounded corners cleanly and is covered by the
+        // stripes on the top/right edges — no frame poking past the tapered nibs.
         borderRadius: 3,
         height: 250,
         overflow: 'hidden',
