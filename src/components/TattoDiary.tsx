@@ -205,7 +205,7 @@ function formatDate(value: string): string {
 
 // Decorative drop-cap + heading face: Kelly Slab (slab serif with Cyrillic +
 // Latin), with Playfair Display as a graceful fallback while the webfont loads.
-const DROP_CAP_FONT = "'Kelly Slab', 'Playfair Display', 'Cormorant Garamond', serif";
+const DROP_CAP_FONT = "'Kelly Slab', 'Playfair Display', 'JetBrains Mono', monospace";
 
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
@@ -354,7 +354,7 @@ const INPUT_STYLE: React.CSSProperties = {
   border: '1px solid rgba(var(--gold-rgb),0.18)',
   borderRadius: 2,
   padding: '10px 14px',
-  fontFamily: "'Cormorant Garamond', serif",
+  fontFamily: "'JetBrains Mono', monospace",
   color: COLORS.textPrimary,
   outline: 'none',
   letterSpacing: '0.3px',
@@ -673,7 +673,7 @@ export default function TattoDiary() {
         margin: '0 auto',
         overflow: 'hidden',
         background: COLORS.bg,
-        fontFamily: "'Cormorant Garamond', serif",
+        fontFamily: "'JetBrains Mono', monospace",
         filter: prefs.brightness !== 1 ? `brightness(${prefs.brightness})` : undefined,
       }}
     >
@@ -772,7 +772,7 @@ export default function TattoDiary() {
                 background: 'transparent',
                 border: 'none',
                 outline: 'none',
-                fontFamily: "'Cormorant Garamond', serif",
+                fontFamily: "'JetBrains Mono', monospace",
                 color: COLORS.textPrimary,
                 fontStyle: searchQuery ? 'normal' : 'italic',
                 letterSpacing: '0.3px',
@@ -2006,7 +2006,7 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
             border: '1px solid rgba(var(--gold-rgb),0.1)',
             borderRadius: 2,
             padding: '11px 13px',
-            fontFamily: "'Cormorant Garamond', serif",
+            fontFamily: "'JetBrains Mono', monospace",
             color: COLORS.textPrimary,
             outline: 'none',
             resize: 'none',
@@ -2250,7 +2250,7 @@ function StyleChips({ selected, onToggle }: { selected: string[]; onToggle: (s: 
             key={s}
             onClick={() => onToggle(s)}
             style={{
-              fontFamily: "'Cormorant Garamond', serif",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: fs(12),
               padding: '6px 11px',
               borderRadius: 2,
@@ -2312,7 +2312,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
             border: '1px solid rgba(var(--gold-rgb),0.1)',
             borderRadius: 2,
             padding: '11px 13px',
-            fontFamily: "'Cormorant Garamond', serif",
+            fontFamily: "'JetBrains Mono', monospace",
             color: skinType ? COLORS.textPrimary : COLORS.textGhost,
             outline: 'none',
             appearance: 'none',
@@ -2348,7 +2348,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
             border: '1px solid rgba(var(--gold-rgb),0.1)',
             borderRadius: 2,
             padding: '11px 13px',
-            fontFamily: "'Cormorant Garamond', serif",
+            fontFamily: "'JetBrains Mono', monospace",
             color: COLORS.textPrimary,
             outline: 'none',
             resize: 'none',
@@ -2435,7 +2435,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
               background: 'transparent',
               border: 'none',
               outline: 'none',
-              fontFamily: "'Cormorant Garamond', serif",
+              fontFamily: "'JetBrains Mono', monospace",
               color: COLORS.textPrimary,
               letterSpacing: '0.3px',
             }}
@@ -2561,7 +2561,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
     border: '1px solid rgba(var(--gold-rgb),0.18)',
     borderRadius: 2,
     padding: '9px 12px',
-    fontFamily: "'Cormorant Garamond', serif",
+    fontFamily: "'JetBrains Mono', monospace",
     color: COLORS.textPrimary,
     outline: 'none',
     marginBottom: 8,
@@ -2979,7 +2979,7 @@ function UrgencyChips({ value, onPick }: { value: UrgencyKey; onPick: (u: Urgenc
             key={u.key}
             onClick={() => onPick(u.key)}
             style={{
-              fontFamily: "'Cormorant Garamond', serif",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: fs(12),
               padding: '5px 9px',
               borderRadius: 2,
@@ -3111,7 +3111,7 @@ function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) =>
           border: '1px solid rgba(var(--gold-rgb),0.1)',
           borderRadius: 2,
           padding: '11px 13px',
-          fontFamily: "'Cormorant Garamond', serif",
+          fontFamily: "'JetBrains Mono', monospace",
           color: COLORS.textPrimary,
           outline: 'none',
           resize: 'none',
@@ -3596,7 +3596,7 @@ function NewSessionSheet({
   }, [open]);
 
   const chipStyle = (selected: boolean, big: boolean): React.CSSProperties => ({
-    fontFamily: "'Cormorant Garamond', serif",
+    fontFamily: "'JetBrains Mono', monospace",
     fontSize: big ? 13 : 12,
     padding: big ? '7px 13px' : '6px 11px',
     borderRadius: 2,
