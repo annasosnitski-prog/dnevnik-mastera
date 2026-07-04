@@ -1158,6 +1158,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             <div
               dir="auto"
               style={{
+                fontFamily: DROP_CAP_FONT,
                 fontSize: fs(15),
                 color: COLORS.textPrimary,
                 lineHeight: 1.2,
@@ -1172,9 +1173,9 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             <div
               dir="auto"
               style={{
+                fontFamily: DROP_CAP_FONT,
                 fontSize: fs(13),
                 color: 'var(--surname)',
-                fontStyle: 'italic',
                 marginTop: 2,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -1825,10 +1826,10 @@ function DetailScreen({
               {firstLetter(client.name)}
             </span>
             <div style={{ paddingTop: 16, paddingLeft: 6, minWidth: 0 }}>
-              <div dir="auto" style={{ fontSize: fs(26), color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
+              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(26), color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
                 {nameRest(client.name)}
               </div>
-              <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginTop: 5, letterSpacing: '0.5px' }}>
+              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textMuted, marginTop: 5, letterSpacing: '0.5px' }}>
                 {client.surname}
               </div>
             </div>
