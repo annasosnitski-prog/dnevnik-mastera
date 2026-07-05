@@ -207,6 +207,22 @@ function formatDate(value: string): string {
 // Latin), with Playfair Display as a graceful fallback while the webfont loads.
 const DROP_CAP_FONT = "'Kelly Slab', 'Playfair Display', 'Inter', sans-serif";
 
+// "INKA" wordmark face: Poiret One — thin, geometric, Art-Deco caps (the brand
+// name is Latin-only, so no Cyrillic coverage is needed). Cinzel Decorative
+// is the fallback while the webfont loads.
+const LOGO_FONT = "'Poiret One', 'Cinzel Decorative', serif";
+
+// Engraved-gold text treatment for the wordmark: a light→dark→light gradient
+// clipped to the glyphs plus a soft drop shadow, echoing brushed metal on a
+// plaque rather than a flat colour fill.
+const LOGO_METAL_STYLE: React.CSSProperties = {
+  backgroundImage: 'linear-gradient(180deg, #F3DFA0 0%, var(--gold) 45%, #7A5518 70%, var(--gold) 100%)',
+  WebkitBackgroundClip: 'text',
+  backgroundClip: 'text',
+  color: 'transparent',
+  filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.35))',
+};
+
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
@@ -721,12 +737,12 @@ export default function TattoDiary() {
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
           <div
             style={{
-              fontFamily: "'Cinzel Decorative', serif",
-              fontSize: fs(26),
-              color: COLORS.gold,
-              letterSpacing: '6px',
+              fontFamily: LOGO_FONT,
+              fontSize: fs(34),
+              letterSpacing: '8px',
               lineHeight: 1,
               textTransform: 'uppercase',
+              ...LOGO_METAL_STYLE,
             }}
           >
             INKA
@@ -3374,7 +3390,7 @@ function NewClientSheet({
     <BottomSheet open={open} heightPct={88}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: LOGO_FONT, fontSize: fs(12), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
@@ -3494,7 +3510,7 @@ function EditClientSheet({
     <BottomSheet open={open} heightPct={84}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
+        <div style={{ fontFamily: LOGO_FONT, fontSize: fs(12), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
           INKA
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Редактировать</div>
