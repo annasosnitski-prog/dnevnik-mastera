@@ -758,9 +758,9 @@ export default function TattoDiary() {
           <InkaLogo height={fs(34)} />
           <div
             style={{
-              fontSize: fs(10),
+              fontSize: fs(7.3),
               color: COLORS.textGhost,
-              letterSpacing: '5px',
+              letterSpacing: `${fs(3.7)}px`,
               textTransform: 'uppercase',
               marginTop: 3,
               fontStyle: 'italic',
