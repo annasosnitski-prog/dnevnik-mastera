@@ -1227,7 +1227,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             <div
               dir="auto"
               style={{
-                fontSize: fs(15),
+                fontSize: fs(12),
                 color: 'var(--text-secondary)',
                 fontStyle: 'italic',
                 lineHeight: 1.4,
