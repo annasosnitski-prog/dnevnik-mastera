@@ -526,6 +526,20 @@ export default function TattoDiary() {
     tx.onerror = () => setDbError('Не удалось удалить клиента.');
   };
 
+  // Wipes the store and repopulates it from an imported backup (Настройки → Резервная копия).
+  const replaceAllClients = (newClients: Client[]) => {
+    if (!db) {
+      setDbError('Хранилище недоступно — импорт не выполнен.');
+      return;
+    }
+    const tx = db.transaction('clients', 'readwrite');
+    const store = tx.objectStore('clients');
+    store.clear();
+    newClients.forEach((c) => store.put(c));
+    tx.oncomplete = () => loadClients(db);
+    tx.onerror = () => setDbError('Не удалось импортировать данные.');
+  };
+
   const selectedClient = clients.find((c) => c.id === selectedId) || null;
 
   const filteredClients = clients.filter((c) => {
@@ -965,7 +979,14 @@ export default function TattoDiary() {
           background: COLORS.bg,
         }}
       >
-        <SettingsScreen theme={theme} onToggleTheme={toggleTheme} prefs={prefs} onChange={setPrefs} />
+        <SettingsScreen
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          prefs={prefs}
+          onChange={setPrefs}
+          clients={clients}
+          onImport={replaceAllClients}
+        />
       </div>
 
       {/* ═══════════ DETAIL SCREEN ═══════════ */}
@@ -1422,12 +1443,61 @@ function SettingsScreen({
   onToggleTheme,
   prefs,
   onChange,
+  clients,
+  onImport,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
   prefs: Prefs;
   onChange: (p: Prefs) => void;
+  clients: Client[];
+  onImport: (clients: Client[]) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const handleExport = () => {
+    const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
+        if (!rawClients) throw new Error('bad shape');
+        if (!window.confirm(`Импортировать ${rawClients.length} клиент(ов)? Текущие данные будут заменены.`)) return;
+        onImport(rawClients.map((c: any, i: number) => normalizeClient(c, i)));
+        setImportError(null);
+      } catch {
+        setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const actionButtonStyle: React.CSSProperties = {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px 0',
+    borderRadius: 2,
+    cursor: 'pointer',
+    fontSize: fs(13),
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+    border: '1px solid rgba(var(--gold-rgb),0.35)',
+    background: 'rgba(var(--gold-rgb),0.05)',
+    color: COLORS.gold,
+  };
+
   const rowStyle: React.CSSProperties = {
     background: 'rgba(var(--surface-rgb),0.018)',
     border: '1px solid rgba(var(--gold-rgb),0.1)',
@@ -1581,6 +1651,34 @@ function SettingsScreen({
         >
           Сбросить по умолчанию
         </div>
+
+        {/* Backup — export the whole client list to a JSON file, or restore
+            from one (replaces everything currently stored). */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Резервная копия</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div onClick={handleExport} style={actionButtonStyle}>
+              Экспортировать
+            </div>
+            <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
+              Импортировать
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImportFile(file);
+              e.target.value = '';
+            }}
+          />
+          {importError && (
+            <div style={{ marginTop: 10, fontSize: fs(12), color: '#e0665a', fontStyle: 'italic' }}>{importError}</div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1664,8 +1762,8 @@ function SummaryScreen({
         >
           Сводка
         </div>
-        <div style={{ fontSize: fs(13), color: COLORS.textGhost, letterSpacing: '4px', textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Заметки клиентов
+        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+          Рабочие заметки
         </div>
         <StarDivider />
       </div>
