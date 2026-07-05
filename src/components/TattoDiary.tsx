@@ -1170,7 +1170,8 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           <span
             style={{
               fontFamily: DROP_CAP_FONT,
-              fontSize: fs(46),
+              fontSize: fs(58),
+              fontWeight: 600,
               // Taller line box so the ornate letter's descending swash stays
               // within its own line and doesn't hang down onto the note text.
               lineHeight: 1.12,
@@ -1187,7 +1188,8 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
               dir="auto"
               style={{
                 fontFamily: DROP_CAP_FONT,
-                fontSize: fs(15),
+                fontSize: fs(19),
+                fontWeight: 600,
                 color: COLORS.textPrimary,
                 lineHeight: 1.2,
                 letterSpacing: '0.3px',
@@ -1202,7 +1204,8 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
               dir="auto"
               style={{
                 fontFamily: DROP_CAP_FONT,
-                fontSize: fs(13),
+                fontSize: fs(16),
+                fontWeight: 600,
                 color: 'var(--surname)',
                 marginTop: 2,
                 whiteSpace: 'nowrap',
@@ -1829,7 +1832,8 @@ function DetailScreen({
             <span
               style={{
                 fontFamily: DROP_CAP_FONT,
-                fontSize: fs(100),
+                fontSize: fs(125),
+                fontWeight: 600,
                 lineHeight: 0.79,
                 color: COLORS.gold,
                 letterSpacing: '-2px',
@@ -1840,10 +1844,10 @@ function DetailScreen({
               {firstLetter(client.name)}
             </span>
             <div style={{ paddingTop: 16, paddingLeft: 6, minWidth: 0 }}>
-              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(26), color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
+              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(33), color: COLORS.textPrimary, fontWeight: 600, lineHeight: 1.05, letterSpacing: '1px' }}>
                 {nameRest(client.name)}
               </div>
-              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textMuted, marginTop: 5, letterSpacing: '0.5px' }}>
+              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(19), color: COLORS.textMuted, fontWeight: 600, marginTop: 5, letterSpacing: '0.5px' }}>
                 {client.surname}
               </div>
             </div>
