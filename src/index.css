@@ -119,7 +119,7 @@ body {
 
 body {
   color: var(--text);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Inter', sans-serif;
   /* Heavier base weight — the 300/400 Cormorant read too thin on phones. */
   font-weight: 500;
   transition: background-color 0.35s ease, color 0.35s ease;

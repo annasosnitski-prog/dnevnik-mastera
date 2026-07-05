@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { InkaLogo } from './InkaLogo';
 
 // ===================== DESIGN TOKENS =====================
 // Values resolve to CSS variables (see index.css), so the same component
@@ -39,20 +40,32 @@ const SKIN_TONES = [
 ];
 
 const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч', '7 ч', '8 ч'];
+// Full palette of tattoo style directions (Russian tattoo-slang naming). Only
+// the first STYLES_PINNED_COUNT are shown by default — a master typically
+// works in 3-4 main directions — the rest sit behind "Ещё стили" in the picker.
 const STYLES = [
+  'Файнлайн',
+  'Минимализм',
+  'Микрореализм',
   'Реализм',
-  'Графика',
-  'Геометрия',
-  'Традиционная',
-  'Нео-трайбл',
+  'Блэкворк',
+  'Блэк-энд-грей',
+  'Традишн',
+  'Нео-традишн',
+  'Ирэдзуми',
   'Трайбл',
-  'Орнамент',
-  'Орнаментальная',
-  'Ориентальная',
-  'Японский',
-  'Акварель',
+  'Орнаментал',
+  'Геометрия',
+  'Дотворк',
+  'Леттеринг',
+  'Абстракция',
+  'Скетч',
+  'Лайнворк',
+  'Флористика',
+  'Уок-ин',
   'Другой',
 ];
+const STYLES_PINNED_COUNT = 6;
 
 // ── Note urgency (Eisenhower-style) markers ──
 // Colour is reserved for the client marker, so urgency is encoded by emoji glyph
@@ -205,7 +218,7 @@ function formatDate(value: string): string {
 
 // Decorative drop-cap + heading face: Kelly Slab (slab serif with Cyrillic +
 // Latin), with Playfair Display as a graceful fallback while the webfont loads.
-const DROP_CAP_FONT = "'Kelly Slab', 'Playfair Display', 'Cormorant Garamond', serif";
+const DROP_CAP_FONT = "'Kelly Slab', 'Playfair Display', 'Inter', sans-serif";
 
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
@@ -222,10 +235,22 @@ const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
 
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
-const lastSession = (c: Client): Session | null => (c.sessions.length ? c.sessions[c.sessions.length - 1] : null);
+// "Last session" means the most recent completed (done) one — a planned/future
+// session isn't a "last session" yet.
+const lastSession = (c: Client): Session | null => {
+  const done = c.sessions.filter((s) => s.done);
+  return done.length ? done[done.length - 1] : null;
+};
 const lastSessionDate = (c: Client) => {
   const s = lastSession(c);
   return s ? formatDate(s.date) || '—' : '—';
+};
+// The soonest planned (not-yet-done) session, if any — used to surface an
+// upcoming appointment ahead of the last completed one on the client card.
+const nextPlannedSession = (c: Client): Session | null => {
+  const planned = c.sessions.filter((s) => !s.done);
+  if (!planned.length) return null;
+  return [...planned].sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0];
 };
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
@@ -354,7 +379,7 @@ const INPUT_STYLE: React.CSSProperties = {
   border: '1px solid rgba(var(--gold-rgb),0.18)',
   borderRadius: 2,
   padding: '10px 14px',
-  fontFamily: "'Cormorant Garamond', serif",
+  fontFamily: "'Inter', sans-serif",
   color: COLORS.textPrimary,
   outline: 'none',
   letterSpacing: '0.3px',
@@ -576,6 +601,16 @@ export default function TattoDiary() {
     });
   };
 
+  // Quick status flip for a planned session (or to revert a done one), without
+  // opening the edit form.
+  const toggleSessionDone = (sessionId: string) => {
+    if (!selectedClient) return;
+    saveClient({
+      ...selectedClient,
+      sessions: selectedClient.sessions.map((s) => (s.id === sessionId ? { ...s, done: !s.done } : s)),
+    });
+  };
+
   const handleCreateClient = (data: {
     name: string;
     surname: string;
@@ -621,6 +656,7 @@ export default function TattoDiary() {
     skinReaction: string;
     note: string;
     photos: string[];
+    done: boolean;
   }) => {
     if (!selectedClient) return;
     const fields = {
@@ -634,15 +670,17 @@ export default function TattoDiary() {
       skinReaction: data.skinReaction.trim(),
       note: data.note.trim(),
       photos: data.photos,
+      done: data.done,
     };
     let sessions: Session[];
     if (editSession) {
-      // Update the existing session in place, keeping its id and done flag.
+      // Update the existing session in place, keeping its id (status can now
+      // change between planned and done via the form).
       sessions = selectedClient.sessions.map((s) =>
         s.id === editSession.id ? { ...s, ...fields } : s,
       );
     } else {
-      sessions = [...selectedClient.sessions, { id: Date.now().toString(), done: true, ...fields }];
+      sessions = [...selectedClient.sessions, { id: Date.now().toString(), ...fields }];
     }
     const mergedStyles =
       data.style && !clientStyles(selectedClient).includes(data.style)
@@ -673,7 +711,7 @@ export default function TattoDiary() {
         margin: '0 auto',
         overflow: 'hidden',
         background: COLORS.bg,
-        fontFamily: "'Cormorant Garamond', serif",
+        fontFamily: "'Inter', sans-serif",
         filter: prefs.brightness !== 1 ? `brightness(${prefs.brightness})` : undefined,
       }}
     >
@@ -719,18 +757,7 @@ export default function TattoDiary() {
 
         {/* App header */}
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
-          <div
-            style={{
-              fontFamily: "'Cinzel Decorative', serif",
-              fontSize: fs(26),
-              color: COLORS.gold,
-              letterSpacing: '6px',
-              lineHeight: 1,
-              textTransform: 'uppercase',
-            }}
-          >
-            INKA
-          </div>
+          <InkaLogo height={fs(34)} />
           <div
             style={{
               fontSize: fs(13),
@@ -772,7 +799,7 @@ export default function TattoDiary() {
                 background: 'transparent',
                 border: 'none',
                 outline: 'none',
-                fontFamily: "'Cormorant Garamond', serif",
+                fontFamily: "'Inter', sans-serif",
                 color: COLORS.textPrimary,
                 fontStyle: searchQuery ? 'normal' : 'italic',
                 letterSpacing: '0.3px',
@@ -971,6 +998,7 @@ export default function TattoDiary() {
             onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
             onDeleteSession={deleteSession}
             onUpdateSessionPhotos={updateSessionPhotos}
+            onToggleSessionDone={toggleSessionDone}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
             onRemoveDocument={(docId) =>
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
@@ -1158,6 +1186,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             <div
               dir="auto"
               style={{
+                fontFamily: DROP_CAP_FONT,
                 fontSize: fs(15),
                 color: COLORS.textPrimary,
                 lineHeight: 1.2,
@@ -1172,9 +1201,9 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             <div
               dir="auto"
               style={{
+                fontFamily: DROP_CAP_FONT,
                 fontSize: fs(13),
                 color: 'var(--surname)',
-                fontStyle: 'italic',
                 marginTop: 2,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -1212,13 +1241,13 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           )}
         </div>
 
-        {/* Last session name + date */}
+        {/* Next planned session date if one exists, otherwise the last
+            completed one — calendar date only, no session title. */}
         <div style={{ marginBottom: 6, minWidth: 0 }}>
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-            Последний сеанс
+            {nextPlannedSession(client) ? 'Следующий сеанс' : 'Последний сеанс'}
           </div>
           <div
-            dir="auto"
             style={{
               fontSize: fs(12),
               color: 'var(--text-strong)',
@@ -1229,16 +1258,16 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             }}
           >
             {(() => {
-              const s = lastSession(client);
-              if (!s) return 'Нет сеансов';
-              const d = formatDate(s.date);
-              return [s.name, d].filter(Boolean).join(' · ') || '—';
+              const planned = nextPlannedSession(client);
+              if (planned) return formatDate(planned.date) || '—';
+              const last = lastSession(client);
+              return last ? formatDate(last.date) || '—' : 'Нет сеансов';
             })()}
           </div>
         </div>
 
-        {/* Style tag + session count */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+        {/* Style tag */}
+        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
           {client.style ? (
             <span
               style={{
@@ -1252,6 +1281,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
+                maxWidth: '100%',
               }}
             >
               {client.style}
@@ -1259,23 +1289,6 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           ) : (
             <span style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.5px' }}>—</span>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
-            {client.skinTone && (
-              <span
-                title="Тон кожи"
-                style={{
-                  width: 13,
-                  height: 13,
-                  borderRadius: '50%',
-                  background: client.skinTone,
-                  border: '1px solid rgba(var(--gold-rgb),0.35)',
-                  boxShadow: '0 0 0 1px rgba(var(--bg-rgb),0.6)',
-                  flexShrink: 0,
-                }}
-              />
-            )}
-            <span style={{ fontSize: fs(12), color: COLORS.textGhost }}>{client.sessions.length} сес.</span>
-          </div>
         </div>
       </div>
     </div>
@@ -1741,6 +1754,7 @@ function DetailScreen({
   onEditSession,
   onDeleteSession,
   onUpdateSessionPhotos,
+  onToggleSessionDone,
   onAddDocument,
   onRemoveDocument,
   onUpsertNote,
@@ -1757,6 +1771,7 @@ function DetailScreen({
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
+  onToggleSessionDone: (sessionId: string) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
@@ -1825,10 +1840,10 @@ function DetailScreen({
               {firstLetter(client.name)}
             </span>
             <div style={{ paddingTop: 16, paddingLeft: 6, minWidth: 0 }}>
-              <div dir="auto" style={{ fontSize: fs(26), color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
+              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(26), color: COLORS.textPrimary, fontWeight: 300, lineHeight: 1.05, letterSpacing: '1px' }}>
                 {nameRest(client.name)}
               </div>
-              <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginTop: 5, letterSpacing: '0.5px' }}>
+              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textMuted, marginTop: 5, letterSpacing: '0.5px' }}>
                 {client.surname}
               </div>
             </div>
@@ -1894,6 +1909,7 @@ function DetailScreen({
             onEditSession={onEditSession}
             onDeleteSession={onDeleteSession}
             onUpdateSessionPhotos={onUpdateSessionPhotos}
+            onToggleSessionDone={onToggleSessionDone}
           />
         )}
         {activeTab === 'extra' && (
@@ -2006,7 +2022,7 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
             border: '1px solid rgba(var(--gold-rgb),0.1)',
             borderRadius: 2,
             padding: '11px 13px',
-            fontFamily: "'Cormorant Garamond', serif",
+            fontFamily: "'Inter', sans-serif",
             color: COLORS.textPrimary,
             outline: 'none',
             resize: 'none',
@@ -2240,35 +2256,81 @@ function MarkerColorPalette({ value, onPick }: { value: string; onPick: (hex: st
   );
 }
 
+// Multi-select style picker. The full palette (20 styles) is too many chips to
+// show at once — a master typically works in only 3-4 main directions — so
+// only the first STYLES_PINNED_COUNT are shown by default, plus any already
+// selected style outside that set (so a saved choice never looks "lost").
+// "Ещё стили" reveals the rest.
 function StyleChips({ selected, onToggle }: { selected: string[]; onToggle: (s: string) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const pinned = STYLES.slice(0, STYLES_PINNED_COUNT);
+  const rest = STYLES.slice(STYLES_PINNED_COUNT);
+  const extraSelected = rest.filter((s) => selected.includes(s));
+  const visible = expanded ? STYLES : [...pinned, ...extraSelected];
+  const hiddenCount = STYLES.length - visible.length;
+
+  const chip = (s: string) => {
+    const on = selected.includes(s);
+    return (
+      <div
+        key={s}
+        onClick={() => onToggle(s)}
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: fs(12),
+          padding: '6px 11px',
+          borderRadius: 2,
+          cursor: 'pointer',
+          border: on ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
+          color: on ? COLORS.gold : COLORS.textFaint,
+          background: on ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+          letterSpacing: '0.8px',
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap',
+          transition: 'all 0.2s',
+          fontWeight: 500,
+        }}
+      >
+        {s}
+      </div>
+    );
+  };
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-      {STYLES.map((s) => {
-        const on = selected.includes(s);
-        return (
-          <div
-            key={s}
-            onClick={() => onToggle(s)}
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: fs(12),
-              padding: '6px 11px',
-              borderRadius: 2,
-              cursor: 'pointer',
-              border: on ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
-              color: on ? COLORS.gold : COLORS.textFaint,
-              background: on ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-              letterSpacing: '0.8px',
-              textTransform: 'uppercase',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.2s',
-              fontWeight: 500,
-            }}
-          >
-            {s}
-          </div>
-        );
-      })}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      {visible.map(chip)}
+      {hiddenCount > 0 && (
+        <div
+          onClick={() => setExpanded(true)}
+          style={{
+            fontSize: fs(12),
+            padding: '6px 11px',
+            color: COLORS.textGhost,
+            fontStyle: 'italic',
+            cursor: 'pointer',
+            letterSpacing: '0.3px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Ещё стили ({hiddenCount}) ▾
+        </div>
+      )}
+      {expanded && (
+        <div
+          onClick={() => setExpanded(false)}
+          style={{
+            fontSize: fs(12),
+            padding: '6px 11px',
+            color: COLORS.textGhost,
+            fontStyle: 'italic',
+            cursor: 'pointer',
+            letterSpacing: '0.3px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Свернуть ▴
+        </div>
+      )}
     </div>
   );
 }
@@ -2312,7 +2374,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
             border: '1px solid rgba(var(--gold-rgb),0.1)',
             borderRadius: 2,
             padding: '11px 13px',
-            fontFamily: "'Cormorant Garamond', serif",
+            fontFamily: "'Inter', sans-serif",
             color: skinType ? COLORS.textPrimary : COLORS.textGhost,
             outline: 'none',
             appearance: 'none',
@@ -2348,7 +2410,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
             border: '1px solid rgba(var(--gold-rgb),0.1)',
             borderRadius: 2,
             padding: '11px 13px',
-            fontFamily: "'Cormorant Garamond', serif",
+            fontFamily: "'Inter', sans-serif",
             color: COLORS.textPrimary,
             outline: 'none',
             resize: 'none',
@@ -2435,7 +2497,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
               background: 'transparent',
               border: 'none',
               outline: 'none',
-              fontFamily: "'Cormorant Garamond', serif",
+              fontFamily: "'Inter', sans-serif",
               color: COLORS.textPrimary,
               letterSpacing: '0.3px',
             }}
@@ -2561,7 +2623,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
     border: '1px solid rgba(var(--gold-rgb),0.18)',
     borderRadius: 2,
     padding: '9px 12px',
-    fontFamily: "'Cormorant Garamond', serif",
+    fontFamily: "'Inter', sans-serif",
     color: COLORS.textPrimary,
     outline: 'none',
     marginBottom: 8,
@@ -2834,12 +2896,14 @@ function SessionsTab({
   onEditSession,
   onDeleteSession,
   onUpdateSessionPhotos,
+  onToggleSessionDone,
 }: {
   client: Client;
   onAddSession: () => void;
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
+  onToggleSessionDone: (sessionId: string) => void;
 }) {
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
@@ -2895,6 +2959,25 @@ function SessionsTab({
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+                {!session.done && (
+                  <span
+                    onClick={() => onToggleSessionDone(session.id)}
+                    title="Отметить выполненной"
+                    style={{
+                      fontSize: fs(10),
+                      color: COLORS.gold,
+                      border: '1px solid rgba(var(--gold-rgb),0.4)',
+                      borderRadius: 2,
+                      padding: '2px 6px',
+                      letterSpacing: '0.8px',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Запланирована
+                  </span>
+                )}
                 {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
                 <div
                   className="inka-back"
@@ -2979,7 +3062,7 @@ function UrgencyChips({ value, onPick }: { value: UrgencyKey; onPick: (u: Urgenc
             key={u.key}
             onClick={() => onPick(u.key)}
             style={{
-              fontFamily: "'Cormorant Garamond', serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: fs(12),
               padding: '5px 9px',
               borderRadius: 2,
@@ -3111,7 +3194,7 @@ function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) =>
           border: '1px solid rgba(var(--gold-rgb),0.1)',
           borderRadius: 2,
           padding: '11px 13px',
-          fontFamily: "'Cormorant Garamond', serif",
+          fontFamily: "'Inter', sans-serif",
           color: COLORS.textPrimary,
           outline: 'none',
           resize: 'none',
@@ -3373,8 +3456,8 @@ function NewClientSheet({
     <BottomSheet open={open} heightPct={88}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
-          INKA
+        <div style={{ marginBottom: 5 }}>
+          <InkaLogo height={fs(15)} />
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
         <SheetStarDivider />
@@ -3493,8 +3576,8 @@ function EditClientSheet({
     <BottomSheet open={open} heightPct={84}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontFamily: "'Cinzel Decorative', serif", fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 5 }}>
-          INKA
+        <div style={{ marginBottom: 5 }}>
+          <InkaLogo height={fs(15)} />
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Редактировать</div>
         <SheetStarDivider />
@@ -3564,6 +3647,7 @@ function NewSessionSheet({
     skinReaction: string;
     note: string;
     photos: string[];
+    done: boolean;
   }) => void;
 }) {
   const isEdit = !!initial;
@@ -3571,12 +3655,15 @@ function NewSessionSheet({
   const [date, setDate] = useState('');
   const [duration, setDuration] = useState('');
   const [style, setStyle] = useState('');
+  const [stylesExpanded, setStylesExpanded] = useState(false);
   const [area, setArea] = useState('');
   const [colors, setColors] = useState('');
   const [needles, setNeedles] = useState('');
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
+  // New sessions default to «Выполнена»; editing reflects the session's status.
+  const [done, setDone] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -3591,12 +3678,13 @@ function NewSessionSheet({
       setSkinReaction(initial?.skinReaction ?? '');
       setNote(initial?.note ?? '');
       setPhotos(initial?.photos ?? []);
+      setDone(initial ? initial.done : true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const chipStyle = (selected: boolean, big: boolean): React.CSSProperties => ({
-    fontFamily: "'Cormorant Garamond', serif",
+    fontFamily: "'Inter', sans-serif",
     fontSize: big ? 13 : 12,
     padding: big ? '7px 13px' : '6px 11px',
     borderRadius: 2,
@@ -3633,6 +3721,18 @@ function NewSessionSheet({
         </div>
 
         <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Статус</FieldLabel>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div onClick={() => setDone(true)} style={{ ...chipStyle(done, true), flex: 1, textAlign: 'center' }}>
+              Выполнена
+            </div>
+            <div onClick={() => setDone(false)} style={{ ...chipStyle(!done, true), flex: 1, textAlign: 'center' }}>
+              Запланирована
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
           <FieldLabel>Продолжительность</FieldLabel>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {DURATIONS.map((d) => (
@@ -3645,12 +3745,25 @@ function NewSessionSheet({
 
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Стиль работы</FieldLabel>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {STYLES.map((s) => (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            {(stylesExpanded
+              ? STYLES
+              : STYLES.slice(0, STYLES_PINNED_COUNT).concat(
+                  style && STYLES.indexOf(style) >= STYLES_PINNED_COUNT ? [style] : [],
+                )
+            ).map((s) => (
               <div key={s} onClick={() => setStyle(s)} style={chipStyle(style === s, false)}>
                 {s}
               </div>
             ))}
+            {!stylesExpanded && (
+              <div
+                onClick={() => setStylesExpanded(true)}
+                style={{ fontSize: fs(12), padding: '6px 11px', color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Ещё стили ▾
+              </div>
+            )}
           </div>
         </div>
 
@@ -3697,7 +3810,7 @@ function NewSessionSheet({
 
         <div
           className="inka-submit"
-          onClick={() => onAdd({ name, date, duration, style, area, colors, needles, skinReaction, note, photos })}
+          onClick={() => onAdd({ name, date, duration, style, area, colors, needles, skinReaction, note, photos, done })}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
