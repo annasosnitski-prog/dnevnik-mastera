@@ -771,9 +771,9 @@ export default function TattoDiary() {
           <InkaLogo height={fs(34)} />
           <div
             style={{
-              fontSize: fs(6.65),
+              fontSize: fs(9.66),
               color: COLORS.textGhost,
-              letterSpacing: `${fs(3.37)}px`,
+              letterSpacing: `${fs(2.97)}px`,
               textTransform: 'uppercase',
               marginTop: 3,
               fontStyle: 'italic',
@@ -1540,7 +1540,7 @@ function SettingsScreen({
         >
           Настройки
         </div>
-        <div style={{ fontSize: fs(13), color: COLORS.textGhost, letterSpacing: '4px', textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Оформление
         </div>
         <StarDivider />
