@@ -40,20 +40,32 @@ const SKIN_TONES = [
 ];
 
 const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч', '7 ч', '8 ч'];
+// Full palette of tattoo style directions (Russian tattoo-slang naming). Only
+// the first STYLES_PINNED_COUNT are shown by default — a master typically
+// works in 3-4 main directions — the rest sit behind "Ещё стили" in the picker.
 const STYLES = [
+  'Файнлайн',
+  'Минимализм',
+  'Микрореализм',
   'Реализм',
-  'Графика',
-  'Геометрия',
-  'Традиционная',
-  'Нео-трайбл',
+  'Блэкворк',
+  'Блэк-энд-грей',
+  'Традишн',
+  'Нео-традишн',
+  'Ирэдзуми',
   'Трайбл',
-  'Орнамент',
-  'Орнаментальная',
-  'Ориентальная',
-  'Японский',
-  'Акварель',
+  'Орнаментал',
+  'Геометрия',
+  'Дотворк',
+  'Леттеринг',
+  'Абстракция',
+  'Скетч',
+  'Лайнворк',
+  'Флористика',
+  'Уок-ин',
   'Другой',
 ];
+const STYLES_PINNED_COUNT = 6;
 
 // ── Note urgency (Eisenhower-style) markers ──
 // Colour is reserved for the client marker, so urgency is encoded by emoji glyph
@@ -2244,35 +2256,81 @@ function MarkerColorPalette({ value, onPick }: { value: string; onPick: (hex: st
   );
 }
 
+// Multi-select style picker. The full palette (20 styles) is too many chips to
+// show at once — a master typically works in only 3-4 main directions — so
+// only the first STYLES_PINNED_COUNT are shown by default, plus any already
+// selected style outside that set (so a saved choice never looks "lost").
+// "Ещё стили" reveals the rest.
 function StyleChips({ selected, onToggle }: { selected: string[]; onToggle: (s: string) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const pinned = STYLES.slice(0, STYLES_PINNED_COUNT);
+  const rest = STYLES.slice(STYLES_PINNED_COUNT);
+  const extraSelected = rest.filter((s) => selected.includes(s));
+  const visible = expanded ? STYLES : [...pinned, ...extraSelected];
+  const hiddenCount = STYLES.length - visible.length;
+
+  const chip = (s: string) => {
+    const on = selected.includes(s);
+    return (
+      <div
+        key={s}
+        onClick={() => onToggle(s)}
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: fs(12),
+          padding: '6px 11px',
+          borderRadius: 2,
+          cursor: 'pointer',
+          border: on ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
+          color: on ? COLORS.gold : COLORS.textFaint,
+          background: on ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+          letterSpacing: '0.8px',
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap',
+          transition: 'all 0.2s',
+          fontWeight: 500,
+        }}
+      >
+        {s}
+      </div>
+    );
+  };
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-      {STYLES.map((s) => {
-        const on = selected.includes(s);
-        return (
-          <div
-            key={s}
-            onClick={() => onToggle(s)}
-            style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: fs(12),
-              padding: '6px 11px',
-              borderRadius: 2,
-              cursor: 'pointer',
-              border: on ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
-              color: on ? COLORS.gold : COLORS.textFaint,
-              background: on ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-              letterSpacing: '0.8px',
-              textTransform: 'uppercase',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.2s',
-              fontWeight: 500,
-            }}
-          >
-            {s}
-          </div>
-        );
-      })}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      {visible.map(chip)}
+      {hiddenCount > 0 && (
+        <div
+          onClick={() => setExpanded(true)}
+          style={{
+            fontSize: fs(12),
+            padding: '6px 11px',
+            color: COLORS.textGhost,
+            fontStyle: 'italic',
+            cursor: 'pointer',
+            letterSpacing: '0.3px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Ещё стили ({hiddenCount}) ▾
+        </div>
+      )}
+      {expanded && (
+        <div
+          onClick={() => setExpanded(false)}
+          style={{
+            fontSize: fs(12),
+            padding: '6px 11px',
+            color: COLORS.textGhost,
+            fontStyle: 'italic',
+            cursor: 'pointer',
+            letterSpacing: '0.3px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Свернуть ▴
+        </div>
+      )}
     </div>
   );
 }
@@ -3597,6 +3655,7 @@ function NewSessionSheet({
   const [date, setDate] = useState('');
   const [duration, setDuration] = useState('');
   const [style, setStyle] = useState('');
+  const [stylesExpanded, setStylesExpanded] = useState(false);
   const [area, setArea] = useState('');
   const [colors, setColors] = useState('');
   const [needles, setNeedles] = useState('');
@@ -3686,12 +3745,25 @@ function NewSessionSheet({
 
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Стиль работы</FieldLabel>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {STYLES.map((s) => (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            {(stylesExpanded
+              ? STYLES
+              : STYLES.slice(0, STYLES_PINNED_COUNT).concat(
+                  style && STYLES.indexOf(style) >= STYLES_PINNED_COUNT ? [style] : [],
+                )
+            ).map((s) => (
               <div key={s} onClick={() => setStyle(s)} style={chipStyle(style === s, false)}>
                 {s}
               </div>
             ))}
+            {!stylesExpanded && (
+              <div
+                onClick={() => setStylesExpanded(true)}
+                style={{ fontSize: fs(12), padding: '6px 11px', color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Ещё стили ▾
+              </div>
+            )}
           </div>
         </div>
 
