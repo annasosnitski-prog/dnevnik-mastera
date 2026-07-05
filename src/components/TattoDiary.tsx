@@ -238,10 +238,22 @@ const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
 
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
-const lastSession = (c: Client): Session | null => (c.sessions.length ? c.sessions[c.sessions.length - 1] : null);
+// "Last session" means the most recent completed (done) one — a planned/future
+// session isn't a "last session" yet.
+const lastSession = (c: Client): Session | null => {
+  const done = c.sessions.filter((s) => s.done);
+  return done.length ? done[done.length - 1] : null;
+};
 const lastSessionDate = (c: Client) => {
   const s = lastSession(c);
   return s ? formatDate(s.date) || '—' : '—';
+};
+// The soonest planned (not-yet-done) session, if any — used to surface an
+// upcoming appointment ahead of the last completed one on the client card.
+const nextPlannedSession = (c: Client): Session | null => {
+  const planned = c.sessions.filter((s) => !s.done);
+  if (!planned.length) return null;
+  return [...planned].sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0];
 };
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
@@ -592,6 +604,16 @@ export default function TattoDiary() {
     });
   };
 
+  // Quick status flip for a planned session (or to revert a done one), without
+  // opening the edit form.
+  const toggleSessionDone = (sessionId: string) => {
+    if (!selectedClient) return;
+    saveClient({
+      ...selectedClient,
+      sessions: selectedClient.sessions.map((s) => (s.id === sessionId ? { ...s, done: !s.done } : s)),
+    });
+  };
+
   const handleCreateClient = (data: {
     name: string;
     surname: string;
@@ -637,6 +659,7 @@ export default function TattoDiary() {
     skinReaction: string;
     note: string;
     photos: string[];
+    done: boolean;
   }) => {
     if (!selectedClient) return;
     const fields = {
@@ -650,15 +673,17 @@ export default function TattoDiary() {
       skinReaction: data.skinReaction.trim(),
       note: data.note.trim(),
       photos: data.photos,
+      done: data.done,
     };
     let sessions: Session[];
     if (editSession) {
-      // Update the existing session in place, keeping its id and done flag.
+      // Update the existing session in place, keeping its id (status can now
+      // change between planned and done via the form).
       sessions = selectedClient.sessions.map((s) =>
         s.id === editSession.id ? { ...s, ...fields } : s,
       );
     } else {
-      sessions = [...selectedClient.sessions, { id: Date.now().toString(), done: true, ...fields }];
+      sessions = [...selectedClient.sessions, { id: Date.now().toString(), ...fields }];
     }
     const mergedStyles =
       data.style && !clientStyles(selectedClient).includes(data.style)
@@ -987,6 +1012,7 @@ export default function TattoDiary() {
             onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
             onDeleteSession={deleteSession}
             onUpdateSessionPhotos={updateSessionPhotos}
+            onToggleSessionDone={toggleSessionDone}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
             onRemoveDocument={(docId) =>
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
@@ -1229,13 +1255,13 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           )}
         </div>
 
-        {/* Last session name + date */}
+        {/* Next planned session date if one exists, otherwise the last
+            completed one — calendar date only, no session title. */}
         <div style={{ marginBottom: 6, minWidth: 0 }}>
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-            Последний сеанс
+            {nextPlannedSession(client) ? 'Следующий сеанс' : 'Последний сеанс'}
           </div>
           <div
-            dir="auto"
             style={{
               fontSize: fs(12),
               color: 'var(--text-strong)',
@@ -1246,16 +1272,16 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             }}
           >
             {(() => {
-              const s = lastSession(client);
-              if (!s) return 'Нет сеансов';
-              const d = formatDate(s.date);
-              return [s.name, d].filter(Boolean).join(' · ') || '—';
+              const planned = nextPlannedSession(client);
+              if (planned) return formatDate(planned.date) || '—';
+              const last = lastSession(client);
+              return last ? formatDate(last.date) || '—' : 'Нет сеансов';
             })()}
           </div>
         </div>
 
-        {/* Style tag + session count */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+        {/* Style tag */}
+        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
           {client.style ? (
             <span
               style={{
@@ -1269,6 +1295,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
+                maxWidth: '100%',
               }}
             >
               {client.style}
@@ -1276,23 +1303,6 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           ) : (
             <span style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.5px' }}>—</span>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
-            {client.skinTone && (
-              <span
-                title="Тон кожи"
-                style={{
-                  width: 13,
-                  height: 13,
-                  borderRadius: '50%',
-                  background: client.skinTone,
-                  border: '1px solid rgba(var(--gold-rgb),0.35)',
-                  boxShadow: '0 0 0 1px rgba(var(--bg-rgb),0.6)',
-                  flexShrink: 0,
-                }}
-              />
-            )}
-            <span style={{ fontSize: fs(12), color: COLORS.textGhost }}>{client.sessions.length} сес.</span>
-          </div>
         </div>
       </div>
     </div>
@@ -1758,6 +1768,7 @@ function DetailScreen({
   onEditSession,
   onDeleteSession,
   onUpdateSessionPhotos,
+  onToggleSessionDone,
   onAddDocument,
   onRemoveDocument,
   onUpsertNote,
@@ -1774,6 +1785,7 @@ function DetailScreen({
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
+  onToggleSessionDone: (sessionId: string) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
@@ -1911,6 +1923,7 @@ function DetailScreen({
             onEditSession={onEditSession}
             onDeleteSession={onDeleteSession}
             onUpdateSessionPhotos={onUpdateSessionPhotos}
+            onToggleSessionDone={onToggleSessionDone}
           />
         )}
         {activeTab === 'extra' && (
@@ -2851,12 +2864,14 @@ function SessionsTab({
   onEditSession,
   onDeleteSession,
   onUpdateSessionPhotos,
+  onToggleSessionDone,
 }: {
   client: Client;
   onAddSession: () => void;
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
+  onToggleSessionDone: (sessionId: string) => void;
 }) {
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
@@ -2912,6 +2927,25 @@ function SessionsTab({
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+                {!session.done && (
+                  <span
+                    onClick={() => onToggleSessionDone(session.id)}
+                    title="Отметить выполненной"
+                    style={{
+                      fontSize: fs(10),
+                      color: COLORS.gold,
+                      border: '1px solid rgba(var(--gold-rgb),0.4)',
+                      borderRadius: 2,
+                      padding: '2px 6px',
+                      letterSpacing: '0.8px',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Запланирована
+                  </span>
+                )}
                 {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
                 <div
                   className="inka-back"
@@ -3581,6 +3615,7 @@ function NewSessionSheet({
     skinReaction: string;
     note: string;
     photos: string[];
+    done: boolean;
   }) => void;
 }) {
   const isEdit = !!initial;
@@ -3594,6 +3629,8 @@ function NewSessionSheet({
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
+  // New sessions default to «Выполнена»; editing reflects the session's status.
+  const [done, setDone] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -3608,6 +3645,7 @@ function NewSessionSheet({
       setSkinReaction(initial?.skinReaction ?? '');
       setNote(initial?.note ?? '');
       setPhotos(initial?.photos ?? []);
+      setDone(initial ? initial.done : true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -3647,6 +3685,18 @@ function NewSessionSheet({
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Дата</FieldLabel>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={INPUT_STYLE} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Статус</FieldLabel>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div onClick={() => setDone(true)} style={{ ...chipStyle(done, true), flex: 1, textAlign: 'center' }}>
+              Выполнена
+            </div>
+            <div onClick={() => setDone(false)} style={{ ...chipStyle(!done, true), flex: 1, textAlign: 'center' }}>
+              Запланирована
+            </div>
+          </div>
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -3714,7 +3764,7 @@ function NewSessionSheet({
 
         <div
           className="inka-submit"
-          onClick={() => onAdd({ name, date, duration, style, area, colors, needles, skinReaction, note, photos })}
+          onClick={() => onAdd({ name, date, duration, style, area, colors, needles, skinReaction, note, photos, done })}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
