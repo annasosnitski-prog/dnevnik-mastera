@@ -1664,8 +1664,8 @@ function SummaryScreen({
         >
           Сводка
         </div>
-        <div style={{ fontSize: fs(13), color: COLORS.textGhost, letterSpacing: '4px', textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Заметки клиентов
+        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+          Рабочие заметки
         </div>
         <StarDivider />
       </div>
