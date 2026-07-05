@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { InkaLogo } from './InkaLogo';
+import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 
 // ===================== DESIGN TOKENS =====================
 // Values resolve to CSS variables (see index.css), so the same component
@@ -216,7 +216,6 @@ function formatDate(value: string): string {
   return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
 }
 
-const DROP_CAP_FONT = "'Kelly Slab', 'Playfair Display', 'Inter', sans-serif";
 
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
@@ -758,9 +757,9 @@ export default function TattoDiary() {
           <InkaLogo height={fs(34)} />
           <div
             style={{
-              fontSize: fs(7.3),
+              fontSize: fs(6.65),
               color: COLORS.textGhost,
-              letterSpacing: `${fs(3.7)}px`,
+              letterSpacing: `${fs(3.37)}px`,
               textTransform: 'uppercase',
               marginTop: 3,
               fontStyle: 'italic',
