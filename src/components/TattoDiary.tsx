@@ -216,10 +216,7 @@ function formatDate(value: string): string {
   return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
 }
 
-// Decorative drop-cap + heading face: Cormorant Garamond (elegant serif with
-// Cyrillic + Latin), with Playfair Display as a graceful fallback while the
-// webfont loads.
-const DROP_CAP_FONT = "'Cormorant Garamond', 'Playfair Display', serif";
+const DROP_CAP_FONT = "'Kelly Slab', 'Playfair Display', 'Inter', sans-serif";
 
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
@@ -761,7 +758,7 @@ export default function TattoDiary() {
           <InkaLogo height={fs(34)} />
           <div
             style={{
-              fontSize: fs(13),
+              fontSize: fs(10),
               color: COLORS.textGhost,
               letterSpacing: '5px',
               textTransform: 'uppercase',
