@@ -439,13 +439,15 @@ function StarIcon({ size = 14, color = 'var(--gold)', outline }: { size?: number
 }
 
 // Client counts that get the bigger, bouncing milestone show instead of the
-// quick everyday shower — a little escalating "achievement" ladder.
-const MILESTONE_COUNTS = [1, 2, 5, 8, 13, 15];
+// quick everyday shower — a little escalating "achievement" ladder. Continues
+// the Fibonacci-ish spacing (1, 2, 5, 8, 13) past the 15th (gold finale) so
+// milestones stay rare as the client count grows, instead of ending at 15.
+const MILESTONE_COUNTS = [1, 2, 5, 8, 13, 15, 21, 34, 55, 89, 144];
 
 // Reward micro-interaction: fired when a new client card is created.
 // Everyday creations get a quick CSS-driven star shower; milestone counts
-// (1st/2nd/5th/8th/13th/15th client) get a bigger, slower, bouncing show, plus
-// the big grown-in client-count number — see runMilestoneShow below.
+// get a bigger, slower, bouncing show, plus the big grown-in client-count
+// number — see runMilestoneShow below.
 function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCount: number }) {
   const [stars, setStars] = useState<{ id: number; dx: number; dy: number; rot: number; delay: number; size: number }[]>([]);
   // The big client-count number that grows in over the fireworks and fades
@@ -803,9 +805,10 @@ interface Prefs {
   textScale: number; // text size 1.0–1.75 (font multiplier; 1.0 shown as 80%)
   textBright: 'normal' | 'high' | 'max'; // text tone level (dark theme)
   upcomingWindowDays: number; // how many days ahead the dashboard's "upcoming sessions" widget looks
+  gameMode: boolean; // rock-paper-scissors gate before creating a client/session/note
 }
 const UPCOMING_WINDOW_OPTIONS = [3, 5, 7, 10, 14];
-const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7 };
+const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7, gameMode: true };
 
 function readInitialPrefs(): Prefs {
   try {
@@ -818,6 +821,7 @@ function readInitialPrefs(): Prefs {
         textScale: typeof p.textScale === 'number' ? Math.max(1, p.textScale) : 1,
         textBright: p.textBright === 'high' || p.textBright === 'max' ? p.textBright : 'normal',
         upcomingWindowDays: UPCOMING_WINDOW_OPTIONS.includes(p.upcomingWindowDays) ? p.upcomingWindowDays : 7,
+        gameMode: typeof p.gameMode === 'boolean' ? p.gameMode : true,
       };
     }
   } catch {
@@ -918,6 +922,20 @@ export default function TattoDiary() {
   // (1/2/5/8/13) show.
   const [celebrationKey, setCelebrationKey] = useState(0);
   const [celebrationCount, setCelebrationCount] = useState(0);
+
+  // Rock-paper-scissors gate: holds the pending action to run once the user
+  // wins a round (or loses 3 in a row — see RockPaperScissorsGate). Mandatory
+  // for the very first client; a random chance after that (client/session/note
+  // creation), all of it disabled via prefs.gameMode.
+  const [rpsChallenge, setRpsChallenge] = useState<null | { onWin: () => void }>(null);
+  const RPS_RANDOM_CHANCE = 0.1;
+  const runGated = (mandatory: boolean, action: () => void) => {
+    if (!prefs.gameMode || !(mandatory || Math.random() < RPS_RANDOM_CHANCE)) {
+      action();
+      return;
+    }
+    setRpsChallenge({ onWin: action });
+  };
 
   useEffect(() => {
     initDB()
@@ -1593,6 +1611,17 @@ export default function TattoDiary() {
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
             }
             onUpsertNote={(note) => upsertNote(selectedClient.id, note)}
+            onAddNote={(text, urgency) =>
+              runGated(false, () =>
+                upsertNote(selectedClient.id, {
+                  id: Date.now().toString(),
+                  text,
+                  urgency,
+                  done: false,
+                  createdDate: new Date().toISOString(),
+                }),
+              )
+            }
             onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
           />
         )}
@@ -1613,7 +1642,11 @@ export default function TattoDiary() {
       />
 
       {/* ═══════════ NEW CLIENT SHEET ═══════════ */}
-      <NewClientSheet open={showNewClientForm} onClose={closeNewClient} onCreate={handleCreateClient} />
+      <NewClientSheet
+        open={showNewClientForm}
+        onClose={closeNewClient}
+        onCreate={(data) => runGated(clients.length === 0, () => handleCreateClient(data))}
+      />
 
       {/* ═══════════ EDIT CLIENT SHEET ═══════════ */}
       <EditClientSheet
@@ -1629,11 +1662,299 @@ export default function TattoDiary() {
         clientName={selectedClient?.name || ''}
         initial={editSession}
         onClose={closeNewSession}
-        onAdd={handleAddSession}
+        onAdd={(data) => (editSession ? handleAddSession(data) : runGated(false, () => handleAddSession(data)))}
       />
 
       {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
       <CelebrationBurst trigger={celebrationKey} clientCount={celebrationCount} />
+
+      {/* ═══════════ ROCK-PAPER-SCISSORS GATE ═══════════ */}
+      {rpsChallenge && (
+        <RockPaperScissorsGate
+          onWin={() => {
+            const { onWin } = rpsChallenge;
+            setRpsChallenge(null);
+            onWin();
+          }}
+          onCancel={() => setRpsChallenge(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ===================== ROCK-PAPER-SCISSORS GATE =====================
+// A little "trial" gate: the user must win a round to proceed. Ties are
+// replayed for free. Three losses in a row make the app "win" the series —
+// it still lets the user through, but not before a kawaii tongue-out taunt.
+const RPS_MOVES = ['rock', 'scissors', 'paper'] as const;
+type RPSMove = (typeof RPS_MOVES)[number];
+const RPS_LABELS: Record<RPSMove, string> = { rock: 'Камень', scissors: 'Ножницы', paper: 'Бумага' };
+// What each move beats.
+const RPS_BEATS: Record<RPSMove, RPSMove> = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
+
+// Kawaii hand-gesture icons for the three moves — soft rounded shapes in the
+// app's gold line-art style, so the gate reads as an actual game and not a
+// row of buttons.
+function RPSHandIcon({ move, size = 56 }: { move: RPSMove; size?: number }) {
+  const stroke = 'var(--gold)';
+  const fill = 'rgba(var(--gold-rgb),0.16)';
+  if (move === 'rock') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+        <rect x="40" y="76" width="24" height="16" rx="7" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <rect x="28" y="36" width="46" height="42" rx="18" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <rect x="18" y="48" width="18" height="24" rx="9" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <path d="M42 38V48M54 38V48M64 40V50" stroke={stroke} strokeWidth="2.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (move === 'paper') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+        <rect x="38" y="78" width="26" height="14" rx="6" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <rect x="27" y="44" width="48" height="36" rx="14" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <rect x="30" y="14" width="10" height="38" rx="5" fill={fill} stroke={stroke} strokeWidth="3" />
+        <rect x="43" y="8" width="10" height="44" rx="5" fill={fill} stroke={stroke} strokeWidth="3" />
+        <rect x="56" y="8" width="10" height="44" rx="5" fill={fill} stroke={stroke} strokeWidth="3" />
+        <rect x="69" y="14" width="10" height="38" rx="5" fill={fill} stroke={stroke} strokeWidth="3" />
+        <rect x="14" y="48" width="20" height="12" rx="6" fill={fill} stroke={stroke} strokeWidth="3" transform="rotate(-30 24 54)" />
+      </svg>
+    );
+  }
+  // scissors — victory-sign fingers over a small folded fist
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <rect x="36" y="80" width="24" height="14" rx="6" fill={fill} stroke={stroke} strokeWidth="3.5" />
+      <rect x="30" y="52" width="36" height="30" rx="14" fill={fill} stroke={stroke} strokeWidth="3.5" />
+      <rect x="36" y="8" width="10" height="48" rx="5" fill={fill} stroke={stroke} strokeWidth="3" transform="rotate(-12 41 32)" />
+      <rect x="54" y="8" width="10" height="48" rx="5" fill={fill} stroke={stroke} strokeWidth="3" transform="rotate(12 59 32)" />
+    </svg>
+  );
+}
+
+function RPSTauntFace() {
+  return (
+    <svg width="72" height="72" viewBox="0 0 100 100" fill="none">
+      <path d="M27 41Q34 33 41 41" stroke="var(--gold)" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M59 41Q66 33 73 41" stroke="var(--gold)" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <circle cx="25" cy="57" r="6" fill="var(--gold)" opacity="0.32" />
+      <circle cx="75" cy="57" r="6" fill="var(--gold)" opacity="0.32" />
+      <path d="M38 60Q50 74 62 60Q50 66 38 60Z" fill="var(--gold)" opacity="0.85" />
+      <ellipse cx="53" cy="69" rx="7" ry="11" fill="#C9556B" transform="rotate(18 53 69)" />
+    </svg>
+  );
+}
+
+function RockPaperScissorsGate({ onWin, onCancel }: { onWin: () => void; onCancel: () => void }) {
+  const [losses, setLosses] = useState(0);
+  const [phase, setPhase] = useState<'choose' | 'shake' | 'reveal' | 'taunt'>('choose');
+  const [outcome, setOutcome] = useState<'win' | 'loss' | 'tie' | null>(null);
+  const [userMove, setUserMove] = useState<RPSMove | null>(null);
+  const [computerMove, setComputerMove] = useState<RPSMove | null>(null);
+  const [round, setRound] = useState(0); // bumped each reveal so the pop-in animation replays
+
+  const play = (move: RPSMove) => {
+    if (phase !== 'choose') return;
+    setUserMove(move);
+    setPhase('shake');
+
+    // Fists bounce together for a beat first — the classic "камень, ножницы...
+    // бумага!" shake — then both shapes reveal at once.
+    setTimeout(() => {
+      const computer = RPS_MOVES[Math.floor(Math.random() * 3)];
+      setComputerMove(computer);
+      setRound((r) => r + 1);
+
+      if (computer === move) {
+        setOutcome('tie');
+        setPhase('reveal');
+        setTimeout(() => {
+          setPhase('choose');
+          setOutcome(null);
+          setUserMove(null);
+          setComputerMove(null);
+        }, 1000);
+        return;
+      }
+
+      if (RPS_BEATS[move] === computer) {
+        setOutcome('win');
+        setPhase('reveal');
+        setTimeout(onWin, 1000);
+        return;
+      }
+
+      const nextLosses = losses + 1;
+      setLosses(nextLosses);
+      setOutcome('loss');
+      if (nextLosses >= 3) {
+        setPhase('taunt');
+        setTimeout(onWin, 2000);
+      } else {
+        setPhase('reveal');
+        setTimeout(() => {
+          setPhase('choose');
+          setOutcome(null);
+          setUserMove(null);
+          setComputerMove(null);
+        }, 1000);
+      }
+    }, 900);
+  };
+
+  const resultText =
+    outcome === 'win' ? 'Победа!' : outcome === 'tie' ? 'Ничья — ещё раз' : 'Проигрыш — попробуй ещё раз';
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 200,
+        background: 'rgba(0,0,0,0.82)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 360,
+          border: '1px solid rgba(var(--gold-rgb),0.3)',
+          borderRadius: 4,
+          background: COLORS.bg,
+          padding: '26px 24px 22px',
+          textAlign: 'center',
+          position: 'relative',
+        }}
+      >
+        <div
+          onClick={onCancel}
+          role="button"
+          aria-label="Отмена"
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 14,
+            fontSize: fs(15),
+            color: COLORS.textFaint,
+            cursor: 'pointer',
+          }}
+        >
+          ✕
+        </div>
+
+        <div
+          style={{
+            fontFamily: DROP_CAP_FONT,
+            fontSize: fs(20),
+            color: COLORS.gold,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Камень · Ножницы · Бумага
+        </div>
+        <StarDivider marginTop={9} />
+
+        {/* Loss counter — how close the app is to "winning" the series. */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 7, margin: '16px 0 4px' }}>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: i < losses ? COLORS.gold : 'transparent',
+                border: `1px solid rgba(var(--gold-rgb),${i < losses ? 0.9 : 0.3})`,
+              }}
+            />
+          ))}
+        </div>
+
+        <div style={{ minHeight: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+          {phase === 'choose' && (
+            <>
+              <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 6 }}>
+                Выиграй раунд, чтобы продолжить
+              </div>
+              <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
+                {RPS_MOVES.map((m) => (
+                  <div
+                    key={m}
+                    onClick={() => play(m)}
+                    role="button"
+                    aria-label={RPS_LABELS[m]}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+                  >
+                    <div
+                      style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: '50%',
+                        border: '1px solid rgba(var(--gold-rgb),0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <RPSHandIcon move={m} size={40} />
+                    </div>
+                    <span style={{ fontSize: fs(10), color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                      {RPS_LABELS[m]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {phase === 'shake' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
+              <div className="inka-rps-shake">
+                <RPSHandIcon move="rock" size={54} />
+              </div>
+              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textGhost }}>vs</div>
+              <div className="inka-rps-shake" style={{ animationDelay: '0.05s' }}>
+                <RPSHandIcon move="rock" size={54} />
+              </div>
+            </div>
+          )}
+
+          {phase === 'reveal' && (
+            <>
+              <div key={`reveal-${round}`} className="inka-rps-pop" style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
+                {userMove && <RPSHandIcon move={userMove} size={54} />}
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textGhost }}>vs</div>
+                {computerMove && <RPSHandIcon move={computerMove} size={54} />}
+              </div>
+              <div
+                style={{
+                  fontFamily: DROP_CAP_FONT,
+                  fontSize: fs(22),
+                  color: outcome === 'win' ? COLORS.gold : COLORS.textPrimary,
+                  letterSpacing: '1px',
+                }}
+              >
+                {resultText}
+              </div>
+            </>
+          )}
+
+          {phase === 'taunt' && (
+            <>
+              <RPSTauntFace />
+              <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                Ну и ладно — так и быть, проходи!
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2536,6 +2857,37 @@ function SettingsScreen({
           </div>
         </div>
 
+        {/* Game mode — the rock-paper-scissors gate before creating things. */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Игровой режим</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {([
+              { v: true, label: 'Включён' },
+              { v: false, label: 'Выключен' },
+            ] as { v: boolean; label: string }[]).map((o) => (
+              <div
+                key={String(o.v)}
+                onClick={() => onChange({ ...prefs, gameMode: o.v })}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: fs(13),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  border: prefs.gameMode === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: prefs.gameMode === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: prefs.gameMode === o.v ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Reset */}
         <div
           onClick={() => onChange({ ...DEFAULT_PREFS })}
@@ -2811,6 +3163,7 @@ function DetailScreen({
   onAddDocument,
   onRemoveDocument,
   onUpsertNote,
+  onAddNote,
   onDeleteNote,
 }: {
   client: Client;
@@ -2828,6 +3181,7 @@ function DetailScreen({
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
+  onAddNote: (text: string, urgency: UrgencyKey) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
   const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
@@ -2972,6 +3326,7 @@ function DetailScreen({
             onAddDocument={onAddDocument}
             onRemoveDocument={onRemoveDocument}
             onUpsertNote={onUpsertNote}
+            onAddNote={onAddNote}
             onDeleteNote={onDeleteNote}
           />
         )}
@@ -4416,12 +4771,14 @@ function AdditionalTab({
   onAddDocument,
   onRemoveDocument,
   onUpsertNote,
+  onAddNote,
   onDeleteNote,
 }: {
   client: Client;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
+  onAddNote: (text: string, urgency: UrgencyKey) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
@@ -4441,9 +4798,6 @@ function AdditionalTab({
     reader.readAsDataURL(file);
   };
 
-  const addNote = (text: string, urgency: UrgencyKey) => {
-    onUpsertNote({ id: Date.now().toString(), text, urgency, done: false, createdDate: new Date().toISOString() });
-  };
   const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
 
   // Sorted by urgency (most urgent first); done notes sink to the bottom.
@@ -4464,7 +4818,7 @@ function AdditionalTab({
           ))}
         </div>
       )}
-      <NoteComposer onAdd={addNote} />
+      <NoteComposer onAdd={onAddNote} />
 
       <SectionDivider />
 
