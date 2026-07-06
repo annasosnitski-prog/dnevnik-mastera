@@ -391,6 +391,33 @@ input[type='date'] {
   animation: inkaCelebrateStar 3.2s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
 
+/* The big client-count number that grows in over the fireworks and fades
+   out with them — duration is set inline (matches whichever celebration is
+   currently playing, everyday shower vs. milestone show). */
+@keyframes inkaCelebrateNumber {
+  0% {
+    transform: translate(-50%, -50%) scale(0.15);
+    opacity: 0;
+  }
+  18% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  78% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.08);
+    opacity: 0;
+  }
+}
+.inka-celebrate-number {
+  animation-name: inkaCelebrateNumber;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+
 /* ── Scrollbar (kept whisper-thin to match the surfaces) ── */
 ::-webkit-scrollbar {
   width: 4px;
