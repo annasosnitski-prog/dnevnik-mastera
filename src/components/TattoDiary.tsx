@@ -3296,7 +3296,7 @@ function DetailScreen({
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
         <div onClick={() => onTab('info')} style={tabStyle('info')}>
           Инфо
         </div>
@@ -3306,6 +3306,32 @@ function DetailScreen({
         <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
           Доп.
         </div>
+        {/* Add session — pinned in the tab bar (never scrolls), shown only on
+            the Сессии tab. Tap runs the RPS game first, then opens the sheet. */}
+        {activeTab === 'sessions' && (
+          <div
+            onClick={onAddSession}
+            role="button"
+            aria-label="Добавить сессию"
+            style={{
+              marginLeft: 'auto',
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              border: '1px solid rgba(var(--gold-rgb),0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" />
+              <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </div>
+        )}
       </div>
 
       {/* Tab content */}
@@ -3314,7 +3340,6 @@ function DetailScreen({
         {activeTab === 'sessions' && (
           <SessionsTab
             client={client}
-            onAddSession={onAddSession}
             onEditSession={onEditSession}
             onDeleteSession={onDeleteSession}
             onUpdateSessionPhotos={onUpdateSessionPhotos}
@@ -4429,14 +4454,12 @@ function SessionPhotos({
 // ── Sessions tab ──
 function SessionsTab({
   client,
-  onAddSession,
   onEditSession,
   onDeleteSession,
   onUpdateSessionPhotos,
   onToggleSessionDone,
 }: {
   client: Client;
-  onAddSession: () => void;
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
@@ -4560,30 +4583,6 @@ function SessionsTab({
         </div>
       ))}
 
-      {/* Add session button */}
-      <div
-        className="inka-dashed"
-        onClick={onAddSession}
-        style={{
-          marginTop: 14,
-          border: '1px dashed rgba(var(--gold-rgb),0.18)',
-          borderRadius: 2,
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 10,
-          cursor: 'pointer',
-        }}
-      >
-        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
-          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
-        <span style={{ fontSize: fs(13), color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
-          Добавить сессию
-        </span>
-      </div>
     </div>
   );
 }
