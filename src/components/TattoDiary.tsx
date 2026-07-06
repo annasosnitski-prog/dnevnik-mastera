@@ -267,6 +267,59 @@ const nextPlannedSession = (c: Client): Session | null => {
   return [...planned].sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0];
 };
 
+// ── Master dashboard helpers ──
+// The tattoo style used across the most clients (ties broken by array order).
+function mostUsedStyle(clients: Client[]): string | null {
+  const counts = new Map<string, number>();
+  for (const c of clients) {
+    for (const s of clientStyles(c)) counts.set(s, (counts.get(s) || 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [style, count] of counts) {
+    if (count > bestCount) {
+      best = style;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+// Every not-yet-done session, across all clients, whose ISO date falls within
+// [today, today+days] — sorted soonest-first. Sessions with a legacy
+// non-ISO date (free text) are skipped since they can't be date-compared.
+function upcomingSessions(clients: Client[], days: number): { client: Client; session: Session }[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const horizon = new Date(today);
+  horizon.setDate(horizon.getDate() + days);
+
+  const result: { client: Client; session: Session }[] = [];
+  for (const client of clients) {
+    for (const session of client.sessions) {
+      if (session.done || !ISO_DATE_RE.test(session.date)) continue;
+      const d = new Date(session.date + 'T00:00:00');
+      if (d >= today && d <= horizon) result.push({ client, session });
+    }
+  }
+  return result.sort((a, b) => a.session.date.localeCompare(b.session.date));
+}
+
+// Counts open (not-done) notes by urgency, across all clients — the two
+// buckets the dashboard surfaces: urgent+important, and important-not-urgent.
+function urgencyCounts(clients: Client[]): { urgentImportant: number; importantNotUrgent: number } {
+  let urgentImportant = 0;
+  let importantNotUrgent = 0;
+  for (const c of clients) {
+    for (const n of c.notes) {
+      if (n.done) continue;
+      if (n.urgency === 'urgent_important') urgentImportant++;
+      else if (n.urgency === 'important_not_urgent') importantNotUrgent++;
+    }
+  }
+  return { urgentImportant, importantNotUrgent };
+}
+
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
 function normalizeClient(raw: any, index: number): Client {
@@ -672,8 +725,10 @@ interface Prefs {
   brightness: number; // app brightness 0.75–1.15 (CSS filter)
   textScale: number; // text size 1.0–1.75 (font multiplier; 1.0 shown as 80%)
   textBright: 'normal' | 'high' | 'max'; // text tone level (dark theme)
+  upcomingWindowDays: number; // how many days ahead the dashboard's "upcoming sessions" widget looks
 }
-const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal' };
+const UPCOMING_WINDOW_OPTIONS = [3, 5, 7, 10, 14];
+const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7 };
 
 function readInitialPrefs(): Prefs {
   try {
@@ -685,6 +740,7 @@ function readInitialPrefs(): Prefs {
         // Clamp to the new floor (1.0): older values below it are lifted.
         textScale: typeof p.textScale === 'number' ? Math.max(1, p.textScale) : 1,
         textBright: p.textBright === 'high' || p.textBright === 'max' ? p.textBright : 'normal',
+        upcomingWindowDays: UPCOMING_WINDOW_OPTIONS.includes(p.upcomingWindowDays) ? p.upcomingWindowDays : 7,
       };
     }
   } catch {
@@ -704,11 +760,12 @@ interface MasterLink {
   value: string; // free text — link, phone, card number...
 }
 interface MasterInfo {
+  name: string; // the master's own name, shown on the dashboard
   links: MasterLink[];
   bankDetails: string;
   colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
 }
-const DEFAULT_MASTER_INFO: MasterInfo = { links: [], bankDetails: '', colorLabels: {} };
+const DEFAULT_MASTER_INFO: MasterInfo = { name: '', links: [], bankDetails: '', colorLabels: {} };
 
 function readInitialMasterInfo(): MasterInfo {
   try {
@@ -716,6 +773,7 @@ function readInitialMasterInfo(): MasterInfo {
     if (raw) {
       const p = JSON.parse(raw);
       return {
+        name: typeof p.name === 'string' ? p.name : '',
         links: Array.isArray(p.links)
           ? p.links.map((l: any, i: number) => ({ id: String(l?.id ?? i), label: l?.label ?? '', value: l?.value ?? '' }))
           : [],
@@ -763,7 +821,7 @@ export default function TattoDiary() {
     }
   }, [masterInfo]);
 
-  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary'>('list');
+  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('info');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1328,7 +1386,7 @@ export default function TattoDiary() {
       {/* Bottom navigation — sibling of the screens so it pins to the shell
           bottom (never scrolls). Shown on the list and settings screens, hidden
           while a bottom sheet is open so it can't sit over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary') && !sheetOpen && (
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master') && !sheetOpen && (
         <BottomNav
           active={screen}
           onNavigate={(s) => setScreen(s)}
@@ -1356,6 +1414,38 @@ export default function TattoDiary() {
               setSelectedId(id);
               setActiveTab('extra');
               setScreen('detail');
+            }}
+          />
+        )}
+      </div>
+
+      {/* ═══════════ MASTER DASHBOARD ═══════════ */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: screen === 'master' ? 'translateX(0)' : 'translateX(110%)',
+          transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          zIndex: 3,
+          background: COLORS.bg,
+        }}
+      >
+        {screen === 'master' && (
+          <MasterDashboardScreen
+            clients={clients}
+            masterInfo={masterInfo}
+            onChangeMasterInfo={setMasterInfo}
+            prefs={prefs}
+            onChangePrefs={setPrefs}
+            onOpenSession={(clientId, sessionId) => {
+              const client = clients.find((c) => c.id === clientId);
+              const session = client?.sessions.find((s) => s.id === sessionId);
+              if (!client || !session) return;
+              setSelectedId(client.id);
+              setEditSession(session);
+              setShowNewSessionForm(true);
             }}
           />
         )}
@@ -1788,8 +1878,8 @@ function BottomNav({
   active,
   onNavigate,
 }: {
-  active: 'list' | 'settings' | 'summary';
-  onNavigate: (screen: 'list' | 'settings' | 'summary') => void;
+  active: 'list' | 'settings' | 'summary' | 'master';
+  onNavigate: (screen: 'list' | 'settings' | 'summary' | 'master') => void;
 }) {
   return (
     <div
@@ -1840,6 +1930,16 @@ function BottomNav({
         <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
       </div>
       <div
+        onClick={() => onNavigate('master')}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'master' ? 1 : 0.4 }}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'master' ? 'var(--gold)' : 'var(--text)' }}>
+          <circle cx="10" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.07" />
+          <path d="M3.5 17C3.5 13.5 6.4 11.5 10 11.5C13.6 11.5 16.5 13.5 16.5 17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="currentColor" fillOpacity="0.07" />
+        </svg>
+        <span style={{ fontSize: fs(11), color: active === 'master' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Мастер</span>
+      </div>
+      <div
         onClick={() => onNavigate('settings')}
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'settings' ? 1 : 0.4 }}
       >
@@ -1853,6 +1953,199 @@ function BottomNav({
           />
         </svg>
         <span style={{ fontSize: fs(11), color: active === 'settings' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Настройки</span>
+      </div>
+    </div>
+  );
+}
+
+// ===================== MASTER DASHBOARD =====================
+function MasterDashboardScreen({
+  clients,
+  masterInfo,
+  onChangeMasterInfo,
+  prefs,
+  onChangePrefs,
+  onOpenSession,
+}: {
+  clients: Client[];
+  masterInfo: MasterInfo;
+  onChangeMasterInfo: (m: MasterInfo) => void;
+  prefs: Prefs;
+  onChangePrefs: (p: Prefs) => void;
+  onOpenSession: (clientId: string, sessionId: string) => void;
+}) {
+  const [name, setName] = useState(masterInfo.name);
+  useEffect(() => setName(masterInfo.name), [masterInfo.name]);
+
+  const style = mostUsedStyle(clients);
+  const upcoming = upcomingSessions(clients, prefs.upcomingWindowDays);
+  const { urgentImportant, importantNotUrgent } = urgencyCounts(clients);
+
+  const statBoxStyle: React.CSSProperties = {
+    background: 'rgba(var(--surface-rgb),0.018)',
+    border: '1px solid rgba(var(--gold-rgb),0.1)',
+    borderRadius: 3,
+    padding: '14px 16px',
+  };
+  const statLabelStyle: React.CSSProperties = {
+    fontSize: fs(11),
+    color: COLORS.textGhost,
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  };
+
+  return (
+    <div style={{ minHeight: '100%', background: COLORS.bg }}>
+      {/* Dot-grid texture overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
+          backgroundSize: '22px 22px',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+      <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        <div
+          style={{
+            fontFamily: DROP_CAP_FONT,
+            fontSize: fs(24),
+            color: COLORS.gold,
+            letterSpacing: '5px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Мастер
+        </div>
+        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+          Обзор и напоминания
+        </div>
+        <StarDivider />
+      </div>
+
+      <div style={{ padding: '4px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Master's own name */}
+        <div style={statBoxStyle}>
+          <div style={statLabelStyle}>Имя мастера</div>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => name.trim() !== masterInfo.name && onChangeMasterInfo({ ...masterInfo, name: name.trim() })}
+            placeholder="Ваше имя"
+            style={{
+              width: '100%',
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              padding: 0,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: fs(18),
+              color: COLORS.textPrimary,
+            }}
+          />
+        </div>
+
+        {/* Quick stats */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ ...statBoxStyle, flex: 1 }}>
+            <div style={statLabelStyle}>Клиентов</div>
+            <div style={{ fontSize: fs(28), color: COLORS.textPrimary, fontWeight: 600 }}>{clients.length}</div>
+          </div>
+          <div style={{ ...statBoxStyle, flex: 1.4 }}>
+            <div style={statLabelStyle}>Частый стиль</div>
+            <div style={{ fontSize: fs(15), color: COLORS.textPrimary, fontStyle: style ? 'normal' : 'italic' }}>
+              {style || 'Пока нет данных'}
+            </div>
+          </div>
+        </div>
+
+        {/* Open urgent/important note counts */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ ...statBoxStyle, flex: 1 }}>
+            <div style={statLabelStyle}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
+            <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 600 }}>{urgentImportant}</div>
+          </div>
+          <div style={{ ...statBoxStyle, flex: 1 }}>
+            <div style={statLabelStyle}>{URGENCY[2].emoji} {URGENCY[2].short}</div>
+            <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 600 }}>{importantNotUrgent}</div>
+          </div>
+        </div>
+
+        {/* Upcoming sessions, with a master-configurable lookahead window */}
+        <div style={statBoxStyle}>
+          <div style={statLabelStyle}>Предстоящие сессии</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: 8 }}>
+            {UPCOMING_WINDOW_OPTIONS.map((d) => (
+              <div
+                key={d}
+                onClick={() => onChangePrefs({ ...prefs, upcomingWindowDays: d })}
+                style={{
+                  fontSize: fs(12),
+                  padding: '4px 10px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: prefs.upcomingWindowDays === d ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: prefs.upcomingWindowDays === d ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: prefs.upcomingWindowDays === d ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {d} дн.
+              </div>
+            ))}
+          </div>
+          {upcoming.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированных сессий</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {upcoming.map(({ client, session }) => (
+                <div
+                  key={session.id}
+                  onClick={() => onOpenSession(client.id, session.id)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    border: '1px solid rgba(var(--gold-rgb),0.1)',
+                  }}
+                >
+                  <div style={{ fontSize: fs(14), color: COLORS.textPrimary }}>{client.name || '—'}</div>
+                  <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>{formatDate(session.date)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Contacts & requisites (edited in Настройки → Карточка мастера) */}
+        <div style={statBoxStyle}>
+          <div style={statLabelStyle}>Контакты и оплата</div>
+          {masterInfo.links.length === 0 && !masterInfo.bankDetails ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+              Заполните в Настройках → Карточка мастера
+            </div>
+          ) : (
+            <>
+              {masterInfo.links.map((l) => (
+                <div key={l.id} style={{ marginBottom: 6 }}>
+                  <span style={{ fontSize: fs(12), color: COLORS.gold }}>{l.label}: </span>
+                  <span style={{ fontSize: fs(13), color: 'var(--text-secondary)' }}>{l.value}</span>
+                </div>
+              ))}
+              {masterInfo.bankDetails && (
+                <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', marginTop: 6 }}>
+                  {masterInfo.bankDetails}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
