@@ -212,12 +212,14 @@ const SKIN_TYPES: { value: string; label: string }[] = [
 // ===================== DERIVED HELPERS =====================
 const MONTHS_RU = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 // Formats an ISO yyyy-mm-dd as "24 мая 2026"; leaves legacy free-text as-is.
 function formatDate(value: string): string {
   if (!value) return '';
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const m = ISO_DATE_RE.exec(value);
   if (!m) return value;
-  const [, y, mo, d] = m;
+  const [y, mo, d] = value.split('-');
   return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
 }
 
@@ -1335,7 +1337,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             <div
               dir="auto"
               style={{
-                fontSize: fs(12),
+                fontSize: fs(15),
                 color: 'var(--text-secondary)',
                 fontStyle: 'italic',
                 lineHeight: 1.4,
@@ -1348,15 +1350,18 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
               {client.note}
             </div>
           ) : (
-            <div style={{ fontSize: fs(12), color: COLORS.textTrace, fontStyle: 'italic' }}>Без заметок</div>
+            <div style={{ fontSize: fs(15), color: COLORS.textTrace, fontStyle: 'italic' }}>Без заметок</div>
           )}
         </div>
 
         {/* Next planned session date if one exists, otherwise the last
-            completed one — calendar date only, no session title. */}
+            completed one — calendar date only, never a session title. Legacy
+            records sometimes have free text in the date field (predates the
+            date picker); ISO_DATE_RE filters those out rather than leaking
+            them onto the card. */}
         <div style={{ marginBottom: 6, minWidth: 0 }}>
-          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-            {nextPlannedSession(client) ? 'Следующий сеанс' : 'Последний сеанс'}
+          <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+            {nextPlannedSession(client) ? 'Следующая сессия' : 'Последняя сессия'}
           </div>
           <div
             style={{
@@ -1370,10 +1375,11 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             }}
           >
             {(() => {
+              const dateOnly = (value: string) => (ISO_DATE_RE.test(value) ? formatDate(value) : '');
               const planned = nextPlannedSession(client);
-              if (planned) return formatDate(planned.date) || '—';
+              if (planned) return dateOnly(planned.date) || '—';
               const last = lastSession(client);
-              return last ? formatDate(last.date) || '—' : 'Нет сеансов';
+              return last ? dateOnly(last.date) || '—' : 'Нет сессий';
             })()}
           </div>
         </div>
