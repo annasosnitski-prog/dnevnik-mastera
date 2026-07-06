@@ -541,13 +541,15 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
               pointerEvents: 'none',
               fontFamily: DROP_CAP_FONT,
               fontWeight: 600,
-              color: 'var(--gold)',
+              // The 15th's shine sweep needs the gradient text-clip in its CSS
+              // class to control color — an inline color here would win over it.
+              color: clientCount === 15 ? undefined : 'var(--gold)',
               fontSize: '33vh',
               lineHeight: 1,
               textShadow: '0 4px 24px rgba(0,0,0,0.6)',
-              // The 15th's glint is a quick flash-and-gone, independent of how
+              // The 15th plays its own scale+shine pair, independent of how
               // long the star show behind it keeps playing.
-              animationDuration: clientCount === 15 ? '1300ms' : `${numberMs}ms`,
+              animationDuration: clientCount === 15 ? '1900ms, 1900ms' : `${numberMs}ms`,
             } as React.CSSProperties
           }
         >
