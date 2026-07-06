@@ -364,28 +364,32 @@ function StarIcon({ size = 14 }: { size?: number }) {
 // fly outward/downward and fade — a little celebratory "звездопад".
 function CelebrationBurst({ trigger }: { trigger: number }) {
   const [stars, setStars] = useState<{ id: number; dx: number; dy: number; rot: number; delay: number; size: number }[]>([]);
-  const isFirstRender = useRef(true);
+  // Tracks the last trigger value we've already celebrated for. Initialized
+  // from the incoming prop (not a plain boolean) so it stays correct even
+  // under StrictMode's dev-only double-invoke of this effect on mount.
+  const lastHandled = useRef(trigger);
 
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return; // don't celebrate on mount, only on later triggers
-    }
-    const n = 14;
+    if (lastHandled.current === trigger) return; // nothing new to celebrate
+    lastHandled.current = trigger;
+
+    // Distances are in vw/vh (not px) so the shower scales to the actual
+    // screen and reads as filling it, on any device.
+    const n = 40;
     const generated = Array.from({ length: n }, (_, i) => {
-      const angle = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.5;
-      const dist = 80 + Math.random() * 130;
+      const angle = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.7;
+      const dist = 35 + Math.random() * 55;
       return {
         id: i,
-        dx: Math.cos(angle) * dist,
-        dy: Math.sin(angle) * dist * 0.7 + 50, // biased downward, like falling
-        rot: (Math.random() - 0.5) * 360,
-        delay: 380 + Math.random() * 150,
-        size: 8 + Math.random() * 10,
+        dx: Math.cos(angle) * dist, // vw
+        dy: Math.sin(angle) * dist * 0.9 + 40, // vh, biased downward like falling
+        rot: (Math.random() - 0.5) * 420,
+        delay: 300 + Math.random() * 650,
+        size: 6 + Math.random() * 16,
       };
     });
     setStars(generated);
-    const t = setTimeout(() => setStars([]), 1700);
+    const t = setTimeout(() => setStars([]), 3500);
     return () => clearTimeout(t);
   }, [trigger]);
 
@@ -393,12 +397,12 @@ function CelebrationBurst({ trigger }: { trigger: number }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 90, overflow: 'hidden' }}>
-      <div className="inka-celebrate-pop" style={{ position: 'absolute', top: '22%', left: '50%' }}>
-        <StarIcon size={24} />
+      <div key={`pop-${trigger}`} className="inka-celebrate-pop" style={{ position: 'absolute', top: '22%', left: '50%' }}>
+        <StarIcon size={30} />
       </div>
       {stars.map((s) => (
         <div
-          key={s.id}
+          key={`${trigger}-${s.id}`}
           className="inka-celebrate-star"
           style={
             {
@@ -406,8 +410,8 @@ function CelebrationBurst({ trigger }: { trigger: number }) {
               top: '22%',
               left: '50%',
               animationDelay: `${s.delay}ms`,
-              '--dx': `${s.dx}px`,
-              '--dy': `${s.dy}px`,
+              '--dx': `${s.dx}vw`,
+              '--dy': `${s.dy}vh`,
               '--rot': `${s.rot}deg`,
             } as React.CSSProperties
           }
@@ -3136,7 +3140,7 @@ function SessionsTab({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
               <div style={{ minWidth: 0 }}>
-                <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-strong)', fontWeight: 500, letterSpacing: '0.3px' }}>
+                <div dir="auto" style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.3px' }}>
                   {session.name || formatDate(session.date) || 'Сессия'}
                 </div>
                 {session.name && formatDate(session.date) && (

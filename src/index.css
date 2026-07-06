@@ -365,7 +365,7 @@ input[type='date'] {
   }
 }
 .inka-celebrate-pop {
-  animation: inkaCelebratePop 0.5s ease-out forwards;
+  animation: inkaCelebratePop 0.7s ease-out forwards;
 }
 
 @keyframes inkaCelebrateStar {
@@ -383,7 +383,7 @@ input[type='date'] {
   }
 }
 .inka-celebrate-star {
-  animation: inkaCelebrateStar 1.1s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+  animation: inkaCelebrateStar 2.3s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
 
 /* ── Scrollbar (kept whisper-thin to match the surfaces) ── */
