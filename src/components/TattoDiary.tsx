@@ -1958,6 +1958,48 @@ function BottomNav({
   );
 }
 
+// A single "ability score" style tile for the master dashboard's stat grid —
+// bracketed corners and a big centered number, like a tabletop character
+// sheet's stat block, but in the app's own gold/dark palette.
+function StatBlock({ label, value, big = true }: { label: string; value: string | number; big?: boolean }) {
+  const cornerStyle: React.CSSProperties = {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderColor: 'rgba(var(--gold-rgb),0.55)',
+  };
+  return (
+    <div
+      style={{
+        position: 'relative',
+        textAlign: 'center',
+        padding: '18px 10px 16px',
+        borderRadius: 4,
+        border: '1px solid rgba(var(--gold-rgb),0.16)',
+        background: 'rgba(var(--surface-rgb),0.018)',
+      }}
+    >
+      <div style={{ ...cornerStyle, top: 4, left: 4, borderTop: '1.5px solid', borderLeft: '1.5px solid' }} />
+      <div style={{ ...cornerStyle, top: 4, right: 4, borderTop: '1.5px solid', borderRight: '1.5px solid' }} />
+      <div style={{ ...cornerStyle, bottom: 4, left: 4, borderBottom: '1.5px solid', borderLeft: '1.5px solid' }} />
+      <div style={{ ...cornerStyle, bottom: 4, right: 4, borderBottom: '1.5px solid', borderRight: '1.5px solid' }} />
+      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
+      <div
+        style={{
+          fontFamily: DROP_CAP_FONT,
+          fontSize: big ? fs(30) : fs(16),
+          fontWeight: 600,
+          lineHeight: 1.15,
+          color: COLORS.gold,
+          fontStyle: !big && value === 'Пока нет данных' ? 'italic' : 'normal',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 // ===================== MASTER DASHBOARD =====================
 function MasterDashboardScreen({
   clients,
@@ -2049,30 +2091,12 @@ function MasterDashboardScreen({
           />
         </div>
 
-        {/* Quick stats */}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ ...statBoxStyle, flex: 1 }}>
-            <div style={statLabelStyle}>Клиентов</div>
-            <div style={{ fontSize: fs(28), color: COLORS.textPrimary, fontWeight: 600 }}>{clients.length}</div>
-          </div>
-          <div style={{ ...statBoxStyle, flex: 1.4 }}>
-            <div style={statLabelStyle}>Частый стиль</div>
-            <div style={{ fontSize: fs(15), color: COLORS.textPrimary, fontStyle: style ? 'normal' : 'italic' }}>
-              {style || 'Пока нет данных'}
-            </div>
-          </div>
-        </div>
-
-        {/* Open urgent/important note counts */}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ ...statBoxStyle, flex: 1 }}>
-            <div style={statLabelStyle}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
-            <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 600 }}>{urgentImportant}</div>
-          </div>
-          <div style={{ ...statBoxStyle, flex: 1 }}>
-            <div style={statLabelStyle}>{URGENCY[2].emoji} {URGENCY[2].short}</div>
-            <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 600 }}>{importantNotUrgent}</div>
-          </div>
+        {/* Quick stats — a 2x2 "character sheet" stat grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          <StatBlock label="Клиентов" value={clients.length} />
+          <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} big={false} />
+          <StatBlock label={`${URGENCY[0].emoji} ${URGENCY[0].short}`} value={urgentImportant} />
+          <StatBlock label={`${URGENCY[2].emoji} ${URGENCY[2].short}`} value={importantNotUrgent} />
         </div>
 
         {/* Upcoming sessions, with a master-configurable lookahead window */}
