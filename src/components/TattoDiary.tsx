@@ -3932,20 +3932,18 @@ function SessionPhotos({
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           {photos.map((src, i) => (
             <div key={i} style={{ position: 'relative', width: 78, height: 78 }}>
-              <a href={src} target="_blank" rel="noopener noreferrer">
-                <img
-                  src={src}
-                  alt=""
-                  style={{
-                    width: 78,
-                    height: 78,
-                    objectFit: 'cover',
-                    borderRadius: 2,
-                    border: '1px solid rgba(var(--gold-rgb),0.2)',
-                    display: 'block',
-                  }}
-                />
-              </a>
+              <img
+                src={src}
+                alt=""
+                style={{
+                  width: 78,
+                  height: 78,
+                  objectFit: 'cover',
+                  borderRadius: 2,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  display: 'block',
+                }}
+              />
               {allowDelete && (confirmIndex === i ? (
                 <div
                   style={{
@@ -4453,12 +4451,12 @@ function AdditionalTab({
               }}
             >
               <span style={{ fontSize: fs(13), color: COLORS.gold }}>{doc.kind === 'photo' ? '◈' : '▤'}</span>
-              <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: fs(15), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {doc.name}
                 </div>
                 <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '0.4px', marginTop: 2 }}>{doc.uploadedDate}</div>
-              </a>
+              </div>
               <button
                 onClick={() => onRemoveDocument(doc.id)}
                 style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15) }}
