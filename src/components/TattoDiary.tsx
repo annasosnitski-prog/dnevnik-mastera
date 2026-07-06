@@ -1638,6 +1638,92 @@ function GemCorner({ color, size = 28 }: { color: string; size?: number }) {
   );
 }
 
+// Gold versions of the client card's foil stripes + gem corner — same recipe
+// (gradient stripe with a bright sheen, glass corner with a soft reflection),
+// just always gold instead of the per-client marker colour. Used to frame
+// boxes on the master dashboard so they read as one family with the cards.
+function GoldTopStripe() {
+  return (
+    <div
+      className="inka-stripe"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 3,
+        zIndex: 6,
+        pointerEvents: 'none',
+        background: 'linear-gradient(90deg, var(--gold) 0%, #f6e8c4 48%, var(--gold) 100%)',
+        boxShadow: '0 1px 2px rgba(var(--gold-rgb),0.4)',
+      }}
+    />
+  );
+}
+function GoldRightStripe() {
+  return (
+    <div
+      className="inka-stripe-right"
+      style={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: 3,
+        zIndex: 6,
+        pointerEvents: 'none',
+        background: 'linear-gradient(180deg, var(--gold) 0%, #f6e8c4 48%, var(--gold) 100%)',
+        boxShadow: '-1px 0 2px rgba(var(--gold-rgb),0.4)',
+      }}
+    />
+  );
+}
+function GoldGemCorner({ size = 24 }: { size?: number }) {
+  return (
+    <>
+      <div
+        style={{
+          position: 'absolute',
+          top: -6,
+          right: -6,
+          width: size + 20,
+          height: size + 20,
+          background: 'radial-gradient(circle at top right, rgba(var(--gold-rgb),0.45), transparent 66%)',
+          filter: 'blur(5px)',
+          zIndex: 2,
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: size,
+          height: size,
+          clipPath: 'polygon(100% 0, 0 0, 100% 100%)',
+          background: 'linear-gradient(215deg, var(--gold) 0%, rgba(var(--gold-rgb),0.6) 52%, rgba(var(--gold-rgb),0.12) 100%)',
+          boxShadow: 'inset 2px -2px 3px rgba(var(--gold-rgb),0.5)',
+          zIndex: 3,
+          pointerEvents: 'none',
+        }}
+      />
+    </>
+  );
+}
+// Wraps a box in the same stripe+gem-corner+inset-ring frame as a client
+// card, all gold. Used throughout the master dashboard.
+function GoldFrame({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div className="inka-card" style={{ position: 'relative', borderRadius: 3, overflow: 'hidden', background: 'rgba(var(--surface-rgb),0.018)', ...style }}>
+      <GoldTopStripe />
+      <GoldRightStripe />
+      <GoldGemCorner />
+      <div style={{ position: 'relative', zIndex: 2 }}>{children}</div>
+    </div>
+  );
+}
+
 // ===================== CLIENT GRID CARD =====================
 function ClientGridCard({ client, onClick }: { client: Client; onClick: () => void }) {
   return (
@@ -1962,27 +2048,8 @@ function BottomNav({
 // bracketed corners and a big centered number, like a tabletop character
 // sheet's stat block, but in the app's own gold/dark palette.
 function StatBlock({ label, value, big = true }: { label: string; value: string | number; big?: boolean }) {
-  const cornerStyle: React.CSSProperties = {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderColor: 'rgba(var(--gold-rgb),0.55)',
-  };
   return (
-    <div
-      style={{
-        position: 'relative',
-        textAlign: 'center',
-        padding: '18px 10px 16px',
-        borderRadius: 4,
-        border: '1px solid rgba(var(--gold-rgb),0.16)',
-        background: 'rgba(var(--surface-rgb),0.018)',
-      }}
-    >
-      <div style={{ ...cornerStyle, top: 4, left: 4, borderTop: '1.5px solid', borderLeft: '1.5px solid' }} />
-      <div style={{ ...cornerStyle, top: 4, right: 4, borderTop: '1.5px solid', borderRight: '1.5px solid' }} />
-      <div style={{ ...cornerStyle, bottom: 4, left: 4, borderBottom: '1.5px solid', borderLeft: '1.5px solid' }} />
-      <div style={{ ...cornerStyle, bottom: 4, right: 4, borderBottom: '1.5px solid', borderRight: '1.5px solid' }} />
+    <GoldFrame style={{ textAlign: 'center', padding: '18px 10px 16px' }}>
       <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
       <div
         style={{
@@ -1996,7 +2063,7 @@ function StatBlock({ label, value, big = true }: { label: string; value: string 
       >
         {value}
       </div>
-    </div>
+    </GoldFrame>
   );
 }
 
@@ -2023,12 +2090,6 @@ function MasterDashboardScreen({
   const upcoming = upcomingSessions(clients, prefs.upcomingWindowDays);
   const { urgentImportant, importantNotUrgent } = urgencyCounts(clients);
 
-  const statBoxStyle: React.CSSProperties = {
-    background: 'rgba(var(--surface-rgb),0.018)',
-    border: '1px solid rgba(var(--gold-rgb),0.1)',
-    borderRadius: 3,
-    padding: '14px 16px',
-  };
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
     color: COLORS.textGhost,
@@ -2071,7 +2132,7 @@ function MasterDashboardScreen({
 
       <div style={{ padding: '4px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Master's own name */}
-        <div style={statBoxStyle}>
+        <GoldFrame style={{ padding: '14px 16px' }}>
           <div style={statLabelStyle}>Имя мастера</div>
           <input
             value={name}
@@ -2089,18 +2150,18 @@ function MasterDashboardScreen({
               color: COLORS.textPrimary,
             }}
           />
-        </div>
+        </GoldFrame>
 
         {/* Quick stats — a 2x2 "character sheet" stat grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
           <StatBlock label="Клиентов" value={clients.length} />
           <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} big={false} />
-          <StatBlock label={`${URGENCY[0].emoji} ${URGENCY[0].short}`} value={urgentImportant} />
+          <StatBlock label="‼️ Срочно" value={urgentImportant} />
           <StatBlock label={`${URGENCY[2].emoji} ${URGENCY[2].short}`} value={importantNotUrgent} />
         </div>
 
         {/* Upcoming sessions, with a master-configurable lookahead window */}
-        <div style={statBoxStyle}>
+        <GoldFrame style={{ padding: '14px 16px' }}>
           <div style={statLabelStyle}>Предстоящие сессии</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: 8 }}>
             {UPCOMING_WINDOW_OPTIONS.map((d) => (
@@ -2145,10 +2206,10 @@ function MasterDashboardScreen({
               ))}
             </div>
           )}
-        </div>
+        </GoldFrame>
 
         {/* Contacts & requisites (edited in Настройки → Карточка мастера) */}
-        <div style={statBoxStyle}>
+        <GoldFrame style={{ padding: '14px 16px' }}>
           <div style={statLabelStyle}>Контакты и оплата</div>
           {masterInfo.links.length === 0 && !masterInfo.bankDetails ? (
             <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
@@ -2169,7 +2230,7 @@ function MasterDashboardScreen({
               )}
             </>
           )}
-        </div>
+        </GoldFrame>
       </div>
     </div>
   );
