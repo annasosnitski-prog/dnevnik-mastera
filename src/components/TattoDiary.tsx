@@ -3296,7 +3296,7 @@ function DetailScreen({
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
         <div onClick={() => onTab('info')} style={tabStyle('info')}>
           Инфо
         </div>
@@ -3306,15 +3306,27 @@ function DetailScreen({
         <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
           Доп.
         </div>
-        {/* Add session — pinned in the tab bar (never scrolls), shown only on
-            the Сессии tab. Tap runs the RPS game first, then opens the sheet. */}
-        {activeTab === 'sessions' && (
+      </div>
+
+      {/* "История работы" sub-header — pinned below the tab bar (never
+          scrolls), shown only on the Сессии tab. The add-session "+" sits on
+          the left; tap runs the RPS game first, then opens the sheet. */}
+      {activeTab === 'sessions' && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 24px 0',
+            background: COLORS.bg,
+            flexShrink: 0,
+          }}
+        >
           <div
             onClick={onAddSession}
             role="button"
             aria-label="Добавить сессию"
             style={{
-              marginLeft: 'auto',
               width: 30,
               height: 30,
               borderRadius: '50%',
@@ -3331,8 +3343,19 @@ function DetailScreen({
               <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" />
             </svg>
           </div>
-        )}
-      </div>
+          <div
+            style={{
+              fontFamily: "'Kelly Slab', 'Playfair Display', serif",
+              fontSize: fs(11),
+              color: COLORS.textGhost,
+              letterSpacing: '3.5px',
+              textTransform: 'uppercase',
+            }}
+          >
+            История работы
+          </div>
+        </div>
+      )}
 
       {/* Tab content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '22px 24px 50px', background: COLORS.bg }}>
@@ -4467,19 +4490,6 @@ function SessionsTab({
 }) {
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-      <div
-        style={{
-          fontFamily: "'Kelly Slab', 'Playfair Display', serif",
-          fontSize: fs(11),
-          color: COLORS.textGhost,
-          letterSpacing: '3.5px',
-          textTransform: 'uppercase',
-          marginBottom: 18,
-        }}
-      >
-        История работы
-      </div>
-
       {client.sessions.length === 0 && (
         <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
       )}
