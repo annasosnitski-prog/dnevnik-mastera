@@ -2165,11 +2165,11 @@ function MasterDashboardScreen({
         {/* Quick stats — a 2x2 "character sheet" stat grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
           <StatBlock label="Клиентов" value={clients.length} />
-          <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} big={false} />
+          <StatBlock label={`${DONE_EMOJI} Выполнено заметок`} value={closedCount} />
           <StatBlock label="‼️ Срочно" value={urgentImportant} />
           <StatBlock label={`${URGENCY[2].emoji} ${URGENCY[2].short}`} value={importantNotUrgent} />
           <div style={{ gridColumn: '1 / -1' }}>
-            <StatBlock label={`${DONE_EMOJI} Выполнено заметок`} value={closedCount} />
+            <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
           </div>
         </div>
 
