@@ -49,6 +49,7 @@ const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч', '7 ч', '8 ч'];
 // the first STYLES_PINNED_COUNT are shown by default — a master typically
 // works in 3-4 main directions — the rest sit behind "Ещё стили" in the picker.
 const STYLES = [
+  'Графика',
   'Файнлайн',
   'Минимализм',
   'Микрореализм',
@@ -67,6 +68,7 @@ const STYLES = [
   'Скетч',
   'Лайнворк',
   'Флористика',
+  'Акварель',
   'Уок-ин',
   'Другой',
 ];
@@ -348,32 +350,49 @@ function StarDivider({ marginTop = 11 }: { marginTop?: number }) {
   );
 }
 
-// A single filled gold star (same silhouette as StarDivider's), reused by the
-// celebration burst below.
-function StarIcon({ size = 14 }: { size?: number }) {
+// A single filled star (same silhouette as StarDivider's), reused by the
+// celebration bursts below. Defaults to the theme gold; callers can override
+// with a card marker colour for variety.
+function StarIcon({ size = 14, color = 'var(--gold)', outline }: { size?: number; color?: string; outline?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 14 14" fill="none" style={{ display: 'block' }}>
       <path
         d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z"
-        fill="var(--gold)"
+        fill={color}
+        stroke={outline}
+        strokeWidth={outline ? 0.6 : 0}
+        strokeLinejoin="round"
       />
     </svg>
   );
 }
 
-// Reward micro-interaction: fired when a new client card is created. One star
-// pops in, then "multiplies" into a scattering shower of smaller stars that
-// fly outward/downward and fade — a little celebratory "звездопад".
-function CelebrationBurst({ trigger }: { trigger: number }) {
+// Client counts that get the bigger, bouncing milestone show instead of the
+// quick everyday shower — a little escalating "achievement" ladder.
+const MILESTONE_COUNTS = [1, 2, 5, 8, 13];
+
+// Reward micro-interaction: fired when a new client card is created.
+// Everyday creations get a quick CSS-driven star shower; milestone counts
+// (1st/2nd/5th/8th/13th client) get a bigger, slower, bouncing show — see
+// runMilestoneShow below.
+function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCount: number }) {
   const [stars, setStars] = useState<{ id: number; dx: number; dy: number; rot: number; delay: number; size: number }[]>([]);
   // Tracks the last trigger value we've already celebrated for. Initialized
   // from the incoming prop (not a plain boolean) so it stays correct even
   // under StrictMode's dev-only double-invoke of this effect on mount.
   const lastHandled = useRef(trigger);
+  const milestoneContainerRef = useRef<HTMLDivElement>(null);
+  const milestoneCleanupRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (lastHandled.current === trigger) return; // nothing new to celebrate
     lastHandled.current = trigger;
+
+    if (MILESTONE_COUNTS.includes(clientCount)) {
+      milestoneCleanupRef.current();
+      milestoneCleanupRef.current = runMilestoneShow(milestoneContainerRef.current, clientCount === 13 ? 'blackred' : 'colorful');
+      return;
+    }
 
     // Distances are in vw/vh (not px) so the shower scales to the actual
     // screen and reads as filling it, on any device.
@@ -393,36 +412,171 @@ function CelebrationBurst({ trigger }: { trigger: number }) {
     setStars(generated);
     const t = setTimeout(() => setStars([]), 3500);
     return () => clearTimeout(t);
-  }, [trigger]);
+  }, [trigger, clientCount]);
 
-  if (!stars.length) return null;
+  // Stop any in-flight rAF loop if the component itself unmounts.
+  useEffect(() => () => milestoneCleanupRef.current(), []);
 
   return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 90, overflow: 'hidden' }}>
-      <div key={`pop-${trigger}`} className="inka-celebrate-pop" style={{ position: 'absolute', top: '22%', left: '50%' }}>
-        <StarIcon size={30} />
-      </div>
-      {stars.map((s) => (
-        <div
-          key={`${trigger}-${s.id}`}
-          className="inka-celebrate-star"
-          style={
-            {
-              position: 'absolute',
-              top: '22%',
-              left: '50%',
-              animationDelay: `${s.delay}ms`,
-              '--dx': `${s.dx}vw`,
-              '--dy': `${s.dy}vh`,
-              '--rot': `${s.rot}deg`,
-            } as React.CSSProperties
-          }
-        >
-          <StarIcon size={s.size} />
+    <>
+      {stars.length > 0 && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 90, overflow: 'hidden' }}>
+          <div key={`pop-${trigger}`} className="inka-celebrate-pop" style={{ position: 'absolute', top: '22%', left: '50%' }}>
+            <StarIcon size={30} />
+          </div>
+          {stars.map((s) => (
+            <div
+              key={`${trigger}-${s.id}`}
+              className="inka-celebrate-star"
+              style={
+                {
+                  position: 'absolute',
+                  top: '22%',
+                  left: '50%',
+                  animationDelay: `${s.delay}ms`,
+                  '--dx': `${s.dx}vw`,
+                  '--dy': `${s.dy}vh`,
+                  '--rot': `${s.rot}deg`,
+                } as React.CSSProperties
+              }
+            >
+              <StarIcon size={s.size} />
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+      <div ref={milestoneContainerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 91, overflow: 'hidden' }} />
+    </>
   );
+}
+
+// Milestone celebration (1st/2nd/5th/8th/13th client): stars of very varied
+// size and speed launch from the same point as the everyday shower, bounce
+// off the screen edges losing a bit of energy each time, and fade out over
+// several seconds — slow enough to actually watch. Runs as a plain
+// requestAnimationFrame loop mutating DOM nodes directly (not React state),
+// since driving 20+ elements at 60fps through re-renders would be wasteful.
+// Returns a cleanup function that cancels the loop and removes the nodes.
+function runMilestoneShow(container: HTMLDivElement | null, palette: 'colorful' | 'blackred'): () => void {
+  if (!container) return () => {};
+  const rect = container.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+  const originX = w / 2;
+  const originY = h * 0.22;
+
+  const colors = palette === 'blackred' ? ['#0B0B0B', '#1A1414', '#8A1620', '#C0242F'] : ['var(--gold)', ...MARKER_COLORS];
+  const isDark = (c: string) => c === '#0B0B0B' || c === '#1A1414';
+
+  type Star = {
+    el: HTMLDivElement;
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    size: number;
+    rot: number;
+    vrot: number;
+    born: number;
+    life: number;
+  };
+
+  const n = 22;
+  const setupNow = performance.now();
+  const stars: Star[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 60 + Math.random() * 220; // px/s — "разные скорости"
+    let size = 10 + Math.random() * 20;
+    if (Math.random() < 0.28) size += 30 + Math.random() * 22; // some significantly bigger
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const outline = isDark(color) ? '#C0242F' : undefined;
+
+    const el = document.createElement('div');
+    el.style.position = 'absolute';
+    el.style.left = '0';
+    el.style.top = '0';
+    el.style.willChange = 'transform, opacity';
+    el.innerHTML = starSvgMarkup(size, color, outline);
+    container.appendChild(el);
+
+    stars.push({
+      el,
+      x: originX,
+      y: originY,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size,
+      rot: Math.random() * 360,
+      vrot: (Math.random() - 0.5) * 90,
+      born: setupNow + Math.random() * 500,
+      life: 4500 + Math.random() * 2200, // ~4.5–6.7s — slow enough to watch
+    });
+  }
+
+  const damping = 0.82; // energy lost on each bounce, so they gradually settle
+  let raf = 0;
+  let lastT = setupNow;
+
+  const step = (t: number) => {
+    const dt = Math.min((t - lastT) / 1000, 0.05);
+    lastT = t;
+    let anyAlive = false;
+
+    for (const s of stars) {
+      if (t < s.born) {
+        anyAlive = true;
+        continue;
+      }
+      const age = t - s.born;
+      if (age > s.life) continue;
+      anyAlive = true;
+
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.rot += s.vrot * dt;
+
+      const r = s.size / 2;
+      if (s.x - r < 0) {
+        s.x = r;
+        s.vx = Math.abs(s.vx) * damping;
+      } else if (s.x + r > w) {
+        s.x = w - r;
+        s.vx = -Math.abs(s.vx) * damping;
+      }
+      if (s.y - r < 0) {
+        s.y = r;
+        s.vy = Math.abs(s.vy) * damping;
+      } else if (s.y + r > h) {
+        s.y = h - r;
+        s.vy = -Math.abs(s.vy) * damping;
+      }
+
+      const fadeStart = s.life * 0.6;
+      const opacity = age < fadeStart ? 1 : Math.max(0, 1 - (age - fadeStart) / (s.life - fadeStart));
+
+      s.el.style.transform = `translate(${s.x - r}px, ${s.y - r}px) rotate(${s.rot}deg)`;
+      s.el.style.opacity = String(opacity);
+    }
+
+    raf = anyAlive ? requestAnimationFrame(step) : 0;
+    if (!anyAlive) cleanup();
+  };
+
+  raf = requestAnimationFrame(step);
+
+  function cleanup() {
+    if (raf) cancelAnimationFrame(raf);
+    stars.forEach((s) => s.el.remove());
+  }
+
+  return cleanup;
+}
+
+function starSvgMarkup(size: number, color: string, outline?: string): string {
+  const strokeAttrs = outline ? ` stroke="${outline}" stroke-width="0.6" stroke-linejoin="round"` : '';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 14 14" fill="none" style="display:block"><path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill="${color}"${strokeAttrs} /></svg>`;
 }
 
 function SheetStarDivider() {
@@ -566,8 +720,11 @@ export default function TattoDiary() {
   const [editSession, setEditSession] = useState<Session | null>(null);
 
   // Bumped whenever a new client is created, to (re)trigger the star-shower
-  // celebration overlay — see <CelebrationBurst>.
+  // celebration overlay — see <CelebrationBurst>. celebrationCount captures
+  // which client number this is (1st, 2nd, ...), used to pick the milestone
+  // (1/2/5/8/13) show.
   const [celebrationKey, setCelebrationKey] = useState(0);
+  const [celebrationCount, setCelebrationCount] = useState(0);
 
   useEffect(() => {
     initDB()
@@ -742,6 +899,7 @@ export default function TattoDiary() {
     };
     saveClient(client);
     setShowNewClientForm(false);
+    setCelebrationCount(clients.length + 1);
     setCelebrationKey((k) => k + 1);
   };
 
@@ -1151,7 +1309,7 @@ export default function TattoDiary() {
       />
 
       {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
-      <CelebrationBurst trigger={celebrationKey} />
+      <CelebrationBurst trigger={celebrationKey} clientCount={celebrationCount} />
     </div>
   );
 }
