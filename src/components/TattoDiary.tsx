@@ -448,6 +448,11 @@ const MILESTONE_COUNTS = [1, 2, 5, 8, 13];
 // runMilestoneShow below.
 function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCount: number }) {
   const [stars, setStars] = useState<{ id: number; dx: number; dy: number; rot: number; delay: number; size: number }[]>([]);
+  // The big client-count number that grows in over the fireworks and fades
+  // out with them; numberMs is however long *this* celebration lasts (differs
+  // between the everyday shower and the longer milestone show) so the two
+  // stay in sync.
+  const [numberMs, setNumberMs] = useState<number | null>(null);
   // Tracks the last trigger value we've already celebrated for. Initialized
   // from the incoming prop (not a plain boolean) so it stays correct even
   // under StrictMode's dev-only double-invoke of this effect on mount.
@@ -462,7 +467,10 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
     if (MILESTONE_COUNTS.includes(clientCount)) {
       milestoneCleanupRef.current();
       milestoneCleanupRef.current = runMilestoneShow(milestoneContainerRef.current, clientCount === 13 ? 'blackred' : 'colorful');
-      return;
+      const milestoneMs = 7200; // max stagger (~500ms) + max star life (~6700ms)
+      setNumberMs(milestoneMs);
+      const nt = setTimeout(() => setNumberMs(null), milestoneMs);
+      return () => clearTimeout(nt);
     }
 
     // Distances are in vw/vh (not px) so the shower scales to the actual
@@ -481,7 +489,12 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
       };
     });
     setStars(generated);
-    const t = setTimeout(() => setStars([]), 4200);
+    const normalMs = 4200;
+    setNumberMs(normalMs);
+    const t = setTimeout(() => {
+      setStars([]);
+      setNumberMs(null);
+    }, normalMs);
     return () => clearTimeout(t);
   }, [trigger, clientCount]);
 
@@ -517,6 +530,30 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
         </div>
       )}
       <div ref={milestoneContainerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 91, overflow: 'hidden' }} />
+      {numberMs !== null && (
+        <div
+          key={`count-${trigger}`}
+          className="inka-celebrate-number"
+          style={
+            {
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              zIndex: 92,
+              pointerEvents: 'none',
+              fontFamily: DROP_CAP_FONT,
+              fontWeight: 600,
+              color: 'var(--gold)',
+              fontSize: '33vh',
+              lineHeight: 1,
+              textShadow: '0 4px 24px rgba(0,0,0,0.6)',
+              animationDuration: `${numberMs}ms`,
+            } as React.CSSProperties
+          }
+        >
+          {clientCount}
+        </div>
+      )}
     </>
   );
 }
