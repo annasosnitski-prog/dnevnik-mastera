@@ -172,6 +172,13 @@ function buildChatLink(platform: ChatPlatform, raw: string): string {
   }
 }
 
+type ClientType = 'model' | 'client' | 'other';
+const CLIENT_TYPES: { value: ClientType; label: string }[] = [
+  { value: 'client', label: 'Клиент' },
+  { value: 'model', label: 'Модель' },
+  { value: 'other', label: 'Другое' },
+];
+
 interface Client {
   id: string;
   name: string; // first name, e.g. "Александра"
@@ -179,6 +186,7 @@ interface Client {
   styles: string[]; // one or more tattoo styles
   style: string; // joined styles, kept for search / back-compat
   color: string; // marker colour (master-chosen at creation)
+  clientType: ClientType; // model / client / other — filterable on the list screen
   note: string; // notes about the client ("Заметки о клиенте")
   masterNote: string; // master's own notes, written inline from the info tab
   phone: string; // contact phone number
@@ -295,6 +303,7 @@ function normalizeClient(raw: any, index: number): Client {
     styles,
     style: styles.join(' · '),
     color: raw?.color ?? ACCENT_COLORS[index % ACCENT_COLORS.length],
+    clientType: CLIENT_TYPES.some((t) => t.value === raw?.clientType) ? raw.clientType : 'client',
     note: raw?.note ?? raw?.chatHistory ?? '',
     masterNote: raw?.masterNote ?? '',
     phone: raw?.phone ?? '',
@@ -684,6 +693,42 @@ function readInitialPrefs(): Prefs {
   return { ...DEFAULT_PREFS };
 }
 
+// ===================== MASTER'S OWN CARD =====================
+// A single record (not per-client) where the master keeps their own contacts,
+// payment details and a personal legend for what each card marker colour
+// means — kept flexible (free label + value pairs) rather than a fixed
+// schema, since masters' needs here vary a lot.
+interface MasterLink {
+  id: string;
+  label: string; // e.g. "Instagram", "СБП Тинькофф", "Карта Сбербанк"
+  value: string; // free text — link, phone, card number...
+}
+interface MasterInfo {
+  links: MasterLink[];
+  bankDetails: string;
+  colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
+}
+const DEFAULT_MASTER_INFO: MasterInfo = { links: [], bankDetails: '', colorLabels: {} };
+
+function readInitialMasterInfo(): MasterInfo {
+  try {
+    const raw = localStorage.getItem('inka-master-info');
+    if (raw) {
+      const p = JSON.parse(raw);
+      return {
+        links: Array.isArray(p.links)
+          ? p.links.map((l: any, i: number) => ({ id: String(l?.id ?? i), label: l?.label ?? '', value: l?.value ?? '' }))
+          : [],
+        bankDetails: typeof p.bankDetails === 'string' ? p.bankDetails : '',
+        colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { ...DEFAULT_MASTER_INFO };
+}
+
 // ===================== MAIN APP =====================
 export default function TattoDiary() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -708,10 +753,23 @@ export default function TattoDiary() {
     }
   }, [prefs]);
 
+  // The master's own contacts/payment/colour-legend card (single record).
+  const [masterInfo, setMasterInfo] = useState<MasterInfo>(readInitialMasterInfo);
+  useEffect(() => {
+    try {
+      localStorage.setItem('inka-master-info', JSON.stringify(masterInfo));
+    } catch {
+      /* ignore */
+    }
+  }, [masterInfo]);
+
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('info');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [colorFilter, setColorFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | ClientType>('all');
 
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [showNewSessionForm, setShowNewSessionForm] = useState(false);
@@ -789,9 +847,12 @@ export default function TattoDiary() {
 
   const filteredClients = clients.filter((c) => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return true;
-    return `${c.name} ${c.surname} ${c.style}`.toLowerCase().includes(q);
+    if (q && !`${c.name} ${c.surname} ${c.style}`.toLowerCase().includes(q)) return false;
+    if (colorFilter !== 'all' && c.color.toLowerCase() !== colorFilter.toLowerCase()) return false;
+    if (typeFilter !== 'all' && (c.clientType || 'client') !== typeFilter) return false;
+    return true;
   });
+  const filtersActive = colorFilter !== 'all' || typeFilter !== 'all';
 
   const openClient = (client: Client) => {
     setSelectedId(client.id);
@@ -814,7 +875,7 @@ export default function TattoDiary() {
     setEditSession(null);
   };
 
-  const handleUpdateClient = (data: { name: string; surname: string; styles: string[]; color: string; note: string }) => {
+  const handleUpdateClient = (data: { name: string; surname: string; styles: string[]; color: string; clientType: ClientType; note: string }) => {
     if (!selectedClient) return;
     saveClient({
       ...selectedClient,
@@ -823,6 +884,7 @@ export default function TattoDiary() {
       styles: data.styles,
       style: data.styles.join(' · '),
       color: data.color,
+      clientType: data.clientType,
       note: data.note.trim(),
     });
     setShowEditClientForm(false);
@@ -873,6 +935,7 @@ export default function TattoDiary() {
     phone: string;
     styles: string[];
     color: string;
+    clientType: ClientType;
     skinType: string;
     skinTone: string;
     skinNotes: string;
@@ -885,6 +948,7 @@ export default function TattoDiary() {
       styles: data.styles,
       style: data.styles.join(' · '),
       color: data.color || ACCENT_COLORS[clients.length % ACCENT_COLORS.length],
+      clientType: data.clientType,
       note: data.note.trim(),
       masterNote: '',
       phone: data.phone.trim(),
@@ -1066,6 +1130,90 @@ export default function TattoDiary() {
           </div>
         </div>
 
+        {/* Filters (цвет-маркер + тип клиента) — collapsed by default */}
+        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 10 }}>
+          <div
+            onClick={() => setFiltersOpen((v) => !v)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              fontSize: fs(12),
+              color: filtersActive ? COLORS.gold : COLORS.textFaint,
+              letterSpacing: '1.5px',
+              textTransform: 'uppercase',
+            }}
+          >
+            Фильтры{filtersActive ? ' •' : ''} {filtersOpen ? '▴' : '▾'}
+          </div>
+          {filtersOpen && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                <div
+                  onClick={() => setColorFilter('all')}
+                  style={{
+                    fontSize: fs(11),
+                    padding: '4px 9px',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    border: colorFilter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                    background: colorFilter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                    color: colorFilter === 'all' ? COLORS.gold : COLORS.textFaint,
+                    letterSpacing: '0.4px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Все цвета
+                </div>
+                {MARKER_COLORS.map((c) => {
+                  const sel = colorFilter.toLowerCase() === c.toLowerCase();
+                  return (
+                    <div
+                      key={c}
+                      onClick={() => setColorFilter(sel ? 'all' : c)}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: c,
+                        cursor: 'pointer',
+                        border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
+                        boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {(['all', ...CLIENT_TYPES.map((t) => t.value)] as ('all' | ClientType)[]).map((v) => {
+                  const label = v === 'all' ? 'Все' : CLIENT_TYPES.find((t) => t.value === v)?.label;
+                  const active = typeFilter === v;
+                  return (
+                    <div
+                      key={v}
+                      onClick={() => setTypeFilter(v)}
+                      style={{
+                        fontSize: fs(11),
+                        padding: '4px 9px',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                        background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                        color: active ? COLORS.gold : COLORS.textFaint,
+                        letterSpacing: '0.4px',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {label}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Error banner */}
         {dbError && (
           <div
@@ -1233,6 +1381,8 @@ export default function TattoDiary() {
           onChange={setPrefs}
           clients={clients}
           onImport={replaceAllClients}
+          masterInfo={masterInfo}
+          onChangeMasterInfo={setMasterInfo}
         />
       </div>
 
@@ -1542,8 +1692,24 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           </div>
         </div>
 
-        {/* Style tag */}
-        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
+        {/* Style tag (+ Модель/Другое badge, when not a plain client) */}
+        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {client.clientType && client.clientType !== 'client' && (
+            <span
+              style={{
+                fontSize: fs(10),
+                color: COLORS.textGhost,
+                border: '0.5px solid rgba(var(--gold-rgb),0.4)',
+                padding: '2px 7px',
+                borderRadius: 1,
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {CLIENT_TYPES.find((t) => t.value === client.clientType)?.label}
+            </span>
+          )}
           {client.style ? (
             <span
               style={{
@@ -1700,6 +1866,8 @@ function SettingsScreen({
   onChange,
   clients,
   onImport,
+  masterInfo,
+  onChangeMasterInfo,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -1707,9 +1875,22 @@ function SettingsScreen({
   onChange: (p: Prefs) => void;
   clients: Client[];
   onImport: (clients: Client[]) => void;
+  masterInfo: MasterInfo;
+  onChangeMasterInfo: (m: MasterInfo) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
+
+  const addMasterLink = (label: string, value: string) => {
+    const link: MasterLink = { id: Date.now().toString(), label: label.trim(), value: value.trim() };
+    onChangeMasterInfo({ ...masterInfo, links: [...masterInfo.links, link] });
+  };
+  const removeMasterLink = (id: string) => {
+    onChangeMasterInfo({ ...masterInfo, links: masterInfo.links.filter((l) => l.id !== id) });
+  };
+  const setColorLabel = (color: string, label: string) => {
+    onChangeMasterInfo({ ...masterInfo, colorLabels: { ...masterInfo.colorLabels, [color]: label } });
+  };
 
   const handleExport = () => {
     const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
@@ -1933,6 +2114,59 @@ function SettingsScreen({
           {importError && (
             <div style={{ marginTop: 10, fontSize: fs(12), color: '#e0665a', fontStyle: 'italic' }}>{importError}</div>
           )}
+        </div>
+
+        {/* Master's own card: flexible contact/payment rows + free-text bank
+            details, kept in one place instead of scattered notes. */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Карточка мастера · Контакты и оплата</div>
+          {masterInfo.links.map((link) => (
+            <div
+              key={link.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 0',
+                borderBottom: '1px solid rgba(var(--gold-rgb),0.08)',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px' }}>{link.label}</div>
+                <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{link.value}</div>
+              </div>
+              <span onClick={() => removeMasterLink(link.id)} style={{ cursor: 'pointer', color: COLORS.textFaint, fontSize: fs(18), flexShrink: 0, lineHeight: 1 }}>
+                ×
+              </span>
+            </div>
+          ))}
+          <AddMasterLinkForm onAdd={addMasterLink} />
+        </div>
+
+        <div style={rowStyle}>
+          <div style={labelStyle}>Банковские реквизиты</div>
+          <textarea
+            value={masterInfo.bankDetails}
+            onChange={(e) => onChangeMasterInfo({ ...masterInfo, bankDetails: e.target.value })}
+            placeholder="Счёт, БИК, ИНН..."
+            style={{ ...INPUT_STYLE, resize: 'none', height: 90 }}
+          />
+        </div>
+
+        <div style={rowStyle}>
+          <div style={labelStyle}>Обозначения цветов</div>
+          {MARKER_COLORS.map((c) => (
+            <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: c, flexShrink: 0 }} />
+              <input
+                value={masterInfo.colorLabels[c] || ''}
+                onChange={(e) => setColorLabel(c, e.target.value)}
+                placeholder="Например: Постоянные клиенты"
+                style={{ ...INPUT_STYLE, flex: 1 }}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -2610,6 +2844,35 @@ function MarkerColorPalette({ value, onPick }: { value: string; onPick: (hex: st
   );
 }
 
+// Three-way segmented toggle for Client.clientType (Клиент / Модель / Другое).
+function ClientTypeToggle({ value, onChange }: { value: ClientType; onChange: (t: ClientType) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 8 }}>
+      {CLIENT_TYPES.map((t) => (
+        <div
+          key={t.value}
+          onClick={() => onChange(t.value)}
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '10px 0',
+            borderRadius: 2,
+            cursor: 'pointer',
+            fontSize: fs(13),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            border: value === t.value ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+            background: value === t.value ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+            color: value === t.value ? COLORS.gold : COLORS.textFaint,
+          }}
+        >
+          {t.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Multi-select style picker. The full palette (20 styles) is too many chips to
 // show at once — a master typically works in only 3-4 main directions — so
 // only the first STYLES_PINNED_COUNT are shown by default, plus any already
@@ -3033,6 +3296,106 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             if (!raw.trim()) return;
             onAdd(platform, raw);
             setRaw('');
+            setOpen(false);
+          }}
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '9px',
+            borderRadius: 2,
+            border: '1px solid rgba(var(--gold-rgb),0.35)',
+            background: 'rgba(var(--gold-rgb),0.05)',
+            color: COLORS.gold,
+            fontSize: fs(13),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Добавить
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Free-form add-a-row form for the master's own card (Настройки → Карточка
+// мастера): unlike the client's ChatLink form, there's no fixed platform
+// enum here — a label ("Instagram", "СБП Тинькофф"...) plus a free value.
+function AddMasterLinkForm({ onAdd }: { onAdd: (label: string, value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState('');
+  const [value, setValue] = useState('');
+
+  if (!open) {
+    return (
+      <div
+        className="inka-dashed"
+        onClick={() => setOpen(true)}
+        style={{
+          marginTop: 4,
+          border: '1px dashed rgba(var(--gold-rgb),0.18)',
+          borderRadius: 2,
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <span style={{ fontSize: fs(13), color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+          Добавить
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 4,
+        border: '1px solid rgba(var(--gold-rgb),0.18)',
+        borderRadius: 2,
+        padding: 13,
+        background: 'rgba(var(--surface-rgb),0.018)',
+      }}
+    >
+      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Название (Instagram, СБП...)" style={{ ...INPUT_STYLE, marginBottom: 8 }} />
+      <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="Ссылка, номер, реквизиты..." style={{ ...INPUT_STYLE, marginBottom: 8 }} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div
+          onClick={() => {
+            setOpen(false);
+            setLabel('');
+            setValue('');
+          }}
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '9px',
+            borderRadius: 2,
+            border: '1px solid rgba(var(--gold-rgb),0.15)',
+            color: COLORS.textFaint,
+            fontSize: fs(13),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Отмена
+        </div>
+        <div
+          className="inka-submit"
+          onClick={() => {
+            if (!label.trim() || !value.trim()) return;
+            onAdd(label, value);
+            setLabel('');
+            setValue('');
             setOpen(false);
           }}
           style={{
@@ -3771,6 +4134,7 @@ function NewClientSheet({
     phone: string;
     styles: string[];
     color: string;
+    clientType: ClientType;
     skinType: string;
     skinTone: string;
     skinNotes: string;
@@ -3782,6 +4146,7 @@ function NewClientSheet({
   const [phone, setPhone] = useState('');
   const [styles, setStyles] = useState<string[]>([]);
   const [color, setColor] = useState(MARKER_COLORS[0]);
+  const [clientType, setClientType] = useState<ClientType>('client');
   const [skinType, setSkinType] = useState('');
   const [skinTone, setSkinTone] = useState('');
   const [skinNotes, setSkinNotes] = useState('');
@@ -3795,6 +4160,7 @@ function NewClientSheet({
       setPhone('');
       setStyles([]);
       setColor(MARKER_COLORS[0]);
+      setClientType('client');
       setSkinType('');
       setSkinTone('');
       setSkinNotes('');
@@ -3843,6 +4209,10 @@ function NewClientSheet({
           <MarkerColorPalette value={color} onPick={setColor} />
         </div>
         <div style={{ marginBottom: 18 }}>
+          <FieldLabel>Тип</FieldLabel>
+          <ClientTypeToggle value={clientType} onChange={setClientType} />
+        </div>
+        <div style={{ marginBottom: 18 }}>
           <FieldLabel>Стиль</FieldLabel>
           <StyleChips selected={styles} onToggle={toggleStyle} />
         </div>
@@ -3882,7 +4252,7 @@ function NewClientSheet({
         </div>
         <div
           className="inka-submit"
-          onClick={() => canSubmit && onCreate({ name, surname, phone, styles, color, skinType, skinTone, skinNotes, note })}
+          onClick={() => canSubmit && onCreate({ name, surname, phone, styles, color, clientType, skinType, skinTone, skinNotes, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
@@ -3904,12 +4274,13 @@ function EditClientSheet({
   open: boolean;
   client: Client | null;
   onClose: () => void;
-  onSave: (data: { name: string; surname: string; styles: string[]; color: string; note: string }) => void;
+  onSave: (data: { name: string; surname: string; styles: string[]; color: string; clientType: ClientType; note: string }) => void;
 }) {
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
   const [styles, setStyles] = useState<string[]>([]);
   const [color, setColor] = useState(MARKER_COLORS[0]);
+  const [clientType, setClientType] = useState<ClientType>('client');
   const [note, setNote] = useState('');
 
   // Populate fields from the client each time the sheet opens.
@@ -3919,6 +4290,7 @@ function EditClientSheet({
       setSurname(client.surname);
       setStyles(clientStyles(client));
       setColor(client.color || MARKER_COLORS[0]);
+      setClientType(client.clientType || 'client');
       setNote(client.note);
     }
   }, [open, client?.id]);
@@ -3951,6 +4323,10 @@ function EditClientSheet({
           <MarkerColorPalette value={color} onPick={setColor} />
         </div>
         <div style={{ marginBottom: 18 }}>
+          <FieldLabel>Тип</FieldLabel>
+          <ClientTypeToggle value={clientType} onChange={setClientType} />
+        </div>
+        <div style={{ marginBottom: 18 }}>
           <FieldLabel>Стиль</FieldLabel>
           <StyleChips selected={styles} onToggle={toggleStyle} />
         </div>
@@ -3966,7 +4342,7 @@ function EditClientSheet({
         </div>
         <div
           className="inka-submit"
-          onClick={() => canSubmit && onSave({ name, surname, styles, color, note })}
+          onClick={() => canSubmit && onSave({ name, surname, styles, color, clientType, note })}
           style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
