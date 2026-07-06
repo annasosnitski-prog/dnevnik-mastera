@@ -1361,7 +1361,8 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           <div
             style={{
               fontSize: fs(12),
-              color: 'var(--text-strong)',
+              color: COLORS.textSecondary,
+              fontStyle: 'italic',
               marginTop: 2,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
