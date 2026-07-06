@@ -1468,7 +1468,7 @@ export default function TattoDiary() {
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
           <div
-            onClick={() => setShowNewClientForm(true)}
+            onClick={() => runGated(clients.length === 0, () => setShowNewClientForm(true))}
             role="button"
             aria-label="Добавить клиента"
             style={{
@@ -1601,7 +1601,7 @@ export default function TattoDiary() {
             onSave={saveClient}
             onEditClient={() => setShowEditClientForm(true)}
             onDeleteClient={() => deleteClient(selectedClient.id)}
-            onAddSession={() => { setEditSession(null); setShowNewSessionForm(true); }}
+            onAddSession={() => runGated(false, () => { setEditSession(null); setShowNewSessionForm(true); })}
             onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
             onDeleteSession={deleteSession}
             onUpdateSessionPhotos={updateSessionPhotos}
@@ -1642,11 +1642,10 @@ export default function TattoDiary() {
       />
 
       {/* ═══════════ NEW CLIENT SHEET ═══════════ */}
-      <NewClientSheet
-        open={showNewClientForm}
-        onClose={closeNewClient}
-        onCreate={(data) => runGated(clients.length === 0, () => handleCreateClient(data))}
-      />
+      {/* The game (mandatory for the first client, random after) already ran
+          when "+" was tapped — see runGated above — so submitting here just
+          creates the client outright. */}
+      <NewClientSheet open={showNewClientForm} onClose={closeNewClient} onCreate={handleCreateClient} />
 
       {/* ═══════════ EDIT CLIENT SHEET ═══════════ */}
       <EditClientSheet
@@ -1657,12 +1656,14 @@ export default function TattoDiary() {
       />
 
       {/* ═══════════ NEW / EDIT SESSION SHEET ═══════════ */}
+      {/* The game for a new session already ran when "Добавить сессию" was
+          tapped — see onAddSession above — so submitting here just saves it. */}
       <NewSessionSheet
         open={showNewSessionForm}
         clientName={selectedClient?.name || ''}
         initial={editSession}
         onClose={closeNewSession}
-        onAdd={(data) => (editSession ? handleAddSession(data) : runGated(false, () => handleAddSession(data)))}
+        onAdd={handleAddSession}
       />
 
       {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
