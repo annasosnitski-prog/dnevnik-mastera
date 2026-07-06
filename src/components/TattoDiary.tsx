@@ -440,12 +440,12 @@ function StarIcon({ size = 14, color = 'var(--gold)', outline }: { size?: number
 
 // Client counts that get the bigger, bouncing milestone show instead of the
 // quick everyday shower — a little escalating "achievement" ladder.
-const MILESTONE_COUNTS = [1, 2, 5, 8, 13];
+const MILESTONE_COUNTS = [1, 2, 5, 8, 13, 15];
 
 // Reward micro-interaction: fired when a new client card is created.
 // Everyday creations get a quick CSS-driven star shower; milestone counts
-// (1st/2nd/5th/8th/13th client) get a bigger, slower, bouncing show — see
-// runMilestoneShow below.
+// (1st/2nd/5th/8th/13th/15th client) get a bigger, slower, bouncing show, plus
+// the big grown-in client-count number — see runMilestoneShow below.
 function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCount: number }) {
   const [stars, setStars] = useState<{ id: number; dx: number; dy: number; rot: number; delay: number; size: number }[]>([]);
   // The big client-count number that grows in over the fireworks and fades
@@ -466,7 +466,10 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
 
     if (MILESTONE_COUNTS.includes(clientCount)) {
       milestoneCleanupRef.current();
-      milestoneCleanupRef.current = runMilestoneShow(milestoneContainerRef.current, clientCount === 13 ? 'blackred' : 'colorful');
+      const palette = clientCount === 13 ? 'blackred' : clientCount === 15 ? 'gold' : 'colorful';
+      milestoneCleanupRef.current = runMilestoneShow(milestoneContainerRef.current, palette);
+      // The big grown-in count number only plays alongside milestone shows —
+      // everyday creations get just the quick star shower below, no number.
       const milestoneMs = 7200; // max stagger (~500ms) + max star life (~6700ms)
       setNumberMs(milestoneMs);
       const nt = setTimeout(() => setNumberMs(null), milestoneMs);
@@ -489,12 +492,7 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
       };
     });
     setStars(generated);
-    const normalMs = 4200;
-    setNumberMs(normalMs);
-    const t = setTimeout(() => {
-      setStars([]);
-      setNumberMs(null);
-    }, normalMs);
+    const t = setTimeout(() => setStars([]), 4200);
     return () => clearTimeout(t);
   }, [trigger, clientCount]);
 
@@ -565,7 +563,7 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
 // requestAnimationFrame loop mutating DOM nodes directly (not React state),
 // since driving 20+ elements at 60fps through re-renders would be wasteful.
 // Returns a cleanup function that cancels the loop and removes the nodes.
-function runMilestoneShow(container: HTMLDivElement | null, palette: 'colorful' | 'blackred'): () => void {
+function runMilestoneShow(container: HTMLDivElement | null, palette: 'colorful' | 'blackred' | 'gold'): () => void {
   if (!container) return () => {};
   const rect = container.getBoundingClientRect();
   const w = rect.width;
@@ -573,7 +571,12 @@ function runMilestoneShow(container: HTMLDivElement | null, palette: 'colorful' 
   const originX = w / 2;
   const originY = h * 0.22;
 
-  const colors = palette === 'blackred' ? ['#0B0B0B', '#1A1414', '#8A1620', '#C0242F'] : ['var(--gold)', ...MARKER_COLORS];
+  const colors =
+    palette === 'blackred'
+      ? ['#0B0B0B', '#1A1414', '#8A1620', '#C0242F']
+      : palette === 'gold'
+      ? ['var(--gold)'] // 15th milestone: exclusively gold, no other hues mixed in
+      : ['var(--gold)', ...MARKER_COLORS];
   const isDark = (c: string) => c === '#0B0B0B' || c === '#1A1414';
 
   type Star = {
