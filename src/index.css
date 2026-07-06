@@ -260,14 +260,6 @@ input[type='date'] {
   transform: scale(0.985);
 }
 
-.inka-add-tile {
-  transition: border-color 0.3s, background 0.3s;
-}
-.inka-add-tile:hover {
-  border-color: rgba(var(--gold-rgb), 0.42);
-  background: rgba(var(--gold-rgb), 0.03);
-}
-
 .inka-dashed {
   transition: all 0.3s;
 }

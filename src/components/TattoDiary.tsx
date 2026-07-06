@@ -1200,18 +1200,6 @@ export default function TattoDiary() {
         {/* Safe-area / status spacer */}
         <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)', flexShrink: 0 }} />
 
-        {/* Theme toggle (top-right) */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(env(safe-area-inset-top) + 16px)',
-            right: 20,
-            zIndex: 20,
-          }}
-        >
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        </div>
-
         {/* App header */}
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
           <InkaLogo height={fs(34)} />
@@ -1393,51 +1381,6 @@ export default function TattoDiary() {
           {filteredClients.map((client) => (
             <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} />
           ))}
-
-          {/* Add new client tile */}
-          <div
-            className="inka-add-tile"
-            onClick={() => setShowNewClientForm(true)}
-            style={{
-              height: 250,
-              border: '1px dashed rgba(var(--gold-rgb),0.17)',
-              borderRadius: 3,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 11,
-              cursor: 'pointer',
-              background: 'rgba(var(--gold-rgb),0.008)',
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                border: '1px solid rgba(var(--gold-rgb),0.22)',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <line x1="7" y1="2" x2="7" y2="12" stroke="currentColor" strokeOpacity="0.45" strokeWidth="1.2" strokeLinecap="round" />
-                <line x1="2" y1="7" x2="12" y2="7" stroke="currentColor" strokeOpacity="0.45" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-            </div>
-            <span
-              style={{
-                fontSize: fs(11),
-                color: 'rgba(var(--gold-rgb),0.32)',
-                letterSpacing: '1.5px',
-                textTransform: 'uppercase',
-              }}
-            >
-              Новый
-            </span>
-          </div>
         </div>
 
         {/* Empty state */}
@@ -1458,6 +1401,27 @@ export default function TattoDiary() {
             Ничего не найдено
           </div>
         )}
+
+        {/* First-run empty state — points at the pinned add button since the
+            grid no longer has its own add tile. */}
+        {clients.length === 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 280,
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              fontSize: fs(15),
+              fontStyle: 'italic',
+              color: COLORS.textGhost,
+              pointerEvents: 'none',
+              padding: '0 40px',
+            }}
+          >
+            Пока нет клиентов — нажмите «+» вверху, чтобы добавить первого
+          </div>
+        )}
       </div>
 
       {/* Bottom navigation — sibling of the screens so it pins to the shell
@@ -1468,6 +1432,49 @@ export default function TattoDiary() {
           active={screen}
           onNavigate={(s) => setScreen(s)}
         />
+      )}
+
+      {/* Theme toggle + add-client button — siblings of the screens (like
+          BottomNav above) so they stay pinned on screen and never scroll
+          away with the client grid underneath them. */}
+      {screen === 'list' && !sheetOpen && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(env(safe-area-inset-top) + 16px)',
+              right: 20,
+              zIndex: 20,
+            }}
+          >
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
+          </div>
+          <div
+            onClick={() => setShowNewClientForm(true)}
+            role="button"
+            aria-label="Добавить клиента"
+            style={{
+              position: 'absolute',
+              top: 'calc(env(safe-area-inset-top) + 16px)',
+              right: 64,
+              zIndex: 20,
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              border: '1px solid rgba(var(--gold-rgb),0.25)',
+              background: 'rgba(var(--gold-rgb),0.03)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+              <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" />
+              <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </div>
+        </>
       )}
 
       {/* ═══════════ SUMMARY SCREEN ═══════════ */}
