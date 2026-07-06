@@ -440,12 +440,12 @@ function StarIcon({ size = 14, color = 'var(--gold)', outline }: { size?: number
 
 // Client counts that get the bigger, bouncing milestone show instead of the
 // quick everyday shower — a little escalating "achievement" ladder.
-const MILESTONE_COUNTS = [1, 2, 5, 8, 13];
+const MILESTONE_COUNTS = [1, 2, 5, 8, 13, 15];
 
 // Reward micro-interaction: fired when a new client card is created.
 // Everyday creations get a quick CSS-driven star shower; milestone counts
-// (1st/2nd/5th/8th/13th client) get a bigger, slower, bouncing show — see
-// runMilestoneShow below.
+// (1st/2nd/5th/8th/13th/15th client) get a bigger, slower, bouncing show, plus
+// the big grown-in client-count number — see runMilestoneShow below.
 function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCount: number }) {
   const [stars, setStars] = useState<{ id: number; dx: number; dy: number; rot: number; delay: number; size: number }[]>([]);
   // The big client-count number that grows in over the fireworks and fades
@@ -466,7 +466,10 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
 
     if (MILESTONE_COUNTS.includes(clientCount)) {
       milestoneCleanupRef.current();
-      milestoneCleanupRef.current = runMilestoneShow(milestoneContainerRef.current, clientCount === 13 ? 'blackred' : 'colorful');
+      const palette = clientCount === 13 ? 'blackred' : clientCount === 15 ? 'gold' : 'colorful';
+      milestoneCleanupRef.current = runMilestoneShow(milestoneContainerRef.current, palette);
+      // The big grown-in count number only plays alongside milestone shows —
+      // everyday creations get just the quick star shower below, no number.
       const milestoneMs = 7200; // max stagger (~500ms) + max star life (~6700ms)
       setNumberMs(milestoneMs);
       const nt = setTimeout(() => setNumberMs(null), milestoneMs);
@@ -489,12 +492,7 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
       };
     });
     setStars(generated);
-    const normalMs = 4200;
-    setNumberMs(normalMs);
-    const t = setTimeout(() => {
-      setStars([]);
-      setNumberMs(null);
-    }, normalMs);
+    const t = setTimeout(() => setStars([]), 4200);
     return () => clearTimeout(t);
   }, [trigger, clientCount]);
 
@@ -533,7 +531,7 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
       {numberMs !== null && (
         <div
           key={`count-${trigger}`}
-          className="inka-celebrate-number"
+          className={clientCount === 15 ? 'inka-celebrate-number inka-celebrate-number--glint' : 'inka-celebrate-number'}
           style={
             {
               position: 'absolute',
@@ -543,11 +541,15 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
               pointerEvents: 'none',
               fontFamily: DROP_CAP_FONT,
               fontWeight: 600,
-              color: 'var(--gold)',
+              // The 15th's shine sweep needs the gradient text-clip in its CSS
+              // class to control color — an inline color here would win over it.
+              color: clientCount === 15 ? undefined : 'var(--gold)',
               fontSize: '33vh',
               lineHeight: 1,
               textShadow: '0 4px 24px rgba(0,0,0,0.6)',
-              animationDuration: `${numberMs}ms`,
+              // The 15th plays its own scale+shine pair, independent of how
+              // long the star show behind it keeps playing.
+              animationDuration: clientCount === 15 ? '1900ms, 1900ms' : `${numberMs}ms`,
             } as React.CSSProperties
           }
         >
@@ -565,7 +567,7 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
 // requestAnimationFrame loop mutating DOM nodes directly (not React state),
 // since driving 20+ elements at 60fps through re-renders would be wasteful.
 // Returns a cleanup function that cancels the loop and removes the nodes.
-function runMilestoneShow(container: HTMLDivElement | null, palette: 'colorful' | 'blackred'): () => void {
+function runMilestoneShow(container: HTMLDivElement | null, palette: 'colorful' | 'blackred' | 'gold'): () => void {
   if (!container) return () => {};
   const rect = container.getBoundingClientRect();
   const w = rect.width;
@@ -573,7 +575,12 @@ function runMilestoneShow(container: HTMLDivElement | null, palette: 'colorful' 
   const originX = w / 2;
   const originY = h * 0.22;
 
-  const colors = palette === 'blackred' ? ['#0B0B0B', '#1A1414', '#8A1620', '#C0242F'] : ['var(--gold)', ...MARKER_COLORS];
+  const colors =
+    palette === 'blackred'
+      ? ['#0B0B0B', '#1A1414', '#8A1620', '#C0242F']
+      : palette === 'gold'
+      ? ['var(--gold)'] // 15th milestone: exclusively gold, no other hues mixed in
+      : ['var(--gold)', ...MARKER_COLORS];
   const isDark = (c: string) => c === '#0B0B0B' || c === '#1A1414';
 
   type Star = {
@@ -3929,20 +3936,18 @@ function SessionPhotos({
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           {photos.map((src, i) => (
             <div key={i} style={{ position: 'relative', width: 78, height: 78 }}>
-              <a href={src} target="_blank" rel="noopener noreferrer">
-                <img
-                  src={src}
-                  alt=""
-                  style={{
-                    width: 78,
-                    height: 78,
-                    objectFit: 'cover',
-                    borderRadius: 2,
-                    border: '1px solid rgba(var(--gold-rgb),0.2)',
-                    display: 'block',
-                  }}
-                />
-              </a>
+              <img
+                src={src}
+                alt=""
+                style={{
+                  width: 78,
+                  height: 78,
+                  objectFit: 'cover',
+                  borderRadius: 2,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  display: 'block',
+                }}
+              />
               {allowDelete && (confirmIndex === i ? (
                 <div
                   style={{
@@ -4450,12 +4455,12 @@ function AdditionalTab({
               }}
             >
               <span style={{ fontSize: fs(13), color: COLORS.gold }}>{doc.kind === 'photo' ? '◈' : '▤'}</span>
-              <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: fs(15), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {doc.name}
                 </div>
                 <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '0.4px', marginTop: 2 }}>{doc.uploadedDate}</div>
-              </a>
+              </div>
               <button
                 onClick={() => onRemoveDocument(doc.id)}
                 style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15) }}
