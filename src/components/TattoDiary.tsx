@@ -439,13 +439,15 @@ function StarIcon({ size = 14, color = 'var(--gold)', outline }: { size?: number
 }
 
 // Client counts that get the bigger, bouncing milestone show instead of the
-// quick everyday shower — a little escalating "achievement" ladder.
-const MILESTONE_COUNTS = [1, 2, 5, 8, 13, 15];
+// quick everyday shower — a little escalating "achievement" ladder. Continues
+// the Fibonacci-ish spacing (1, 2, 5, 8, 13) past the 15th (gold finale) so
+// milestones stay rare as the client count grows, instead of ending at 15.
+const MILESTONE_COUNTS = [1, 2, 5, 8, 13, 15, 21, 34, 55, 89, 144];
 
 // Reward micro-interaction: fired when a new client card is created.
 // Everyday creations get a quick CSS-driven star shower; milestone counts
-// (1st/2nd/5th/8th/13th/15th client) get a bigger, slower, bouncing show, plus
-// the big grown-in client-count number — see runMilestoneShow below.
+// get a bigger, slower, bouncing show, plus the big grown-in client-count
+// number — see runMilestoneShow below.
 function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCount: number }) {
   const [stars, setStars] = useState<{ id: number; dx: number; dy: number; rot: number; delay: number; size: number }[]>([]);
   // The big client-count number that grows in over the fireworks and fades
@@ -1691,10 +1693,49 @@ const RPS_LABELS: Record<RPSMove, string> = { rock: 'Камень', scissors: '�
 // What each move beats.
 const RPS_BEATS: Record<RPSMove, RPSMove> = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
 
+// Kawaii hand-gesture icons for the three moves — soft rounded shapes in the
+// app's gold line-art style, so the gate reads as an actual game and not a
+// row of buttons.
+function RPSHandIcon({ move, size = 56 }: { move: RPSMove; size?: number }) {
+  const stroke = 'var(--gold)';
+  const fill = 'rgba(var(--gold-rgb),0.16)';
+  if (move === 'rock') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+        <rect x="40" y="76" width="24" height="16" rx="7" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <rect x="28" y="36" width="46" height="42" rx="18" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <rect x="18" y="48" width="18" height="24" rx="9" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <path d="M42 38V48M54 38V48M64 40V50" stroke={stroke} strokeWidth="2.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (move === 'paper') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+        <rect x="38" y="78" width="26" height="14" rx="6" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <rect x="27" y="44" width="48" height="36" rx="14" fill={fill} stroke={stroke} strokeWidth="3.5" />
+        <rect x="30" y="14" width="10" height="38" rx="5" fill={fill} stroke={stroke} strokeWidth="3" />
+        <rect x="43" y="8" width="10" height="44" rx="5" fill={fill} stroke={stroke} strokeWidth="3" />
+        <rect x="56" y="8" width="10" height="44" rx="5" fill={fill} stroke={stroke} strokeWidth="3" />
+        <rect x="69" y="14" width="10" height="38" rx="5" fill={fill} stroke={stroke} strokeWidth="3" />
+        <rect x="14" y="48" width="20" height="12" rx="6" fill={fill} stroke={stroke} strokeWidth="3" transform="rotate(-30 24 54)" />
+      </svg>
+    );
+  }
+  // scissors — victory-sign fingers over a small folded fist
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <rect x="36" y="80" width="24" height="14" rx="6" fill={fill} stroke={stroke} strokeWidth="3.5" />
+      <rect x="30" y="52" width="36" height="30" rx="14" fill={fill} stroke={stroke} strokeWidth="3.5" />
+      <rect x="36" y="8" width="10" height="48" rx="5" fill={fill} stroke={stroke} strokeWidth="3" transform="rotate(-12 41 32)" />
+      <rect x="54" y="8" width="10" height="48" rx="5" fill={fill} stroke={stroke} strokeWidth="3" transform="rotate(12 59 32)" />
+    </svg>
+  );
+}
+
 function RPSTauntFace() {
   return (
     <svg width="72" height="72" viewBox="0 0 100 100" fill="none">
-      <circle cx="50" cy="50" r="45" stroke="var(--gold)" strokeWidth="2.5" />
       <path d="M27 41Q34 33 41 41" stroke="var(--gold)" strokeWidth="3" strokeLinecap="round" fill="none" />
       <path d="M59 41Q66 33 73 41" stroke="var(--gold)" strokeWidth="3" strokeLinecap="round" fill="none" />
       <circle cx="25" cy="57" r="6" fill="var(--gold)" opacity="0.32" />
@@ -1707,45 +1748,59 @@ function RPSTauntFace() {
 
 function RockPaperScissorsGate({ onWin, onCancel }: { onWin: () => void; onCancel: () => void }) {
   const [losses, setLosses] = useState(0);
-  const [phase, setPhase] = useState<'choose' | 'result' | 'taunt'>('choose');
+  const [phase, setPhase] = useState<'choose' | 'shake' | 'reveal' | 'taunt'>('choose');
   const [outcome, setOutcome] = useState<'win' | 'loss' | 'tie' | null>(null);
+  const [userMove, setUserMove] = useState<RPSMove | null>(null);
   const [computerMove, setComputerMove] = useState<RPSMove | null>(null);
+  const [round, setRound] = useState(0); // bumped each reveal so the pop-in animation replays
 
   const play = (move: RPSMove) => {
     if (phase !== 'choose') return;
-    const computer = RPS_MOVES[Math.floor(Math.random() * 3)];
-    setComputerMove(computer);
+    setUserMove(move);
+    setPhase('shake');
 
-    if (computer === move) {
-      setOutcome('tie');
-      setPhase('result');
-      setTimeout(() => {
-        setPhase('choose');
-        setOutcome(null);
-      }, 850);
-      return;
-    }
+    // Fists bounce together for a beat first — the classic "камень, ножницы...
+    // бумага!" shake — then both shapes reveal at once.
+    setTimeout(() => {
+      const computer = RPS_MOVES[Math.floor(Math.random() * 3)];
+      setComputerMove(computer);
+      setRound((r) => r + 1);
 
-    if (RPS_BEATS[move] === computer) {
-      setOutcome('win');
-      setPhase('result');
-      setTimeout(onWin, 850);
-      return;
-    }
+      if (computer === move) {
+        setOutcome('tie');
+        setPhase('reveal');
+        setTimeout(() => {
+          setPhase('choose');
+          setOutcome(null);
+          setUserMove(null);
+          setComputerMove(null);
+        }, 1000);
+        return;
+      }
 
-    const nextLosses = losses + 1;
-    setLosses(nextLosses);
-    setOutcome('loss');
-    if (nextLosses >= 3) {
-      setPhase('taunt');
-      setTimeout(onWin, 2000);
-    } else {
-      setPhase('result');
-      setTimeout(() => {
-        setPhase('choose');
-        setOutcome(null);
-      }, 850);
-    }
+      if (RPS_BEATS[move] === computer) {
+        setOutcome('win');
+        setPhase('reveal');
+        setTimeout(onWin, 1000);
+        return;
+      }
+
+      const nextLosses = losses + 1;
+      setLosses(nextLosses);
+      setOutcome('loss');
+      if (nextLosses >= 3) {
+        setPhase('taunt');
+        setTimeout(onWin, 2000);
+      } else {
+        setPhase('reveal');
+        setTimeout(() => {
+          setPhase('choose');
+          setOutcome(null);
+          setUserMove(null);
+          setComputerMove(null);
+        }, 1000);
+      }
+    }, 900);
   };
 
   const resultText =
@@ -1821,41 +1876,61 @@ function RockPaperScissorsGate({ onWin, onCancel }: { onWin: () => void; onCance
           ))}
         </div>
 
-        <div style={{ minHeight: 132, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+        <div style={{ minHeight: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
           {phase === 'choose' && (
             <>
               <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 6 }}>
                 Выиграй раунд, чтобы продолжить
               </div>
-              <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 6 }}>
+              <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
                 {RPS_MOVES.map((m) => (
                   <div
                     key={m}
                     onClick={() => play(m)}
-                    style={{
-                      flex: 1,
-                      textAlign: 'center',
-                      padding: '13px 0',
-                      borderRadius: 2,
-                      cursor: 'pointer',
-                      fontSize: fs(13),
-                      letterSpacing: '0.5px',
-                      textTransform: 'uppercase',
-                      border: '1px solid rgba(var(--gold-rgb),0.3)',
-                      color: COLORS.gold,
-                    }}
+                    role="button"
+                    aria-label={RPS_LABELS[m]}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer' }}
                   >
-                    {RPS_LABELS[m]}
+                    <div
+                      style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: '50%',
+                        border: '1px solid rgba(var(--gold-rgb),0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <RPSHandIcon move={m} size={40} />
+                    </div>
+                    <span style={{ fontSize: fs(10), color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                      {RPS_LABELS[m]}
+                    </span>
                   </div>
                 ))}
               </div>
             </>
           )}
 
-          {phase === 'result' && (
+          {phase === 'shake' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
+              <div className="inka-rps-shake">
+                <RPSHandIcon move="rock" size={54} />
+              </div>
+              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textGhost }}>vs</div>
+              <div className="inka-rps-shake" style={{ animationDelay: '0.05s' }}>
+                <RPSHandIcon move="rock" size={54} />
+              </div>
+            </div>
+          )}
+
+          {phase === 'reveal' && (
             <>
-              <div style={{ fontSize: fs(13), color: COLORS.textGhost, letterSpacing: '0.5px' }}>
-                Приложение выбрало: {computerMove && RPS_LABELS[computerMove]}
+              <div key={`reveal-${round}`} className="inka-rps-pop" style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
+                {userMove && <RPSHandIcon move={userMove} size={54} />}
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textGhost }}>vs</div>
+                {computerMove && <RPSHandIcon move={computerMove} size={54} />}
               </div>
               <div
                 style={{

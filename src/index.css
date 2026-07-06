@@ -446,6 +446,44 @@ input[type='date'] {
   color: transparent;
 }
 
+/* Rock-paper-scissors gate: both fists bounce together like the classic
+   "камень, ножницы... бумага!" count, then the chosen shapes pop in on reveal. */
+@keyframes inkaRpsShake {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-12px) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(0) rotate(0deg);
+  }
+  75% {
+    transform: translateY(-12px) rotate(4deg);
+  }
+}
+.inka-rps-shake {
+  animation: inkaRpsShake 0.45s ease-in-out infinite;
+}
+@keyframes inkaRpsPop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.inka-rps-pop {
+  animation: inkaRpsPop 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
 /* ── Scrollbar (kept whisper-thin to match the surfaces) ── */
 ::-webkit-scrollbar {
   width: 4px;
