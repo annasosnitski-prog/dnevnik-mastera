@@ -529,32 +529,56 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
       )}
       <div ref={milestoneContainerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 91, overflow: 'hidden' }} />
       {numberMs !== null && (
-        <div
-          key={`count-${trigger}`}
-          className={clientCount === 15 ? 'inka-celebrate-number inka-celebrate-number--glint' : 'inka-celebrate-number'}
-          style={
-            {
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              zIndex: 92,
-              pointerEvents: 'none',
-              fontFamily: DROP_CAP_FONT,
-              fontWeight: 600,
-              // The 15th's shine sweep needs the gradient text-clip in its CSS
-              // class to control color — an inline color here would win over it.
-              color: clientCount === 15 ? undefined : 'var(--gold)',
-              fontSize: '33vh',
-              lineHeight: 1,
-              textShadow: '0 4px 24px rgba(0,0,0,0.6)',
-              // The 15th plays its own scale+shine pair, independent of how
-              // long the star show behind it keeps playing.
-              animationDuration: clientCount === 15 ? '1900ms, 1900ms' : `${numberMs}ms`,
-            } as React.CSSProperties
-          }
-        >
-          {clientCount}
-        </div>
+        <>
+          <div
+            key={`count-${trigger}`}
+            className="inka-celebrate-number"
+            style={
+              {
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                zIndex: 92,
+                pointerEvents: 'none',
+                fontFamily: DROP_CAP_FONT,
+                fontWeight: 600,
+                color: 'var(--gold)',
+                fontSize: '33vh',
+                lineHeight: 1,
+                textShadow: '0 4px 24px rgba(0,0,0,0.6)',
+                animationDuration: `${numberMs}ms`,
+              } as React.CSSProperties
+            }
+          >
+            {clientCount}
+          </div>
+          {clientCount === 15 && (
+            // A second copy of the same digit, same growth timing, showing
+            // only a diagonal light streak (thick band + trailing thin band)
+            // sweeping across the solid-gold number underneath.
+            <div
+              key={`shine-${trigger}`}
+              aria-hidden
+              className="inka-celebrate-number inka-celebrate-number-diagonal-shine"
+              style={
+                {
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  zIndex: 93,
+                  pointerEvents: 'none',
+                  fontFamily: DROP_CAP_FONT,
+                  fontWeight: 600,
+                  fontSize: '33vh',
+                  lineHeight: 1,
+                  animationDuration: `${numberMs}ms, 1200ms`,
+                } as React.CSSProperties
+              }
+            >
+              {clientCount}
+            </div>
+          )}
+        </>
       )}
     </>
   );

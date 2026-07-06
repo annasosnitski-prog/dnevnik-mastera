@@ -418,53 +418,37 @@ input[type='date'] {
   animation-fill-mode: forwards;
 }
 
-/* 15th-client exclusive: the number grows in like usual, but instead of just
-   sitting there gold, a bright specular highlight glides down the digits and
-   back up once — light catching engraved metal — before it fades away. */
-@keyframes inkaCelebrateNumberGlintScale {
+/* 15th-client exclusive: a second copy of the number sits exactly on top of
+   the solid-gold one (same font/size/growth), showing only a diagonal streak
+   of light — a thick band with a thinner one trailing it, like the sheen on
+   the client-card marker stripes — sweeping across once as the gold digit
+   lands. */
+@keyframes inkaCelebrateNumberDiagonalShine {
   0% {
-    transform: translate(-50%, -50%) scale(0.5);
-    opacity: 0;
-  }
-  20% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
-  }
-  82% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
+    background-position: -80% -80%;
   }
   100% {
-    transform: translate(-50%, -50%) scale(0.96);
-    opacity: 0;
+    background-position: 200% 200%;
   }
 }
-@keyframes inkaCelebrateNumberShine {
-  0% {
-    background-position: 0 160%;
-  }
-  50% {
-    background-position: 0 -60%;
-  }
-  100% {
-    background-position: 0 160%;
-  }
-}
-.inka-celebrate-number--glint {
-  animation-name: inkaCelebrateNumberGlintScale, inkaCelebrateNumberShine;
+.inka-celebrate-number-diagonal-shine {
+  animation-name: inkaCelebrateNumber, inkaCelebrateNumberDiagonalShine;
   animation-timing-function: ease-out, ease-in-out;
   animation-fill-mode: forwards, forwards;
   background-image: linear-gradient(
-    180deg,
-    var(--gold) 0%,
-    var(--gold) 38%,
-    #fff8de 48%,
-    #fffdf4 50%,
-    #fff8de 52%,
-    var(--gold) 62%,
-    var(--gold) 100%
+    115deg,
+    transparent 0%,
+    transparent 48.4%,
+    rgba(255, 253, 244, 0.95) 49.3%,
+    rgba(255, 253, 244, 0.95) 49.9%,
+    transparent 50.8%,
+    transparent 60.6%,
+    rgba(255, 253, 244, 0.55) 61.3%,
+    rgba(255, 253, 244, 0.55) 61.6%,
+    transparent 62.2%,
+    transparent 100%
   );
-  background-size: 100% 340%;
+  background-size: 420% 420%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
