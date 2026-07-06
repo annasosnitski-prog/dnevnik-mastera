@@ -34,9 +34,14 @@ const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#
 const MARKER_COLORS = ['#B0413E', '#C67A32', '#C9A227', '#5E8C4A', '#3E7CA6', '#7A5AA0', '#A0555F', '#6E7B8B'];
 
 // Skin-tone swatches (light → deep) the master picks from when creating a card.
+// Light → dark. Mostly a warm-undertone gradient, with a few cool-undertone
+// tones (porcelain "blue-blood" pale + olive) and warm-red tones (Arab/South
+// Asian) folded in at matching lightness so the row still reads as one scale.
 const SKIN_TONES = [
-  '#F6E0D0', '#F0D0B8', '#E8C0A0', '#E0B090', '#D8A47E', '#C89268', '#B67E52',
-  '#A66E44', '#925C38', '#7E4C2E', '#6A3C24', '#54301C', '#3E2416', '#2C1810',
+  '#F5E6E8', '#F6E0D0', '#EDD9DC', '#F0D0B8', '#E2C9CE', '#E8C0A0', '#E0B090',
+  '#D8A47E', '#C89268', '#A69477', '#B67E52', '#8A7B5C', '#A66E44', '#B5654A',
+  '#925C38', '#6B5D42', '#8F4632', '#7E4C2E', '#6A3C24', '#54301C', '#3E2416',
+  '#2C1810',
 ];
 
 const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч', '7 ч', '8 ч'];
@@ -341,6 +346,79 @@ function StarDivider({ marginTop = 11 }: { marginTop?: number }) {
   );
 }
 
+// A single filled gold star (same silhouette as StarDivider's), reused by the
+// celebration burst below.
+function StarIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" style={{ display: 'block' }}>
+      <path
+        d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z"
+        fill="var(--gold)"
+      />
+    </svg>
+  );
+}
+
+// Reward micro-interaction: fired when a new client card is created. One star
+// pops in, then "multiplies" into a scattering shower of smaller stars that
+// fly outward/downward and fade — a little celebratory "звездопад".
+function CelebrationBurst({ trigger }: { trigger: number }) {
+  const [stars, setStars] = useState<{ id: number; dx: number; dy: number; rot: number; delay: number; size: number }[]>([]);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return; // don't celebrate on mount, only on later triggers
+    }
+    const n = 14;
+    const generated = Array.from({ length: n }, (_, i) => {
+      const angle = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.5;
+      const dist = 80 + Math.random() * 130;
+      return {
+        id: i,
+        dx: Math.cos(angle) * dist,
+        dy: Math.sin(angle) * dist * 0.7 + 50, // biased downward, like falling
+        rot: (Math.random() - 0.5) * 360,
+        delay: 380 + Math.random() * 150,
+        size: 8 + Math.random() * 10,
+      };
+    });
+    setStars(generated);
+    const t = setTimeout(() => setStars([]), 1700);
+    return () => clearTimeout(t);
+  }, [trigger]);
+
+  if (!stars.length) return null;
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 90, overflow: 'hidden' }}>
+      <div className="inka-celebrate-pop" style={{ position: 'absolute', top: '22%', left: '50%' }}>
+        <StarIcon size={24} />
+      </div>
+      {stars.map((s) => (
+        <div
+          key={s.id}
+          className="inka-celebrate-star"
+          style={
+            {
+              position: 'absolute',
+              top: '22%',
+              left: '50%',
+              animationDelay: `${s.delay}ms`,
+              '--dx': `${s.dx}px`,
+              '--dy': `${s.dy}px`,
+              '--rot': `${s.rot}deg`,
+            } as React.CSSProperties
+          }
+        >
+          <StarIcon size={s.size} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SheetStarDivider() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
@@ -480,6 +558,10 @@ export default function TattoDiary() {
   const [showEditClientForm, setShowEditClientForm] = useState(false);
   // Session being edited (null when adding a new one).
   const [editSession, setEditSession] = useState<Session | null>(null);
+
+  // Bumped whenever a new client is created, to (re)trigger the star-shower
+  // celebration overlay — see <CelebrationBurst>.
+  const [celebrationKey, setCelebrationKey] = useState(0);
 
   useEffect(() => {
     initDB()
@@ -654,6 +736,7 @@ export default function TattoDiary() {
     };
     saveClient(client);
     setShowNewClientForm(false);
+    setCelebrationKey((k) => k + 1);
   };
 
   const handleAddSession = (data: {
@@ -1060,6 +1143,9 @@ export default function TattoDiary() {
         onClose={closeNewSession}
         onAdd={handleAddSession}
       />
+
+      {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
+      <CelebrationBurst trigger={celebrationKey} />
     </div>
   );
 }
@@ -2460,6 +2546,13 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
       <SectionDivider />
       <SectionHeader>Кожа</SectionHeader>
 
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 8 }}>
+          Тон кожи
+        </div>
+        <SkinTonePalette value={client.skinTone || ''} onPick={saveTone} />
+      </div>
+
       <div style={{ marginBottom: 8 }}>
         <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
           Тип кожи
@@ -2485,13 +2578,6 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
             </option>
           ))}
         </select>
-      </div>
-
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 8 }}>
-          Тон кожи
-        </div>
-        <SkinTonePalette value={client.skinTone || ''} onPick={saveTone} />
       </div>
 
       <div>
@@ -3591,6 +3677,10 @@ function NewClientSheet({
           <FieldLabel>Стиль</FieldLabel>
           <StyleChips selected={styles} onToggle={toggleStyle} />
         </div>
+        <div style={{ marginBottom: 18 }}>
+          <FieldLabel>Тон кожи</FieldLabel>
+          <SkinTonePalette value={skinTone} onPick={(t) => setSkinTone(t === skinTone ? '' : t)} />
+        </div>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Тип кожи</FieldLabel>
           <select value={skinType} onChange={(e) => setSkinType(e.target.value)} style={{ ...INPUT_STYLE, appearance: 'none' }}>
@@ -3600,10 +3690,6 @@ function NewClientSheet({
               </option>
             ))}
           </select>
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <FieldLabel>Тон кожи</FieldLabel>
-          <SkinTonePalette value={skinTone} onPick={(t) => setSkinTone(t === skinTone ? '' : t)} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Заметки о коже</FieldLabel>
