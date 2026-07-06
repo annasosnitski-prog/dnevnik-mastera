@@ -320,6 +320,15 @@ function urgencyCounts(clients: Client[]): { urgentImportant: number; importantN
   return { urgentImportant, importantNotUrgent };
 }
 
+// Count of notes marked done (closed), across all clients and urgencies.
+function closedNotesCount(clients: Client[]): number {
+  let count = 0;
+  for (const c of clients) {
+    for (const n of c.notes) if (n.done) count++;
+  }
+  return count;
+}
+
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
 function normalizeClient(raw: any, index: number): Client {
@@ -2089,6 +2098,7 @@ function MasterDashboardScreen({
   const style = mostUsedStyle(clients);
   const upcoming = upcomingSessions(clients, prefs.upcomingWindowDays);
   const { urgentImportant, importantNotUrgent } = urgencyCounts(clients);
+  const closedCount = closedNotesCount(clients);
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -2158,6 +2168,9 @@ function MasterDashboardScreen({
           <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} big={false} />
           <StatBlock label="‼️ Срочно" value={urgentImportant} />
           <StatBlock label={`${URGENCY[2].emoji} ${URGENCY[2].short}`} value={importantNotUrgent} />
+          <div style={{ gridColumn: '1 / -1' }}>
+            <StatBlock label={`${DONE_EMOJI} Выполнено заметок`} value={closedCount} />
+          </div>
         </div>
 
         {/* Upcoming sessions, with a master-configurable lookahead window */}
