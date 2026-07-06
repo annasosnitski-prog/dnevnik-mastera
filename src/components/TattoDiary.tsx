@@ -531,7 +531,7 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
       {numberMs !== null && (
         <div
           key={`count-${trigger}`}
-          className="inka-celebrate-number"
+          className={clientCount === 15 ? 'inka-celebrate-number inka-celebrate-number--glint' : 'inka-celebrate-number'}
           style={
             {
               position: 'absolute',
@@ -545,7 +545,9 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
               fontSize: '33vh',
               lineHeight: 1,
               textShadow: '0 4px 24px rgba(0,0,0,0.6)',
-              animationDuration: `${numberMs}ms`,
+              // The 15th's glint is a quick flash-and-gone, independent of how
+              // long the star show behind it keeps playing.
+              animationDuration: clientCount === 15 ? '1300ms' : `${numberMs}ms`,
             } as React.CSSProperties
           }
         >
