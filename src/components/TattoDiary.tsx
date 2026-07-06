@@ -406,11 +406,11 @@ function CelebrationBurst({ trigger, clientCount }: { trigger: number; clientCou
         dy: Math.sin(angle) * dist * 0.9 + 40, // vh, biased downward like falling
         rot: (Math.random() - 0.5) * 420,
         delay: 300 + Math.random() * 650,
-        size: 6 + Math.random() * 16,
+        size: 12 + Math.random() * 22,
       };
     });
     setStars(generated);
-    const t = setTimeout(() => setStars([]), 3500);
+    const t = setTimeout(() => setStars([]), 4200);
     return () => clearTimeout(t);
   }, [trigger, clientCount]);
 
