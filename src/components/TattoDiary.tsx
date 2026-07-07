@@ -923,6 +923,10 @@ function readInitialMasterInfo(): MasterInfo {
 // ===================== MAIN APP =====================
 export default function TattoDiary() {
   const [clients, setClients] = useState<Client[]>([]);
+  // Distinguishes "still loading from IndexedDB" from "genuinely no clients
+  // yet" — without it, the first-run empty state flashes on every load before
+  // the (real) client list comes in.
+  const [clientsLoaded, setClientsLoaded] = useState(false);
   const [db, setDb] = useState<IDBDatabase | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(readInitialTheme);
@@ -1040,7 +1044,10 @@ export default function TattoDiary() {
   const loadClients = (database: IDBDatabase) => {
     const tx = database.transaction('clients', 'readonly');
     const request = tx.objectStore('clients').getAll();
-    request.onsuccess = () => setClients((request.result || []).map(normalizeClient));
+    request.onsuccess = () => {
+      setClients((request.result || []).map(normalizeClient));
+      setClientsLoaded(true);
+    };
     request.onerror = () => setDbError('Не удалось загрузить клиентов.');
   };
 
@@ -1510,8 +1517,9 @@ export default function TattoDiary() {
         )}
 
         {/* First-run empty state — points at the pinned add button since the
-            grid no longer has its own add tile. */}
-        {clients.length === 0 && (
+            grid no longer has its own add tile. Gated on clientsLoaded so it
+            doesn't flash before the real (non-empty) list has loaded. */}
+        {clientsLoaded && clients.length === 0 && (
           <div
             style={{
               position: 'absolute',
