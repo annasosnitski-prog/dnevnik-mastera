@@ -1888,10 +1888,10 @@ function CupIcon({ size = 56, lifted }: { size?: number; lifted?: boolean }) {
     </svg>
   );
 }
-function BallIcon({ size = 22 }: { size?: number }) {
+function BallIcon({ size = 22, color = 'var(--gold)' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <circle cx="20" cy="20" r="16" fill="var(--gold)" />
+      <circle cx="20" cy="20" r="16" fill={color} />
       <ellipse cx="14" cy="13" rx="5" ry="3" fill="#fff8de" opacity="0.65" />
     </svg>
   );
@@ -1903,6 +1903,9 @@ function BallIcon({ size = 22 }: { size?: number }) {
 // up to the wrapper once, same as RPSGame.
 function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) {
   const [ballSlot] = useState(() => Math.floor(Math.random() * 3));
+  // A fresh random colour from the same palette as client markers, each time
+  // a new round mounts (the wrapper remounts this on every retry).
+  const [ballColor] = useState(() => MARKER_COLORS[Math.floor(Math.random() * MARKER_COLORS.length)]);
   const [phase, setPhase] = useState<'intro' | 'shuffle' | 'choose' | 'result'>('intro');
   const [revealed, setRevealed] = useState(true);
   const [chosen, setChosen] = useState<number | null>(null);
@@ -1961,7 +1964,7 @@ function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) 
             >
               {lifted && (
                 <div style={{ position: 'absolute', bottom: 8, zIndex: 1 }}>
-                  <BallIcon size={20} />
+                  <BallIcon size={20} color={ballColor} />
                 </div>
               )}
               <div style={{ zIndex: 2 }}>
