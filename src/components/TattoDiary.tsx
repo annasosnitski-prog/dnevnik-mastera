@@ -255,10 +255,35 @@ const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
 
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
+
+// Chronological session order: dated sessions rank by their date. A session
+// without a date has nothing to rank by, so it inherits the date of the
+// nearest earlier dated session in creation order (or sorts before everything
+// if there isn't one yet) — it slots into the calendar gap it was added in.
+// Undated sessions sharing that same slot fall back to newest-created-first
+// among themselves, so the freshest one sits on top of that stack.
+const sortedSessions = (sessions: Session[]): Session[] => {
+  let anchor = '';
+  const withKey = sessions.map((s, i) => {
+    const dated = ISO_DATE_RE.test(s.date);
+    if (dated) anchor = s.date;
+    return { s, i, dated, key: dated ? s.date : anchor };
+  });
+  return withKey
+    .sort((a, b) => {
+      const byKey = a.key.localeCompare(b.key);
+      if (byKey !== 0) return byKey;
+      if (a.dated && b.dated) return a.i - b.i; // same explicit date: keep creation order
+      if (!a.dated && !b.dated) return b.i - a.i; // same slot, both undated: newest first
+      return a.dated ? -1 : 1; // the dated session anchoring this slot comes first
+    })
+    .map((x) => x.s);
+};
+
 // "Last session" means the most recent completed (done) one — a planned/future
 // session isn't a "last session" yet.
 const lastSession = (c: Client): Session | null => {
-  const done = c.sessions.filter((s) => s.done);
+  const done = sortedSessions(c.sessions).filter((s) => s.done);
   return done.length ? done[done.length - 1] : null;
 };
 const lastSessionDate = (c: Client) => {
@@ -727,6 +752,26 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
   return `<svg width="${size}" height="${size}" viewBox="0 0 14 14" fill="none" style="display:block"><path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill="${color}"${strokeAttrs} /></svg>`;
 }
 
+// Small reward for winning the "opened the app" trial game — a gold star
+// shower filling the whole screen (reuses the milestone show's physics, just
+// full-screen instead of anchored to a client card).
+function FunWinSalute({ trigger }: { trigger: number }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cleanupRef = useRef<() => void>(() => {});
+  const lastHandled = useRef(trigger);
+
+  useEffect(() => {
+    if (lastHandled.current === trigger) return;
+    lastHandled.current = trigger;
+    cleanupRef.current();
+    cleanupRef.current = runMilestoneShow(containerRef.current, 'gold');
+  }, [trigger]);
+
+  useEffect(() => () => cleanupRef.current(), []);
+
+  return <div ref={containerRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 210, overflow: 'hidden' }} />;
+}
+
 function SheetStarDivider() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
@@ -945,6 +990,41 @@ export default function TattoDiary() {
     setRpsChallenge({ onWin: action });
   };
 
+  // Purely-for-fun trial gate: same random chance, but rolled on opening or
+  // returning to the app rather than before creating something — nothing is
+  // gated on the outcome. A win plays a small gold salute; a loss (even after
+  // the taunt) just closes with no reward.
+  const [funChallenge, setFunChallenge] = useState(false);
+  const [funWinTrigger, setFunWinTrigger] = useState(0);
+  // Read fresh on every render (no extra effects to keep them in sync) so the
+  // mount-only effect below always sees the latest values.
+  const liveRef = useRef({ gameMode: prefs.gameMode, rpsChallenge, funChallenge });
+  liveRef.current = { gameMode: prefs.gameMode, rpsChallenge, funChallenge };
+  const hasRolledOnMount = useRef(false);
+
+  useEffect(() => {
+    const maybeTriggerFun = () => {
+      const live = liveRef.current;
+      if (!live.gameMode || live.rpsChallenge || live.funChallenge) return;
+      if (Math.random() < RPS_RANDOM_CHANCE) setFunChallenge(true);
+    };
+    // Guards against StrictMode's dev-only double-invoke re-rolling on mount.
+    const mountTimer = setTimeout(() => {
+      if (!hasRolledOnMount.current) {
+        hasRolledOnMount.current = true;
+        maybeTriggerFun();
+      }
+    }, 900);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') maybeTriggerFun();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearTimeout(mountTimer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
   useEffect(() => {
     initDB()
       .then((database) => {
@@ -1145,7 +1225,7 @@ export default function TattoDiary() {
     if (!selectedClient) return;
     const fields = {
       name: data.name.trim(),
-      date: data.date || new Date().toISOString().slice(0, 10),
+      date: data.date,
       time: data.time,
       duration: data.duration,
       style: data.style,
@@ -1677,6 +1757,7 @@ export default function TattoDiary() {
 
       {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
       <CelebrationBurst trigger={celebrationKey} clientCount={celebrationCount} />
+      <FunWinSalute trigger={funWinTrigger} />
 
       {/* ═══════════ TRIAL GATE (mini-game before creating something) ═══════════ */}
       {rpsChallenge && (
@@ -1687,6 +1768,17 @@ export default function TattoDiary() {
             onWin();
           }}
           onCancel={() => setRpsChallenge(null)}
+        />
+      )}
+
+      {/* ═══════════ TRIAL GATE (just-for-fun, on app open/return) ═══════════ */}
+      {funChallenge && (
+        <TrialGate
+          onWin={() => setFunChallenge(false)}
+          onCancel={() => setFunChallenge(false)}
+          onOutcome={(result) => {
+            if (result === 'win') setFunWinTrigger((k) => k + 1);
+          }}
         />
       )}
     </div>
@@ -2209,7 +2301,18 @@ const TRIAL_TITLES: Record<TrialGameKind, string> = {
   blackjack: '21 очко',
 };
 
-function TrialGate({ onWin, onCancel }: { onWin: () => void; onCancel: () => void }) {
+function TrialGate({
+  onWin,
+  onCancel,
+  onOutcome,
+}: {
+  onWin: () => void;
+  onCancel: () => void;
+  // Fired once the gate is settled, distinguishing a genuine win from a
+  // pass-through after 3 losses — onWin alone can't tell them apart since it
+  // fires (eventually) either way to unblock whatever action is gated.
+  onOutcome?: (result: 'win' | 'lossStreak') => void;
+}) {
   const [gameKind] = useState<TrialGameKind>(() => {
     const r = Math.random();
     return r < 1 / 3 ? 'rps' : r < 2 / 3 ? 'cups' : 'blackjack';
@@ -2220,6 +2323,7 @@ function TrialGate({ onWin, onCancel }: { onWin: () => void; onCancel: () => voi
 
   const handleResult = (result: 'win' | 'loss') => {
     if (result === 'win') {
+      onOutcome?.('win');
       onWin();
       return;
     }
@@ -2227,6 +2331,7 @@ function TrialGate({ onWin, onCancel }: { onWin: () => void; onCancel: () => voi
     setLosses(nextLosses);
     if (nextLosses >= 3) {
       setStage('taunt');
+      onOutcome?.('lossStreak');
       setTimeout(onWin, 2000);
     } else {
       setRound((r) => r + 1);
@@ -3576,6 +3681,14 @@ function DetailScreen({
     scrollRef.current?.scrollTo(0, 0);
   }, [client.id, activeTab]);
 
+  // The hero (name, styles, client note) can be collapsed to a slim strip so
+  // «Сессии»/«Доп.» get more room to work with — resets to expanded whenever
+  // a different client is opened.
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  useEffect(() => {
+    setHeaderCollapsed(false);
+  }, [client.id]);
+
   return (
     <>
       {/* Hero header */}
@@ -3596,78 +3709,106 @@ function DetailScreen({
             </svg>
             <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
-          {/* Edit client */}
-          <div
-            className="inka-back"
-            onClick={onEditClient}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
-          >
-            <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-              <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-            </svg>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Edit client */}
+            <div
+              className="inka-back"
+              onClick={onEditClient}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </div>
+            {/* Collapse/expand the hero — more room for sessions/notes below */}
+            <div
+              className="inka-back"
+              onClick={() => setHeaderCollapsed((v) => !v)}
+              role="button"
+              aria-label={headerCollapsed ? 'Развернуть карточку клиента' : 'Свернуть карточку клиента'}
+              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ transform: headerCollapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s' }}>
+                <path d="M3.5 6.5L8 11L12.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
           </div>
         </div>
 
-        {/* Giant drop cap hero */}
-        <div style={{ padding: '12px 24px 18px', position: 'relative', zIndex: 5 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2, direction: isRTL(client.name) ? 'rtl' : 'ltr' }}>
-            <span
-              style={{
-                fontFamily: DROP_CAP_FONT,
-                fontSize: fs(125),
-                fontWeight: 600,
-                lineHeight: 0.79,
-                color: COLORS.gold,
-                letterSpacing: '-2px',
-                flexShrink: 0,
-                marginLeft: -5,
-              }}
-            >
-              {firstLetter(client.name)}
-            </span>
-            <div style={{ paddingTop: 16, paddingLeft: 6, minWidth: 0 }}>
-              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(33), color: COLORS.textPrimary, fontWeight: 600, lineHeight: 1.05, letterSpacing: '1px' }}>
-                {nameRest(client.name)}
-              </div>
-              <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(19), color: COLORS.textMuted, fontWeight: 600, marginTop: 5, letterSpacing: '0.5px' }}>
-                {client.surname}
-              </div>
-            </div>
-          </div>
-          {/* Style(s) + session count — styles carry the client's marker colour */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13, flexWrap: 'wrap' }}>
-            <div style={{ width: 22, height: 2, background: client.color, borderRadius: 1, flexShrink: 0 }} />
-            <span style={{ fontSize: fs(13), color: client.color, letterSpacing: '2.5px', textTransform: 'uppercase', fontWeight: 600 }}>
-              {stylesLabel(client) || 'Без стиля'}
+        {headerCollapsed ? (
+          /* Collapsed strip — just enough to place the client, tap to re-expand */
+          <div
+            onClick={() => setHeaderCollapsed(false)}
+            style={{ padding: '0 24px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', position: 'relative', zIndex: 5 }}
+          >
+            <span dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(17), color: COLORS.textPrimary, fontWeight: 600, letterSpacing: '0.5px' }}>
+              {client.name}
+              {client.surname ? ` ${client.surname}` : ''}
             </span>
             <span style={{ fontSize: fs(13), color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
           </div>
-
-          {/* Notes about the client — moved up into the header (per design). */}
-          {client.note && (
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 6 }}>
-                Заметки о клиенте
-              </div>
-              <div
-                dir="auto"
+        ) : (
+          /* Giant drop cap hero */
+          <div style={{ padding: '12px 24px 18px', position: 'relative', zIndex: 5 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2, direction: isRTL(client.name) ? 'rtl' : 'ltr' }}>
+              <span
                 style={{
-                  fontSize: fs(15),
-                  color: 'var(--text-soft)',
-                  fontStyle: 'italic',
-                  lineHeight: 1.5,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 4,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
+                  fontFamily: DROP_CAP_FONT,
+                  fontSize: fs(125),
+                  fontWeight: 600,
+                  lineHeight: 0.79,
+                  color: COLORS.gold,
+                  letterSpacing: '-2px',
+                  flexShrink: 0,
+                  marginLeft: -5,
                 }}
               >
-                {client.note}
+                {firstLetter(client.name)}
+              </span>
+              <div style={{ paddingTop: 16, paddingLeft: 6, minWidth: 0 }}>
+                <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(33), color: COLORS.textPrimary, fontWeight: 600, lineHeight: 1.05, letterSpacing: '1px' }}>
+                  {nameRest(client.name)}
+                </div>
+                <div dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(19), color: COLORS.textMuted, fontWeight: 600, marginTop: 5, letterSpacing: '0.5px' }}>
+                  {client.surname}
+                </div>
               </div>
             </div>
-          )}
-        </div>
+            {/* Style(s) + session count — styles carry the client's marker colour */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13, flexWrap: 'wrap' }}>
+              <div style={{ width: 22, height: 2, background: client.color, borderRadius: 1, flexShrink: 0 }} />
+              <span style={{ fontSize: fs(13), color: client.color, letterSpacing: '2.5px', textTransform: 'uppercase', fontWeight: 600 }}>
+                {stylesLabel(client) || 'Без стиля'}
+              </span>
+              <span style={{ fontSize: fs(13), color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
+            </div>
+
+            {/* Notes about the client — moved up into the header (per design). */}
+            {client.note && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 6 }}>
+                  Заметки о клиенте
+                </div>
+                <div
+                  dir="auto"
+                  style={{
+                    fontSize: fs(15),
+                    color: 'var(--text-soft)',
+                    fontStyle: 'italic',
+                    lineHeight: 1.5,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 4,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {client.note}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Client marker stripe */}
         <div style={{ height: 3, background: client.color, width: '100%', flexShrink: 0 }} />
@@ -4917,7 +5058,7 @@ function SessionsTab({
         <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
       )}
 
-      {client.sessions.map((session) => (
+      {sortedSessions(client.sessions).map((session) => (
         <div key={session.id} style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
             <div
