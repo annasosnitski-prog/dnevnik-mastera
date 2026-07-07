@@ -923,12 +923,13 @@ export default function TattoDiary() {
   const [celebrationKey, setCelebrationKey] = useState(0);
   const [celebrationCount, setCelebrationCount] = useState(0);
 
-  // Rock-paper-scissors gate: holds the pending action to run once the user
-  // wins a round (or loses 3 in a row — see RockPaperScissorsGate). Mandatory
-  // for the very first client; a random chance after that (client/session/note
-  // creation), all of it disabled via prefs.gameMode.
+  // Trial gate: holds the pending action to run once the user wins a round
+  // (or loses 3 in a row — see TrialGate). Mandatory for the very first
+  // client; a random chance after that (client/session/note creation), all of
+  // it disabled via prefs.gameMode. Which mini-game shows (RPS or cups) is a
+  // separate coin flip inside TrialGate itself.
   const [rpsChallenge, setRpsChallenge] = useState<null | { onWin: () => void }>(null);
-  const RPS_RANDOM_CHANCE = 0.1;
+  const RPS_RANDOM_CHANCE = 0.28;
   const runGated = (mandatory: boolean, action: () => void) => {
     if (!prefs.gameMode || !(mandatory || Math.random() < RPS_RANDOM_CHANCE)) {
       action();
@@ -1669,9 +1670,9 @@ export default function TattoDiary() {
       {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
       <CelebrationBurst trigger={celebrationKey} clientCount={celebrationCount} />
 
-      {/* ═══════════ ROCK-PAPER-SCISSORS GATE ═══════════ */}
+      {/* ═══════════ TRIAL GATE (mini-game before creating something) ═══════════ */}
       {rpsChallenge && (
-        <RockPaperScissorsGate
+        <TrialGate
           onWin={() => {
             const { onWin } = rpsChallenge;
             setRpsChallenge(null);
@@ -1684,10 +1685,12 @@ export default function TattoDiary() {
   );
 }
 
-// ===================== ROCK-PAPER-SCISSORS GATE =====================
-// A little "trial" gate: the user must win a round to proceed. Ties are
-// replayed for free. Three losses in a row make the app "win" the series —
-// it still lets the user through, but not before a kawaii tongue-out taunt.
+// ===================== TRIAL GATE =====================
+// A little "trial" gate: the user must win a round to proceed. Each time it
+// fires, it randomly picks one of the mini-games below (rock-paper-scissors
+// or the shell/cups game). Ties (RPS only) replay for free. Three losses in a
+// row make the app "win" the series — it still lets the user through, but not
+// before a kawaii tongue-out taunt.
 const RPS_MOVES = ['rock', 'scissors', 'paper'] as const;
 type RPSMove = (typeof RPS_MOVES)[number];
 const RPS_LABELS: Record<RPSMove, string> = { rock: 'Камень', scissors: 'Ножницы', paper: 'Бумага' };
@@ -1747,13 +1750,14 @@ function RPSTauntFace() {
   );
 }
 
-function RockPaperScissorsGate({ onWin, onCancel }: { onWin: () => void; onCancel: () => void }) {
-  const [losses, setLosses] = useState(0);
-  const [phase, setPhase] = useState<'choose' | 'shake' | 'reveal' | 'taunt'>('choose');
+// Rock-paper-scissors mini-game: reports only 'win'/'loss' up to the wrapper;
+// ties are replayed for free entirely internally.
+function RPSGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) {
+  const [phase, setPhase] = useState<'choose' | 'shake' | 'reveal'>('choose');
   const [outcome, setOutcome] = useState<'win' | 'loss' | 'tie' | null>(null);
   const [userMove, setUserMove] = useState<RPSMove | null>(null);
   const [computerMove, setComputerMove] = useState<RPSMove | null>(null);
-  const [round, setRound] = useState(0); // bumped each reveal so the pop-in animation replays
+  const [tieRound, setTieRound] = useState(0); // bumped on each tie so the pop-in animation replays
 
   const play = (move: RPSMove) => {
     if (phase !== 'choose') return;
@@ -1765,11 +1769,11 @@ function RockPaperScissorsGate({ onWin, onCancel }: { onWin: () => void; onCance
     setTimeout(() => {
       const computer = RPS_MOVES[Math.floor(Math.random() * 3)];
       setComputerMove(computer);
-      setRound((r) => r + 1);
 
       if (computer === move) {
         setOutcome('tie');
         setPhase('reveal');
+        setTieRound((r) => r + 1);
         setTimeout(() => {
           setPhase('choose');
           setOutcome(null);
@@ -1779,33 +1783,221 @@ function RockPaperScissorsGate({ onWin, onCancel }: { onWin: () => void; onCance
         return;
       }
 
-      if (RPS_BEATS[move] === computer) {
-        setOutcome('win');
-        setPhase('reveal');
-        setTimeout(onWin, 1000);
-        return;
-      }
-
-      const nextLosses = losses + 1;
-      setLosses(nextLosses);
-      setOutcome('loss');
-      if (nextLosses >= 3) {
-        setPhase('taunt');
-        setTimeout(onWin, 2000);
-      } else {
-        setPhase('reveal');
-        setTimeout(() => {
-          setPhase('choose');
-          setOutcome(null);
-          setUserMove(null);
-          setComputerMove(null);
-        }, 1000);
-      }
+      const won = RPS_BEATS[move] === computer;
+      setOutcome(won ? 'win' : 'loss');
+      setPhase('reveal');
+      setTimeout(() => onResult(won ? 'win' : 'loss'), 1000);
     }, 900);
   };
 
   const resultText =
     outcome === 'win' ? 'Победа!' : outcome === 'tie' ? 'Ничья — ещё раз' : 'Проигрыш — попробуй ещё раз';
+
+  return (
+    <>
+      {phase === 'choose' && (
+        <>
+          <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 6 }}>
+            Выиграй раунд, чтобы продолжить
+          </div>
+          <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
+            {RPS_MOVES.map((m) => (
+              <div
+                key={m}
+                onClick={() => play(m)}
+                role="button"
+                aria-label={RPS_LABELS[m]}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+              >
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    border: '1px solid rgba(var(--gold-rgb),0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <RPSHandIcon move={m} size={40} />
+                </div>
+                <span style={{ fontSize: fs(10), color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                  {RPS_LABELS[m]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {phase === 'shake' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
+          <div className="inka-rps-shake">
+            <RPSHandIcon move="rock" size={54} />
+          </div>
+          <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textGhost }}>vs</div>
+          <div className="inka-rps-shake" style={{ animationDelay: '0.05s' }}>
+            <RPSHandIcon move="rock" size={54} />
+          </div>
+        </div>
+      )}
+
+      {phase === 'reveal' && (
+        <>
+          <div key={`reveal-${tieRound}`} className="inka-rps-pop" style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
+            {userMove && <RPSHandIcon move={userMove} size={54} />}
+            <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textGhost }}>vs</div>
+            {computerMove && <RPSHandIcon move={computerMove} size={54} />}
+          </div>
+          <div
+            style={{
+              fontFamily: DROP_CAP_FONT,
+              fontSize: fs(22),
+              color: outcome === 'win' ? COLORS.gold : COLORS.textPrimary,
+              letterSpacing: '1px',
+            }}
+          >
+            {resultText}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+// A simple upturned cup and a little gold ball — same gold line-art recipe as
+// the RPS hands. `lifted` raises the cup to reveal whatever's underneath.
+function CupIcon({ size = 56, lifted }: { size?: number; lifted?: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      fill="none"
+      style={{ transition: 'transform 0.45s cubic-bezier(0.34,1.4,0.64,1)', transform: lifted ? 'translateY(-34px)' : 'translateY(0)' }}
+    >
+      <path
+        d="M22 88 L34 32Q50 25 66 32L78 88Z"
+        fill="rgba(var(--gold-rgb),0.16)"
+        stroke="var(--gold)"
+        strokeWidth="3.5"
+        strokeLinejoin="round"
+      />
+      <ellipse cx="50" cy="88" rx="28" ry="7" fill="rgba(var(--gold-rgb),0.22)" stroke="var(--gold)" strokeWidth="3" />
+    </svg>
+  );
+}
+function BallIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <circle cx="20" cy="20" r="16" fill="var(--gold)" />
+      <ellipse cx="14" cy="13" rx="5" ry="3" fill="#fff8de" opacity="0.65" />
+    </svg>
+  );
+}
+
+// Shell/cups mini-game: a ball sits under one of three cups, they "shuffle"
+// (a chaotic dance — the ball's slot never actually changes since no one can
+// legitimately track it anyway), then the player guesses. Reports 'win'/'loss'
+// up to the wrapper once, same as RPSGame.
+function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) {
+  const [ballSlot] = useState(() => Math.floor(Math.random() * 3));
+  const [phase, setPhase] = useState<'intro' | 'shuffle' | 'choose' | 'result'>('intro');
+  const [revealed, setRevealed] = useState(true);
+  const [chosen, setChosen] = useState<number | null>(null);
+
+  useEffect(() => {
+    const t0 = setTimeout(() => setRevealed(false), 700);
+    const t1 = setTimeout(() => setPhase('shuffle'), 900);
+    const t2 = setTimeout(() => setPhase('choose'), 900 + 1600);
+    return () => {
+      clearTimeout(t0);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+
+  const choose = (i: number) => {
+    if (phase !== 'choose') return;
+    setChosen(i);
+    setPhase('result');
+    setTimeout(() => onResult(i === ballSlot ? 'win' : 'loss'), 1300);
+  };
+
+  const caption =
+    phase === 'intro'
+      ? 'Запоминай, где шарик...'
+      : phase === 'shuffle'
+      ? 'Мешаю, мешаю...'
+      : phase === 'choose'
+      ? 'Где шарик?'
+      : chosen === ballSlot
+      ? 'Угадал!'
+      : 'Не там — попробуй ещё раз';
+
+  return (
+    <>
+      <div style={{ fontSize: fs(14), color: chosen === ballSlot && phase === 'result' ? COLORS.gold : COLORS.textGhost, fontStyle: 'italic', marginTop: 6 }}>
+        {caption}
+      </div>
+      <div style={{ display: 'flex', gap: 18, marginTop: 10 }}>
+        {[0, 1, 2].map((i) => {
+          const lifted = (phase === 'intro' && revealed && i === ballSlot) || (phase === 'result' && i === ballSlot);
+          return (
+            <div
+              key={i}
+              onClick={() => choose(i)}
+              role="button"
+              aria-label={`Стаканчик ${i + 1}`}
+              className={phase === 'shuffle' ? `inka-cup-shuffle-${i}` : undefined}
+              style={{
+                position: 'relative',
+                cursor: phase === 'choose' ? 'pointer' : 'default',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              {lifted && (
+                <div style={{ position: 'absolute', bottom: 8, zIndex: 1 }}>
+                  <BallIcon size={20} />
+                </div>
+              )}
+              <div style={{ zIndex: 2 }}>
+                <CupIcon size={56} lifted={lifted} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+type TrialGameKind = 'rps' | 'cups';
+const TRIAL_TITLES: Record<TrialGameKind, string> = { rps: 'Камень · Ножницы · Бумага', cups: 'Три стаканчика' };
+
+function TrialGate({ onWin, onCancel }: { onWin: () => void; onCancel: () => void }) {
+  const [gameKind] = useState<TrialGameKind>(() => (Math.random() < 0.5 ? 'rps' : 'cups'));
+  const [losses, setLosses] = useState(0);
+  const [stage, setStage] = useState<'playing' | 'taunt'>('playing');
+  const [round, setRound] = useState(0); // bumped on each loss retry to remount the mini-game fresh
+
+  const handleResult = (result: 'win' | 'loss') => {
+    if (result === 'win') {
+      onWin();
+      return;
+    }
+    const nextLosses = losses + 1;
+    setLosses(nextLosses);
+    if (nextLosses >= 3) {
+      setStage('taunt');
+      setTimeout(onWin, 2000);
+    } else {
+      setRound((r) => r + 1);
+    }
+  };
 
   return (
     <div
@@ -1857,7 +2049,7 @@ function RockPaperScissorsGate({ onWin, onCancel }: { onWin: () => void; onCance
             textTransform: 'uppercase',
           }}
         >
-          Камень · Ножницы · Бумага
+          {TRIAL_TITLES[gameKind]}
         </div>
         <StarDivider marginTop={9} />
 
@@ -1878,75 +2070,10 @@ function RockPaperScissorsGate({ onWin, onCancel }: { onWin: () => void; onCance
         </div>
 
         <div style={{ minHeight: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-          {phase === 'choose' && (
-            <>
-              <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 6 }}>
-                Выиграй раунд, чтобы продолжить
-              </div>
-              <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
-                {RPS_MOVES.map((m) => (
-                  <div
-                    key={m}
-                    onClick={() => play(m)}
-                    role="button"
-                    aria-label={RPS_LABELS[m]}
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer' }}
-                  >
-                    <div
-                      style={{
-                        width: 64,
-                        height: 64,
-                        borderRadius: '50%',
-                        border: '1px solid rgba(var(--gold-rgb),0.3)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <RPSHandIcon move={m} size={40} />
-                    </div>
-                    <span style={{ fontSize: fs(10), color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                      {RPS_LABELS[m]}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+          {stage === 'playing' &&
+            (gameKind === 'rps' ? <RPSGame key={round} onResult={handleResult} /> : <CupsGame key={round} onResult={handleResult} />)}
 
-          {phase === 'shake' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
-              <div className="inka-rps-shake">
-                <RPSHandIcon move="rock" size={54} />
-              </div>
-              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textGhost }}>vs</div>
-              <div className="inka-rps-shake" style={{ animationDelay: '0.05s' }}>
-                <RPSHandIcon move="rock" size={54} />
-              </div>
-            </div>
-          )}
-
-          {phase === 'reveal' && (
-            <>
-              <div key={`reveal-${round}`} className="inka-rps-pop" style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
-                {userMove && <RPSHandIcon move={userMove} size={54} />}
-                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(15), color: COLORS.textGhost }}>vs</div>
-                {computerMove && <RPSHandIcon move={computerMove} size={54} />}
-              </div>
-              <div
-                style={{
-                  fontFamily: DROP_CAP_FONT,
-                  fontSize: fs(22),
-                  color: outcome === 'win' ? COLORS.gold : COLORS.textPrimary,
-                  letterSpacing: '1px',
-                }}
-              >
-                {resultText}
-              </div>
-            </>
-          )}
-
-          {phase === 'taunt' && (
+          {stage === 'taunt' && (
             <>
               <RPSTauntFace />
               <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
