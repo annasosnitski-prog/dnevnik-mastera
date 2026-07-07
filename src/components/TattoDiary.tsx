@@ -77,20 +77,25 @@ const STYLES_PINNED_COUNT = 6;
 // ── Note urgency (Eisenhower-style) markers ──
 // Colour is reserved for the client marker, so urgency is encoded by emoji glyph
 // + rank (used for sorting in «Дополнительно» and filtering in «Сводка»).
-type UrgencyKey =
-  | 'urgent_important'
-  | 'urgent_not'
-  | 'important_not_urgent'
-  | 'not_not'
-  | 'interesting';
+// A single priority scale (not the old urgent×important matrix — that 2-axis
+// split was confusing in practice, e.g. "buy a discounted item" doesn't map
+// cleanly onto "urgent but not important") plus a separate "interesting" tag.
+type UrgencyKey = 'urgent' | 'important' | 'normal' | 'interesting';
 
 const URGENCY: { key: UrgencyKey; emoji: string; label: string; short: string }[] = [
-  { key: 'urgent_important', emoji: '‼️', label: 'Срочно и важно', short: 'Срочно · важно' },
-  { key: 'urgent_not', emoji: '❗️', label: 'Срочно, не важно', short: 'Срочно' },
-  { key: 'important_not_urgent', emoji: '🔆', label: 'Важно, не срочно', short: 'Важно' },
-  { key: 'not_not', emoji: '🌙', label: 'Не срочно, не важно', short: 'Спокойно' },
+  { key: 'urgent', emoji: '‼️', label: 'Срочно', short: 'Срочно' },
+  { key: 'important', emoji: '🔆', label: 'Важно', short: 'Важно' },
+  { key: 'normal', emoji: '🌙', label: 'Обычно', short: 'Обычно' },
   { key: 'interesting', emoji: '⚡️', label: 'Интересно', short: 'Интересно' },
 ];
+// Old 5-key urgent×important matrix → new single scale, so existing stored
+// notes keep a sensible priority instead of collapsing to one default.
+const LEGACY_URGENCY_MAP: Record<string, UrgencyKey> = {
+  urgent_important: 'urgent',
+  urgent_not: 'urgent',
+  important_not_urgent: 'important',
+  not_not: 'normal',
+};
 const DONE_EMOJI = '🍀';
 const urgencyRank = (k: UrgencyKey): number => URGENCY.findIndex((u) => u.key === k);
 const urgencyMeta = (k: UrgencyKey) => URGENCY.find((u) => u.key === k) || URGENCY[URGENCY.length - 1];
@@ -307,18 +312,18 @@ function upcomingSessions(clients: Client[], days: number): { client: Client; se
 }
 
 // Counts open (not-done) notes by urgency, across all clients — the two
-// buckets the dashboard surfaces: urgent+important, and important-not-urgent.
-function urgencyCounts(clients: Client[]): { urgentImportant: number; importantNotUrgent: number } {
-  let urgentImportant = 0;
-  let importantNotUrgent = 0;
+// buckets the dashboard surfaces: urgent, and important.
+function urgencyCounts(clients: Client[]): { urgent: number; important: number } {
+  let urgent = 0;
+  let important = 0;
   for (const c of clients) {
     for (const n of c.notes) {
       if (n.done) continue;
-      if (n.urgency === 'urgent_important') urgentImportant++;
-      else if (n.urgency === 'important_not_urgent') importantNotUrgent++;
+      if (n.urgency === 'urgent') urgent++;
+      else if (n.urgency === 'important') important++;
     }
   }
-  return { urgentImportant, importantNotUrgent };
+  return { urgent, important };
 }
 
 // Count of notes marked done (closed), across all clients and urgencies.
@@ -381,7 +386,7 @@ function normalizeClient(raw: any, index: number): Client {
       ? raw.notes.map((n: any, i: number): ClientNote => ({
           id: String(n?.id ?? `${Date.now()}-n${i}`),
           text: n?.text ?? '',
-          urgency: URGENCY.some((u) => u.key === n?.urgency) ? n.urgency : 'important_not_urgent',
+          urgency: URGENCY.some((u) => u.key === n?.urgency) ? n.urgency : LEGACY_URGENCY_MAP[n?.urgency] ?? 'normal',
           done: Boolean(n?.done),
           createdDate: n?.createdDate ?? new Date().toISOString(),
         }))
@@ -2627,7 +2632,7 @@ function MasterDashboardScreen({
 
   const style = mostUsedStyle(clients);
   const upcoming = upcomingSessions(clients, prefs.upcomingWindowDays);
-  const { urgentImportant, importantNotUrgent } = urgencyCounts(clients);
+  const { urgent, important } = urgencyCounts(clients);
   const closedCount = closedNotesCount(clients);
 
   const statLabelStyle: React.CSSProperties = {
@@ -2696,8 +2701,8 @@ function MasterDashboardScreen({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
           <StatBlock label="Клиентов" value={clients.length} />
           <StatBlock label={`${DONE_EMOJI} Выполнено заметок`} value={closedCount} />
-          <StatBlock label="‼️ Срочно" value={urgentImportant} />
-          <StatBlock label={`${URGENCY[2].emoji} ${URGENCY[2].short}`} value={importantNotUrgent} />
+          <StatBlock label={`${URGENCY[0].emoji} ${URGENCY[0].short}`} value={urgent} />
+          <StatBlock label={`${URGENCY[1].emoji} ${URGENCY[1].short}`} value={important} />
           <div style={{ gridColumn: '1 / -1' }}>
             <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
           </div>
@@ -4900,13 +4905,13 @@ function NoteItem({
 // Compose a new note: text + urgency marker.
 function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) => void }) {
   const [text, setText] = useState('');
-  const [urgency, setUrgency] = useState<UrgencyKey>('important_not_urgent');
+  const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const submit = () => {
     const t = text.trim();
     if (!t) return;
     onAdd(t, urgency);
     setText('');
-    setUrgency('important_not_urgent');
+    setUrgency('important');
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
