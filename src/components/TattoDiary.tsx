@@ -271,7 +271,7 @@ const sortedSessions = (sessions: Session[]): Session[] => {
   });
   return withKey
     .sort((a, b) => {
-      const byKey = a.key.localeCompare(b.key);
+      const byKey = b.key.localeCompare(a.key); // most recent date first
       if (byKey !== 0) return byKey;
       if (a.dated && b.dated) return a.i - b.i; // same explicit date: keep creation order
       if (!a.dated && !b.dated) return b.i - a.i; // same slot, both undated: newest first
@@ -281,10 +281,11 @@ const sortedSessions = (sessions: Session[]): Session[] => {
 };
 
 // "Last session" means the most recent completed (done) one — a planned/future
-// session isn't a "last session" yet.
+// session isn't a "last session" yet. sortedSessions is newest-first, so it's
+// the first done entry, not the last.
 const lastSession = (c: Client): Session | null => {
   const done = sortedSessions(c.sessions).filter((s) => s.done);
-  return done.length ? done[done.length - 1] : null;
+  return done.length ? done[0] : null;
 };
 const lastSessionDate = (c: Client) => {
   const s = lastSession(c);
@@ -923,6 +924,10 @@ function readInitialMasterInfo(): MasterInfo {
 // ===================== MAIN APP =====================
 export default function TattoDiary() {
   const [clients, setClients] = useState<Client[]>([]);
+  // Distinguishes "still loading from IndexedDB" from "genuinely no clients
+  // yet" — without it, the first-run empty state flashes on every load before
+  // the (real) client list comes in.
+  const [clientsLoaded, setClientsLoaded] = useState(false);
   const [db, setDb] = useState<IDBDatabase | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(readInitialTheme);
@@ -1040,7 +1045,10 @@ export default function TattoDiary() {
   const loadClients = (database: IDBDatabase) => {
     const tx = database.transaction('clients', 'readonly');
     const request = tx.objectStore('clients').getAll();
-    request.onsuccess = () => setClients((request.result || []).map(normalizeClient));
+    request.onsuccess = () => {
+      setClients((request.result || []).map(normalizeClient));
+      setClientsLoaded(true);
+    };
     request.onerror = () => setDbError('Не удалось загрузить клиентов.');
   };
 
@@ -1510,8 +1518,9 @@ export default function TattoDiary() {
         )}
 
         {/* First-run empty state — points at the pinned add button since the
-            grid no longer has its own add tile. */}
-        {clients.length === 0 && (
+            grid no longer has its own add tile. Gated on clientsLoaded so it
+            doesn't flash before the real (non-empty) list has loaded. */}
+        {clientsLoaded && clients.length === 0 && (
           <div
             style={{
               position: 'absolute',
@@ -1839,7 +1848,7 @@ function RPSHandIcon({ move, size = 56 }: { move: RPSMove; size?: number }) {
 
 function RPSTauntFace() {
   return (
-    <svg width="72" height="72" viewBox="0 0 100 100" fill="none">
+    <svg width="128" height="128" viewBox="0 0 100 100" fill="none">
       <path d="M27 41Q34 33 41 41" stroke="var(--gold)" strokeWidth="3" strokeLinecap="round" fill="none" />
       <path d="M59 41Q66 33 73 41" stroke="var(--gold)" strokeWidth="3" strokeLinecap="round" fill="none" />
       <circle cx="25" cy="57" r="6" fill="var(--gold)" opacity="0.32" />
@@ -2020,9 +2029,14 @@ function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) 
     timers.push(setTimeout(() => setRevealed(false), 700));
     timers.push(setTimeout(() => setPhase('shuffle'), 900));
 
-    const SWAP_COUNT = 6;
-    const SWAP_MS = 260;
+    // More swaps, faster, at jittered intervals (not an even beat) — harder
+    // to keep count of than a slow, metronomic shuffle.
+    const SWAP_COUNT = 11;
+    const SWAP_MS = 180;
+    const SWAP_JITTER_MS = 60; // each interval is SWAP_MS ± this
+    let elapsed = 900;
     for (let i = 0; i < SWAP_COUNT; i++) {
+      elapsed += SWAP_MS + (Math.random() - 0.5) * 2 * SWAP_JITTER_MS;
       timers.push(
         setTimeout(() => {
           setCupSlot((prev) => {
@@ -2037,10 +2051,10 @@ function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) 
             next[cupAtB] = a;
             return next;
           });
-        }, 900 + i * SWAP_MS),
+        }, elapsed),
       );
     }
-    timers.push(setTimeout(() => setPhase('choose'), 900 + SWAP_COUNT * SWAP_MS + 150));
+    timers.push(setTimeout(() => setPhase('choose'), elapsed + 150));
     return () => timers.forEach(clearTimeout);
   }, []);
 
@@ -2086,7 +2100,7 @@ function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) 
                 left: cupId * STEP,
                 top: 0,
                 transform: `translateX(${(slot - cupId) * STEP}px)`,
-                transition: 'transform 0.24s ease-in-out',
+                transition: 'transform 0.17s ease-in-out',
                 cursor: phase === 'choose' ? 'pointer' : 'default',
                 display: 'flex',
                 flexDirection: 'column',
@@ -2332,7 +2346,7 @@ function TrialGate({
     if (nextLosses >= 3) {
       setStage('taunt');
       onOutcome?.('lossStreak');
-      setTimeout(onWin, 2000);
+      setTimeout(onWin, 3800);
     } else {
       setRound((r) => r + 1);
     }
@@ -3622,6 +3636,28 @@ function SettingSlider({
   );
 }
 
+// Collapses/expands the client hero — sits at the end of whichever row is
+// showing (collapsed strip or the expanded styles/count line) via marginLeft:
+// auto, so it stays in the same place either way.
+function HeaderCollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  return (
+    <div
+      className="inka-back"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      role="button"
+      aria-label={collapsed ? 'Развернуть карточку клиента' : 'Свернуть карточку клиента'}
+      style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginLeft: 'auto', flexShrink: 0 }}
+    >
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s' }}>
+        <path d="M3.5 6.5L8 11L12.5 6.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
 // ===================== DETAIL SCREEN =====================
 function DetailScreen({
   client,
@@ -3709,30 +3745,16 @@ function DetailScreen({
             </svg>
             <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Edit client */}
-            <div
-              className="inka-back"
-              onClick={onEditClient}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
-            >
-              <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-                <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-              </svg>
-            </div>
-            {/* Collapse/expand the hero — more room for sessions/notes below */}
-            <div
-              className="inka-back"
-              onClick={() => setHeaderCollapsed((v) => !v)}
-              role="button"
-              aria-label={headerCollapsed ? 'Развернуть карточку клиента' : 'Свернуть карточку клиента'}
-              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            >
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ transform: headerCollapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s' }}>
-                <path d="M3.5 6.5L8 11L12.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
+          {/* Edit client */}
+          <div
+            className="inka-back"
+            onClick={onEditClient}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+          >
+            <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+              <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+            </svg>
           </div>
         </div>
 
@@ -3747,6 +3769,7 @@ function DetailScreen({
               {client.surname ? ` ${client.surname}` : ''}
             </span>
             <span style={{ fontSize: fs(13), color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
+            <HeaderCollapseToggle collapsed={headerCollapsed} onToggle={() => setHeaderCollapsed((v) => !v)} />
           </div>
         ) : (
           /* Giant drop cap hero */
@@ -3782,6 +3805,7 @@ function DetailScreen({
                 {stylesLabel(client) || 'Без стиля'}
               </span>
               <span style={{ fontSize: fs(13), color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
+              <HeaderCollapseToggle collapsed={headerCollapsed} onToggle={() => setHeaderCollapsed((v) => !v)} />
             </div>
 
             {/* Notes about the client — moved up into the header (per design). */}
@@ -3836,7 +3860,7 @@ function DetailScreen({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '14px 24px 0',
+            padding: '14px 24px',
             background: COLORS.bg,
             flexShrink: 0,
           }}
