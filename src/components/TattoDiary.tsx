@@ -100,6 +100,7 @@ interface Session {
   id: string;
   name: string; // session title, e.g. "Первая", "Голубика"
   date: string; // ISO yyyy-mm-dd (or legacy free text)
+  time: string; // HH:MM, 24h — optional, shown only on the master dashboard
   duration: string; // e.g. "4 ч"
   style: string; // work style for this session
   area: string; // work zone, e.g. "Левое плечо"
@@ -337,6 +338,7 @@ function normalizeClient(raw: any, index: number): Client {
         id: String(s?.id ?? `${Date.now()}-${i}`),
         name: s?.name ?? '',
         date: s?.date ?? '',
+        time: s?.time ?? '',
         duration: s?.duration ?? '',
         style: s?.style ?? '',
         area: s?.area ?? s?.proportions ?? '',
@@ -1124,6 +1126,7 @@ export default function TattoDiary() {
   const handleAddSession = (data: {
     name: string;
     date: string;
+    time: string;
     duration: string;
     style: string;
     area: string;
@@ -1138,6 +1141,7 @@ export default function TattoDiary() {
     const fields = {
       name: data.name.trim(),
       date: data.date || new Date().toISOString().slice(0, 10),
+      time: data.time,
       duration: data.duration,
       style: data.style,
       area: data.area.trim(),
@@ -1183,7 +1187,6 @@ export default function TattoDiary() {
       style={{
         position: 'relative',
         width: '100%',
-        maxWidth: 480,
         margin: '0 auto',
         overflow: 'hidden',
         background: COLORS.bg,
@@ -1382,12 +1385,12 @@ export default function TattoDiary() {
           </div>
         )}
 
-        {/* Cards grid */}
+        {/* Cards grid — 2 columns on phones, 3 from tablet width up (see .inka-client-grid). */}
         <div
+          className="inka-client-grid"
           style={{
             padding: '2px 16px 88px',
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
             gap: 10,
             position: 'relative',
             zIndex: 5,
@@ -2741,7 +2744,10 @@ function MasterDashboardScreen({
                   }}
                 >
                   <div style={{ fontSize: fs(14), color: COLORS.textPrimary }}>{client.name || '—'}</div>
-                  <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>{formatDate(session.date)}</div>
+                  <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
+                    {formatDate(session.date)}
+                    {session.time && <span style={{ color: COLORS.gold }}> · {session.time}</span>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -4476,6 +4482,9 @@ function SessionPhotos({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
+  // Tap to enlarge — an in-app overlay, never a navigation/link (that's what
+  // caused the white-screen PWA crash before).
+  const [viewerSrc, setViewerSrc] = useState<string | null>(null);
 
   const onPick = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -4504,6 +4513,7 @@ function SessionPhotos({
               <img
                 src={src}
                 alt=""
+                onClick={() => setViewerSrc(src)}
                 style={{
                   width: 78,
                   height: 78,
@@ -4511,6 +4521,7 @@ function SessionPhotos({
                   borderRadius: 2,
                   border: '1px solid rgba(var(--gold-rgb),0.2)',
                   display: 'block',
+                  cursor: 'pointer',
                 }}
               />
               {allowDelete && (confirmIndex === i ? (
@@ -4600,6 +4611,46 @@ function SessionPhotos({
           e.target.value = '';
         }}
       />
+
+      {/* Tap-to-enlarge viewer — plain in-app overlay, no <a>/navigation. */}
+      {viewerSrc && (
+        <div
+          onClick={() => setViewerSrc(null)}
+          role="button"
+          aria-label="Закрыть фото"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 500,
+            background: 'rgba(0,0,0,0.92)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={() => setViewerSrc(null)}
+            role="button"
+            aria-label="Закрыть"
+            style={{
+              position: 'absolute',
+              top: 'calc(env(safe-area-inset-top) + 16px)',
+              right: 20,
+              fontSize: fs(22),
+              color: '#EDE4CC',
+              cursor: 'pointer',
+            }}
+          >
+            ✕
+          </div>
+          <img
+            src={viewerSrc}
+            alt=""
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 3 }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -5327,6 +5378,7 @@ function NewSessionSheet({
   onAdd: (data: {
     name: string;
     date: string;
+    time: string;
     duration: string;
     style: string;
     area: string;
@@ -5341,6 +5393,7 @@ function NewSessionSheet({
   const isEdit = !!initial;
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
   const [duration, setDuration] = useState('');
   const [style, setStyle] = useState('');
   const [stylesExpanded, setStylesExpanded] = useState(false);
@@ -5358,6 +5411,7 @@ function NewSessionSheet({
       // Prefill from the session being edited, or start blank for a new one.
       setName(initial?.name ?? '');
       setDate(initial?.date ?? '');
+      setTime(initial?.time ?? '');
       setDuration(initial?.duration ?? '');
       setStyle(initial?.style ?? '');
       setArea(initial?.area ?? '');
@@ -5403,9 +5457,15 @@ function NewSessionSheet({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Дата</FieldLabel>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={INPUT_STYLE} />
+        <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Дата</FieldLabel>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={INPUT_STYLE} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Время</FieldLabel>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={INPUT_STYLE} />
+          </div>
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -5498,7 +5558,7 @@ function NewSessionSheet({
 
         <div
           className="inka-submit"
-          onClick={() => onAdd({ name, date, duration, style, area, colors, needles, skinReaction, note, photos, done })}
+          onClick={() => onAdd({ name, date, time, duration, style, area, colors, needles, skinReaction, note, photos, done })}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
