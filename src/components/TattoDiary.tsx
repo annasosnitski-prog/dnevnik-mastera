@@ -271,7 +271,7 @@ const sortedSessions = (sessions: Session[]): Session[] => {
   });
   return withKey
     .sort((a, b) => {
-      const byKey = a.key.localeCompare(b.key);
+      const byKey = b.key.localeCompare(a.key); // most recent date first
       if (byKey !== 0) return byKey;
       if (a.dated && b.dated) return a.i - b.i; // same explicit date: keep creation order
       if (!a.dated && !b.dated) return b.i - a.i; // same slot, both undated: newest first
@@ -281,10 +281,11 @@ const sortedSessions = (sessions: Session[]): Session[] => {
 };
 
 // "Last session" means the most recent completed (done) one — a planned/future
-// session isn't a "last session" yet.
+// session isn't a "last session" yet. sortedSessions is newest-first, so it's
+// the first done entry, not the last.
 const lastSession = (c: Client): Session | null => {
   const done = sortedSessions(c.sessions).filter((s) => s.done);
-  return done.length ? done[done.length - 1] : null;
+  return done.length ? done[0] : null;
 };
 const lastSessionDate = (c: Client) => {
   const s = lastSession(c);
@@ -2028,9 +2029,14 @@ function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) 
     timers.push(setTimeout(() => setRevealed(false), 700));
     timers.push(setTimeout(() => setPhase('shuffle'), 900));
 
-    const SWAP_COUNT = 6;
-    const SWAP_MS = 260;
+    // More swaps, faster, at jittered intervals (not an even beat) — harder
+    // to keep count of than a slow, metronomic shuffle.
+    const SWAP_COUNT = 11;
+    const SWAP_MS = 180;
+    const SWAP_JITTER_MS = 60; // each interval is SWAP_MS ± this
+    let elapsed = 900;
     for (let i = 0; i < SWAP_COUNT; i++) {
+      elapsed += SWAP_MS + (Math.random() - 0.5) * 2 * SWAP_JITTER_MS;
       timers.push(
         setTimeout(() => {
           setCupSlot((prev) => {
@@ -2045,10 +2051,10 @@ function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) 
             next[cupAtB] = a;
             return next;
           });
-        }, 900 + i * SWAP_MS),
+        }, elapsed),
       );
     }
-    timers.push(setTimeout(() => setPhase('choose'), 900 + SWAP_COUNT * SWAP_MS + 150));
+    timers.push(setTimeout(() => setPhase('choose'), elapsed + 150));
     return () => timers.forEach(clearTimeout);
   }, []);
 
@@ -2094,7 +2100,7 @@ function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) 
                 left: cupId * STEP,
                 top: 0,
                 transform: `translateX(${(slot - cupId) * STEP}px)`,
-                transition: 'transform 0.24s ease-in-out',
+                transition: 'transform 0.17s ease-in-out',
                 cursor: phase === 'choose' ? 'pointer' : 'default',
                 display: 'flex',
                 flexDirection: 'column',
