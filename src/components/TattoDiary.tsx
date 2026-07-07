@@ -255,10 +255,35 @@ const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
 
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
+
+// Chronological session order: dated sessions rank by their date. A session
+// without a date has nothing to rank by, so it inherits the date of the
+// nearest earlier dated session in creation order (or sorts before everything
+// if there isn't one yet) — it slots into the calendar gap it was added in.
+// Undated sessions sharing that same slot fall back to newest-created-first
+// among themselves, so the freshest one sits on top of that stack.
+const sortedSessions = (sessions: Session[]): Session[] => {
+  let anchor = '';
+  const withKey = sessions.map((s, i) => {
+    const dated = ISO_DATE_RE.test(s.date);
+    if (dated) anchor = s.date;
+    return { s, i, dated, key: dated ? s.date : anchor };
+  });
+  return withKey
+    .sort((a, b) => {
+      const byKey = a.key.localeCompare(b.key);
+      if (byKey !== 0) return byKey;
+      if (a.dated && b.dated) return a.i - b.i; // same explicit date: keep creation order
+      if (!a.dated && !b.dated) return b.i - a.i; // same slot, both undated: newest first
+      return a.dated ? -1 : 1; // the dated session anchoring this slot comes first
+    })
+    .map((x) => x.s);
+};
+
 // "Last session" means the most recent completed (done) one — a planned/future
 // session isn't a "last session" yet.
 const lastSession = (c: Client): Session | null => {
-  const done = c.sessions.filter((s) => s.done);
+  const done = sortedSessions(c.sessions).filter((s) => s.done);
   return done.length ? done[done.length - 1] : null;
 };
 const lastSessionDate = (c: Client) => {
@@ -1145,7 +1170,7 @@ export default function TattoDiary() {
     if (!selectedClient) return;
     const fields = {
       name: data.name.trim(),
-      date: data.date || new Date().toISOString().slice(0, 10),
+      date: data.date,
       time: data.time,
       duration: data.duration,
       style: data.style,
@@ -4917,7 +4942,7 @@ function SessionsTab({
         <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
       )}
 
-      {client.sessions.map((session) => (
+      {sortedSessions(client.sessions).map((session) => (
         <div key={session.id} style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
             <div
