@@ -192,6 +192,24 @@ svg {
 .app-shell {
   height: 100vh;
   height: 100dvh;
+  max-width: 480px;
+}
+
+/* Tablet and up: give the shell more breathing room instead of centering a
+   phone-width column on a much bigger screen. */
+@media (min-width: 700px) {
+  .app-shell {
+    max-width: 820px;
+  }
+}
+
+.inka-client-grid {
+  grid-template-columns: 1fr 1fr;
+}
+@media (min-width: 700px) {
+  .inka-client-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
 }
 
 /* iOS Safari auto-zooms when focusing a field whose font is smaller than 16px.

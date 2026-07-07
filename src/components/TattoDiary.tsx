@@ -1187,7 +1187,6 @@ export default function TattoDiary() {
       style={{
         position: 'relative',
         width: '100%',
-        maxWidth: 480,
         margin: '0 auto',
         overflow: 'hidden',
         background: COLORS.bg,
@@ -1386,12 +1385,12 @@ export default function TattoDiary() {
           </div>
         )}
 
-        {/* Cards grid */}
+        {/* Cards grid — 2 columns on phones, 3 from tablet width up (see .inka-client-grid). */}
         <div
+          className="inka-client-grid"
           style={{
             padding: '2px 16px 88px',
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
             gap: 10,
             position: 'relative',
             zIndex: 5,
@@ -4483,6 +4482,9 @@ function SessionPhotos({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
+  // Tap to enlarge — an in-app overlay, never a navigation/link (that's what
+  // caused the white-screen PWA crash before).
+  const [viewerSrc, setViewerSrc] = useState<string | null>(null);
 
   const onPick = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -4511,6 +4513,7 @@ function SessionPhotos({
               <img
                 src={src}
                 alt=""
+                onClick={() => setViewerSrc(src)}
                 style={{
                   width: 78,
                   height: 78,
@@ -4518,6 +4521,7 @@ function SessionPhotos({
                   borderRadius: 2,
                   border: '1px solid rgba(var(--gold-rgb),0.2)',
                   display: 'block',
+                  cursor: 'pointer',
                 }}
               />
               {allowDelete && (confirmIndex === i ? (
@@ -4607,6 +4611,46 @@ function SessionPhotos({
           e.target.value = '';
         }}
       />
+
+      {/* Tap-to-enlarge viewer — plain in-app overlay, no <a>/navigation. */}
+      {viewerSrc && (
+        <div
+          onClick={() => setViewerSrc(null)}
+          role="button"
+          aria-label="Закрыть фото"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 500,
+            background: 'rgba(0,0,0,0.92)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={() => setViewerSrc(null)}
+            role="button"
+            aria-label="Закрыть"
+            style={{
+              position: 'absolute',
+              top: 'calc(env(safe-area-inset-top) + 16px)',
+              right: 20,
+              fontSize: fs(22),
+              color: '#EDE4CC',
+              cursor: 'pointer',
+            }}
+          >
+            ✕
+          </div>
+          <img
+            src={viewerSrc}
+            alt=""
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 3 }}
+          />
+        </div>
+      )}
     </div>
   );
 }
