@@ -1909,31 +1909,56 @@ function BallIcon({ size = 22, color = 'var(--gold)' }: { size?: number; color?:
 // (a chaotic dance — the ball's slot never actually changes since no one can
 // legitimately track it anyway), then the player guesses. Reports 'win'/'loss'
 // up to the wrapper once, same as RPSGame.
+// Cups genuinely swap places (not just jitter in place) — cupSlot[cupId] is
+// which visual slot (0-2) that cup currently occupies; a handful of random
+// pairwise swaps animate via CSS transform so there's an actual (if fast)
+// shuffle to try to track, same as the real game.
 function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) {
-  const [ballSlot] = useState(() => Math.floor(Math.random() * 3));
+  const [ballCup] = useState(() => Math.floor(Math.random() * 3)); // which cup (identity) hides the ball — fixed all round
+  const [cupSlot, setCupSlot] = useState<number[]>([0, 1, 2]); // cupSlot[cupId] = current visual slot
   // A fresh random colour from the same palette as client markers, each time
   // a new round mounts (the wrapper remounts this on every retry).
   const [ballColor] = useState(() => MARKER_COLORS[Math.floor(Math.random() * MARKER_COLORS.length)]);
   const [phase, setPhase] = useState<'intro' | 'shuffle' | 'choose' | 'result'>('intro');
   const [revealed, setRevealed] = useState(true);
-  const [chosen, setChosen] = useState<number | null>(null);
+  const [chosenSlot, setChosenSlot] = useState<number | null>(null);
 
   useEffect(() => {
-    const t0 = setTimeout(() => setRevealed(false), 700);
-    const t1 = setTimeout(() => setPhase('shuffle'), 900);
-    const t2 = setTimeout(() => setPhase('choose'), 900 + 1600);
-    return () => {
-      clearTimeout(t0);
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    timers.push(setTimeout(() => setRevealed(false), 700));
+    timers.push(setTimeout(() => setPhase('shuffle'), 900));
+
+    const SWAP_COUNT = 6;
+    const SWAP_MS = 260;
+    for (let i = 0; i < SWAP_COUNT; i++) {
+      timers.push(
+        setTimeout(() => {
+          setCupSlot((prev) => {
+            const a = Math.floor(Math.random() * 3);
+            // b picked as an offset from a (1 or 2 steps, mod 3) — guaranteed
+            // different from a with no retry loop needed.
+            const b = (a + 1 + Math.floor(Math.random() * 2)) % 3;
+            const next = [...prev];
+            const cupAtA = next.indexOf(a);
+            const cupAtB = next.indexOf(b);
+            next[cupAtA] = b;
+            next[cupAtB] = a;
+            return next;
+          });
+        }, 900 + i * SWAP_MS),
+      );
+    }
+    timers.push(setTimeout(() => setPhase('choose'), 900 + SWAP_COUNT * SWAP_MS + 150));
+    return () => timers.forEach(clearTimeout);
   }, []);
 
-  const choose = (i: number) => {
+  const ballSlot = cupSlot[ballCup]; // where the ball actually ends up, post-shuffle
+
+  const choose = (slot: number) => {
     if (phase !== 'choose') return;
-    setChosen(i);
+    setChosenSlot(slot);
     setPhase('result');
-    setTimeout(() => onResult(i === ballSlot ? 'win' : 'loss'), 1300);
+    setTimeout(() => onResult(slot === ballSlot ? 'win' : 'loss'), 1300);
   };
 
   const caption =
@@ -1943,27 +1968,33 @@ function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) 
       ? 'Мешаю, мешаю...'
       : phase === 'choose'
       ? 'Где шарик?'
-      : chosen === ballSlot
+      : chosenSlot === ballSlot
       ? 'Угадал!'
       : 'Не там — попробуй ещё раз';
 
+  const STEP = 74; // px — matches cup width (56) + gap (18)
+
   return (
     <>
-      <div style={{ fontSize: fs(14), color: chosen === ballSlot && phase === 'result' ? COLORS.gold : COLORS.textGhost, fontStyle: 'italic', marginTop: 6 }}>
+      <div style={{ fontSize: fs(14), color: chosenSlot === ballSlot && phase === 'result' ? COLORS.gold : COLORS.textGhost, fontStyle: 'italic', marginTop: 6 }}>
         {caption}
       </div>
-      <div style={{ display: 'flex', gap: 18, marginTop: 10 }}>
-        {[0, 1, 2].map((i) => {
-          const lifted = (phase === 'intro' && revealed && i === ballSlot) || (phase === 'result' && i === ballSlot);
+      <div style={{ position: 'relative', width: STEP * 3 - 18, height: 90, marginTop: 10 }}>
+        {[0, 1, 2].map((cupId) => {
+          const slot = cupSlot[cupId];
+          const lifted = (phase === 'intro' && revealed && cupId === ballCup) || (phase === 'result' && cupId === ballCup);
           return (
             <div
-              key={i}
-              onClick={() => choose(i)}
+              key={cupId}
+              onClick={() => choose(slot)}
               role="button"
-              aria-label={`Стаканчик ${i + 1}`}
-              className={phase === 'shuffle' ? `inka-cup-shuffle-${i}` : undefined}
+              aria-label={`Стаканчик ${slot + 1}`}
               style={{
-                position: 'relative',
+                position: 'absolute',
+                left: cupId * STEP,
+                top: 0,
+                transform: `translateX(${(slot - cupId) * STEP}px)`,
+                transition: 'transform 0.24s ease-in-out',
                 cursor: phase === 'choose' ? 'pointer' : 'default',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1986,11 +2017,203 @@ function CupsGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) 
   );
 }
 
-type TrialGameKind = 'rps' | 'cups';
-const TRIAL_TITLES: Record<TrialGameKind, string> = { rps: 'Камень · Ножницы · Бумага', cups: 'Три стаканчика' };
+// A simple playing card — rounded rect, rank + suit, red for hearts/diamonds.
+// `faceDown` shows the dealer's hidden hole card as a plain patterned back.
+function PlayingCard({ rank, suit, faceDown, size = 46 }: { rank: string; suit: '♠' | '♥' | '♦' | '♣'; faceDown?: boolean; size?: number }) {
+  const isRed = suit === '♥' || suit === '♦';
+  if (faceDown) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size * 1.4,
+          borderRadius: 5,
+          border: '1px solid rgba(var(--gold-rgb),0.4)',
+          background:
+            'repeating-linear-gradient(45deg, rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1) 4px, transparent 4px, transparent 8px)',
+        }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        width: size,
+        height: size * 1.4,
+        borderRadius: 5,
+        border: '1px solid rgba(var(--gold-rgb),0.4)',
+        background: 'rgba(var(--gold-rgb),0.05)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: isRed ? '#C9556B' : 'var(--gold)',
+      }}
+    >
+      <div style={{ fontSize: size * 0.32, fontWeight: 600, lineHeight: 1 }}>{rank}</div>
+      <div style={{ fontSize: size * 0.36, lineHeight: 1 }}>{suit}</div>
+    </div>
+  );
+}
+
+type PlayingCardData = { rank: string; suit: '♠' | '♥' | '♦' | '♣'; value: number };
+const CARD_RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+const CARD_SUITS: PlayingCardData['suit'][] = ['♠', '♥', '♦', '♣'];
+const rankValue = (r: string) => (r === 'A' ? 11 : ['J', 'Q', 'K'].includes(r) ? 10 : parseInt(r, 10));
+const drawCard = (): PlayingCardData => {
+  const rank = CARD_RANKS[Math.floor(Math.random() * CARD_RANKS.length)];
+  const suit = CARD_SUITS[Math.floor(Math.random() * CARD_SUITS.length)];
+  return { rank, suit, value: rankValue(rank) };
+};
+// Standard soft-hand scoring: aces count 11 unless that busts the hand, then
+// downgrade one at a time to 1.
+function handValue(cards: PlayingCardData[]): number {
+  let total = cards.reduce((s, c) => s + c.value, 0);
+  let aces = cards.filter((c) => c.rank === 'A').length;
+  while (total > 21 && aces > 0) {
+    total -= 10;
+    aces--;
+  }
+  return total;
+}
+
+// Blackjack ("21"): one hand decides it — hit or stand, dealer plays a fixed
+// house rule (draws to 17+). A push (tie) redeals for free, same spirit as
+// RPS's tie — everything else reports 'win'/'loss' up to the wrapper.
+function BlackjackGame({ onResult }: { onResult: (result: 'win' | 'loss') => void }) {
+  const [playerCards, setPlayerCards] = useState<PlayingCardData[]>(() => [drawCard(), drawCard()]);
+  const [dealerCards, setDealerCards] = useState<PlayingCardData[]>(() => [drawCard(), drawCard()]);
+  const [phase, setPhase] = useState<'player' | 'dealer' | 'result'>('player');
+  const [resultText, setResultText] = useState('');
+  const cancelledRef = useRef(false);
+  useEffect(() => () => {
+    cancelledRef.current = true;
+  }, []);
+
+  const playerTotal = handValue(playerCards);
+  const dealerTotal = handValue(dealerCards);
+
+  const finish = (outcome: 'win' | 'loss', text: string) => {
+    setResultText(text);
+    setPhase('result');
+    setTimeout(() => {
+      if (!cancelledRef.current) onResult(outcome);
+    }, 1400);
+  };
+
+  const runDealer = (cards: PlayingCardData[]) => {
+    const total = handValue(cards);
+    if (total < 17) {
+      setTimeout(() => {
+        if (cancelledRef.current) return;
+        const next = [...cards, drawCard()];
+        setDealerCards(next);
+        runDealer(next);
+      }, 750);
+      return;
+    }
+    setTimeout(() => {
+      if (cancelledRef.current) return;
+      const pTotal = handValue(playerCards);
+      if (total > 21) return finish('win', 'Дилер перебрал — победа!');
+      if (pTotal > total) return finish('win', 'Победа!');
+      if (pTotal < total) return finish('loss', 'Проигрыш');
+      // Push — free redeal, doesn't count as a loss.
+      setResultText('Ничья — переигровка');
+      setPhase('result');
+      setTimeout(() => {
+        if (cancelledRef.current) return;
+        setPlayerCards([drawCard(), drawCard()]);
+        setDealerCards([drawCard(), drawCard()]);
+        setPhase('player');
+        setResultText('');
+      }, 1400);
+    }, 750);
+  };
+
+  const hit = () => {
+    if (phase !== 'player') return;
+    const next = [...playerCards, drawCard()];
+    setPlayerCards(next);
+    if (handValue(next) > 21) finish('loss', 'Перебор — проигрыш');
+  };
+
+  const stand = () => {
+    if (phase !== 'player') return;
+    setPhase('dealer');
+    runDealer(dealerCards);
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px 0',
+    borderRadius: 2,
+    cursor: 'pointer',
+    fontSize: fs(12),
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
+    border: '1px solid rgba(var(--gold-rgb),0.3)',
+    color: COLORS.gold,
+  };
+
+  return (
+    <>
+      <div style={{ fontSize: fs(12), color: COLORS.textGhost, letterSpacing: '0.5px' }}>
+        Дилер: {phase === 'player' ? '?' : dealerTotal}
+      </div>
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+        {dealerCards.map((c, i) => (
+          <PlayingCard key={i} rank={c.rank} suit={c.suit} faceDown={phase === 'player' && i === 1} />
+        ))}
+      </div>
+
+      <div style={{ fontSize: fs(12), color: COLORS.textGhost, letterSpacing: '0.5px', marginTop: 8 }}>
+        Ты: {playerTotal}
+      </div>
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+        {playerCards.map((c, i) => (
+          <PlayingCard key={i} rank={c.rank} suit={c.suit} />
+        ))}
+      </div>
+
+      {phase === 'player' ? (
+        <div style={{ display: 'flex', gap: 10, marginTop: 10, width: '100%' }}>
+          <div onClick={hit} role="button" style={buttonStyle}>
+            Взять карту
+          </div>
+          <div onClick={stand} role="button" style={buttonStyle}>
+            Хватит
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            fontFamily: DROP_CAP_FONT,
+            fontSize: fs(18),
+            color: resultText.startsWith('Победа') || resultText.includes('перебрал') ? COLORS.gold : COLORS.textPrimary,
+            marginTop: 8,
+          }}
+        >
+          {resultText}
+        </div>
+      )}
+    </>
+  );
+}
+
+type TrialGameKind = 'rps' | 'cups' | 'blackjack';
+const TRIAL_TITLES: Record<TrialGameKind, string> = {
+  rps: 'Камень · Ножницы · Бумага',
+  cups: 'Три стаканчика',
+  blackjack: '21 очко',
+};
 
 function TrialGate({ onWin, onCancel }: { onWin: () => void; onCancel: () => void }) {
-  const [gameKind] = useState<TrialGameKind>(() => (Math.random() < 0.5 ? 'rps' : 'cups'));
+  const [gameKind] = useState<TrialGameKind>(() => {
+    const r = Math.random();
+    return r < 1 / 3 ? 'rps' : r < 2 / 3 ? 'cups' : 'blackjack';
+  });
   const [losses, setLosses] = useState(0);
   const [stage, setStage] = useState<'playing' | 'taunt'>('playing');
   const [round, setRound] = useState(0); // bumped on each loss retry to remount the mini-game fresh
@@ -2082,7 +2305,13 @@ function TrialGate({ onWin, onCancel }: { onWin: () => void; onCancel: () => voi
 
         <div style={{ minHeight: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
           {stage === 'playing' &&
-            (gameKind === 'rps' ? <RPSGame key={round} onResult={handleResult} /> : <CupsGame key={round} onResult={handleResult} />)}
+            (gameKind === 'rps' ? (
+              <RPSGame key={round} onResult={handleResult} />
+            ) : gameKind === 'cups' ? (
+              <CupsGame key={round} onResult={handleResult} />
+            ) : (
+              <BlackjackGame key={round} onResult={handleResult} />
+            ))}
 
           {stage === 'taunt' && (
             <>
@@ -3339,6 +3568,14 @@ function DetailScreen({
     transition: 'color 0.25s',
   });
 
+  // The tab-content scroller is a single reused DOM node across every client
+  // and every tab, so its scrollTop otherwise carries over — opening a new
+  // client (or switching tabs) could land you mid-scroll instead of at top.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo(0, 0);
+  }, [client.id, activeTab]);
+
   return (
     <>
       {/* Hero header */}
@@ -3499,7 +3736,7 @@ function DetailScreen({
       )}
 
       {/* Tab content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '22px 24px 50px', background: COLORS.bg }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '22px 24px 50px', background: COLORS.bg }}>
         {activeTab === 'info' && <InfoTab client={client} onSave={onSave} onDeleteClient={onDeleteClient} />}
         {activeTab === 'sessions' && (
           <SessionsTab
@@ -5099,8 +5336,17 @@ function BottomSheet({
   heightPct: number;
   children: React.ReactNode;
 }) {
+  // Same sheet DOM node is reused across opens (e.g. add-session then
+  // edit-session), so its scroll position otherwise carries over — reset to
+  // top each time it opens.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) scrollRef.current?.scrollTo(0, 0);
+  }, [open]);
+
   return (
     <div
+      ref={scrollRef}
       style={{
         position: 'absolute',
         bottom: 0,
