@@ -1848,7 +1848,7 @@ function RPSHandIcon({ move, size = 56 }: { move: RPSMove; size?: number }) {
 
 function RPSTauntFace() {
   return (
-    <svg width="72" height="72" viewBox="0 0 100 100" fill="none">
+    <svg width="128" height="128" viewBox="0 0 100 100" fill="none">
       <path d="M27 41Q34 33 41 41" stroke="var(--gold)" strokeWidth="3" strokeLinecap="round" fill="none" />
       <path d="M59 41Q66 33 73 41" stroke="var(--gold)" strokeWidth="3" strokeLinecap="round" fill="none" />
       <circle cx="25" cy="57" r="6" fill="var(--gold)" opacity="0.32" />
@@ -2346,7 +2346,7 @@ function TrialGate({
     if (nextLosses >= 3) {
       setStage('taunt');
       onOutcome?.('lossStreak');
-      setTimeout(onWin, 2000);
+      setTimeout(onWin, 3800);
     } else {
       setRound((r) => r + 1);
     }
