@@ -753,6 +753,74 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
   return `<svg width="${size}" height="${size}" viewBox="0 0 14 14" fill="none" style="display:block"><path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill="${color}"${strokeAttrs} /></svg>`;
 }
 
+// Ambient background: a field of small gold dots + occasional sparkle stars
+// that twinkle in place (pure CSS opacity/transform animation — no JS loop,
+// so it's cheap even sitting behind every screen). Positions/timings are
+// randomised once per mount via useState's lazy initializer.
+//
+// Each screen's wrapper is both the transformed (slide-nav) element AND the
+// scroll container, so a plain inset:0 layer sitting inside it scrolls away
+// with the content after one screenful — there's no clean way to pin it to
+// the viewport without restructuring every screen's scroll container. The
+// pragmatic fix: give the star field a tall virtual canvas (covers several
+// screens' worth of scrolling) with proportionally more stars, so scrolling
+// a long list/notes feed still reveals stars instead of running out.
+const STARFIELD_COUNT = 140;
+const STARFIELD_HEIGHT_VH = 300;
+function StarfieldBackground() {
+  const [stars] = useState(() =>
+    Array.from({ length: STARFIELD_COUNT }, () => ({
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: 1.2 + Math.random() * 2.2,
+      lightness: 55 + Math.random() * 30, // varying gold saturation/brightness
+      duration: 1.8 + Math.random() * 3.4,
+      delay: Math.random() * 4,
+      sparkle: Math.random() < 0.16,
+    })),
+  );
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: `${STARFIELD_HEIGHT_VH}vh`,
+        overflow: 'hidden',
+        pointerEvents: 'none',
+        opacity: 0.6,
+        zIndex: 0,
+      }}
+    >
+      {stars.map((s, i) => (
+        <div
+          key={i}
+          className="inka-star-twinkle"
+          style={{
+            position: 'absolute',
+            left: `${s.x}%`,
+            top: `${s.y}%`,
+            width: s.sparkle ? s.size * 2.4 : s.size,
+            height: s.sparkle ? s.size * 2.4 : s.size,
+            borderRadius: s.sparkle ? 0 : '50%',
+            background: s.sparkle ? 'transparent' : `hsl(45, 75%, ${s.lightness}%)`,
+            boxShadow: s.sparkle ? 'none' : `0 0 ${s.size * 2}px hsla(45, 80%, ${s.lightness}%, 0.8)`,
+            animationDuration: `${s.duration}s`,
+            animationDelay: `${s.delay}s`,
+          }}
+        >
+          {s.sparkle && (
+            <svg width="100%" height="100%" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill={`hsl(45, 80%, ${s.lightness}%)`} />
+            </svg>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Small reward for winning the "opened the app" trial game — a gold star
 // shower filling the whole screen (reuses the milestone show's physics, just
 // full-screen instead of anchored to a client card).
@@ -986,7 +1054,7 @@ export default function TattoDiary() {
   // it disabled via prefs.gameMode. Which mini-game shows (RPS or cups) is a
   // separate coin flip inside TrialGate itself.
   const [rpsChallenge, setRpsChallenge] = useState<null | { onWin: () => void }>(null);
-  const RPS_RANDOM_CHANCE = 0.28;
+  const RPS_RANDOM_CHANCE = 0.15;
   const runGated = (mandatory: boolean, action: () => void) => {
     if (!prefs.gameMode || !(mandatory || Math.random() < RPS_RANDOM_CHANCE)) {
       action();
@@ -1311,6 +1379,7 @@ export default function TattoDiary() {
             zIndex: 0,
           }}
         />
+        <StarfieldBackground />
 
         {/* Safe-area / status spacer */}
         <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)', flexShrink: 0 }} />
@@ -1535,7 +1604,7 @@ export default function TattoDiary() {
               padding: '0 40px',
             }}
           >
-            Пока нет клиентов — нажмите «+» вверху, чтобы добавить первого
+            Пока нет клиентов — нажмите «+» внизу, чтобы добавить первого
           </div>
         )}
       </div>
@@ -1547,35 +1616,30 @@ export default function TattoDiary() {
         <BottomNav
           active={screen}
           onNavigate={(s) => setScreen(s)}
+          onAddClient={() => runGated(clients.length === 0, () => setShowNewClientForm(true))}
         />
       )}
 
-      {/* Theme toggle + add-client button — siblings of the screens (like
-          BottomNav above) so they stay pinned on screen and never scroll
-          away with the client grid underneath them. */}
+      {/* «Сводка» / «Мастер» shortcuts — pinned next to the logo (siblings of
+          the screens, like BottomNav above, so they never scroll away with
+          the client grid underneath). Replaces their old bottom-nav tabs;
+          the add-client button and theme toggle moved elsewhere (bottom nav
+          centre, and the Settings screen, respectively). */}
       {screen === 'list' && !sheetOpen && (
         <>
           <div
-            style={{
-              position: 'absolute',
-              top: 'calc(env(safe-area-inset-top) + 16px)',
-              right: 20,
-              zIndex: 20,
-            }}
-          >
-            <ThemeToggle theme={theme} onToggle={toggleTheme} />
-          </div>
-          <div
-            onClick={() => runGated(clients.length === 0, () => setShowNewClientForm(true))}
+            onClick={() => setScreen('summary')}
             role="button"
-            aria-label="Добавить клиента"
+            aria-label="Сводка"
             style={{
               position: 'absolute',
-              top: 'calc(env(safe-area-inset-top) + 16px)',
-              right: 64,
+              // Vertically centred against the logo+subtitle block (measured
+              // ~24–80px from the top at default text size).
+              top: 'calc(env(safe-area-inset-top) + 31px)',
+              right: 72,
               zIndex: 20,
-              width: 34,
-              height: 34,
+              width: 42,
+              height: 42,
               borderRadius: '50%',
               border: '1px solid rgba(var(--gold-rgb),0.25)',
               background: 'rgba(var(--gold-rgb),0.03)',
@@ -1585,9 +1649,35 @@ export default function TattoDiary() {
               cursor: 'pointer',
             }}
           >
-            <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-              <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" />
-              <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" />
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
+              <rect x="2.5" y="12" width="3.5" height="5.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+              <rect x="8.3" y="8" width="3.5" height="9.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+              <rect x="14" y="4" width="3.5" height="13.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+          </div>
+          <div
+            onClick={() => setScreen('master')}
+            role="button"
+            aria-label="Мастер"
+            style={{
+              position: 'absolute',
+              top: 'calc(env(safe-area-inset-top) + 31px)',
+              right: 20,
+              zIndex: 20,
+              width: 42,
+              height: 42,
+              borderRadius: '50%',
+              border: '1px solid rgba(var(--gold-rgb),0.25)',
+              background: 'rgba(var(--gold-rgb),0.03)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
+              <circle cx="10" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.07" />
+              <path d="M3.5 17C3.5 13.5 6.4 11.5 10 11.5C13.6 11.5 16.5 13.5 16.5 17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="currentColor" fillOpacity="0.07" />
             </svg>
           </div>
         </>
@@ -2312,8 +2402,11 @@ type TrialGameKind = 'rps' | 'cups' | 'blackjack';
 const TRIAL_TITLES: Record<TrialGameKind, string> = {
   rps: 'Камень · Ножницы · Бумага',
   cups: 'Три стаканчика',
-  blackjack: '21 очко',
+  blackjack: 'Black Jack',
 };
+// RPS/cups are best-of-3 (retry on loss, taunt after 3); Black Jack is a
+// single hand — one loss decides it, no retries.
+const TRIAL_LOSS_THRESHOLD: Record<TrialGameKind, number> = { rps: 3, cups: 3, blackjack: 1 };
 
 function TrialGate({
   onWin,
@@ -2327,9 +2420,10 @@ function TrialGate({
   // fires (eventually) either way to unblock whatever action is gated.
   onOutcome?: (result: 'win' | 'lossStreak') => void;
 }) {
+  // Weighted pick — RPS shows up often, cups a bit less, Black Jack rarest.
   const [gameKind] = useState<TrialGameKind>(() => {
     const r = Math.random();
-    return r < 1 / 3 ? 'rps' : r < 2 / 3 ? 'cups' : 'blackjack';
+    return r < 0.5 ? 'rps' : r < 0.8 ? 'cups' : 'blackjack';
   });
   const [losses, setLosses] = useState(0);
   const [stage, setStage] = useState<'playing' | 'taunt'>('playing');
@@ -2343,7 +2437,7 @@ function TrialGate({
     }
     const nextLosses = losses + 1;
     setLosses(nextLosses);
-    if (nextLosses >= 3) {
+    if (nextLosses >= TRIAL_LOSS_THRESHOLD[gameKind]) {
       setStage('taunt');
       onOutcome?.('lossStreak');
       setTimeout(onWin, 3800);
@@ -2406,9 +2500,10 @@ function TrialGate({
         </div>
         <StarDivider marginTop={9} />
 
-        {/* Loss counter — how close the app is to "winning" the series. */}
+        {/* Loss counter — how close the app is to "winning" the series
+            (just 1 dot for Black Jack, since a single hand decides it). */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 7, margin: '16px 0 4px' }}>
-          {[0, 1, 2].map((i) => (
+          {Array.from({ length: TRIAL_LOSS_THRESHOLD[gameKind] }, (_, i) => i).map((i) => (
             <div
               key={i}
               style={{
@@ -2806,58 +2901,17 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
 }
 
 // ===================== BOTTOM NAV =====================
-// ===================== THEME TOGGLE =====================
-function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
-  return (
-    <div
-      className="inka-theme-toggle"
-      onClick={onToggle}
-      role="button"
-      aria-label="Переключить тему"
-      style={{
-        width: 34,
-        height: 34,
-        borderRadius: '50%',
-        border: '1px solid rgba(var(--gold-rgb),0.25)',
-        background: 'rgba(var(--gold-rgb),0.03)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-      }}
-    >
-      {theme === 'dark' ? (
-        // Sun → switch to light
-        <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="9" r="3.4" stroke="currentColor" strokeWidth="1.3" />
-          <path
-            d="M9 1.5V3M9 15V16.5M1.5 9H3M15 9H16.5M3.7 3.7L4.8 4.8M13.2 13.2L14.3 14.3M3.7 14.3L4.8 13.2M13.2 4.8L14.3 3.7"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-          />
-        </svg>
-      ) : (
-        // Moon → switch to dark
-        <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
-          <path
-            d="M14.5 10.6A6 6 0 1 1 7.4 3.5a4.7 4.7 0 0 0 7.1 7.1Z"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )}
-    </div>
-  );
-}
+// The theme toggle now lives only inside the Settings screen (see the "Тема"
+// row there) — it used to also be pinned at the top of the list screen.
 
 function BottomNav({
   active,
   onNavigate,
+  onAddClient,
 }: {
   active: 'list' | 'settings' | 'summary' | 'master';
   onNavigate: (screen: 'list' | 'settings' | 'summary' | 'master') => void;
+  onAddClient: () => void;
 }) {
   return (
     <div
@@ -2876,9 +2930,12 @@ function BottomNav({
         height: 'calc(42px + min(10px, env(safe-area-inset-bottom)))',
         // Solid (no backdrop-filter): the blur repainted every frame during
         // scroll and was a major source of jank. A flat bar is also visually
-        // slimmer, hugging the icons.
-        background: 'var(--bg)',
-        borderTop: '1px solid rgba(var(--gold-rgb),0.08)',
+        // slimmer, hugging the icons. A gold-tinted overlay (stacked as a
+        // second background layer, not a blur) makes the bar read clearly
+        // against the near-black app background instead of blending in.
+        background: 'linear-gradient(rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1)), var(--bg)',
+        borderTop: '1px solid rgba(var(--gold-rgb),0.35)',
+        boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
@@ -2896,26 +2953,30 @@ function BottomNav({
         </svg>
         <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
       </div>
+      {/* Create-client — big and centred, replacing the old «Сводка»/«Мастер»
+          tabs (they moved up next to the logo). */}
       <div
-        onClick={() => onNavigate('summary')}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.4 }}
+        onClick={onAddClient}
+        role="button"
+        aria-label="Добавить клиента"
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.4)',
+          background: 'rgba(var(--gold-rgb),0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          flexShrink: 0,
+          marginTop: -14,
+        }}
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
-          <rect x="2.5" y="12" width="3.5" height="5.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="8.3" y="8" width="3.5" height="9.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="14" y="4" width="3.5" height="13.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+        <svg width="20" height="20" viewBox="0 0 14 14" fill="none">
+          <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
-      </div>
-      <div
-        onClick={() => onNavigate('master')}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'master' ? 1 : 0.4 }}
-      >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'master' ? 'var(--gold)' : 'var(--text)' }}>
-          <circle cx="10" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.07" />
-          <path d="M3.5 17C3.5 13.5 6.4 11.5 10 11.5C13.6 11.5 16.5 13.5 16.5 17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="currentColor" fillOpacity="0.07" />
-        </svg>
-        <span style={{ fontSize: fs(11), color: active === 'master' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Мастер</span>
       </div>
       <div
         onClick={() => onNavigate('settings')}
@@ -3004,6 +3065,7 @@ function MasterDashboardScreen({
           zIndex: 0,
         }}
       />
+      <StarfieldBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -3240,6 +3302,7 @@ function SettingsScreen({
           zIndex: 0,
         }}
       />
+      <StarfieldBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -3546,6 +3609,7 @@ function SummaryScreen({
           zIndex: 0,
         }}
       />
+      <StarfieldBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -3901,7 +3965,8 @@ function DetailScreen({
       )}
 
       {/* Tab content */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '22px 24px 50px', background: COLORS.bg }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px', background: COLORS.bg }}>
+        <StarfieldBackground />
         {activeTab === 'info' && <InfoTab client={client} onSave={onSave} onDeleteClient={onDeleteClient} />}
         {activeTab === 'sessions' && (
           <SessionsTab
