@@ -753,6 +753,53 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
   return `<svg width="${size}" height="${size}" viewBox="0 0 14 14" fill="none" style="display:block"><path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill="${color}"${strokeAttrs} /></svg>`;
 }
 
+// Ambient background: a field of small gold dots + occasional sparkle stars
+// that twinkle in place (pure CSS opacity/transform animation — no JS loop,
+// so it's cheap even sitting behind every screen). Positions/timings are
+// randomised once per mount via useState's lazy initializer.
+const STARFIELD_COUNT = 50;
+function StarfieldBackground() {
+  const [stars] = useState(() =>
+    Array.from({ length: STARFIELD_COUNT }, () => ({
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: 1.2 + Math.random() * 2.2,
+      lightness: 55 + Math.random() * 30, // varying gold saturation/brightness
+      duration: 1.8 + Math.random() * 3.4,
+      delay: Math.random() * 4,
+      sparkle: Math.random() < 0.16,
+    })),
+  );
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', opacity: 0.4, zIndex: 0 }}>
+      {stars.map((s, i) => (
+        <div
+          key={i}
+          className="inka-star-twinkle"
+          style={{
+            position: 'absolute',
+            left: `${s.x}%`,
+            top: `${s.y}%`,
+            width: s.sparkle ? s.size * 2.4 : s.size,
+            height: s.sparkle ? s.size * 2.4 : s.size,
+            borderRadius: s.sparkle ? 0 : '50%',
+            background: s.sparkle ? 'transparent' : `hsl(45, 75%, ${s.lightness}%)`,
+            boxShadow: s.sparkle ? 'none' : `0 0 ${s.size * 2}px hsla(45, 80%, ${s.lightness}%, 0.8)`,
+            animationDuration: `${s.duration}s`,
+            animationDelay: `${s.delay}s`,
+          }}
+        >
+          {s.sparkle && (
+            <svg width="100%" height="100%" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill={`hsl(45, 80%, ${s.lightness}%)`} />
+            </svg>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Small reward for winning the "opened the app" trial game — a gold star
 // shower filling the whole screen (reuses the milestone show's physics, just
 // full-screen instead of anchored to a client card).
@@ -1311,6 +1358,7 @@ export default function TattoDiary() {
             zIndex: 0,
           }}
         />
+        <StarfieldBackground />
 
         {/* Safe-area / status spacer */}
         <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)', flexShrink: 0 }} />
@@ -1564,11 +1612,13 @@ export default function TattoDiary() {
             aria-label="Сводка"
             style={{
               position: 'absolute',
-              top: 'calc(env(safe-area-inset-top) + 16px)',
-              right: 64,
+              // Vertically centred against the logo+subtitle block (measured
+              // ~24–80px from the top at default text size).
+              top: 'calc(env(safe-area-inset-top) + 31px)',
+              right: 72,
               zIndex: 20,
-              width: 34,
-              height: 34,
+              width: 42,
+              height: 42,
               borderRadius: '50%',
               border: '1px solid rgba(var(--gold-rgb),0.25)',
               background: 'rgba(var(--gold-rgb),0.03)',
@@ -1578,7 +1628,7 @@ export default function TattoDiary() {
               cursor: 'pointer',
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
               <rect x="2.5" y="12" width="3.5" height="5.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
               <rect x="8.3" y="8" width="3.5" height="9.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
               <rect x="14" y="4" width="3.5" height="13.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
@@ -1590,11 +1640,11 @@ export default function TattoDiary() {
             aria-label="Мастер"
             style={{
               position: 'absolute',
-              top: 'calc(env(safe-area-inset-top) + 16px)',
+              top: 'calc(env(safe-area-inset-top) + 31px)',
               right: 20,
               zIndex: 20,
-              width: 34,
-              height: 34,
+              width: 42,
+              height: 42,
               borderRadius: '50%',
               border: '1px solid rgba(var(--gold-rgb),0.25)',
               background: 'rgba(var(--gold-rgb),0.03)',
@@ -1604,7 +1654,7 @@ export default function TattoDiary() {
               cursor: 'pointer',
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
               <circle cx="10" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.07" />
               <path d="M3.5 17C3.5 13.5 6.4 11.5 10 11.5C13.6 11.5 16.5 13.5 16.5 17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="currentColor" fillOpacity="0.07" />
             </svg>
@@ -2994,6 +3044,7 @@ function MasterDashboardScreen({
           zIndex: 0,
         }}
       />
+      <StarfieldBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -3230,6 +3281,7 @@ function SettingsScreen({
           zIndex: 0,
         }}
       />
+      <StarfieldBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -3536,6 +3588,7 @@ function SummaryScreen({
           zIndex: 0,
         }}
       />
+      <StarfieldBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
