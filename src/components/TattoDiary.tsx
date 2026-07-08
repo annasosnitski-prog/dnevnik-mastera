@@ -2312,8 +2312,11 @@ type TrialGameKind = 'rps' | 'cups' | 'blackjack';
 const TRIAL_TITLES: Record<TrialGameKind, string> = {
   rps: 'Камень · Ножницы · Бумага',
   cups: 'Три стаканчика',
-  blackjack: '21 очко',
+  blackjack: 'Black Jack',
 };
+// RPS/cups are best-of-3 (retry on loss, taunt after 3); Black Jack is a
+// single hand — one loss decides it, no retries.
+const TRIAL_LOSS_THRESHOLD: Record<TrialGameKind, number> = { rps: 3, cups: 3, blackjack: 1 };
 
 function TrialGate({
   onWin,
@@ -2343,7 +2346,7 @@ function TrialGate({
     }
     const nextLosses = losses + 1;
     setLosses(nextLosses);
-    if (nextLosses >= 3) {
+    if (nextLosses >= TRIAL_LOSS_THRESHOLD[gameKind]) {
       setStage('taunt');
       onOutcome?.('lossStreak');
       setTimeout(onWin, 3800);
@@ -2406,9 +2409,10 @@ function TrialGate({
         </div>
         <StarDivider marginTop={9} />
 
-        {/* Loss counter — how close the app is to "winning" the series. */}
+        {/* Loss counter — how close the app is to "winning" the series
+            (just 1 dot for Black Jack, since a single hand decides it). */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 7, margin: '16px 0 4px' }}>
-          {[0, 1, 2].map((i) => (
+          {Array.from({ length: TRIAL_LOSS_THRESHOLD[gameKind] }, (_, i) => i).map((i) => (
             <div
               key={i}
               style={{
