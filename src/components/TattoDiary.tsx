@@ -757,7 +757,16 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 // that twinkle in place (pure CSS opacity/transform animation — no JS loop,
 // so it's cheap even sitting behind every screen). Positions/timings are
 // randomised once per mount via useState's lazy initializer.
-const STARFIELD_COUNT = 50;
+//
+// Each screen's wrapper is both the transformed (slide-nav) element AND the
+// scroll container, so a plain inset:0 layer sitting inside it scrolls away
+// with the content after one screenful — there's no clean way to pin it to
+// the viewport without restructuring every screen's scroll container. The
+// pragmatic fix: give the star field a tall virtual canvas (covers several
+// screens' worth of scrolling) with proportionally more stars, so scrolling
+// a long list/notes feed still reveals stars instead of running out.
+const STARFIELD_COUNT = 140;
+const STARFIELD_HEIGHT_VH = 300;
 function StarfieldBackground() {
   const [stars] = useState(() =>
     Array.from({ length: STARFIELD_COUNT }, () => ({
@@ -771,7 +780,19 @@ function StarfieldBackground() {
     })),
   );
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', opacity: 0.4, zIndex: 0 }}>
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: `${STARFIELD_HEIGHT_VH}vh`,
+        overflow: 'hidden',
+        pointerEvents: 'none',
+        opacity: 0.6,
+        zIndex: 0,
+      }}
+    >
       {stars.map((s, i) => (
         <div
           key={i}
@@ -3944,7 +3965,8 @@ function DetailScreen({
       )}
 
       {/* Tab content */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '22px 24px 50px', background: COLORS.bg }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px', background: COLORS.bg }}>
+        <StarfieldBackground />
         {activeTab === 'info' && <InfoTab client={client} onSave={onSave} onDeleteClient={onDeleteClient} />}
         {activeTab === 'sessions' && (
           <SessionsTab
