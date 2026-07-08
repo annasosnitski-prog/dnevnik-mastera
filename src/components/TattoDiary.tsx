@@ -2330,9 +2330,10 @@ function TrialGate({
   // fires (eventually) either way to unblock whatever action is gated.
   onOutcome?: (result: 'win' | 'lossStreak') => void;
 }) {
+  // Weighted pick — RPS shows up often, cups a bit less, Black Jack rarest.
   const [gameKind] = useState<TrialGameKind>(() => {
     const r = Math.random();
-    return r < 1 / 3 ? 'rps' : r < 2 / 3 ? 'cups' : 'blackjack';
+    return r < 0.5 ? 'rps' : r < 0.8 ? 'cups' : 'blackjack';
   });
   const [losses, setLosses] = useState(0);
   const [stage, setStage] = useState<'playing' | 'taunt'>('playing');
