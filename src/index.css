@@ -321,17 +321,6 @@ input[type='date'] {
   opacity: 1 !important;
 }
 
-.inka-theme-toggle {
-  transition: border-color 0.25s, background 0.25s, transform 0.15s;
-}
-.inka-theme-toggle:hover {
-  border-color: rgba(var(--gold-rgb), 0.5);
-  background: rgba(var(--gold-rgb), 0.06);
-}
-.inka-theme-toggle:active {
-  transform: scale(0.9);
-}
-
 /* ── Animations ── */
 @keyframes fadeSlideIn {
   from {
