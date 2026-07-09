@@ -6509,13 +6509,13 @@ function NewSessionSheet({
         </div>
 
         <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <FieldLabel>Дата</FieldLabel>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={INPUT_STYLE} />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <FieldLabel>Время</FieldLabel>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={INPUT_STYLE} />
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
           </div>
         </div>
 
@@ -6825,13 +6825,13 @@ function NewConsultationSheet({
 
         <div className="inka-consult-right">
           <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FieldLabel>Дата</FieldLabel>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={INPUT_STYLE} />
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FieldLabel>Время</FieldLabel>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={INPUT_STYLE} />
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
             </div>
           </div>
 
