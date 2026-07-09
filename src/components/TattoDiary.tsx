@@ -133,6 +133,7 @@ interface ClientNote {
   urgency: UrgencyKey;
   done: boolean;
   createdDate: string;
+  photos: string[];
 }
 
 type ChatPlatform = 'whatsapp' | 'telegram' | 'instagram' | 'facebook' | 'messenger' | 'tiktok' | 'other';
@@ -415,6 +416,7 @@ function normalizeClient(raw: any, index: number): Client {
           urgency: URGENCY.some((u) => u.key === n?.urgency) ? n.urgency : LEGACY_URGENCY_MAP[n?.urgency] ?? 'normal',
           done: Boolean(n?.done),
           createdDate: n?.createdDate ?? new Date().toISOString(),
+          photos: Array.isArray(n?.photos) ? n.photos : [],
         }))
       : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
@@ -1029,7 +1031,7 @@ export default function TattoDiary() {
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorFilter, setColorFilter] = useState<string>('all');
@@ -1173,7 +1175,7 @@ export default function TattoDiary() {
 
   const openClient = (client: Client) => {
     setSelectedId(client.id);
-    setActiveTab('info');
+    setActiveTab('sessions');
     setScreen('detail');
   };
 
@@ -1805,6 +1807,7 @@ export default function TattoDiary() {
                   urgency,
                   done: false,
                   createdDate: new Date().toISOString(),
+                  photos: [],
                 }),
               )
             }
@@ -3951,14 +3954,14 @@ function DetailScreen({
 
       {/* Tab bar */}
       <div style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
-        <div onClick={() => onTab('info')} style={tabStyle('info')}>
-          Инфо
-        </div>
         <div onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
           Сессии
         </div>
+        <div onClick={() => onTab('info')} style={tabStyle('info')}>
+          Инфо
+        </div>
         <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
-          Доп.
+          Заметки и задачи
         </div>
       </div>
 
@@ -4014,7 +4017,6 @@ function DetailScreen({
       {/* Tab content */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px', background: COLORS.bg }}>
         <StarfieldBackground />
-        {activeTab === 'info' && <InfoTab client={client} onSave={onSave} onDeleteClient={onDeleteClient} />}
         {activeTab === 'sessions' && (
           <SessionsTab
             client={client}
@@ -4024,11 +4026,18 @@ function DetailScreen({
             onToggleSessionDone={onToggleSessionDone}
           />
         )}
+        {activeTab === 'info' && (
+          <InfoTab
+            client={client}
+            onSave={onSave}
+            onDeleteClient={onDeleteClient}
+            onAddDocument={onAddDocument}
+            onRemoveDocument={onRemoveDocument}
+          />
+        )}
         {activeTab === 'extra' && (
           <AdditionalTab
             client={client}
-            onAddDocument={onAddDocument}
-            onRemoveDocument={onRemoveDocument}
             onUpsertNote={onUpsertNote}
             onAddNote={onAddNote}
             onDeleteNote={onDeleteNote}
@@ -4044,10 +4053,14 @@ function InfoTab({
   client,
   onSave,
   onDeleteClient,
+  onAddDocument,
+  onRemoveDocument,
 }: {
   client: Client;
   onSave: (client: Client) => void;
   onDeleteClient: () => void;
+  onAddDocument: (doc: ClientDocument) => void;
+  onRemoveDocument: (docId: string) => void;
 }) {
   const metaCell = (span = false): React.CSSProperties => ({
     background: 'rgba(var(--surface-rgb),0.018)',
@@ -4085,6 +4098,9 @@ function InfoTab({
 
       {/* Master's own notes — written inline right here, at the bottom */}
       <MasterNoteSection client={client} onSave={onSave} />
+
+      {/* Attachments — documents / photos / any file for this client */}
+      <AttachmentsSection client={client} onAddDocument={onAddDocument} onRemoveDocument={onRemoveDocument} />
 
       {/* Danger zone: delete client */}
       <div style={{ marginTop: 28 }}>
@@ -5339,11 +5355,13 @@ function NoteItem({
   note,
   onToggleDone,
   onDelete,
+  onUpdatePhotos,
   client,
 }: {
   note: ClientNote;
   onToggleDone: () => void;
   onDelete?: () => void;
+  onUpdatePhotos?: (photos: string[]) => void;
   client?: Client;
 }) {
   const meta = urgencyMeta(note.urgency);
@@ -5399,6 +5417,7 @@ function NoteItem({
             {meta.emoji} {meta.label}
           </div>
         )}
+        {onUpdatePhotos && <SessionPhotos photos={note.photos} onChange={onUpdatePhotos} allowDelete />}
       </div>
       {onDelete && (
         <button
@@ -5474,22 +5493,59 @@ function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) =>
   );
 }
 
-// ── «Дополнительно» tab — notes (with urgency + done) sorted by urgency,
-//     plus a single-button attachments area for documents / photos / files. ──
+// ── «Заметки и задачи» tab — notes (with urgency + done, own photos),
+//     sorted by urgency. Attachments live on the Инфо tab. ──
 function AdditionalTab({
   client,
-  onAddDocument,
-  onRemoveDocument,
   onUpsertNote,
   onAddNote,
   onDeleteNote,
 }: {
   client: Client;
-  onAddDocument: (doc: ClientDocument) => void;
-  onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
   onAddNote: (text: string, urgency: UrgencyKey) => void;
   onDeleteNote: (noteId: string) => void;
+}) {
+  const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
+
+  // Sorted by urgency (most urgent first); done notes sink to the bottom.
+  const sortedNotes = [...client.notes].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    const r = urgencyRank(a.urgency) - urgencyRank(b.urgency);
+    return r !== 0 ? r : b.createdDate.localeCompare(a.createdDate);
+  });
+
+  return (
+    <div style={{ animation: 'fadeSlideIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Notes */}
+      <SectionHeader>Заметки</SectionHeader>
+      {sortedNotes.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {sortedNotes.map((n) => (
+            <NoteItem
+              key={n.id}
+              note={n}
+              onToggleDone={() => toggleDone(n)}
+              onDelete={() => onDeleteNote(n.id)}
+              onUpdatePhotos={(photos) => onUpsertNote({ ...n, photos })}
+            />
+          ))}
+        </div>
+      )}
+      <NoteComposer onAdd={onAddNote} />
+    </div>
+  );
+}
+
+// ── Attachments (documents / photos / any file) — lives on the Инфо tab. ──
+function AttachmentsSection({
+  client,
+  onAddDocument,
+  onRemoveDocument,
+}: {
+  client: Client;
+  onAddDocument: (doc: ClientDocument) => void;
+  onRemoveDocument: (docId: string) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -5508,31 +5564,9 @@ function AdditionalTab({
     reader.readAsDataURL(file);
   };
 
-  const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
-
-  // Sorted by urgency (most urgent first); done notes sink to the bottom.
-  const sortedNotes = [...client.notes].sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
-    const r = urgencyRank(a.urgency) - urgencyRank(b.urgency);
-    return r !== 0 ? r : b.createdDate.localeCompare(a.createdDate);
-  });
-
   return (
-    <div style={{ animation: 'fadeSlideIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Notes */}
-      <SectionHeader>Заметки</SectionHeader>
-      {sortedNotes.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {sortedNotes.map((n) => (
-            <NoteItem key={n.id} note={n} onToggleDone={() => toggleDone(n)} onDelete={() => onDeleteNote(n.id)} />
-          ))}
-        </div>
-      )}
-      <NoteComposer onAdd={onAddNote} />
-
+    <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <SectionDivider />
-
-      {/* Attachments */}
       <SectionHeader>Вложения</SectionHeader>
       {client.documents.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
