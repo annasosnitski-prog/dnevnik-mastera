@@ -530,3 +530,22 @@ input[type='date'] {
     padding-right: env(safe-area-inset-right);
   }
 }
+
+/* Consultation form — single column on phones; on a tablet-wide viewport the
+   photos+skin-data column sits to the left of everything else, per spec. */
+.inka-consult-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+@media (min-width: 700px) {
+  .inka-consult-grid {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .inka-consult-left,
+  .inka-consult-right {
+    flex: 1;
+    min-width: 0;
+  }
+}

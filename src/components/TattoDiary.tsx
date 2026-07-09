@@ -199,11 +199,27 @@ interface Client {
   phone: string; // contact phone number
   skinType: string; // normal / sensitive / dry / oily / combination
   skinTone: string; // skin-tone hex chosen from the palette
-  skinNotes: string; // free notes about the client's skin
+  skinNotes: string; // free notes about the client's skin (legacy, superseded by allergies/skinReactions below)
+  allergies: string; // known allergies — shown read-only inside a consultation
+  skinReactions: string; // known skin reactions (redness, swelling...) — same
   chatLinks: ChatLink[]; // WhatsApp / Telegram / Instagram / etc.
   sessions: Session[];
+  consultations: Consultation[]; // planning/mood-board entries — references + creative brief, scheduled like sessions
   documents: ClientDocument[];
   notes: ClientNote[]; // structured notes/tasks with urgency markers
+  createdDate: string;
+}
+
+interface Consultation {
+  id: string;
+  date: string; // ISO yyyy-mm-dd
+  time: string; // HH:MM, 24h
+  generalNotes: string; // "Общие заметки" — the client's own wishes/agreements + the master's own thoughts
+  creative: string; // "Креатив" — the wild/standout idea, the one distinctive twist
+  inspirationSources: string; // "Источники вдохновения" — authors, references
+  urgency: UrgencyKey;
+  photos: string[]; // reference / mood-board images
+  done: boolean;
   createdDate: string;
 }
 
@@ -318,24 +334,35 @@ function mostUsedStyle(clients: Client[]): string | null {
   return best;
 }
 
-// Every not-yet-done session, across all clients, whose ISO date falls within
-// [today, today+days] — sorted soonest-first. Sessions with a legacy
-// non-ISO date (free text) are skipped since they can't be date-compared.
-function upcomingSessions(clients: Client[], days: number): { client: Client; session: Session }[] {
+// Every not-yet-done session AND consultation, across all clients, whose ISO
+// date falls within [today, today+days] — sorted soonest-first. Consultations
+// are planned on the same calendar as sessions, so both feed one combined
+// list. Entries with a legacy non-ISO date (free text) are skipped since they
+// can't be date-compared.
+type UpcomingItem = { client: Client; kind: 'session' | 'consultation'; id: string; date: string; time: string };
+
+function upcomingItems(clients: Client[], days: number): UpcomingItem[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const horizon = new Date(today);
   horizon.setDate(horizon.getDate() + days);
 
-  const result: { client: Client; session: Session }[] = [];
+  const result: UpcomingItem[] = [];
   for (const client of clients) {
     for (const session of client.sessions) {
       if (session.done || !ISO_DATE_RE.test(session.date)) continue;
       const d = new Date(session.date + 'T00:00:00');
-      if (d >= today && d <= horizon) result.push({ client, session });
+      if (d >= today && d <= horizon) result.push({ client, kind: 'session', id: session.id, date: session.date, time: session.time });
+    }
+    for (const consultation of client.consultations) {
+      if (consultation.done || !ISO_DATE_RE.test(consultation.date)) continue;
+      const d = new Date(consultation.date + 'T00:00:00');
+      if (d >= today && d <= horizon) {
+        result.push({ client, kind: 'consultation', id: consultation.id, date: consultation.date, time: consultation.time });
+      }
     }
   }
-  return result.sort((a, b) => a.session.date.localeCompare(b.session.date));
+  return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // Counts open (not-done) notes by urgency, across all clients — the two
@@ -406,8 +433,24 @@ function normalizeClient(raw: any, index: number): Client {
     skinType: raw?.skinType ?? '',
     skinTone: raw?.skinTone ?? '',
     skinNotes: raw?.skinNotes ?? '',
+    allergies: raw?.allergies ?? '',
+    skinReactions: raw?.skinReactions ?? '',
     chatLinks: Array.isArray(raw?.chatLinks) ? raw.chatLinks : [],
     sessions,
+    consultations: Array.isArray(raw?.consultations)
+      ? raw.consultations.map((cn: any, i: number): Consultation => ({
+          id: String(cn?.id ?? `${Date.now()}-c${i}`),
+          date: cn?.date ?? '',
+          time: cn?.time ?? '',
+          generalNotes: cn?.generalNotes ?? '',
+          creative: cn?.creative ?? '',
+          inspirationSources: cn?.inspirationSources ?? '',
+          urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
+          photos: Array.isArray(cn?.photos) ? cn.photos : [],
+          done: Boolean(cn?.done),
+          createdDate: cn?.createdDate ?? new Date().toISOString(),
+        }))
+      : [],
     documents: Array.isArray(raw?.documents) ? raw.documents : [],
     notes: Array.isArray(raw?.notes)
       ? raw.notes.map((n: any, i: number): ClientNote => ({
@@ -928,10 +971,19 @@ interface Prefs {
   textScale: number; // text size 1.0–1.75 (font multiplier; 1.0 shown as 80%)
   textBright: 'normal' | 'high' | 'max'; // text tone level (dark theme)
   upcomingWindowDays: number; // how many days ahead the dashboard's "upcoming sessions" widget looks
+  statsWindowDays: number; // how many days ahead the dashboard's stat-grid counters (sessions/consultations) look
   gameMode: boolean; // rock-paper-scissors gate before creating a client/session/note
 }
 const UPCOMING_WINDOW_OPTIONS = [3, 5, 7, 10, 14];
-const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7, gameMode: true };
+// Master-facing labels read "3 дня / Неделя / 2 недели / Месяц" — plain day
+// counts underneath so the same upcomingItems() window logic applies.
+const STATS_WINDOW_OPTIONS: { days: number; label: string }[] = [
+  { days: 3, label: '3 дня' },
+  { days: 7, label: 'Неделя' },
+  { days: 14, label: '2 недели' },
+  { days: 30, label: 'Месяц' },
+];
+const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7, statsWindowDays: 30, gameMode: true };
 
 function readInitialPrefs(): Prefs {
   try {
@@ -944,6 +996,7 @@ function readInitialPrefs(): Prefs {
         textScale: typeof p.textScale === 'number' ? Math.max(1, p.textScale) : 1,
         textBright: p.textBright === 'high' || p.textBright === 'max' ? p.textBright : 'normal',
         upcomingWindowDays: UPCOMING_WINDOW_OPTIONS.includes(p.upcomingWindowDays) ? p.upcomingWindowDays : 7,
+        statsWindowDays: STATS_WINDOW_OPTIONS.some((o) => o.days === p.statsWindowDays) ? p.statsWindowDays : 30,
         gameMode: typeof p.gameMode === 'boolean' ? p.gameMode : true,
       };
     }
@@ -1042,6 +1095,11 @@ export default function TattoDiary() {
   const [showEditClientForm, setShowEditClientForm] = useState(false);
   // Session being edited (null when adding a new one).
   const [editSession, setEditSession] = useState<Session | null>(null);
+  // Tapping "+" on the sessions tab first asks «Сессия» or «Консультация» —
+  // this holds that choice sheet's open state.
+  const [showAddChoice, setShowAddChoice] = useState(false);
+  const [showNewConsultationForm, setShowNewConsultationForm] = useState(false);
+  const [editConsultation, setEditConsultation] = useState<Consultation | null>(null);
 
   // Bumped whenever a new client is created, to (re)trigger the star-shower
   // celebration overlay — see <CelebrationBurst>. celebrationCount captures
@@ -1186,12 +1244,19 @@ export default function TattoDiary() {
     setShowNewSessionForm(false);
     setEditSession(null);
   };
+  const closeNewConsultation = () => {
+    setShowNewConsultationForm(false);
+    setEditConsultation(null);
+  };
   const closeEditClient = () => setShowEditClientForm(false);
   const closeBackdrop = () => {
     setShowNewClientForm(false);
     setShowNewSessionForm(false);
     setShowEditClientForm(false);
+    setShowNewConsultationForm(false);
+    setShowAddChoice(false);
     setEditSession(null);
+    setEditConsultation(null);
   };
 
   const handleUpdateClient = (data: { name: string; surname: string; styles: string[]; color: string; clientType: ClientType; note: string }) => {
@@ -1212,6 +1277,38 @@ export default function TattoDiary() {
   const deleteSession = (sessionId: string) => {
     if (!selectedClient) return;
     saveClient({ ...selectedClient, sessions: selectedClient.sessions.filter((s) => s.id !== sessionId) });
+  };
+
+  const handleAddConsultation = (data: {
+    date: string;
+    time: string;
+    generalNotes: string;
+    creative: string;
+    inspirationSources: string;
+    urgency: UrgencyKey;
+    photos: string[];
+  }) => {
+    if (!selectedClient) return;
+    const fields = { ...data, done: false };
+    let consultations: Consultation[];
+    if (editConsultation) {
+      consultations = selectedClient.consultations.map((c) =>
+        c.id === editConsultation.id ? { ...c, ...fields } : c,
+      );
+    } else {
+      consultations = [
+        ...selectedClient.consultations,
+        { id: Date.now().toString(), createdDate: new Date().toISOString(), ...fields },
+      ];
+    }
+    saveClient({ ...selectedClient, consultations });
+    setShowNewConsultationForm(false);
+    setEditConsultation(null);
+  };
+
+  const deleteConsultation = (consultationId: string) => {
+    if (!selectedClient) return;
+    saveClient({ ...selectedClient, consultations: selectedClient.consultations.filter((c) => c.id !== consultationId) });
   };
 
   // ── Notes (used by the client «Дополнительно» tab and the «Сводка» screen) ──
@@ -1274,8 +1371,11 @@ export default function TattoDiary() {
       skinType: data.skinType,
       skinTone: data.skinTone,
       skinNotes: data.skinNotes.trim(),
+      allergies: '',
+      skinReactions: '',
       chatLinks: [],
       sessions: [],
+      consultations: [],
       documents: [],
       notes: [],
       createdDate: new Date().toISOString(),
@@ -1339,7 +1439,7 @@ export default function TattoDiary() {
     setEditSession(null);
   };
 
-  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm;
+  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm || showNewConsultationForm || showAddChoice;
 
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
@@ -1640,7 +1740,7 @@ export default function TattoDiary() {
           }}
         >
           {(() => {
-            const next = upcomingSessions(clients, 365)[0];
+            const next = upcomingItems(clients, 365)[0];
             if (!next) return null;
             return (
               <div
@@ -1652,7 +1752,7 @@ export default function TattoDiary() {
               >
                 <div style={{ fontSize: 7.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: COLORS.textGhost }}>Ближайшая</div>
                 <div style={{ fontSize: 10.5, fontWeight: 400, color: COLORS.textGhost, whiteSpace: 'nowrap' }}>
-                  {formatDate(next.session.date).replace(/ \d{4}$/, '')}
+                  {formatDate(next.date).replace(/ \d{4}$/, '')}
                 </div>
               </div>
             );
@@ -1707,6 +1807,7 @@ export default function TattoDiary() {
           <SummaryScreen
             clients={clients}
             onToggleDone={(clientId, note) => upsertNote(clientId, note)}
+            onEditNote={(clientId, note) => upsertNote(clientId, note)}
             onOpenClient={(id) => {
               setSelectedId(id);
               setActiveTab('extra');
@@ -1736,10 +1837,19 @@ export default function TattoDiary() {
             onChangeMasterInfo={setMasterInfo}
             prefs={prefs}
             onChangePrefs={setPrefs}
-            onOpenSession={(clientId, sessionId) => {
+            onOpenSession={(clientId, itemId, kind) => {
               const client = clients.find((c) => c.id === clientId);
-              const session = client?.sessions.find((s) => s.id === sessionId);
-              if (!client || !session) return;
+              if (!client) return;
+              if (kind === 'consultation') {
+                const consultation = client.consultations.find((c) => c.id === itemId);
+                if (!consultation) return;
+                setSelectedId(client.id);
+                setEditConsultation(consultation);
+                setShowNewConsultationForm(true);
+                return;
+              }
+              const session = client.sessions.find((s) => s.id === itemId);
+              if (!session) return;
               setSelectedId(client.id);
               setEditSession(session);
               setShowNewSessionForm(true);
@@ -1797,11 +1907,13 @@ export default function TattoDiary() {
             onSave={saveClient}
             onEditClient={() => setShowEditClientForm(true)}
             onDeleteClient={() => deleteClient(selectedClient.id)}
-            onAddSession={() => runGated(false, () => { setEditSession(null); setShowNewSessionForm(true); })}
+            onAddSession={() => setShowAddChoice(true)}
             onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
             onDeleteSession={deleteSession}
             onUpdateSessionPhotos={updateSessionPhotos}
             onToggleSessionDone={toggleSessionDone}
+            onEditConsultation={(consultation) => { setEditConsultation(consultation); setShowNewConsultationForm(true); }}
+            onDeleteConsultation={deleteConsultation}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
             onRemoveDocument={(docId) =>
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
@@ -1861,6 +1973,36 @@ export default function TattoDiary() {
         initial={editSession}
         onClose={closeNewSession}
         onAdd={handleAddSession}
+      />
+
+      {/* ═══════════ ADD CHOICE (session vs consultation) ═══════════ */}
+      <AddChoiceSheet
+        open={showAddChoice}
+        onClose={() => setShowAddChoice(false)}
+        onPickSession={() => {
+          setShowAddChoice(false);
+          runGated(false, () => {
+            setEditSession(null);
+            setShowNewSessionForm(true);
+          });
+        }}
+        onPickConsultation={() => {
+          setShowAddChoice(false);
+          runGated(false, () => {
+            setEditConsultation(null);
+            setShowNewConsultationForm(true);
+          });
+        }}
+      />
+
+      {/* ═══════════ NEW / EDIT CONSULTATION SHEET ═══════════ */}
+      <NewConsultationSheet
+        open={showNewConsultationForm}
+        clientName={selectedClient?.name || ''}
+        client={selectedClient}
+        initial={editConsultation}
+        onClose={closeNewConsultation}
+        onAdd={handleAddConsultation}
       />
 
       {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
@@ -3029,6 +3171,45 @@ function StatBlock({ label, value, big = true }: { label: string; value: string 
   );
 }
 
+// One stat tile split in half, sharing a single frame — used to fit two
+// related counters (e.g. Срочно/Важно, or a period count stacked over an
+// all-time count) into the space of one grid cell.
+function SplitStatBlock({
+  direction = 'row',
+  a,
+  b,
+}: {
+  direction?: 'row' | 'column';
+  a: { label: string; value: string | number };
+  b: { label: string; value: string | number };
+}) {
+  const cell = (item: { label: string; value: string | number }) => (
+    <div style={{ flex: 1, textAlign: 'center' }}>
+      <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+        {item.label}
+      </div>
+      <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{item.value}</div>
+    </div>
+  );
+
+  return (
+    <GoldFrame style={{ padding: direction === 'row' ? '16px 10px' : '13px 10px' }}>
+      <div style={{ display: 'flex', flexDirection: direction, alignItems: 'center', gap: direction === 'row' ? 8 : 10 }}>
+        {cell(a)}
+        <div
+          style={{
+            background: 'rgba(var(--gold-rgb),0.15)',
+            width: direction === 'row' ? 1 : '100%',
+            height: direction === 'row' ? 34 : 1,
+            flexShrink: 0,
+          }}
+        />
+        {cell(b)}
+      </div>
+    </GoldFrame>
+  );
+}
+
 // ===================== MASTER DASHBOARD =====================
 function MasterDashboardScreen({
   clients,
@@ -3044,16 +3225,19 @@ function MasterDashboardScreen({
   onChangeMasterInfo: (m: MasterInfo) => void;
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
-  onOpenSession: (clientId: string, sessionId: string) => void;
+  onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenSettings: () => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
 
   const style = mostUsedStyle(clients);
-  const upcoming = upcomingSessions(clients, prefs.upcomingWindowDays);
+  const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
   const closedCount = closedNotesCount(clients);
+  const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
+  const plannedSessionsCount = statsUpcoming.filter((i) => i.kind === 'session').length;
+  const plannedConsultationsCount = statsUpcoming.filter((i) => i.kind === 'consultation').length;
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -3152,12 +3336,42 @@ function MasterDashboardScreen({
           />
         </GoldFrame>
 
-        {/* Quick stats — a 2x2 "character sheet" stat grid */}
+        {/* Quick stats — a 2x2 "character sheet" stat grid. Two of the four
+            cells are split in half to fit a related pair of counters:
+            назначенные сессии sit over выполнено-заметок (both period vs
+            all-time in one cell), and срочно/важно now share one cell,
+            freeing the other half for planned consultations. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+          {STATS_WINDOW_OPTIONS.map((o) => (
+            <div
+              key={o.days}
+              onClick={() => onChangePrefs({ ...prefs, statsWindowDays: o.days })}
+              style={{
+                fontSize: fs(12),
+                padding: '4px 10px',
+                borderRadius: 2,
+                cursor: 'pointer',
+                border: prefs.statsWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                background: prefs.statsWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                color: prefs.statsWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
+              }}
+            >
+              {o.label}
+            </div>
+          ))}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
           <StatBlock label="Клиентов" value={clients.length} />
-          <StatBlock label={`${DONE_EMOJI} Выполнено заметок`} value={closedCount} />
-          <StatBlock label={`${URGENCY[0].emoji} ${URGENCY[0].short}`} value={urgent} />
-          <StatBlock label={`${URGENCY[1].emoji} ${URGENCY[1].short}`} value={important} />
+          <SplitStatBlock
+            direction="column"
+            a={{ label: 'Назначено сессий', value: plannedSessionsCount }}
+            b={{ label: `${DONE_EMOJI} Выполнено заметок`, value: closedCount }}
+          />
+          <SplitStatBlock
+            a={{ label: `${URGENCY[0].emoji} ${URGENCY[0].short}`, value: urgent }}
+            b={{ label: `${URGENCY[1].emoji} ${URGENCY[1].short}`, value: important }}
+          />
+          <StatBlock label="Консультаций" value={plannedConsultationsCount} />
           <div style={{ gridColumn: '1 / -1' }}>
             <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
           </div>
@@ -3186,13 +3400,13 @@ function MasterDashboardScreen({
             ))}
           </div>
           {upcoming.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированных сессий</div>
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированных сессий и консультаций</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {upcoming.map(({ client, session }) => (
+              {upcoming.map((it) => (
                 <div
-                  key={session.id}
-                  onClick={() => onOpenSession(client.id, session.id)}
+                  key={it.id}
+                  onClick={() => onOpenSession(it.client.id, it.id, it.kind)}
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -3203,10 +3417,15 @@ function MasterDashboardScreen({
                     border: '1px solid rgba(var(--gold-rgb),0.1)',
                   }}
                 >
-                  <div style={{ fontSize: fs(14), color: COLORS.textPrimary }}>{client.name || '—'}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: fs(14), color: COLORS.textPrimary }}>{it.client.name || '—'}</div>
+                    {it.kind === 'consultation' && (
+                      <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Консультация</div>
+                    )}
+                  </div>
                   <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
-                    {formatDate(session.date)}
-                    {session.time && <span style={{ color: COLORS.gold }}> · {session.time}</span>}
+                    {formatDate(it.date)}
+                    {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
                   </div>
                 </div>
               ))}
@@ -3596,10 +3815,12 @@ function SettingsScreen({
 function SummaryScreen({
   clients,
   onToggleDone,
+  onEditNote,
   onOpenClient,
 }: {
   clients: Client[];
   onToggleDone: (clientId: string, note: ClientNote) => void;
+  onEditNote: (clientId: string, note: ClientNote) => void;
   onOpenClient: (id: string) => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
@@ -3696,7 +3917,12 @@ function SummaryScreen({
         ) : (
           items.map(({ note, client }) => (
             <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
-              <NoteItem note={note} client={client} onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })} />
+              <NoteItem
+                note={note}
+                client={client}
+                onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
+                onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
+              />
             </div>
           ))
         )}
@@ -3781,6 +4007,8 @@ function DetailScreen({
   onDeleteSession,
   onUpdateSessionPhotos,
   onToggleSessionDone,
+  onEditConsultation,
+  onDeleteConsultation,
   onAddDocument,
   onRemoveDocument,
   onUpsertNote,
@@ -3799,6 +4027,8 @@ function DetailScreen({
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
   onToggleSessionDone: (sessionId: string) => void;
+  onEditConsultation: (consultation: Consultation) => void;
+  onDeleteConsultation: (consultationId: string) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
@@ -4019,6 +4249,8 @@ function DetailScreen({
             onDeleteSession={onDeleteSession}
             onUpdateSessionPhotos={onUpdateSessionPhotos}
             onToggleSessionDone={onToggleSessionDone}
+            onEditConsultation={onEditConsultation}
+            onDeleteConsultation={onDeleteConsultation}
           />
         )}
         {activeTab === 'info' && (
@@ -4490,11 +4722,13 @@ function StyleChips({ selected, onToggle }: { selected: string[]; onToggle: (s: 
 
 function SkinSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
   const [skinType, setSkinType] = useState(client.skinType || '');
-  const [skinNotes, setSkinNotes] = useState(client.skinNotes || '');
+  const [allergies, setAllergies] = useState(client.allergies || '');
+  const [skinReactions, setSkinReactions] = useState(client.skinReactions || '');
 
   useEffect(() => {
     setSkinType(client.skinType || '');
-    setSkinNotes(client.skinNotes || '');
+    setAllergies(client.allergies || '');
+    setSkinReactions(client.skinReactions || '');
   }, [client.id]);
 
   const saveType = (value: string) => {
@@ -4505,8 +4739,11 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
     const next = tone === client.skinTone ? '' : tone;
     onSave({ ...client, skinTone: next });
   };
-  const saveNotes = () => {
-    if (skinNotes.trim() !== (client.skinNotes || '')) onSave({ ...client, skinNotes: skinNotes.trim() });
+  const saveAllergies = () => {
+    if (allergies.trim() !== (client.allergies || '')) onSave({ ...client, allergies: allergies.trim() });
+  };
+  const saveSkinReactions = () => {
+    if (skinReactions.trim() !== (client.skinReactions || '')) onSave({ ...client, skinReactions: skinReactions.trim() });
   };
 
   return (
@@ -4548,15 +4785,15 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
         </select>
       </div>
 
-      <div>
+      <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
-          Заметки о коже
+          Аллергии
         </div>
         <textarea
-          value={skinNotes}
-          onChange={(e) => setSkinNotes(e.target.value)}
-          onBlur={saveNotes}
-          placeholder="Аллергии, чувствительные зоны, реакции..."
+          value={allergies}
+          onChange={(e) => setAllergies(e.target.value)}
+          onBlur={saveAllergies}
+          placeholder="Перечислите известные аллергии..."
           style={{
             width: '100%',
             background: 'rgba(var(--surface-rgb),0.018)',
@@ -4567,7 +4804,32 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
             color: COLORS.textPrimary,
             outline: 'none',
             resize: 'none',
-            height: 70,
+            height: 60,
+            letterSpacing: '0.3px',
+          }}
+        />
+      </div>
+
+      <div>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
+          Реакции кожи
+        </div>
+        <textarea
+          value={skinReactions}
+          onChange={(e) => setSkinReactions(e.target.value)}
+          onBlur={saveSkinReactions}
+          placeholder="Опишите возможные реакции кожи..."
+          style={{
+            width: '100%',
+            background: 'rgba(var(--surface-rgb),0.018)',
+            border: '1px solid rgba(var(--gold-rgb),0.1)',
+            borderRadius: 2,
+            padding: '11px 13px',
+            fontFamily: "'Inter', sans-serif",
+            color: COLORS.textPrimary,
+            outline: 'none',
+            resize: 'none',
+            height: 60,
             letterSpacing: '0.3px',
           }}
         />
@@ -5005,10 +5267,19 @@ function SessionPhotos({
   photos,
   onChange,
   allowDelete = true,
+  buttonFirst = false,
+  topSlot,
 }: {
   photos: string[];
   onChange: (photos: string[]) => void;
   allowDelete?: boolean;
+  // Puts the "Добавить фото" trigger above the thumbnails instead of below,
+  // with topSlot (e.g. a widget attached right under the button) rendered
+  // in between — used by the consultation form, where the read-only skin
+  // data sits attached under the button and the uploaded photos fill the
+  // remaining space below.
+  buttonFirst?: boolean;
+  topSlot?: React.ReactNode;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
@@ -5034,9 +5305,7 @@ function SessionPhotos({
     setConfirmIndex(null);
   };
 
-  return (
-    <div style={{ marginTop: 10 }}>
-      {photos.length > 0 && (
+  const thumbnails = photos.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           {photos.map((src, i) => (
             <div key={i} style={{ position: 'relative', width: 78, height: 78 }}>
@@ -5104,8 +5373,9 @@ function SessionPhotos({
             </div>
           ))}
         </div>
-      )}
+      );
 
+  const addButton = (
       <div
         className="inka-doc-secondary"
         onClick={() => fileRef.current?.click()}
@@ -5130,6 +5400,22 @@ function SessionPhotos({
         </svg>
         Добавить фото
       </div>
+  );
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {buttonFirst ? (
+        <>
+          <div style={{ marginBottom: thumbnails ? 10 : 0 }}>{addButton}</div>
+          {topSlot}
+          {thumbnails}
+        </>
+      ) : (
+        <>
+          {thumbnails}
+          {addButton}
+        </>
+      )}
       <input
         ref={fileRef}
         type="file"
@@ -5192,118 +5478,207 @@ function SessionsTab({
   onDeleteSession,
   onUpdateSessionPhotos,
   onToggleSessionDone,
+  onEditConsultation,
+  onDeleteConsultation,
 }: {
   client: Client;
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
   onToggleSessionDone: (sessionId: string) => void;
+  onEditConsultation: (consultation: Consultation) => void;
+  onDeleteConsultation: (consultationId: string) => void;
 }) {
+  // Sessions and consultations share one dated timeline — most recent first,
+  // undated entries sink to the bottom.
+  type TimelineEntry = { kind: 'session'; session: Session } | { kind: 'consultation'; consultation: Consultation };
+  const timeline: TimelineEntry[] = [
+    ...client.sessions.map((session): TimelineEntry => ({ kind: 'session', session })),
+    ...client.consultations.map((consultation): TimelineEntry => ({ kind: 'consultation', consultation })),
+  ].sort((a, b) => {
+    const dateA = a.kind === 'session' ? a.session.date : a.consultation.date;
+    const dateB = b.kind === 'session' ? b.session.date : b.consultation.date;
+    return (dateB || '').localeCompare(dateA || '');
+  });
+
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-      {client.sessions.length === 0 && (
-        <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
+      {timeline.length === 0 && (
+        <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий и консультаций пока нет.</div>
       )}
 
-      {sortedSessions(client.sessions).map((session) => (
-        <div key={session.id} style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
-            <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                flexShrink: 0,
-                marginTop: 4,
-                background: session.done ? client.color : 'transparent',
-                border: session.done ? 'none' : '1px solid rgba(var(--gold-rgb),0.25)',
-              }}
-            />
-            <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
-          </div>
-          <div
-            style={{
-              flex: 1,
-              background: 'rgba(var(--surface-rgb),0.018)',
-              border: '1px solid rgba(var(--gold-rgb),0.1)',
-              borderRadius: 2,
-              padding: '12px 14px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
-              <div style={{ minWidth: 0 }}>
-                <div dir="auto" style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.3px' }}>
-                  {session.name || formatDate(session.date) || 'Сессия'}
-                </div>
-                {session.name && formatDate(session.date) && (
-                  <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
-                {!session.done && (
-                  <span
-                    onClick={() => onToggleSessionDone(session.id)}
-                    title="Отметить выполненной"
-                    style={{
-                      fontSize: fs(10),
-                      color: COLORS.gold,
-                      border: '1px solid rgba(var(--gold-rgb),0.4)',
-                      borderRadius: 2,
-                      padding: '2px 6px',
-                      letterSpacing: '0.8px',
-                      textTransform: 'uppercase',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Запланирована
-                  </span>
-                )}
-                {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+      {timeline.map((entry) => {
+        if (entry.kind === 'consultation') {
+          const consultation = entry.consultation;
+          const meta = urgencyMeta(consultation.urgency);
+          return (
+            <div key={`c-${consultation.id}`} style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
                 <div
-                  className="inka-back"
-                  onClick={() => onEditSession(session)}
-                  style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-                  title="Редактировать сессию"
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                    <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                  </svg>
-                </div>
-                <SessionDeleteControl onDelete={() => onDeleteSession(session.id)} />
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    flexShrink: 0,
+                    marginTop: 4,
+                    border: '1px solid rgba(var(--gold-rgb),0.5)',
+                  }}
+                />
+                <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
               </div>
-            </div>
-            {session.area && (
-              <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
-                {session.area}
-              </div>
-            )}
-            {session.note && <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
-            {(session.colors || session.needles || session.skinReaction) && (
               <div
                 style={{
-                  marginTop: 9,
-                  paddingTop: 9,
-                  borderTop: '1px solid rgba(var(--gold-rgb),0.08)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4,
+                  flex: 1,
+                  background: 'rgba(var(--surface-rgb),0.018)',
+                  border: '1px solid rgba(var(--gold-rgb),0.22)',
+                  borderRadius: 2,
+                  padding: '12px 14px',
                 }}
               >
-                {session.colors && <SessionMeta label="Краски" value={session.colors} />}
-                {session.needles && <SessionMeta label="Иглы" value={session.needles} />}
-                {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Консультация</div>
+                    <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>
+                      {formatDate(consultation.date) || 'Дата не указана'}
+                      {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+                    <span style={{ fontSize: fs(13) }} title={meta.label}>{meta.emoji}</span>
+                    <div
+                      className="inka-back"
+                      onClick={() => onEditConsultation(consultation)}
+                      style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+                      title="Редактировать консультацию"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                        <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                    <SessionDeleteControl onDelete={() => onDeleteConsultation(consultation.id)} />
+                  </div>
+                </div>
+                {consultation.generalNotes && (
+                  <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>
+                    {consultation.generalNotes}
+                  </div>
+                )}
+                {consultation.inspirationSources && (
+                  <div style={{ marginTop: 6 }}>
+                    <SessionMeta label="Источники вдохновения" value={consultation.inspirationSources} />
+                  </div>
+                )}
+                {consultation.creative && (
+                  <div style={{ marginTop: 6 }}>
+                    <SessionMeta label="Креатив" value={consultation.creative} />
+                  </div>
+                )}
+                <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} />
               </div>
-            )}
-            <SessionPhotos
-              photos={session.photos}
-              onChange={(photos) => onUpdateSessionPhotos(session.id, photos)}
-              allowDelete={false}
-            />
-          </div>
-        </div>
-      ))}
+            </div>
+          );
+        }
 
+        const session = entry.session;
+        return (
+          <div key={session.id} style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                  marginTop: 4,
+                  background: session.done ? client.color : 'transparent',
+                  border: session.done ? 'none' : '1px solid rgba(var(--gold-rgb),0.25)',
+                }}
+              />
+              <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
+            </div>
+            <div
+              style={{
+                flex: 1,
+                background: 'rgba(var(--surface-rgb),0.018)',
+                border: '1px solid rgba(var(--gold-rgb),0.1)',
+                borderRadius: 2,
+                padding: '12px 14px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div dir="auto" style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.3px' }}>
+                    {session.name || formatDate(session.date) || 'Сессия'}
+                  </div>
+                  {session.name && formatDate(session.date) && (
+                    <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+                  {!session.done && (
+                    <span
+                      onClick={() => onToggleSessionDone(session.id)}
+                      title="Отметить выполненной"
+                      style={{
+                        fontSize: fs(10),
+                        color: COLORS.gold,
+                        border: '1px solid rgba(var(--gold-rgb),0.4)',
+                        borderRadius: 2,
+                        padding: '2px 6px',
+                        letterSpacing: '0.8px',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Запланирована
+                    </span>
+                  )}
+                  {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+                  <div
+                    className="inka-back"
+                    onClick={() => onEditSession(session)}
+                    style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+                    title="Редактировать сессию"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                      <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <SessionDeleteControl onDelete={() => onDeleteSession(session.id)} />
+                </div>
+              </div>
+              {session.area && (
+                <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
+                  {session.area}
+                </div>
+              )}
+              {session.note && <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+              {(session.colors || session.needles || session.skinReaction) && (
+                <div
+                  style={{
+                    marginTop: 9,
+                    paddingTop: 9,
+                    borderTop: '1px solid rgba(var(--gold-rgb),0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  {session.colors && <SessionMeta label="Краски" value={session.colors} />}
+                  {session.needles && <SessionMeta label="Иглы" value={session.needles} />}
+                  {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
+                </div>
+              )}
+              <SessionPhotos
+                photos={session.photos}
+                onChange={(photos) => onUpdateSessionPhotos(session.id, photos)}
+                allowDelete={false}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -5351,15 +5726,32 @@ function NoteItem({
   onToggleDone,
   onDelete,
   onUpdatePhotos,
+  onEdit,
   client,
 }: {
   note: ClientNote;
   onToggleDone: () => void;
   onDelete?: () => void;
   onUpdatePhotos?: (photos: string[]) => void;
+  onEdit?: (text: string, urgency: UrgencyKey) => void;
   client?: Client;
 }) {
   const meta = urgencyMeta(note.urgency);
+  const [editing, setEditing] = useState(false);
+  const [draftText, setDraftText] = useState(note.text);
+  const [draftUrgency, setDraftUrgency] = useState<UrgencyKey>(note.urgency);
+
+  const startEdit = () => {
+    setDraftText(note.text);
+    setDraftUrgency(note.urgency);
+    setEditing(true);
+  };
+  const saveEdit = () => {
+    const trimmed = draftText.trim();
+    if (trimmed && onEdit) onEdit(trimmed, draftUrgency);
+    setEditing(false);
+  };
+
   return (
     <div
       style={{
@@ -5386,52 +5778,144 @@ function NoteItem({
             </span>
           </div>
         )}
-        <div
-          dir="auto"
-          style={{
-            fontSize: fs(15),
-            color: note.done ? COLORS.textGhost : 'var(--text-soft)',
-            fontStyle: 'italic',
-            lineHeight: 1.5,
-            textDecoration: note.done ? 'line-through' : 'none',
-            wordBreak: 'break-word',
-          }}
-        >
-          {note.text}
-        </div>
-        {!client && (
+        {editing ? (
+          <div onClick={(e) => e.stopPropagation()}>
+            <textarea
+              dir="auto"
+              autoFocus
+              value={draftText}
+              onChange={(e) => setDraftText(e.target.value)}
+              style={{
+                width: '100%',
+                background: 'rgba(var(--surface-rgb),0.03)',
+                border: '1px solid rgba(var(--gold-rgb),0.3)',
+                borderRadius: 2,
+                padding: '9px 11px',
+                fontFamily: "'Inter', sans-serif",
+                color: COLORS.textPrimary,
+                outline: 'none',
+                resize: 'none',
+                height: 64,
+                fontStyle: 'italic',
+                lineHeight: 1.5,
+              }}
+            />
+            <div style={{ marginTop: 8 }}>
+              <UrgencyChips value={draftUrgency} onPick={setDraftUrgency} />
+            </div>
+          </div>
+        ) : (
+          <div
+            dir="auto"
+            style={{
+              fontSize: fs(15),
+              color: note.done ? COLORS.textGhost : 'var(--text-soft)',
+              fontStyle: 'italic',
+              lineHeight: 1.5,
+              textDecoration: note.done ? 'line-through' : 'none',
+              wordBreak: 'break-word',
+            }}
+          >
+            {note.text}
+          </div>
+        )}
+        {!client && !editing && (
           <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginTop: 4 }}>
             {meta.emoji} {meta.label}
           </div>
         )}
-        {onUpdatePhotos && <SessionPhotos photos={note.photos} onChange={onUpdatePhotos} allowDelete />}
+        {onUpdatePhotos && !editing && <SessionPhotos photos={note.photos} onChange={onUpdatePhotos} allowDelete />}
 
         {/* Explicit actions — a labelled «Выполнено» button (toggles, no
-            confirm needed) plus, where deletion is allowed, a labelled
-            delete button with its own confirm step. No bare ✕ icon. */}
+            confirm needed), an «Изменить» button that switches the text
+            above into an editable field, plus (where deletion is allowed) a
+            labelled delete button with its own confirm step. No bare ✕ icon. */}
         <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <div
-            onClick={onToggleDone}
-            style={{
-              flex: onDelete ? 1 : undefined,
-              padding: '7px 12px',
-              textAlign: 'center',
-              border: '1px solid rgba(var(--gold-rgb),0.3)',
-              borderRadius: 2,
-              cursor: 'pointer',
-              color: COLORS.gold,
-              fontSize: fs(11),
-              letterSpacing: '1px',
-              textTransform: 'uppercase',
-              fontStyle: 'italic',
-            }}
-          >
-            {note.done ? 'Вернуть в работу' : 'Выполнено'}
-          </div>
-          {onDelete && (
-            <div style={{ flex: 1 }}>
-              <DeleteButton label="Удалить заметку" confirmLabel="Удалить заметку?" onConfirm={onDelete} compact />
-            </div>
+          {editing ? (
+            <>
+              <div
+                onClick={saveEdit}
+                style={{
+                  flex: 1,
+                  padding: '7px 12px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(var(--gold-rgb),0.3)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  color: COLORS.gold,
+                  fontSize: fs(11),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                Сохранить
+              </div>
+              <div
+                onClick={() => setEditing(false)}
+                style={{
+                  flex: 1,
+                  padding: '7px 12px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  color: COLORS.textFaint,
+                  fontSize: fs(11),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                Отмена
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                onClick={onToggleDone}
+                style={{
+                  flex: 1,
+                  padding: '7px 12px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(var(--gold-rgb),0.3)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  color: COLORS.gold,
+                  fontSize: fs(11),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                {note.done ? 'Вернуть в работу' : 'Выполнено'}
+              </div>
+              {onEdit && (
+                <div
+                  onClick={startEdit}
+                  style={{
+                    flex: 1,
+                    padding: '7px 12px',
+                    textAlign: 'center',
+                    border: '1px solid rgba(var(--gold-rgb),0.3)',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    color: COLORS.gold,
+                    fontSize: fs(11),
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Изменить
+                </div>
+              )}
+              {onDelete && (
+                <div style={{ flex: 1 }}>
+                  <DeleteButton label="Удалить заметку" confirmLabel="Удалить заметку?" onConfirm={onDelete} compact />
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -5532,6 +6016,7 @@ function AdditionalTab({
               onToggleDone={() => toggleDone(n)}
               onDelete={() => onDeleteNote(n.id)}
               onUpdatePhotos={(photos) => onUpsertNote({ ...n, photos })}
+              onEdit={(text, urgency) => onUpsertNote({ ...n, text, urgency })}
             />
           ))}
         </div>
@@ -6129,6 +6614,272 @@ function NewSessionSheet({
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
             {isEdit ? 'Сохранить' : 'Добавить сессию'}
+          </span>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// Tapping "+" on the sessions tab asks which kind of entry to create first —
+// a regular tattoo session, or a consultation (mood board + creative brief,
+// scheduled the same way a session is).
+function AddChoiceSheet({
+  open,
+  onClose,
+  onPickSession,
+  onPickConsultation,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPickSession: () => void;
+  onPickConsultation: () => void;
+}) {
+  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        border: '1px solid rgba(var(--gold-rgb),0.25)',
+        borderRadius: 2,
+        padding: '16px',
+        cursor: 'pointer',
+        background: 'rgba(var(--gold-rgb),0.03)',
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          color: 'var(--gold)',
+        }}
+      >
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <BottomSheet open={open} heightPct={34}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Что добавить?</div>
+        <SheetStarDivider />
+      </div>
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {choice(
+          'Сессия',
+          'Дата, техника, стиль, зона работы...',
+          onPickSession,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="4.5" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
+            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.2" />
+            <line x1="6.5" y1="2.5" x2="6.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="13.5" y1="2.5" x2="13.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>,
+        )}
+        {choice(
+          'Консультация',
+          'Референсы, идея, данные о коже...',
+          onPickConsultation,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="4" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
+            <circle cx="7" cy="8" r="1.3" stroke="currentColor" strokeWidth="1.1" />
+            <path d="M3 14L8 10L11 12.5L14 9.5L17 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>,
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
+// Read-only skin data row inside a consultation — always sourced from the
+// client's own profile (Инфо → Кожа), never edited from here.
+function SkinReadRow({ label, value, swatch }: { label: string; value?: string; swatch?: string }) {
+  return (
+    <div style={{ border: '1px solid rgba(var(--gold-rgb),0.1)', borderRadius: 2, padding: '9px 12px', background: 'rgba(var(--surface-rgb),0.018)' }}>
+      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
+      <div
+        dir="auto"
+        style={{
+          fontSize: fs(13),
+          color: value ? COLORS.textPrimary : COLORS.textGhost,
+          fontStyle: value ? 'normal' : 'italic',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          wordBreak: 'break-word',
+        }}
+      >
+        {swatch && <span style={{ width: 14, height: 14, borderRadius: '50%', background: swatch, display: 'inline-block', flexShrink: 0, border: '1px solid rgba(var(--gold-rgb),0.3)' }} />}
+        {value || '—'}
+      </div>
+    </div>
+  );
+}
+
+function NewConsultationSheet({
+  open,
+  clientName,
+  client,
+  initial,
+  onClose,
+  onAdd,
+}: {
+  open: boolean;
+  clientName: string;
+  client: Client | null;
+  initial?: Consultation | null;
+  onClose: () => void;
+  onAdd: (data: {
+    date: string;
+    time: string;
+    generalNotes: string;
+    creative: string;
+    inspirationSources: string;
+    urgency: UrgencyKey;
+    photos: string[];
+  }) => void;
+}) {
+  const isEdit = !!initial;
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [generalNotes, setGeneralNotes] = useState('');
+  const [creative, setCreative] = useState('');
+  const [inspirationSources, setInspirationSources] = useState('');
+  const [urgency, setUrgency] = useState<UrgencyKey>('important');
+  const [photos, setPhotos] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      setDate(initial?.date ?? '');
+      setTime(initial?.time ?? '');
+      setGeneralNotes(initial?.generalNotes ?? '');
+      setCreative(initial?.creative ?? '');
+      setInspirationSources(initial?.inspirationSources ?? '');
+      setUrgency(initial?.urgency ?? 'important');
+      setPhotos(initial?.photos ?? []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  return (
+    <BottomSheet open={open} heightPct={85}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
+          {isEdit ? 'Редактировать консультацию' : 'Новая консультация'}
+        </div>
+        <SheetStarDivider />
+      </div>
+
+      <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
+        <div className="inka-consult-left">
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Фотографии</FieldLabel>
+            <SessionPhotos
+              photos={photos}
+              onChange={setPhotos}
+              buttonFirst
+              topSlot={
+                client && (
+                  <div
+                    style={{
+                      border: '1px solid rgba(var(--gold-rgb),0.2)',
+                      borderTop: 'none',
+                      borderRadius: '0 0 2px 2px',
+                      marginTop: -1,
+                      marginBottom: 10,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+                      Кожа клиента
+                    </div>
+                    <SkinReadRow label="Аллергии" value={client.allergies} />
+                    <SkinReadRow label="Реакции кожи" value={client.skinReactions} />
+                    <SkinReadRow label="Тип кожи" value={SKIN_TYPES.find((s) => s.value === client.skinType)?.label} />
+                    <SkinReadRow label="Тон кожи" value={client.skinTone} swatch={client.skinTone || undefined} />
+                  </div>
+                )
+              }
+            />
+          </div>
+        </div>
+
+        <div className="inka-consult-right">
+          <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <FieldLabel>Дата</FieldLabel>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={INPUT_STYLE} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <FieldLabel>Время</FieldLabel>
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={INPUT_STYLE} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Общие заметки</FieldLabel>
+            <textarea
+              value={generalNotes}
+              onChange={(e) => setGeneralNotes(e.target.value)}
+              placeholder="Пожелания клиента, договорённости, мысли мастера..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 90 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Источники вдохновения</FieldLabel>
+            <textarea
+              value={inspirationSources}
+              onChange={(e) => setInspirationSources(e.target.value)}
+              placeholder="Укажите источники, авторов, образы..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Креатив</FieldLabel>
+            <textarea
+              value={creative}
+              onChange={(e) => setCreative(e.target.value)}
+              placeholder="Смелая идея, изюминка, что-то особенное..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 70 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Срочность</FieldLabel>
+            <UrgencyChips value={urgency} onPick={setUrgency} />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '0 24px 40px' }}>
+        <div
+          className="inka-submit"
+          onClick={() => onAdd({ date, time, generalNotes, creative, inspirationSources, urgency, photos })}
+          style={SUBMIT_STYLE}
+        >
+          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
+            {isEdit ? 'Сохранить' : 'Добавить консультацию'}
           </span>
         </div>
       </div>
