@@ -2980,7 +2980,6 @@ function BottomNav({
           justifyContent: 'center',
           cursor: 'pointer',
           flexShrink: 0,
-          marginTop: -16,
         }}
       >
         <svg width="24" height="24" viewBox="0 0 14 14" fill="none" style={{ position: 'relative' }}>
