@@ -1663,8 +1663,8 @@ export default function TattoDiary() {
             role="button"
             aria-label="Мастер"
             style={{
-              width: 42,
-              height: 42,
+              width: 48,
+              height: 48,
               flexShrink: 0,
               borderRadius: '50%',
               border: '1px solid rgba(var(--gold-rgb),0.25)',
@@ -1675,7 +1675,7 @@ export default function TattoDiary() {
               cursor: 'pointer',
             }}
           >
-            <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
+            <svg width="24" height="24" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
               <circle cx="10" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.07" />
               <path d="M3.5 17C3.5 13.5 6.4 11.5 10 11.5C13.6 11.5 16.5 13.5 16.5 17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="currentColor" fillOpacity="0.07" />
             </svg>
@@ -2949,7 +2949,7 @@ function BottomNav({
         onClick={() => onNavigate('list')}
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'list' ? 1 : 0.4 }}
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
+        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
           <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="currentColor" fillOpacity="0.07" />
         </svg>
         <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
@@ -2961,8 +2961,8 @@ function BottomNav({
         role="button"
         aria-label="Добавить клиента"
         style={{
-          width: 46,
-          height: 46,
+          width: 52,
+          height: 52,
           borderRadius: '50%',
           border: '1px solid rgba(var(--gold-rgb),0.4)',
           background: 'rgba(var(--gold-rgb),0.08)',
@@ -2971,10 +2971,10 @@ function BottomNav({
           justifyContent: 'center',
           cursor: 'pointer',
           flexShrink: 0,
-          marginTop: -14,
+          marginTop: -16,
         }}
       >
-        <svg width="20" height="20" viewBox="0 0 14 14" fill="none">
+        <svg width="24" height="24" viewBox="0 0 14 14" fill="none">
           <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
           <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
@@ -2983,7 +2983,7 @@ function BottomNav({
         onClick={() => onNavigate('summary')}
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.4 }}
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
+        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
           <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
           <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
           <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
@@ -3080,10 +3080,10 @@ function MasterDashboardScreen({
           aria-label="Настройки"
           style={{
             position: 'absolute',
-            top: 4,
-            right: 24,
-            width: 36,
-            height: 36,
+            top: 2,
+            right: 20,
+            width: 42,
+            height: 42,
             borderRadius: '50%',
             border: '1px solid rgba(var(--gold-rgb),0.25)',
             background: 'rgba(var(--gold-rgb),0.03)',
@@ -3093,7 +3093,7 @@ function MasterDashboardScreen({
             cursor: 'pointer',
           }}
         >
-          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
+          <svg width="21" height="21" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
             <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.3" />
             <circle cx="10" cy="10" r="1.5" stroke="currentColor" strokeWidth="1.1" />
             <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" />
