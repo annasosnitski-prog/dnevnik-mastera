@@ -1822,6 +1822,14 @@ export default function TattoDiary() {
               setActiveTab('extra');
               setScreen('detail');
             }}
+            onOpenConsultation={(clientId, consultationId) => {
+              const client = clients.find((c) => c.id === clientId);
+              const consultation = client?.consultations.find((c) => c.id === consultationId);
+              if (!client || !consultation) return;
+              setSelectedId(client.id);
+              setEditConsultation(consultation);
+              setShowNewConsultationForm(true);
+            }}
           />
         )}
       </div>
@@ -1864,6 +1872,7 @@ export default function TattoDiary() {
               setShowNewSessionForm(true);
             }}
             onOpenSettings={() => setScreen('settings')}
+            onImport={replaceAllClients}
           />
         )}
       </div>
@@ -1886,8 +1895,6 @@ export default function TattoDiary() {
           onToggleTheme={toggleTheme}
           prefs={prefs}
           onChange={setPrefs}
-          clients={clients}
-          onImport={replaceAllClients}
           masterInfo={masterInfo}
           onChangeMasterInfo={setMasterInfo}
         />
@@ -3228,6 +3235,7 @@ function MasterDashboardScreen({
   onChangePrefs,
   onOpenSession,
   onOpenSettings,
+  onImport,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
@@ -3236,6 +3244,7 @@ function MasterDashboardScreen({
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenSettings: () => void;
+  onImport: (clients: Client[]) => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -3247,6 +3256,51 @@ function MasterDashboardScreen({
   const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
   const plannedSessionsCount = statsUpcoming.filter((i) => i.kind === 'session').length;
   const plannedConsultationsCount = statsUpcoming.filter((i) => i.kind === 'consultation').length;
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const handleExport = () => {
+    const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
+        if (!rawClients) throw new Error('bad shape');
+        if (!window.confirm(`Импортировать ${rawClients.length} клиент(ов)? Текущие данные будут заменены.`)) return;
+        onImport(rawClients.map((c: any, i: number) => normalizeClient(c, i)));
+        setImportError(null);
+      } catch {
+        setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const actionButtonStyle: React.CSSProperties = {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px 0',
+    borderRadius: 2,
+    cursor: 'pointer',
+    fontSize: fs(13),
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+    border: '1px solid rgba(var(--gold-rgb),0.35)',
+    background: 'rgba(var(--gold-rgb),0.05)',
+    color: COLORS.gold,
+  };
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -3465,6 +3519,34 @@ function MasterDashboardScreen({
             </>
           )}
         </GoldFrame>
+
+        {/* Backup — export the whole client list to a JSON file, or restore
+            from one (replaces everything currently stored). */}
+        <GoldFrame style={{ padding: '14px 16px' }}>
+          <div style={statLabelStyle}>Резервная копия</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div onClick={handleExport} style={actionButtonStyle}>
+              Экспортировать
+            </div>
+            <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
+              Импортировать
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImportFile(file);
+              e.target.value = '';
+            }}
+          />
+          {importError && (
+            <div style={{ marginTop: 10, fontSize: fs(12), color: '#e0665a', fontStyle: 'italic' }}>{importError}</div>
+          )}
+        </GoldFrame>
       </div>
     </div>
   );
@@ -3476,8 +3558,6 @@ function SettingsScreen({
   onToggleTheme,
   prefs,
   onChange,
-  clients,
-  onImport,
   masterInfo,
   onChangeMasterInfo,
 }: {
@@ -3485,14 +3565,9 @@ function SettingsScreen({
   onToggleTheme: () => void;
   prefs: Prefs;
   onChange: (p: Prefs) => void;
-  clients: Client[];
-  onImport: (clients: Client[]) => void;
   masterInfo: MasterInfo;
   onChangeMasterInfo: (m: MasterInfo) => void;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-
   const addMasterLink = (label: string, value: string) => {
     const link: MasterLink = { id: Date.now().toString(), label: label.trim(), value: value.trim() };
     onChangeMasterInfo({ ...masterInfo, links: [...masterInfo.links, link] });
@@ -3502,48 +3577,6 @@ function SettingsScreen({
   };
   const setColorLabel = (color: string, label: string) => {
     onChangeMasterInfo({ ...masterInfo, colorLabels: { ...masterInfo.colorLabels, [color]: label } });
-  };
-
-  const handleExport = () => {
-    const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result));
-        const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
-        if (!rawClients) throw new Error('bad shape');
-        if (!window.confirm(`Импортировать ${rawClients.length} клиент(ов)? Текущие данные будут заменены.`)) return;
-        onImport(rawClients.map((c: any, i: number) => normalizeClient(c, i)));
-        setImportError(null);
-      } catch {
-        setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const actionButtonStyle: React.CSSProperties = {
-    flex: 1,
-    textAlign: 'center',
-    padding: '10px 0',
-    borderRadius: 2,
-    cursor: 'pointer',
-    fontSize: fs(13),
-    letterSpacing: '1px',
-    textTransform: 'uppercase',
-    border: '1px solid rgba(var(--gold-rgb),0.35)',
-    background: 'rgba(var(--gold-rgb),0.05)',
-    color: COLORS.gold,
   };
 
   const rowStyle: React.CSSProperties = {
@@ -3732,34 +3765,6 @@ function SettingsScreen({
           Сбросить по умолчанию
         </div>
 
-        {/* Backup — export the whole client list to a JSON file, or restore
-            from one (replaces everything currently stored). */}
-        <div style={rowStyle}>
-          <div style={labelStyle}>Резервная копия</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div onClick={handleExport} style={actionButtonStyle}>
-              Экспортировать
-            </div>
-            <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
-              Импортировать
-            </div>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleImportFile(file);
-              e.target.value = '';
-            }}
-          />
-          {importError && (
-            <div style={{ marginTop: 10, fontSize: fs(12), color: '#e0665a', fontStyle: 'italic' }}>{importError}</div>
-          )}
-        </div>
-
         {/* Master's own card: flexible contact/payment rows + free-text bank
             details, kept in one place instead of scattered notes. */}
         <div style={rowStyle}>
@@ -3826,14 +3831,24 @@ function SummaryScreen({
   onToggleDone,
   onEditNote,
   onOpenClient,
+  onOpenConsultation,
 }: {
   clients: Client[];
   onToggleDone: (clientId: string, note: ClientNote) => void;
   onEditNote: (clientId: string, note: ClientNote) => void;
   onOpenClient: (id: string) => void;
+  onOpenConsultation: (clientId: string, consultationId: string) => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
+
+  // Planned (not-done) consultations, across every client, soonest first —
+  // a quick shortened view (date · client · place) that opens straight into
+  // the consultation when tapped.
+  const plannedConsultations = clients
+    .flatMap((c) => c.consultations.map((consultation) => ({ consultation, client: c })))
+    .filter(({ consultation }) => !consultation.done)
+    .sort((a, b) => (a.consultation.date || '').localeCompare(b.consultation.date || ''));
 
   const items = clients
     .flatMap((c) => c.notes.map((note) => ({ note, client: c })))
@@ -3903,6 +3918,50 @@ function SummaryScreen({
         </div>
         <StarDivider />
       </div>
+
+      {/* Planned consultations — shortened view (date · client · place),
+          tapping opens the consultation itself. */}
+      {plannedConsultations.length > 0 && (
+        <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+            Запланированные консультации
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {plannedConsultations.map(({ consultation, client }) => (
+              <div
+                key={`cons-${client.id}-${consultation.id}`}
+                onClick={() => onOpenConsultation(client.id, consultation.id)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 10px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {client.name || '—'}
+                  </div>
+                  {consultation.area && (
+                    <div style={{ fontSize: fs(11), color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                      {consultation.area}
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
+                  {formatDate(consultation.date).replace(/ \d{4}$/, '')}
+                  {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <StarDivider />
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
@@ -6862,16 +6921,6 @@ function NewConsultationSheet({
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Техника и стиль</FieldLabel>
-            <input
-              value={style}
-              onChange={(e) => setStyle(e.target.value)}
-              placeholder="Выберите технику и стилистику работы..."
-              style={INPUT_STYLE}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
             <FieldLabel>Общие заметки</FieldLabel>
             <textarea
               value={generalNotes}
@@ -6908,6 +6957,16 @@ function NewConsultationSheet({
               onChange={(e) => setCreative(e.target.value)}
               placeholder="Смелая идея, изюминка, что-то особенное..."
               style={{ ...INPUT_STYLE, resize: 'none', height: 70 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Техника и стиль</FieldLabel>
+            <input
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              placeholder="Выберите технику и стилистику работы..."
+              style={INPUT_STYLE}
             />
           </div>
 
