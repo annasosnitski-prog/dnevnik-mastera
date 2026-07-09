@@ -898,24 +898,28 @@ function useIsLightTheme(): boolean {
   return isLight;
 }
 
+// A cloudier sky than there are sprites — reuse the 7 cuts this many times
+// over so the drift feels like a full cover rather than a handful of shapes.
+const CLOUD_COUNT = 20;
+
 // Light theme's sky — hand-drawn engraving clouds, all in one dark-gold tone,
 // drifting past at their own speed with a gentle bob. The dark theme's
 // counterpart is StarfieldBackground above. Spans the same tall virtual area
-// as the starfield (rather than just the first viewport) so the 7 clouds
-// spread thinly down the whole scroll instead of stacking inside one
-// screen's worth of height and blurring into a single muddy smear.
+// as the starfield (rather than just the first viewport) so clouds keep
+// appearing down the whole scroll instead of only in the first screen.
 function CloudsBackground() {
   const isLight = useIsLightTheme();
   const [clouds] = useState(() => {
-    const band = 100 / CLOUD_SOURCES.length;
-    return CLOUD_SOURCES.map((src, i) => ({
-      src,
-      // One cloud per vertical band (with jitter) instead of pure random top —
-      // guarantees spacing so clouds don't pile on top of each other.
-      top: i * band + Math.random() * (band * 0.5),
+    const band = 100 / CLOUD_COUNT;
+    return Array.from({ length: CLOUD_COUNT }, (_, i) => ({
+      src: CLOUD_SOURCES[i % CLOUD_SOURCES.length],
+      // Loose bands (with jitter wider than the band itself) keep clouds
+      // spread down the whole scroll while still letting neighbours drift
+      // into each other and overlap, the way real cloud cover does.
+      top: i * band + (Math.random() - 0.3) * band * 2,
       width: 190 + Math.random() * 170,
       flip: Math.random() < 0.5,
-      driftDuration: 50 + Math.random() * 55,
+      driftDuration: 45 + Math.random() * 60,
       driftDelay: -Math.random() * 100,
       bobDuration: 6 + Math.random() * 6,
       bobDelay: -Math.random() * 8,
