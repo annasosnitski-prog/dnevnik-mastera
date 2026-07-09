@@ -2918,84 +2918,73 @@ function BottomNav({
     <div
       style={{
         // Rendered as a direct child of the (non-scrolling) app shell, so
-        // absolute bottom:0 pins the bar flush to the bottom edge of the
-        // screen (no floating gap, no notch) — a calm, flat three-column bar.
+        // absolute bottom:0 pins the ribbon to the bottom of the screen and it
+        // no longer scrolls away with the card list.
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        background: 'var(--bg)',
-        border: '1px solid rgba(var(--gold-rgb),0.35)',
-        borderBottom: 'none',
-        borderTopLeftRadius: 18,
-        borderTopRightRadius: 18,
+        // Only a slim slice of the iOS home-indicator inset is reserved (capped
+        // at 10px) instead of the full ~34px — otherwise a big empty band opens
+        // up under the labels and the bar looks huge. The labels still clear the
+        // home indicator.
+        height: 'calc(42px + min(10px, env(safe-area-inset-bottom)))',
+        // Solid (no backdrop-filter): the blur repainted every frame during
+        // scroll and was a major source of jank. A flat bar is also visually
+        // slimmer, hugging the icons. A gold-tinted overlay (stacked as a
+        // second background layer, not a blur) makes the bar read clearly
+        // against the near-black app background instead of blending in.
+        background: 'linear-gradient(rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1)), var(--bg)',
+        borderTop: '1px solid rgba(var(--gold-rgb),0.35)',
+        boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
         display: 'flex',
-        height: 80,
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        paddingTop: 4,
+        paddingBottom: 'calc(4px + min(10px, env(safe-area-inset-bottom)))',
         zIndex: 50,
       }}
     >
       <div
         onClick={() => onNavigate('list')}
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 4,
-          cursor: 'pointer',
-          borderRight: '1px solid rgba(var(--gold-rgb),0.22)',
-        }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'list' ? 1 : 0.4 }}
       >
-        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)', opacity: active === 'list' ? 1 : 0.5 }}>
+        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
           <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
           <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
         </svg>
         <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Главная</span>
-        <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--gold)', opacity: 0.5 }} />
       </div>
-
-      {/* Create-client — a calm, flat outlined circle sitting inline in the
-          bar (no glow/gradient/notch), per the reference. */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid rgba(var(--gold-rgb),0.22)' }}>
-        <div
-          onClick={onAddClient}
-          role="button"
-          aria-label="Добавить клиента"
-          style={{
-            position: 'relative',
-            width: 46,
-            height: 46,
-            borderRadius: '50%',
-            border: '1.5px solid var(--gold)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', border: '1px solid rgba(var(--gold-rgb),0.4)' }} />
-          <svg width="20" height="20" viewBox="0 0 14 14" fill="none" style={{ position: 'relative', zIndex: 2 }}>
-            <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.6" strokeLinecap="round" />
-            <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        </div>
-      </div>
-
+      {/* Create-client — big and centred, replacing the old «Сводка»/«Мастер»
+          tabs (they moved up next to the logo). */}
       <div
-        onClick={() => onNavigate('summary')}
+        onClick={onAddClient}
+        role="button"
+        aria-label="Добавить клиента"
         style={{
-          flex: 1,
+          width: 52,
+          height: 52,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.4)',
+          background: 'rgba(var(--gold-rgb),0.08)',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 4,
           cursor: 'pointer',
+          flexShrink: 0,
+          marginTop: -16,
         }}
       >
-        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)', opacity: active === 'summary' ? 1 : 0.5 }}>
+        <svg width="24" height="24" viewBox="0 0 14 14" fill="none">
+          <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </div>
+      <div
+        onClick={() => onNavigate('summary')}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.4 }}
+      >
+        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
           <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
           <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
           <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
@@ -3005,7 +2994,6 @@ function BottomNav({
           <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         </svg>
         <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Задачи</span>
-        <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--gold)', opacity: 0.5 }} />
       </div>
     </div>
   );
