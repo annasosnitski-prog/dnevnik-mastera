@@ -214,6 +214,8 @@ interface Consultation {
   id: string;
   date: string; // ISO yyyy-mm-dd
   time: string; // HH:MM, 24h
+  area: string; // "Место" — body part/zone under discussion
+  style: string; // "Техника и стиль" — free text, unlike the session's chip picker
   generalNotes: string; // "Общие заметки" — the client's own wishes/agreements + the master's own thoughts
   creative: string; // "Креатив" — the wild/standout idea, the one distinctive twist
   inspirationSources: string; // "Источники вдохновения" — authors, references
@@ -442,6 +444,8 @@ function normalizeClient(raw: any, index: number): Client {
           id: String(cn?.id ?? `${Date.now()}-c${i}`),
           date: cn?.date ?? '',
           time: cn?.time ?? '',
+          area: cn?.area ?? '',
+          style: cn?.style ?? '',
           generalNotes: cn?.generalNotes ?? '',
           creative: cn?.creative ?? '',
           inspirationSources: cn?.inspirationSources ?? '',
@@ -1282,6 +1286,8 @@ export default function TattoDiary() {
   const handleAddConsultation = (data: {
     date: string;
     time: string;
+    area: string;
+    style: string;
     generalNotes: string;
     creative: string;
     inspirationSources: string;
@@ -5224,7 +5230,9 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
       <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: fs(11), paddingTop: 2 }}>
         {label}
       </span>
-      <span dir="auto" style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>{value}</span>
+      <span dir="auto" style={{ flex: 1, minWidth: 0, color: 'var(--text-soft)', fontStyle: 'italic', wordBreak: 'break-word' }}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -5558,6 +5566,11 @@ function SessionsTab({
                     <SessionDeleteControl onDelete={() => onDeleteConsultation(consultation.id)} />
                   </div>
                 </div>
+                {(consultation.area || consultation.style) && (
+                  <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
+                    {[consultation.area, consultation.style].filter(Boolean).join(' · ')}
+                  </div>
+                )}
                 {consultation.generalNotes && (
                   <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>
                     {consultation.generalNotes}
@@ -6705,31 +6718,6 @@ function AddChoiceSheet({
   );
 }
 
-// Read-only skin data row inside a consultation — always sourced from the
-// client's own profile (Инфо → Кожа), never edited from here.
-function SkinReadRow({ label, value, swatch }: { label: string; value?: string; swatch?: string }) {
-  return (
-    <div style={{ border: '1px solid rgba(var(--gold-rgb),0.1)', borderRadius: 2, padding: '9px 12px', background: 'rgba(var(--surface-rgb),0.018)' }}>
-      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
-      <div
-        dir="auto"
-        style={{
-          fontSize: fs(13),
-          color: value ? COLORS.textPrimary : COLORS.textGhost,
-          fontStyle: value ? 'normal' : 'italic',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          wordBreak: 'break-word',
-        }}
-      >
-        {swatch && <span style={{ width: 14, height: 14, borderRadius: '50%', background: swatch, display: 'inline-block', flexShrink: 0, border: '1px solid rgba(var(--gold-rgb),0.3)' }} />}
-        {value || '—'}
-      </div>
-    </div>
-  );
-}
-
 function NewConsultationSheet({
   open,
   clientName,
@@ -6746,6 +6734,8 @@ function NewConsultationSheet({
   onAdd: (data: {
     date: string;
     time: string;
+    area: string;
+    style: string;
     generalNotes: string;
     creative: string;
     inspirationSources: string;
@@ -6756,6 +6746,8 @@ function NewConsultationSheet({
   const isEdit = !!initial;
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [area, setArea] = useState('');
+  const [style, setStyle] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
   const [creative, setCreative] = useState('');
   const [inspirationSources, setInspirationSources] = useState('');
@@ -6766,6 +6758,8 @@ function NewConsultationSheet({
     if (open) {
       setDate(initial?.date ?? '');
       setTime(initial?.time ?? '');
+      setArea(initial?.area ?? '');
+      setStyle(initial?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
       setCreative(initial?.creative ?? '');
       setInspirationSources(initial?.inspirationSources ?? '');
@@ -6790,37 +6784,53 @@ function NewConsultationSheet({
         <div className="inka-consult-left">
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Фотографии</FieldLabel>
-            <SessionPhotos
-              photos={photos}
-              onChange={setPhotos}
-              buttonFirst
-              topSlot={
-                client && (
-                  <div
-                    style={{
-                      border: '1px solid rgba(var(--gold-rgb),0.2)',
-                      borderTop: 'none',
-                      borderRadius: '0 0 2px 2px',
-                      marginTop: -1,
-                      marginBottom: 10,
-                      padding: '12px 14px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-                      Кожа клиента
-                    </div>
-                    <SkinReadRow label="Аллергии" value={client.allergies} />
-                    <SkinReadRow label="Реакции кожи" value={client.skinReactions} />
-                    <SkinReadRow label="Тип кожи" value={SKIN_TYPES.find((s) => s.value === client.skinType)?.label} />
-                    <SkinReadRow label="Тон кожи" value={client.skinTone} swatch={client.skinTone || undefined} />
-                  </div>
-                )
-              }
-            />
+            <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
           </div>
+
+          {/* Compact, read-only — a quick reminder while browsing references,
+              not a form to fill in (that happens on the client's own Инфо
+              tab). Kept small and at the bottom so it doesn't compete with
+              the photos for attention. */}
+          {client && (client.allergies || client.skinReactions || client.skinType || client.skinTone) && (
+            <div
+              style={{
+                border: '1px solid rgba(var(--gold-rgb),0.12)',
+                borderRadius: 2,
+                padding: '8px 10px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 3,
+              }}
+            >
+              <div style={{ fontSize: fs(9), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 2 }}>
+                Кожа клиента
+              </div>
+              {client.allergies && (
+                <div dir="auto" style={{ fontSize: fs(11), color: 'var(--text-soft)' }}>
+                  <span style={{ color: COLORS.textGhost }}>Аллергии: </span>
+                  {client.allergies}
+                </div>
+              )}
+              {client.skinReactions && (
+                <div dir="auto" style={{ fontSize: fs(11), color: 'var(--text-soft)' }}>
+                  <span style={{ color: COLORS.textGhost }}>Реакции: </span>
+                  {client.skinReactions}
+                </div>
+              )}
+              {client.skinType && (
+                <div style={{ fontSize: fs(11), color: 'var(--text-soft)' }}>
+                  <span style={{ color: COLORS.textGhost }}>Тип: </span>
+                  {SKIN_TYPES.find((s) => s.value === client.skinType)?.label}
+                </div>
+              )}
+              {client.skinTone && (
+                <div style={{ fontSize: fs(11), color: 'var(--text-soft)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ color: COLORS.textGhost }}>Тон:</span>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: client.skinTone, flexShrink: 0, border: '1px solid rgba(var(--gold-rgb),0.3)' }} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="inka-consult-right">
@@ -6833,6 +6843,21 @@ function NewConsultationSheet({
               <FieldLabel>Время</FieldLabel>
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
             </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Место</FieldLabel>
+            <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Техника и стиль</FieldLabel>
+            <input
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              placeholder="Выберите технику и стилистику работы..."
+              style={INPUT_STYLE}
+            />
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -6875,7 +6900,7 @@ function NewConsultationSheet({
       <div style={{ padding: '0 24px 40px' }}>
         <div
           className="inka-submit"
-          onClick={() => onAdd({ date, time, generalNotes, creative, inspirationSources, urgency, photos })}
+          onClick={() => onAdd({ date, time, area, style, generalNotes, creative, inspirationSources, urgency, photos })}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
