@@ -6,7 +6,6 @@ import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 // re-skins itself when the document's data-theme switches between dark/light.
 const COLORS = {
   bg: 'var(--bg)',
-  card: 'var(--bg-card)',
   sheet: 'var(--sheet)',
   gold: 'var(--gold)',
   textPrimary: 'var(--text)',
@@ -34,7 +33,8 @@ const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#
 const MARKER_COLORS = ['#B0413E', '#C67A32', '#C9A227', '#5E8C4A', '#3E7CA6', '#7A5AA0', '#A0555F', '#6E7B8B'];
 
 // Hand-drawn engraving clouds (light theme's sky, drifting behind the content) —
-// each sprite is a pre-cut alpha mask, tinted per-instance via MARKER_COLORS.
+// each sprite is a pre-cut alpha mask, tinted a single dark-gold tone.
+const CLOUD_COLOR = '#8A6A1F';
 const CLOUD_SOURCES = [
   '/assets/light/clouds/cloud_1.png',
   '/assets/light/clouds/cloud_2.png',
@@ -898,20 +898,18 @@ function useIsLightTheme(): boolean {
   return isLight;
 }
 
-// Light theme's sky — hand-drawn engraving clouds, each tinted its own colour
-// from the marker palette, drifting past at its own speed with a gentle bob.
-// The dark theme's counterpart is StarfieldBackground above. Spans the same
-// tall virtual area as the starfield (rather than just the first viewport) so
-// the 7 clouds spread thinly down the whole scroll instead of stacking inside
-// one screen's worth of height and blurring into a single muddy smear.
+// Light theme's sky — hand-drawn engraving clouds, all in one dark-gold tone,
+// drifting past at their own speed with a gentle bob. The dark theme's
+// counterpart is StarfieldBackground above. Spans the same tall virtual area
+// as the starfield (rather than just the first viewport) so the 7 clouds
+// spread thinly down the whole scroll instead of stacking inside one
+// screen's worth of height and blurring into a single muddy smear.
 function CloudsBackground() {
   const isLight = useIsLightTheme();
   const [clouds] = useState(() => {
-    const colors = [...MARKER_COLORS].sort(() => Math.random() - 0.5);
     const band = 100 / CLOUD_SOURCES.length;
     return CLOUD_SOURCES.map((src, i) => ({
       src,
-      color: colors[i % colors.length],
       // One cloud per vertical band (with jitter) instead of pure random top —
       // guarantees spacing so clouds don't pile on top of each other.
       top: i * band + Math.random() * (band * 0.5),
@@ -943,7 +941,7 @@ function CloudsBackground() {
             style={{
               width: c.width,
               height: c.width * 0.5,
-              backgroundColor: c.color,
+              backgroundColor: CLOUD_COLOR,
               WebkitMaskImage: `url(${c.src})`,
               maskImage: `url(${c.src})`,
               WebkitMaskSize: 'contain',
@@ -2980,7 +2978,7 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
       onClick={onClick}
       style={{
         position: 'relative',
-        background: COLORS.card,
+        background: 'transparent',
         // The frame is a smooth inset ring (see --card-rest-shadow) rather than a
         // border, so it hugs the rounded corners cleanly and is covered by the
         // stripes on the top/right edges — no frame poking past the tapered nibs.

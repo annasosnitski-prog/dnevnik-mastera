@@ -31,7 +31,6 @@
 :root[data-theme='dark'] {
   --bg: #0D0B08;
   --bg-rgb: 13, 11, 8;
-  --bg-card: linear-gradient(148deg, #191510, #0D0B09);
   --sheet: #0F0D0A;
   --hero-grad: linear-gradient(160deg, #131008 0%, #0D0B08 60%);
 
@@ -66,7 +65,6 @@
 :root[data-theme='light'] {
   --bg: #E4E1D8;
   --bg-rgb: 228, 225, 216;
-  --bg-card: linear-gradient(148deg, #EFEFEC, #E5E2DA);
   --sheet: #EBE9E3;
   --hero-grad: linear-gradient(160deg, #EBE7DB 0%, #E4E1D8 60%);
 
