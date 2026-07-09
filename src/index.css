@@ -549,3 +549,38 @@ input[type='date'] {
     min-width: 0;
   }
 }
+
+/* Light theme: hand-drawn clouds drifting across the background — the
+   sunny-sky counterpart to the dark theme's starfield. `left` (not
+   translateX) is animated so the drift distance is relative to the
+   screen's own width rather than the element's, and the horizontal drift
+   and vertical bob live on separate nested elements so each can run its
+   own independent duration/delay per cloud. */
+@keyframes inka-cloud-drift {
+  from {
+    left: -45%;
+  }
+  to {
+    left: 140%;
+  }
+}
+.inka-cloud-drift {
+  position: absolute;
+  animation-name: inka-cloud-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes inka-cloud-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(14px);
+  }
+}
+.inka-cloud-bob {
+  animation-name: inka-cloud-bob;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}

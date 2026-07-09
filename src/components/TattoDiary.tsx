@@ -33,6 +33,18 @@ const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#
 // Marker palette the master picks from at creation to tag/colour a client card.
 const MARKER_COLORS = ['#B0413E', '#C67A32', '#C9A227', '#5E8C4A', '#3E7CA6', '#7A5AA0', '#A0555F', '#6E7B8B'];
 
+// Hand-drawn engraving clouds (light theme's sky, drifting behind the content) —
+// each sprite is a pre-cut alpha mask, tinted per-instance via MARKER_COLORS.
+const CLOUD_SOURCES = [
+  '/assets/light/clouds/cloud_1.png',
+  '/assets/light/clouds/cloud_2.png',
+  '/assets/light/clouds/cloud_3.png',
+  '/assets/light/clouds/cloud_4.png',
+  '/assets/light/clouds/cloud_5.png',
+  '/assets/light/clouds/cloud_6.png',
+  '/assets/light/clouds/cloud_7.png',
+];
+
 // Skin-tone swatches (light → deep) the master picks from when creating a card.
 // Light → dark. Mostly a warm-undertone gradient, with a few cool-undertone
 // tones (porcelain "blue-blood" pale + olive) and warm-red tones (Arab/South
@@ -872,6 +884,80 @@ function StarfieldBackground() {
   );
 }
 
+// Reads data-theme off the root element and stays in sync with it — lets a
+// component gate its rendering on the theme without threading a prop through
+// every screen that mounts it.
+function useIsLightTheme(): boolean {
+  const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
+  useEffect(() => {
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => setIsLight(root.getAttribute('data-theme') === 'light'));
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+  return isLight;
+}
+
+// Light theme's sky — hand-drawn engraving clouds, each tinted its own colour
+// from the marker palette, drifting past at its own speed with a gentle bob.
+// The dark theme's counterpart is StarfieldBackground above.
+function CloudsBackground() {
+  const isLight = useIsLightTheme();
+  const [clouds] = useState(() => {
+    const colors = [...MARKER_COLORS].sort(() => Math.random() - 0.5);
+    return CLOUD_SOURCES.map((src, i) => ({
+      src,
+      color: colors[i % colors.length],
+      top: 4 + Math.random() * 72,
+      width: 190 + Math.random() * 170,
+      flip: Math.random() < 0.5,
+      driftDuration: 50 + Math.random() * 55,
+      driftDelay: -Math.random() * 100,
+      bobDuration: 6 + Math.random() * 6,
+      bobDelay: -Math.random() * 8,
+    }));
+  });
+
+  if (!isLight) return null;
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+      {clouds.map((c, i) => (
+        <div
+          key={i}
+          className="inka-cloud-drift"
+          style={{
+            top: `${c.top}%`,
+            animationDuration: `${c.driftDuration}s`,
+            animationDelay: `${c.driftDelay}s`,
+          }}
+        >
+          <div
+            className="inka-cloud-bob"
+            style={{
+              width: c.width,
+              height: c.width * 0.5,
+              backgroundColor: c.color,
+              WebkitMaskImage: `url(${c.src})`,
+              maskImage: `url(${c.src})`,
+              WebkitMaskSize: 'contain',
+              maskSize: 'contain',
+              WebkitMaskRepeat: 'no-repeat',
+              maskRepeat: 'no-repeat',
+              WebkitMaskPosition: 'center',
+              maskPosition: 'center',
+              opacity: 0.6,
+              transform: c.flip ? 'scaleX(-1)' : undefined,
+              animationDuration: `${c.bobDuration}s`,
+              animationDelay: `${c.bobDelay}s`,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Small reward for winning the "opened the app" trial game — a gold star
 // shower filling the whole screen (reuses the milestone show's physics, just
 // full-screen instead of anchored to a client card).
@@ -1492,6 +1578,7 @@ export default function TattoDiary() {
           }}
         />
         <StarfieldBackground />
+        <CloudsBackground />
 
         {/* Safe-area / status spacer */}
         <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)', flexShrink: 0 }} />
@@ -3325,6 +3412,7 @@ function MasterDashboardScreen({
         }}
       />
       <StarfieldBackground />
+      <CloudsBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         {/* Settings now lives here rather than as its own top-level nav
@@ -3610,6 +3698,7 @@ function SettingsScreen({
         }}
       />
       <StarfieldBackground />
+      <CloudsBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -3901,6 +3990,7 @@ function SummaryScreen({
         }}
       />
       <StarfieldBackground />
+      <CloudsBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -4309,6 +4399,7 @@ function DetailScreen({
       {/* Tab content */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px', background: COLORS.bg }}>
         <StarfieldBackground />
+        <CloudsBackground />
         {activeTab === 'sessions' && (
           <SessionsTab
             client={client}
