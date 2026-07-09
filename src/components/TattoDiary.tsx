@@ -900,15 +900,21 @@ function useIsLightTheme(): boolean {
 
 // Light theme's sky — hand-drawn engraving clouds, each tinted its own colour
 // from the marker palette, drifting past at its own speed with a gentle bob.
-// The dark theme's counterpart is StarfieldBackground above.
+// The dark theme's counterpart is StarfieldBackground above. Spans the same
+// tall virtual area as the starfield (rather than just the first viewport) so
+// the 7 clouds spread thinly down the whole scroll instead of stacking inside
+// one screen's worth of height and blurring into a single muddy smear.
 function CloudsBackground() {
   const isLight = useIsLightTheme();
   const [clouds] = useState(() => {
     const colors = [...MARKER_COLORS].sort(() => Math.random() - 0.5);
+    const band = 100 / CLOUD_SOURCES.length;
     return CLOUD_SOURCES.map((src, i) => ({
       src,
       color: colors[i % colors.length],
-      top: 4 + Math.random() * 72,
+      // One cloud per vertical band (with jitter) instead of pure random top —
+      // guarantees spacing so clouds don't pile on top of each other.
+      top: i * band + Math.random() * (band * 0.5),
       width: 190 + Math.random() * 170,
       flip: Math.random() < 0.5,
       driftDuration: 50 + Math.random() * 55,
@@ -921,7 +927,7 @@ function CloudsBackground() {
   if (!isLight) return null;
 
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${STARFIELD_HEIGHT_VH}vh`, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       {clouds.map((c, i) => (
         <div
           key={i}
