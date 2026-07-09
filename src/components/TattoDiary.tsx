@@ -1208,6 +1208,7 @@ export default function TattoDiary() {
       loadClients(db);
       setScreen('list');
       setSelectedId(null);
+      setShowEditClientForm(false);
     };
     tx.onerror = () => setDbError('Не удалось удалить клиента.');
   };
@@ -1922,7 +1923,6 @@ export default function TattoDiary() {
             onBack={goBack}
             onSave={saveClient}
             onEditClient={() => setShowEditClientForm(true)}
-            onDeleteClient={() => deleteClient(selectedClient.id)}
             onAddSession={() => setShowAddChoice(true)}
             onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
             onDeleteSession={deleteSession}
@@ -1978,6 +1978,7 @@ export default function TattoDiary() {
         client={selectedClient}
         onClose={closeEditClient}
         onSave={handleUpdateClient}
+        onDelete={() => selectedClient && deleteClient(selectedClient.id)}
       />
 
       {/* ═══════════ NEW / EDIT SESSION SHEET ═══════════ */}
@@ -4069,7 +4070,6 @@ function DetailScreen({
   onBack,
   onSave,
   onEditClient,
-  onDeleteClient,
   onAddSession,
   onEditSession,
   onDeleteSession,
@@ -4089,7 +4089,6 @@ function DetailScreen({
   onBack: () => void;
   onSave: (client: Client) => void;
   onEditClient: () => void;
-  onDeleteClient: () => void;
   onAddSession: () => void;
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -4325,7 +4324,6 @@ function DetailScreen({
           <InfoTab
             client={client}
             onSave={onSave}
-            onDeleteClient={onDeleteClient}
             onAddDocument={onAddDocument}
             onRemoveDocument={onRemoveDocument}
           />
@@ -4347,13 +4345,11 @@ function DetailScreen({
 function InfoTab({
   client,
   onSave,
-  onDeleteClient,
   onAddDocument,
   onRemoveDocument,
 }: {
   client: Client;
   onSave: (client: Client) => void;
-  onDeleteClient: () => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
 }) {
@@ -4396,11 +4392,6 @@ function InfoTab({
 
       {/* Attachments — documents / photos / any file for this client */}
       <AttachmentsSection client={client} onAddDocument={onAddDocument} onRemoveDocument={onRemoveDocument} />
-
-      {/* Danger zone: delete client */}
-      <div style={{ marginTop: 28 }}>
-        <DeleteButton label="Удалить клиента" confirmLabel="Удалить клиента безвозвратно?" onConfirm={onDeleteClient} />
-      </div>
     </div>
   );
 }
@@ -6410,11 +6401,13 @@ function EditClientSheet({
   client,
   onClose,
   onSave,
+  onDelete,
 }: {
   open: boolean;
   client: Client | null;
   onClose: () => void;
   onSave: (data: { name: string; surname: string; styles: string[]; color: string; clientType: ClientType; note: string }) => void;
+  onDelete: () => void;
 }) {
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
@@ -6488,6 +6481,14 @@ function EditClientSheet({
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
             Сохранить
           </span>
+        </div>
+
+        {/* Danger zone: delete client — always last */}
+        <div style={{ marginTop: 32 }}>
+          <div style={{ fontSize: fs(10), color: '#A85A66', letterSpacing: '2px', textTransform: 'uppercase', textAlign: 'center', marginBottom: 8, opacity: 0.7 }}>
+            Danger
+          </div>
+          <DeleteButton label="Удалить клиента" confirmLabel="Удалить клиента безвозвратно?" onConfirm={onDelete} />
         </div>
       </div>
     </BottomSheet>
