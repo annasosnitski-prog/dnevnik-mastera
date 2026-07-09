@@ -765,7 +765,8 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 // pragmatic fix: give the star field a tall virtual canvas (covers several
 // screens' worth of scrolling) with proportionally more stars, so scrolling
 // a long list/notes feed still reveals stars instead of running out.
-const STARFIELD_COUNT = 140;
+const STARFIELD_COUNT = 220; // small scattered dust
+const STARFIELD_HERO_COUNT = 9; // a few bigger, brighter lone stars
 const STARFIELD_HEIGHT_VH = 300;
 function StarfieldBackground() {
   const [stars] = useState(() =>
@@ -779,6 +780,16 @@ function StarfieldBackground() {
       sparkle: Math.random() < 0.16,
     })),
   );
+  const [heroStars] = useState(() =>
+    Array.from({ length: STARFIELD_HERO_COUNT }, () => ({
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: 6 + Math.random() * 7, // notably bigger than the dust tier
+      lightness: 75 + Math.random() * 20, // brighter gold
+      duration: 2.6 + Math.random() * 3,
+      delay: Math.random() * 4,
+    })),
+  );
   return (
     <div
       style={{
@@ -789,7 +800,6 @@ function StarfieldBackground() {
         height: `${STARFIELD_HEIGHT_VH}vh`,
         overflow: 'hidden',
         pointerEvents: 'none',
-        opacity: 0.6,
         zIndex: 0,
       }}
     >
@@ -815,6 +825,29 @@ function StarfieldBackground() {
               <path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill={`hsl(45, 80%, ${s.lightness}%)`} />
             </svg>
           )}
+        </div>
+      ))}
+      {heroStars.map((s, i) => (
+        <div
+          key={`hero-${i}`}
+          className="inka-star-twinkle"
+          style={{
+            position: 'absolute',
+            left: `${s.x}%`,
+            top: `${s.y}%`,
+            width: s.size,
+            height: s.size,
+            animationDuration: `${s.duration}s`,
+            animationDelay: `${s.delay}s`,
+          }}
+        >
+          <svg width="100%" height="100%" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z"
+              fill={`hsl(45, 80%, ${s.lightness}%)`}
+              style={{ filter: `drop-shadow(0 0 ${s.size * 0.5}px hsla(45, 90%, ${s.lightness}%, 0.9))` }}
+            />
+          </svg>
         </div>
       ))}
     </div>
@@ -1628,9 +1661,9 @@ export default function TattoDiary() {
       {screen === 'list' && !sheetOpen && (
         <>
           <div
-            onClick={() => setScreen('summary')}
+            onClick={() => setScreen('settings')}
             role="button"
-            aria-label="Сводка"
+            aria-label="Настройки"
             style={{
               position: 'absolute',
               // Vertically centred against the logo+subtitle block (measured
@@ -1650,9 +1683,13 @@ export default function TattoDiary() {
             }}
           >
             <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
-              <rect x="2.5" y="12" width="3.5" height="5.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-              <rect x="8.3" y="8" width="3.5" height="9.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-              <rect x="14" y="4" width="3.5" height="13.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+              <circle cx="10" cy="10" r="2.8" stroke="currentColor" strokeWidth="1.2" />
+              <path
+                d="M10 2.5L10 4.5M10 15.5L10 17.5M2.5 10L4.5 10M15.5 10L17.5 10M5.05 5.05L6.46 6.46M13.54 13.54L14.95 14.95M5.05 14.95L6.46 13.54M13.54 6.46L14.95 5.05"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+              />
             </svg>
           </div>
           <div
@@ -2979,19 +3016,20 @@ function BottomNav({
         </svg>
       </div>
       <div
-        onClick={() => onNavigate('settings')}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'settings' ? 1 : 0.4 }}
+        onClick={() => onNavigate('summary')}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.4 }}
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
-          <circle cx="10" cy="10" r="2.8" stroke="currentColor" strokeWidth="1.2" />
-          <path
-            d="M10 2.5L10 4.5M10 15.5L10 17.5M2.5 10L4.5 10M15.5 10L17.5 10M5.05 5.05L6.46 6.46M13.54 13.54L14.95 14.95M5.05 14.95L6.46 13.54M13.54 6.46L14.95 5.05"
-            stroke="currentColor"
-            strokeWidth="1.1"
-            strokeLinecap="round"
-          />
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
+          <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+          <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+          <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          <rect x="3" y="9" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+          <path d="M3.6 10.5L4.3 11.2L5.6 9.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+          <line x1="8" y1="10.5" x2="17" y2="10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+          <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: fs(11), color: active === 'settings' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Настройки</span>
+        <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
       </div>
     </div>
   );
