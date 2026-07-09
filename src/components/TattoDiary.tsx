@@ -5379,17 +5379,9 @@ function NoteItem({
         transition: 'opacity 0.3s',
       }}
     >
-      {/* Done toggle — tapping the marker flips done; shows 🍀 when closed. */}
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleDone();
-        }}
-        title={note.done ? 'Вернуть в работу' : 'Отметить выполненным'}
-        style={{ fontSize: fs(16), cursor: 'pointer', lineHeight: 1.2, flexShrink: 0 }}
-      >
-        {note.done ? DONE_EMOJI : meta.emoji}
-      </span>
+      {/* Status marker — decorative only; done/undone is now driven by the
+          explicit «Выполнено» button below, not by tapping this glyph. */}
+      <span style={{ fontSize: fs(16), lineHeight: 1.2, flexShrink: 0 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         {client && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
@@ -5418,19 +5410,36 @@ function NoteItem({
           </div>
         )}
         {onUpdatePhotos && <SessionPhotos photos={note.photos} onChange={onUpdatePhotos} allowDelete />}
+
+        {/* Explicit actions — a labelled «Выполнено» button (toggles, no
+            confirm needed) plus, where deletion is allowed, a labelled
+            delete button with its own confirm step. No bare ✕ icon. */}
+        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <div
+            onClick={onToggleDone}
+            style={{
+              flex: onDelete ? 1 : undefined,
+              padding: '7px 12px',
+              textAlign: 'center',
+              border: '1px solid rgba(var(--gold-rgb),0.3)',
+              borderRadius: 2,
+              cursor: 'pointer',
+              color: COLORS.gold,
+              fontSize: fs(11),
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+              fontStyle: 'italic',
+            }}
+          >
+            {note.done ? 'Вернуть в работу' : 'Выполнено'}
+          </div>
+          {onDelete && (
+            <div style={{ flex: 1 }}>
+              <DeleteButton label="Удалить заметку" confirmLabel="Удалить заметку?" onConfirm={onDelete} compact />
+            </div>
+          )}
+        </div>
       </div>
-      {onDelete && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(14) }}
-          aria-label="Удалить заметку"
-        >
-          ✕
-        </button>
-      )}
     </div>
   );
 }
