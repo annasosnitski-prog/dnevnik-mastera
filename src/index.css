@@ -556,10 +556,10 @@ input[type='date'] {
    own independent duration/delay per cloud. */
 @keyframes inka-cloud-drift {
   from {
-    left: -45%;
+    left: -85%;
   }
   to {
-    left: 140%;
+    left: 185%;
   }
 }
 .inka-cloud-drift {
