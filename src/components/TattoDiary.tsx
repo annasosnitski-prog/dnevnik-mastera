@@ -133,6 +133,7 @@ interface ClientNote {
   urgency: UrgencyKey;
   done: boolean;
   createdDate: string;
+  photos: string[];
 }
 
 type ChatPlatform = 'whatsapp' | 'telegram' | 'instagram' | 'facebook' | 'messenger' | 'tiktok' | 'other';
@@ -415,6 +416,7 @@ function normalizeClient(raw: any, index: number): Client {
           urgency: URGENCY.some((u) => u.key === n?.urgency) ? n.urgency : LEGACY_URGENCY_MAP[n?.urgency] ?? 'normal',
           done: Boolean(n?.done),
           createdDate: n?.createdDate ?? new Date().toISOString(),
+          photos: Array.isArray(n?.photos) ? n.photos : [],
         }))
       : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
@@ -1029,7 +1031,7 @@ export default function TattoDiary() {
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorFilter, setColorFilter] = useState<string>('all');
@@ -1173,7 +1175,7 @@ export default function TattoDiary() {
 
   const openClient = (client: Client) => {
     setSelectedId(client.id);
-    setActiveTab('info');
+    setActiveTab('sessions');
     setScreen('detail');
   };
 
@@ -1643,16 +1645,13 @@ export default function TattoDiary() {
             return (
               <div
                 style={{
-                  padding: '4px 8px',
-                  borderRadius: 3,
-                  background: COLORS.bg,
-                  border: '1px solid rgba(var(--gold-rgb),0.3)',
-                  textAlign: 'center',
+                  textAlign: 'right',
                   lineHeight: 1.3,
+                  fontStyle: 'italic',
                 }}
               >
                 <div style={{ fontSize: 7.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: COLORS.textGhost }}>Ближайшая</div>
-                <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--gold)', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 10.5, fontWeight: 400, color: COLORS.textGhost, whiteSpace: 'nowrap' }}>
                   {formatDate(next.session.date).replace(/ \d{4}$/, '')}
                 </div>
               </div>
@@ -1808,6 +1807,7 @@ export default function TattoDiary() {
                   urgency,
                   done: false,
                   createdDate: new Date().toISOString(),
+                  photos: [],
                 }),
               )
             }
@@ -2918,117 +2918,94 @@ function BottomNav({
     <div
       style={{
         // Rendered as a direct child of the (non-scrolling) app shell, so
-        // absolute bottom:0 pins the ribbon to the bottom of the screen and it
-        // no longer scrolls away with the card list. overflow: visible so the
-        // glowing "+" can poke up above the bar's own notch.
+        // absolute bottom:0 pins the bar flush to the bottom edge of the
+        // screen (no floating gap, no notch) — a calm, flat three-column bar.
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        height: 'calc(66px + min(10px, env(safe-area-inset-bottom)))',
-        overflow: 'visible',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        background: 'var(--bg)',
+        border: '1px solid rgba(var(--gold-rgb),0.35)',
+        borderBottom: 'none',
+        borderTopLeftRadius: 18,
+        borderTopRightRadius: 18,
+        display: 'flex',
+        height: 80,
         zIndex: 50,
       }}
     >
-      {/* The bar itself: a rounded rect with a smooth dip in the top edge
-          for the "+" to sit in, drawn as one SVG path so the notch and
-          corners come from a single continuous outline (matching gilded
-          reference art) rather than stacked divs faking the cutout. */}
-      <svg
-        viewBox="0 0 390 66"
-        preserveAspectRatio="none"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: 'calc(100% - min(10px, env(safe-area-inset-bottom)))', filter: 'drop-shadow(0 -2px 10px rgba(var(--gold-rgb),0.15))' }}
-      >
-        <defs>
-          <linearGradient id="inka-navbar-stroke" x1="0" y1="0" x2="390" y2="0">
-            <stop offset="0%" stopColor="var(--gold)" />
-            <stop offset="50%" stopColor="#f6e8c4" />
-            <stop offset="100%" stopColor="var(--gold)" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M12 1 L150 1 C165 1 172 27 195 27 C218 27 225 1 240 1 L378 1 Q389 1 389 12 L389 53 Q389 65 378 65 L12 65 Q1 65 1 53 L1 12 Q1 1 12 1 Z"
-          fill="var(--bg)"
-          stroke="url(#inka-navbar-stroke)"
-          strokeWidth="1.6"
-        />
-      </svg>
-
       <div
+        onClick={() => onNavigate('list')}
         style={{
-          position: 'absolute',
-          inset: 0,
-          bottom: 'min(10px, env(safe-area-inset-bottom))',
+          flex: 1,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'space-around',
+          justifyContent: 'center',
+          gap: 4,
+          cursor: 'pointer',
+          borderRight: '1px solid rgba(var(--gold-rgb),0.22)',
         }}
       >
-        <div
-          onClick={() => onNavigate('list')}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'list' ? 1 : 0.5 }}
-        >
-          <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)', filter: 'drop-shadow(0 0 3px rgba(var(--gold-rgb),0.5))' }}>
-            <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="currentColor" fillOpacity="0.07" />
-          </svg>
-          <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
-        </div>
+        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)', opacity: active === 'list' ? 1 : 0.5 }}>
+          <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+          <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
+        </svg>
+        <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Главная</span>
+        <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--gold)', opacity: 0.5 }} />
+      </div>
 
-        {/* Create-client — a glowing, gold-gradient FAB sitting in the bar's
-            notch, replacing the old plain gold-tinted circle. */}
+      {/* Create-client — a calm, flat outlined circle sitting inline in the
+          bar (no glow/gradient/notch), per the reference. */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid rgba(var(--gold-rgb),0.22)' }}>
         <div
           onClick={onAddClient}
           role="button"
           aria-label="Добавить клиента"
-          style={{ position: 'relative', width: 58, height: 58, flexShrink: 0, marginTop: -30, cursor: 'pointer' }}
+          style={{
+            position: 'relative',
+            width: 46,
+            height: 46,
+            borderRadius: '50%',
+            border: '1.5px solid var(--gold)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
         >
-          <div
-            style={{
-              position: 'absolute',
-              inset: -26,
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(255,214,120,0.55) 0%, rgba(var(--gold-rgb),0.25) 45%, transparent 74%)',
-              filter: 'blur(2px)',
-              pointerEvents: 'none',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '50%',
-              background: 'radial-gradient(circle at 32% 28%, #f6e2ac 0%, #c8943a 10%, #7a4f26 32%, #4a3018 62%, #2e1d10 100%)',
-              border: '2px solid rgba(200,148,58,0.8)',
-              boxShadow: '0 0 16px rgba(200,148,58,0.45), inset 0 0 8px rgba(0,0,0,0.45)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', border: '1px solid rgba(255,230,170,0.5)' }} />
-            <svg width="24" height="24" viewBox="0 0 14 14" fill="none" style={{ position: 'relative', zIndex: 2 }}>
-              <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="#2a1a04" strokeWidth="1.8" strokeLinecap="round" />
-              <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="#2a1a04" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </div>
-        </div>
-
-        <div
-          onClick={() => onNavigate('summary')}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.5 }}
-        >
-          <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)', filter: 'drop-shadow(0 0 3px rgba(var(--gold-rgb),0.5))' }}>
-            <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-            <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-            <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-            <rect x="3" y="9" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-            <path d="M3.6 10.5L4.3 11.2L5.6 9.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-            <line x1="8" y1="10.5" x2="17" y2="10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-            <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-            <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', border: '1px solid rgba(var(--gold-rgb),0.4)' }} />
+          <svg width="20" height="20" viewBox="0 0 14 14" fill="none" style={{ position: 'relative', zIndex: 2 }}>
+            <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.6" strokeLinecap="round" />
+            <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
-          <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
         </div>
+      </div>
+
+      <div
+        onClick={() => onNavigate('summary')}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 4,
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)', opacity: active === 'summary' ? 1 : 0.5 }}>
+          <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+          <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+          <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          <rect x="3" y="9" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+          <line x1="8" y1="10.5" x2="17" y2="10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+          <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+        </svg>
+        <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Задачи</span>
+        <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--gold)', opacity: 0.5 }} />
       </div>
     </div>
   );
@@ -3694,7 +3671,7 @@ function SummaryScreen({
             textTransform: 'uppercase',
           }}
         >
-          Сводка
+          Задачи
         </div>
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Рабочие заметки
@@ -3788,7 +3765,7 @@ function HeaderCollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onT
       aria-label={collapsed ? 'Развернуть карточку клиента' : 'Свернуть карточку клиента'}
       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginLeft: 'auto', flexShrink: 0 }}
     >
-      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s' }}>
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" style={{ transform: collapsed ? 'none' : 'rotate(180deg)', transition: 'transform 0.25s' }}>
         <path d="M3.5 6.5L8 11L12.5 6.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </div>
@@ -3977,14 +3954,14 @@ function DetailScreen({
 
       {/* Tab bar */}
       <div style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
-        <div onClick={() => onTab('info')} style={tabStyle('info')}>
-          Инфо
-        </div>
         <div onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
           Сессии
         </div>
+        <div onClick={() => onTab('info')} style={tabStyle('info')}>
+          Инфо
+        </div>
         <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
-          Доп.
+          Задачи
         </div>
       </div>
 
@@ -4040,7 +4017,6 @@ function DetailScreen({
       {/* Tab content */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px', background: COLORS.bg }}>
         <StarfieldBackground />
-        {activeTab === 'info' && <InfoTab client={client} onSave={onSave} onDeleteClient={onDeleteClient} />}
         {activeTab === 'sessions' && (
           <SessionsTab
             client={client}
@@ -4050,11 +4026,18 @@ function DetailScreen({
             onToggleSessionDone={onToggleSessionDone}
           />
         )}
+        {activeTab === 'info' && (
+          <InfoTab
+            client={client}
+            onSave={onSave}
+            onDeleteClient={onDeleteClient}
+            onAddDocument={onAddDocument}
+            onRemoveDocument={onRemoveDocument}
+          />
+        )}
         {activeTab === 'extra' && (
           <AdditionalTab
             client={client}
-            onAddDocument={onAddDocument}
-            onRemoveDocument={onRemoveDocument}
             onUpsertNote={onUpsertNote}
             onAddNote={onAddNote}
             onDeleteNote={onDeleteNote}
@@ -4070,10 +4053,14 @@ function InfoTab({
   client,
   onSave,
   onDeleteClient,
+  onAddDocument,
+  onRemoveDocument,
 }: {
   client: Client;
   onSave: (client: Client) => void;
   onDeleteClient: () => void;
+  onAddDocument: (doc: ClientDocument) => void;
+  onRemoveDocument: (docId: string) => void;
 }) {
   const metaCell = (span = false): React.CSSProperties => ({
     background: 'rgba(var(--surface-rgb),0.018)',
@@ -4111,6 +4098,9 @@ function InfoTab({
 
       {/* Master's own notes — written inline right here, at the bottom */}
       <MasterNoteSection client={client} onSave={onSave} />
+
+      {/* Attachments — documents / photos / any file for this client */}
+      <AttachmentsSection client={client} onAddDocument={onAddDocument} onRemoveDocument={onRemoveDocument} />
 
       {/* Danger zone: delete client */}
       <div style={{ marginTop: 28 }}>
@@ -5365,11 +5355,13 @@ function NoteItem({
   note,
   onToggleDone,
   onDelete,
+  onUpdatePhotos,
   client,
 }: {
   note: ClientNote;
   onToggleDone: () => void;
   onDelete?: () => void;
+  onUpdatePhotos?: (photos: string[]) => void;
   client?: Client;
 }) {
   const meta = urgencyMeta(note.urgency);
@@ -5387,17 +5379,9 @@ function NoteItem({
         transition: 'opacity 0.3s',
       }}
     >
-      {/* Done toggle — tapping the marker flips done; shows 🍀 when closed. */}
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleDone();
-        }}
-        title={note.done ? 'Вернуть в работу' : 'Отметить выполненным'}
-        style={{ fontSize: fs(16), cursor: 'pointer', lineHeight: 1.2, flexShrink: 0 }}
-      >
-        {note.done ? DONE_EMOJI : meta.emoji}
-      </span>
+      {/* Status marker — decorative only; done/undone is now driven by the
+          explicit «Выполнено» button below, not by tapping this glyph. */}
+      <span style={{ fontSize: fs(16), lineHeight: 1.2, flexShrink: 0 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         {client && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
@@ -5425,19 +5409,37 @@ function NoteItem({
             {meta.emoji} {meta.label}
           </div>
         )}
+        {onUpdatePhotos && <SessionPhotos photos={note.photos} onChange={onUpdatePhotos} allowDelete />}
+
+        {/* Explicit actions — a labelled «Выполнено» button (toggles, no
+            confirm needed) plus, where deletion is allowed, a labelled
+            delete button with its own confirm step. No bare ✕ icon. */}
+        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <div
+            onClick={onToggleDone}
+            style={{
+              flex: onDelete ? 1 : undefined,
+              padding: '7px 12px',
+              textAlign: 'center',
+              border: '1px solid rgba(var(--gold-rgb),0.3)',
+              borderRadius: 2,
+              cursor: 'pointer',
+              color: COLORS.gold,
+              fontSize: fs(11),
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+              fontStyle: 'italic',
+            }}
+          >
+            {note.done ? 'Вернуть в работу' : 'Выполнено'}
+          </div>
+          {onDelete && (
+            <div style={{ flex: 1 }}>
+              <DeleteButton label="Удалить заметку" confirmLabel="Удалить заметку?" onConfirm={onDelete} compact />
+            </div>
+          )}
+        </div>
       </div>
-      {onDelete && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(14) }}
-          aria-label="Удалить заметку"
-        >
-          ✕
-        </button>
-      )}
     </div>
   );
 }
@@ -5500,22 +5502,59 @@ function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) =>
   );
 }
 
-// ── «Дополнительно» tab — notes (with urgency + done) sorted by urgency,
-//     plus a single-button attachments area for documents / photos / files. ──
+// ── «Заметки и задачи» tab — notes (with urgency + done, own photos),
+//     sorted by urgency. Attachments live on the Инфо tab. ──
 function AdditionalTab({
   client,
-  onAddDocument,
-  onRemoveDocument,
   onUpsertNote,
   onAddNote,
   onDeleteNote,
 }: {
   client: Client;
-  onAddDocument: (doc: ClientDocument) => void;
-  onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
   onAddNote: (text: string, urgency: UrgencyKey) => void;
   onDeleteNote: (noteId: string) => void;
+}) {
+  const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
+
+  // Sorted by urgency (most urgent first); done notes sink to the bottom.
+  const sortedNotes = [...client.notes].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    const r = urgencyRank(a.urgency) - urgencyRank(b.urgency);
+    return r !== 0 ? r : b.createdDate.localeCompare(a.createdDate);
+  });
+
+  return (
+    <div style={{ animation: 'fadeSlideIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Notes */}
+      <SectionHeader>Заметки</SectionHeader>
+      {sortedNotes.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {sortedNotes.map((n) => (
+            <NoteItem
+              key={n.id}
+              note={n}
+              onToggleDone={() => toggleDone(n)}
+              onDelete={() => onDeleteNote(n.id)}
+              onUpdatePhotos={(photos) => onUpsertNote({ ...n, photos })}
+            />
+          ))}
+        </div>
+      )}
+      <NoteComposer onAdd={onAddNote} />
+    </div>
+  );
+}
+
+// ── Attachments (documents / photos / any file) — lives on the Инфо tab. ──
+function AttachmentsSection({
+  client,
+  onAddDocument,
+  onRemoveDocument,
+}: {
+  client: Client;
+  onAddDocument: (doc: ClientDocument) => void;
+  onRemoveDocument: (docId: string) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -5534,31 +5573,9 @@ function AdditionalTab({
     reader.readAsDataURL(file);
   };
 
-  const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
-
-  // Sorted by urgency (most urgent first); done notes sink to the bottom.
-  const sortedNotes = [...client.notes].sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
-    const r = urgencyRank(a.urgency) - urgencyRank(b.urgency);
-    return r !== 0 ? r : b.createdDate.localeCompare(a.createdDate);
-  });
-
   return (
-    <div style={{ animation: 'fadeSlideIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Notes */}
-      <SectionHeader>Заметки</SectionHeader>
-      {sortedNotes.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {sortedNotes.map((n) => (
-            <NoteItem key={n.id} note={n} onToggleDone={() => toggleDone(n)} onDelete={() => onDeleteNote(n.id)} />
-          ))}
-        </div>
-      )}
-      <NoteComposer onAdd={onAddNote} />
-
+    <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <SectionDivider />
-
-      {/* Attachments */}
       <SectionHeader>Вложения</SectionHeader>
       {client.documents.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
