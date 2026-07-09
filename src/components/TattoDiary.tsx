@@ -214,8 +214,8 @@ interface Consultation {
   id: string;
   date: string; // ISO yyyy-mm-dd
   time: string; // HH:MM, 24h
-  generalNotes: string; // "Общие заметки" — any important details, wishes, agreements
-  creative: string; // "Креатив" — idea, key elements
+  generalNotes: string; // "Общие заметки" — the client's own wishes/agreements + the master's own thoughts
+  creative: string; // "Креатив" — the wild/standout idea, the one distinctive twist
   inspirationSources: string; // "Источники вдохновения" — authors, references
   urgency: UrgencyKey;
   photos: string[]; // reference / mood-board images
@@ -5177,10 +5177,19 @@ function SessionPhotos({
   photos,
   onChange,
   allowDelete = true,
+  buttonFirst = false,
+  topSlot,
 }: {
   photos: string[];
   onChange: (photos: string[]) => void;
   allowDelete?: boolean;
+  // Puts the "Добавить фото" trigger above the thumbnails instead of below,
+  // with topSlot (e.g. a widget attached right under the button) rendered
+  // in between — used by the consultation form, where the read-only skin
+  // data sits attached under the button and the uploaded photos fill the
+  // remaining space below.
+  buttonFirst?: boolean;
+  topSlot?: React.ReactNode;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
@@ -5206,9 +5215,7 @@ function SessionPhotos({
     setConfirmIndex(null);
   };
 
-  return (
-    <div style={{ marginTop: 10 }}>
-      {photos.length > 0 && (
+  const thumbnails = photos.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           {photos.map((src, i) => (
             <div key={i} style={{ position: 'relative', width: 78, height: 78 }}>
@@ -5276,8 +5283,9 @@ function SessionPhotos({
             </div>
           ))}
         </div>
-      )}
+      );
 
+  const addButton = (
       <div
         className="inka-doc-secondary"
         onClick={() => fileRef.current?.click()}
@@ -5302,6 +5310,22 @@ function SessionPhotos({
         </svg>
         Добавить фото
       </div>
+  );
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {buttonFirst ? (
+        <>
+          <div style={{ marginBottom: thumbnails ? 10 : 0 }}>{addButton}</div>
+          {topSlot}
+          {thumbnails}
+        </>
+      ) : (
+        <>
+          {thumbnails}
+          {addButton}
+        </>
+      )}
       <input
         ref={fileRef}
         type="file"
@@ -5444,9 +5468,9 @@ function SessionsTab({
                     <SessionDeleteControl onDelete={() => onDeleteConsultation(consultation.id)} />
                   </div>
                 </div>
-                {consultation.creative && (
+                {consultation.generalNotes && (
                   <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>
-                    {consultation.creative}
+                    {consultation.generalNotes}
                   </div>
                 )}
                 {consultation.inspirationSources && (
@@ -5454,9 +5478,9 @@ function SessionsTab({
                     <SessionMeta label="Источники вдохновения" value={consultation.inspirationSources} />
                   </div>
                 )}
-                {consultation.generalNotes && (
+                {consultation.creative && (
                   <div style={{ marginTop: 6 }}>
-                    <SessionMeta label="Общие заметки" value={consultation.generalNotes} />
+                    <SessionMeta label="Креатив" value={consultation.creative} />
                   </div>
                 )}
                 <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} />
@@ -6566,20 +6590,37 @@ function NewConsultationSheet({
         <div className="inka-consult-left">
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Фотографии</FieldLabel>
-            <SessionPhotos photos={photos} onChange={setPhotos} />
+            <SessionPhotos
+              photos={photos}
+              onChange={setPhotos}
+              buttonFirst
+              topSlot={
+                client && (
+                  <div
+                    style={{
+                      border: '1px solid rgba(var(--gold-rgb),0.2)',
+                      borderTop: 'none',
+                      borderRadius: '0 0 2px 2px',
+                      marginTop: -1,
+                      marginBottom: 10,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+                      Кожа клиента
+                    </div>
+                    <SkinReadRow label="Аллергии" value={client.allergies} />
+                    <SkinReadRow label="Реакции кожи" value={client.skinReactions} />
+                    <SkinReadRow label="Тип кожи" value={SKIN_TYPES.find((s) => s.value === client.skinType)?.label} />
+                    <SkinReadRow label="Тон кожи" value={client.skinTone} swatch={client.skinTone || undefined} />
+                  </div>
+                )
+              }
+            />
           </div>
-
-          {client && (
-            <div style={{ marginTop: 6 }}>
-              <FieldLabel>Кожа клиента</FieldLabel>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <SkinReadRow label="Аллергии" value={client.allergies} />
-                <SkinReadRow label="Реакции кожи" value={client.skinReactions} />
-                <SkinReadRow label="Тип кожи" value={SKIN_TYPES.find((s) => s.value === client.skinType)?.label} />
-                <SkinReadRow label="Тон кожи" value={client.skinTone} swatch={client.skinTone || undefined} />
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="inka-consult-right">
@@ -6595,12 +6636,12 @@ function NewConsultationSheet({
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Креатив</FieldLabel>
+            <FieldLabel>Общие заметки</FieldLabel>
             <textarea
-              value={creative}
-              onChange={(e) => setCreative(e.target.value)}
-              placeholder="Опишите идею, ключевые элементы..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 70 }}
+              value={generalNotes}
+              onChange={(e) => setGeneralNotes(e.target.value)}
+              placeholder="Пожелания клиента, договорённости, мысли мастера..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 90 }}
             />
           </div>
 
@@ -6615,12 +6656,12 @@ function NewConsultationSheet({
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Общие заметки</FieldLabel>
+            <FieldLabel>Креатив</FieldLabel>
             <textarea
-              value={generalNotes}
-              onChange={(e) => setGeneralNotes(e.target.value)}
-              placeholder="Любые важные детали, пожелания, договорённости..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 90 }}
+              value={creative}
+              onChange={(e) => setCreative(e.target.value)}
+              placeholder="Смелая идея, изюминка, что-то особенное..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 70 }}
             />
           </div>
 
