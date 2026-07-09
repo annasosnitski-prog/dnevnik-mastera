@@ -1620,62 +1620,52 @@ export default function TattoDiary() {
         />
       )}
 
-      {/* «Сводка» / «Мастер» shortcuts — pinned next to the logo (siblings of
-          the screens, like BottomNav above, so they never scroll away with
-          the client grid underneath). Replaces their old bottom-nav tabs;
-          the add-client button and theme toggle moved elsewhere (bottom nav
-          centre, and the Settings screen, respectively). */}
+      {/* «Мастер» shortcut — pinned next to the logo (sibling of the
+          screens, so it never scrolls away with the client grid
+          underneath). Settings now lives inside the Мастер page itself; the
+          add-client button moved to the bottom nav centre. Next to the
+          icon, a small tag previews the nearest upcoming session's date. */}
       {screen === 'list' && !sheetOpen && (
-        <>
-          <div
-            onClick={() => setScreen('settings')}
-            role="button"
-            aria-label="Настройки"
-            style={{
-              position: 'absolute',
-              // Vertically centred against the logo+subtitle block (measured
-              // ~24–80px from the top at default text size).
-              top: 'calc(env(safe-area-inset-top) + 31px)',
-              right: 72,
-              zIndex: 20,
-              width: 42,
-              height: 42,
-              borderRadius: '50%',
-              border: '1px solid rgba(var(--gold-rgb),0.25)',
-              background: 'rgba(var(--gold-rgb),0.03)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            {/* A proper cog (solid teeth), not the thin-ray sun/settings icon
-                used elsewhere — those two read as near-identical at this
-                size and got mistaken for the removed theme toggle. */}
-            <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
-              <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.3" />
-              <circle cx="10" cy="10" r="1.5" stroke="currentColor" strokeWidth="1.1" />
-              <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" />
-              <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" />
-              <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(45 10 10)" />
-              <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(45 10 10)" />
-              <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(90 10 10)" />
-              <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(90 10 10)" />
-              <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(135 10 10)" />
-              <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(135 10 10)" />
-            </svg>
-          </div>
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top) + 31px)',
+            right: 20,
+            zIndex: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          {(() => {
+            const next = upcomingSessions(clients, 365)[0];
+            if (!next) return null;
+            return (
+              <div
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 3,
+                  background: COLORS.bg,
+                  border: '1px solid rgba(var(--gold-rgb),0.3)',
+                  textAlign: 'center',
+                  lineHeight: 1.3,
+                }}
+              >
+                <div style={{ fontSize: 7.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: COLORS.textGhost }}>Ближайшая</div>
+                <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--gold)', whiteSpace: 'nowrap' }}>
+                  {formatDate(next.session.date).replace(/ \d{4}$/, '')}
+                </div>
+              </div>
+            );
+          })()}
           <div
             onClick={() => setScreen('master')}
             role="button"
             aria-label="Мастер"
             style={{
-              position: 'absolute',
-              top: 'calc(env(safe-area-inset-top) + 31px)',
-              right: 20,
-              zIndex: 20,
               width: 42,
               height: 42,
+              flexShrink: 0,
               borderRadius: '50%',
               border: '1px solid rgba(var(--gold-rgb),0.25)',
               background: 'rgba(var(--gold-rgb),0.03)',
@@ -1690,7 +1680,7 @@ export default function TattoDiary() {
               <path d="M3.5 17C3.5 13.5 6.4 11.5 10 11.5C13.6 11.5 16.5 13.5 16.5 17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="currentColor" fillOpacity="0.07" />
             </svg>
           </div>
-        </>
+        </div>
       )}
 
       {/* ═══════════ SUMMARY SCREEN ═══════════ */}
@@ -1747,6 +1737,7 @@ export default function TattoDiary() {
               setEditSession(session);
               setShowNewSessionForm(true);
             }}
+            onOpenSettings={() => setScreen('settings')}
           />
         )}
       </div>
@@ -3039,6 +3030,7 @@ function MasterDashboardScreen({
   prefs,
   onChangePrefs,
   onOpenSession,
+  onOpenSettings,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
@@ -3046,6 +3038,7 @@ function MasterDashboardScreen({
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, sessionId: string) => void;
+  onOpenSettings: () => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -3079,6 +3072,40 @@ function MasterDashboardScreen({
       <StarfieldBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        {/* Settings now lives here rather than as its own top-level nav
+            button — the list screen keeps only the Мастер shortcut. */}
+        <div
+          onClick={onOpenSettings}
+          role="button"
+          aria-label="Настройки"
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 24,
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            border: '1px solid rgba(var(--gold-rgb),0.25)',
+            background: 'rgba(var(--gold-rgb),0.03)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
+            <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.3" />
+            <circle cx="10" cy="10" r="1.5" stroke="currentColor" strokeWidth="1.1" />
+            <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" />
+            <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" />
+            <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(45 10 10)" />
+            <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(45 10 10)" />
+            <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(90 10 10)" />
+            <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(90 10 10)" />
+            <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(135 10 10)" />
+            <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(135 10 10)" />
+          </svg>
+        </div>
         <div
           style={{
             fontFamily: DROP_CAP_FONT,
