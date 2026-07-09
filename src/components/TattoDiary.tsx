@@ -898,9 +898,34 @@ function useIsLightTheme(): boolean {
   return isLight;
 }
 
-// A cloudier sky than there are sprites — reuse the 7 cuts this many times
-// over so the drift feels like a full cover rather than a handful of shapes.
-const CLOUD_COUNT = 20;
+// A proper overcast sky — reuse the 7 cuts this many times over so the drift
+// reads as thick cumulus cover (think Haifa on a cloudy day) rather than a
+// handful of shapes.
+const CLOUD_COUNT = 32;
+
+// Width is capped well under what the drift keyframes' off-screen margin
+// (see .inka-cloud-drift in index.css) can hide, so a cloud never pops into
+// view mid-screen — it always slides in from past the edge.
+function buildClouds(seeded: boolean) {
+  const band = 100 / CLOUD_COUNT;
+  return Array.from({ length: CLOUD_COUNT }, (_, i) => ({
+    src: CLOUD_SOURCES[i % CLOUD_SOURCES.length],
+    // Loose bands (with jitter wider than the band itself) keep clouds
+    // spread down the whole scroll while still letting neighbours drift
+    // into each other and overlap, the way real cloud cover does.
+    top: i * band + (Math.random() - 0.3) * band * 2,
+    width: 160 + Math.random() * 100,
+    flip: Math.random() < 0.5,
+    driftDuration: 40 + Math.random() * 50,
+    // The initial mount seeds clouds already mid-flight (negative delay) so
+    // the sky isn't empty on first paint; refreshes (below) only ever use a
+    // small positive stagger so re-entering clouds always slide in from
+    // off-screen instead of popping up mid-flight.
+    driftDelay: seeded ? -Math.random() * 90 : Math.random() * 20,
+    bobDuration: 6 + Math.random() * 6,
+    bobDelay: -Math.random() * 8,
+  }));
+}
 
 // Light theme's sky — hand-drawn engraving clouds, all in one dark-gold tone,
 // drifting past at their own speed with a gentle bob. The dark theme's
@@ -909,22 +934,31 @@ const CLOUD_COUNT = 20;
 // appearing down the whole scroll instead of only in the first screen.
 function CloudsBackground() {
   const isLight = useIsLightTheme();
-  const [clouds] = useState(() => {
-    const band = 100 / CLOUD_COUNT;
-    return Array.from({ length: CLOUD_COUNT }, (_, i) => ({
-      src: CLOUD_SOURCES[i % CLOUD_SOURCES.length],
-      // Loose bands (with jitter wider than the band itself) keep clouds
-      // spread down the whole scroll while still letting neighbours drift
-      // into each other and overlap, the way real cloud cover does.
-      top: i * band + (Math.random() - 0.3) * band * 2,
-      width: 190 + Math.random() * 170,
-      flip: Math.random() < 0.5,
-      driftDuration: 45 + Math.random() * 60,
-      driftDelay: -Math.random() * 100,
-      bobDuration: 6 + Math.random() * 6,
-      bobDelay: -Math.random() * 8,
-    }));
-  });
+  const [clouds, setClouds] = useState(() => buildClouds(true));
+  const [generation, setGeneration] = useState(0);
+
+  useEffect(() => {
+    // Long-running infinite CSS animations can silently stall on mobile
+    // browsers (tab throttling, a PWA backgrounded by screen lock/app
+    // switch) — a couple of minutes parked on one screen was enough for the
+    // sky to freeze and stay frozen. Rebuilding the cloud elements from
+    // scratch (fresh key, so React actually recreates the DOM nodes rather
+    // than patching props) whenever the app regains visibility, plus every
+    // minute regardless, means a stall never lasts long.
+    const refresh = () => {
+      setClouds(buildClouds(false));
+      setGeneration((g) => g + 1);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    const interval = setInterval(refresh, 60000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearInterval(interval);
+    };
+  }, []);
 
   if (!isLight) return null;
 
@@ -932,7 +966,7 @@ function CloudsBackground() {
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${STARFIELD_HEIGHT_VH}vh`, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       {clouds.map((c, i) => (
         <div
-          key={i}
+          key={`${i}-${generation}`}
           className="inka-cloud-drift"
           style={{
             top: `${c.top}%`,
