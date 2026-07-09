@@ -217,6 +217,7 @@ interface Consultation {
   area: string; // "Место" — body part/zone under discussion
   style: string; // "Техника и стиль" — free text, unlike the session's chip picker
   generalNotes: string; // "Общие заметки" — the client's own wishes/agreements + the master's own thoughts
+  feeling: string; // "Чувство/ощущение" — the mood or sensation the piece should evoke
   creative: string; // "Креатив" — the wild/standout idea, the one distinctive twist
   inspirationSources: string; // "Источники вдохновения" — authors, references
   urgency: UrgencyKey;
@@ -447,6 +448,7 @@ function normalizeClient(raw: any, index: number): Client {
           area: cn?.area ?? '',
           style: cn?.style ?? '',
           generalNotes: cn?.generalNotes ?? '',
+          feeling: cn?.feeling ?? '',
           creative: cn?.creative ?? '',
           inspirationSources: cn?.inspirationSources ?? '',
           urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
@@ -1289,6 +1291,7 @@ export default function TattoDiary() {
     area: string;
     style: string;
     generalNotes: string;
+    feeling: string;
     creative: string;
     inspirationSources: string;
     urgency: UrgencyKey;
@@ -5576,6 +5579,11 @@ function SessionsTab({
                     {consultation.generalNotes}
                   </div>
                 )}
+                {consultation.feeling && (
+                  <div style={{ marginTop: 6 }}>
+                    <SessionMeta label="Чувство / ощущение" value={consultation.feeling} />
+                  </div>
+                )}
                 {consultation.inspirationSources && (
                   <div style={{ marginTop: 6 }}>
                     <SessionMeta label="Источники вдохновения" value={consultation.inspirationSources} />
@@ -6737,6 +6745,7 @@ function NewConsultationSheet({
     area: string;
     style: string;
     generalNotes: string;
+    feeling: string;
     creative: string;
     inspirationSources: string;
     urgency: UrgencyKey;
@@ -6749,6 +6758,7 @@ function NewConsultationSheet({
   const [area, setArea] = useState('');
   const [style, setStyle] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
+  const [feeling, setFeeling] = useState('');
   const [creative, setCreative] = useState('');
   const [inspirationSources, setInspirationSources] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
@@ -6761,6 +6771,7 @@ function NewConsultationSheet({
       setArea(initial?.area ?? '');
       setStyle(initial?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
+      setFeeling(initial?.feeling ?? '');
       setCreative(initial?.creative ?? '');
       setInspirationSources(initial?.inspirationSources ?? '');
       setUrgency(initial?.urgency ?? 'important');
@@ -6871,6 +6882,16 @@ function NewConsultationSheet({
           </div>
 
           <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Чувство / ощущение</FieldLabel>
+            <textarea
+              value={feeling}
+              onChange={(e) => setFeeling(e.target.value)}
+              placeholder="Какое чувство или ощущение должна передавать татуировка..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
             <FieldLabel>Источники вдохновения</FieldLabel>
             <textarea
               value={inspirationSources}
@@ -6900,7 +6921,7 @@ function NewConsultationSheet({
       <div style={{ padding: '0 24px 40px' }}>
         <div
           className="inka-submit"
-          onClick={() => onAdd({ date, time, area, style, generalNotes, creative, inspirationSources, urgency, photos })}
+          onClick={() => onAdd({ date, time, area, style, generalNotes, feeling, creative, inspirationSources, urgency, photos })}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
