@@ -1675,8 +1675,16 @@ export default function TattoDiary() {
             }}
           >
             <svg width="24" height="24" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
-              <circle cx="10" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.07" />
-              <path d="M3.5 17C3.5 13.5 6.4 11.5 10 11.5C13.6 11.5 16.5 13.5 16.5 17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="currentColor" fillOpacity="0.07" />
+              <circle cx="10" cy="6.6" r="3.3" stroke="currentColor" strokeWidth="1.3" fill="currentColor" fillOpacity="0.12" />
+              <path
+                d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="currentColor"
+                fillOpacity="0.12"
+              />
             </svg>
           </div>
         </div>
@@ -2966,7 +2974,7 @@ function BottomNav({
           height: 52,
           borderRadius: '50%',
           border: '1px solid rgba(var(--gold-rgb),0.4)',
-          background: 'rgba(var(--gold-rgb),0.08)',
+          background: 'linear-gradient(rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1)), var(--bg)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -2975,7 +2983,7 @@ function BottomNav({
           marginTop: -16,
         }}
       >
-        <svg width="24" height="24" viewBox="0 0 14 14" fill="none">
+        <svg width="24" height="24" viewBox="0 0 14 14" fill="none" style={{ position: 'relative' }}>
           <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
           <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
