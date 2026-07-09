@@ -971,10 +971,19 @@ interface Prefs {
   textScale: number; // text size 1.0–1.75 (font multiplier; 1.0 shown as 80%)
   textBright: 'normal' | 'high' | 'max'; // text tone level (dark theme)
   upcomingWindowDays: number; // how many days ahead the dashboard's "upcoming sessions" widget looks
+  statsWindowDays: number; // how many days ahead the dashboard's stat-grid counters (sessions/consultations) look
   gameMode: boolean; // rock-paper-scissors gate before creating a client/session/note
 }
 const UPCOMING_WINDOW_OPTIONS = [3, 5, 7, 10, 14];
-const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7, gameMode: true };
+// Master-facing labels read "3 дня / Неделя / 2 недели / Месяц" — plain day
+// counts underneath so the same upcomingItems() window logic applies.
+const STATS_WINDOW_OPTIONS: { days: number; label: string }[] = [
+  { days: 3, label: '3 дня' },
+  { days: 7, label: 'Неделя' },
+  { days: 14, label: '2 недели' },
+  { days: 30, label: 'Месяц' },
+];
+const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7, statsWindowDays: 30, gameMode: true };
 
 function readInitialPrefs(): Prefs {
   try {
@@ -987,6 +996,7 @@ function readInitialPrefs(): Prefs {
         textScale: typeof p.textScale === 'number' ? Math.max(1, p.textScale) : 1,
         textBright: p.textBright === 'high' || p.textBright === 'max' ? p.textBright : 'normal',
         upcomingWindowDays: UPCOMING_WINDOW_OPTIONS.includes(p.upcomingWindowDays) ? p.upcomingWindowDays : 7,
+        statsWindowDays: STATS_WINDOW_OPTIONS.some((o) => o.days === p.statsWindowDays) ? p.statsWindowDays : 30,
         gameMode: typeof p.gameMode === 'boolean' ? p.gameMode : true,
       };
     }
@@ -1797,6 +1807,7 @@ export default function TattoDiary() {
           <SummaryScreen
             clients={clients}
             onToggleDone={(clientId, note) => upsertNote(clientId, note)}
+            onEditNote={(clientId, note) => upsertNote(clientId, note)}
             onOpenClient={(id) => {
               setSelectedId(id);
               setActiveTab('extra');
@@ -3160,6 +3171,45 @@ function StatBlock({ label, value, big = true }: { label: string; value: string 
   );
 }
 
+// One stat tile split in half, sharing a single frame — used to fit two
+// related counters (e.g. Срочно/Важно, or a period count stacked over an
+// all-time count) into the space of one grid cell.
+function SplitStatBlock({
+  direction = 'row',
+  a,
+  b,
+}: {
+  direction?: 'row' | 'column';
+  a: { label: string; value: string | number };
+  b: { label: string; value: string | number };
+}) {
+  const cell = (item: { label: string; value: string | number }) => (
+    <div style={{ flex: 1, textAlign: 'center' }}>
+      <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+        {item.label}
+      </div>
+      <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{item.value}</div>
+    </div>
+  );
+
+  return (
+    <GoldFrame style={{ padding: direction === 'row' ? '16px 10px' : '13px 10px' }}>
+      <div style={{ display: 'flex', flexDirection: direction, alignItems: 'center', gap: direction === 'row' ? 8 : 10 }}>
+        {cell(a)}
+        <div
+          style={{
+            background: 'rgba(var(--gold-rgb),0.15)',
+            width: direction === 'row' ? 1 : '100%',
+            height: direction === 'row' ? 34 : 1,
+            flexShrink: 0,
+          }}
+        />
+        {cell(b)}
+      </div>
+    </GoldFrame>
+  );
+}
+
 // ===================== MASTER DASHBOARD =====================
 function MasterDashboardScreen({
   clients,
@@ -3185,6 +3235,9 @@ function MasterDashboardScreen({
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
   const closedCount = closedNotesCount(clients);
+  const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
+  const plannedSessionsCount = statsUpcoming.filter((i) => i.kind === 'session').length;
+  const plannedConsultationsCount = statsUpcoming.filter((i) => i.kind === 'consultation').length;
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -3283,12 +3336,42 @@ function MasterDashboardScreen({
           />
         </GoldFrame>
 
-        {/* Quick stats — a 2x2 "character sheet" stat grid */}
+        {/* Quick stats — a 2x2 "character sheet" stat grid. Two of the four
+            cells are split in half to fit a related pair of counters:
+            назначенные сессии sit over выполнено-заметок (both period vs
+            all-time in one cell), and срочно/важно now share one cell,
+            freeing the other half for planned consultations. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+          {STATS_WINDOW_OPTIONS.map((o) => (
+            <div
+              key={o.days}
+              onClick={() => onChangePrefs({ ...prefs, statsWindowDays: o.days })}
+              style={{
+                fontSize: fs(12),
+                padding: '4px 10px',
+                borderRadius: 2,
+                cursor: 'pointer',
+                border: prefs.statsWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                background: prefs.statsWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                color: prefs.statsWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
+              }}
+            >
+              {o.label}
+            </div>
+          ))}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
           <StatBlock label="Клиентов" value={clients.length} />
-          <StatBlock label={`${DONE_EMOJI} Выполнено заметок`} value={closedCount} />
-          <StatBlock label={`${URGENCY[0].emoji} ${URGENCY[0].short}`} value={urgent} />
-          <StatBlock label={`${URGENCY[1].emoji} ${URGENCY[1].short}`} value={important} />
+          <SplitStatBlock
+            direction="column"
+            a={{ label: 'Назначено сессий', value: plannedSessionsCount }}
+            b={{ label: `${DONE_EMOJI} Выполнено заметок`, value: closedCount }}
+          />
+          <SplitStatBlock
+            a={{ label: `${URGENCY[0].emoji} ${URGENCY[0].short}`, value: urgent }}
+            b={{ label: `${URGENCY[1].emoji} ${URGENCY[1].short}`, value: important }}
+          />
+          <StatBlock label="Консультаций" value={plannedConsultationsCount} />
           <div style={{ gridColumn: '1 / -1' }}>
             <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
           </div>
@@ -3732,10 +3815,12 @@ function SettingsScreen({
 function SummaryScreen({
   clients,
   onToggleDone,
+  onEditNote,
   onOpenClient,
 }: {
   clients: Client[];
   onToggleDone: (clientId: string, note: ClientNote) => void;
+  onEditNote: (clientId: string, note: ClientNote) => void;
   onOpenClient: (id: string) => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
@@ -3832,7 +3917,12 @@ function SummaryScreen({
         ) : (
           items.map(({ note, client }) => (
             <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
-              <NoteItem note={note} client={client} onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })} />
+              <NoteItem
+                note={note}
+                client={client}
+                onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
+                onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
+              />
             </div>
           ))
         )}
@@ -5636,15 +5726,32 @@ function NoteItem({
   onToggleDone,
   onDelete,
   onUpdatePhotos,
+  onEdit,
   client,
 }: {
   note: ClientNote;
   onToggleDone: () => void;
   onDelete?: () => void;
   onUpdatePhotos?: (photos: string[]) => void;
+  onEdit?: (text: string, urgency: UrgencyKey) => void;
   client?: Client;
 }) {
   const meta = urgencyMeta(note.urgency);
+  const [editing, setEditing] = useState(false);
+  const [draftText, setDraftText] = useState(note.text);
+  const [draftUrgency, setDraftUrgency] = useState<UrgencyKey>(note.urgency);
+
+  const startEdit = () => {
+    setDraftText(note.text);
+    setDraftUrgency(note.urgency);
+    setEditing(true);
+  };
+  const saveEdit = () => {
+    const trimmed = draftText.trim();
+    if (trimmed && onEdit) onEdit(trimmed, draftUrgency);
+    setEditing(false);
+  };
+
   return (
     <div
       style={{
@@ -5671,52 +5778,144 @@ function NoteItem({
             </span>
           </div>
         )}
-        <div
-          dir="auto"
-          style={{
-            fontSize: fs(15),
-            color: note.done ? COLORS.textGhost : 'var(--text-soft)',
-            fontStyle: 'italic',
-            lineHeight: 1.5,
-            textDecoration: note.done ? 'line-through' : 'none',
-            wordBreak: 'break-word',
-          }}
-        >
-          {note.text}
-        </div>
-        {!client && (
+        {editing ? (
+          <div onClick={(e) => e.stopPropagation()}>
+            <textarea
+              dir="auto"
+              autoFocus
+              value={draftText}
+              onChange={(e) => setDraftText(e.target.value)}
+              style={{
+                width: '100%',
+                background: 'rgba(var(--surface-rgb),0.03)',
+                border: '1px solid rgba(var(--gold-rgb),0.3)',
+                borderRadius: 2,
+                padding: '9px 11px',
+                fontFamily: "'Inter', sans-serif",
+                color: COLORS.textPrimary,
+                outline: 'none',
+                resize: 'none',
+                height: 64,
+                fontStyle: 'italic',
+                lineHeight: 1.5,
+              }}
+            />
+            <div style={{ marginTop: 8 }}>
+              <UrgencyChips value={draftUrgency} onPick={setDraftUrgency} />
+            </div>
+          </div>
+        ) : (
+          <div
+            dir="auto"
+            style={{
+              fontSize: fs(15),
+              color: note.done ? COLORS.textGhost : 'var(--text-soft)',
+              fontStyle: 'italic',
+              lineHeight: 1.5,
+              textDecoration: note.done ? 'line-through' : 'none',
+              wordBreak: 'break-word',
+            }}
+          >
+            {note.text}
+          </div>
+        )}
+        {!client && !editing && (
           <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginTop: 4 }}>
             {meta.emoji} {meta.label}
           </div>
         )}
-        {onUpdatePhotos && <SessionPhotos photos={note.photos} onChange={onUpdatePhotos} allowDelete />}
+        {onUpdatePhotos && !editing && <SessionPhotos photos={note.photos} onChange={onUpdatePhotos} allowDelete />}
 
         {/* Explicit actions — a labelled «Выполнено» button (toggles, no
-            confirm needed) plus, where deletion is allowed, a labelled
-            delete button with its own confirm step. No bare ✕ icon. */}
+            confirm needed), an «Изменить» button that switches the text
+            above into an editable field, plus (where deletion is allowed) a
+            labelled delete button with its own confirm step. No bare ✕ icon. */}
         <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <div
-            onClick={onToggleDone}
-            style={{
-              flex: onDelete ? 1 : undefined,
-              padding: '7px 12px',
-              textAlign: 'center',
-              border: '1px solid rgba(var(--gold-rgb),0.3)',
-              borderRadius: 2,
-              cursor: 'pointer',
-              color: COLORS.gold,
-              fontSize: fs(11),
-              letterSpacing: '1px',
-              textTransform: 'uppercase',
-              fontStyle: 'italic',
-            }}
-          >
-            {note.done ? 'Вернуть в работу' : 'Выполнено'}
-          </div>
-          {onDelete && (
-            <div style={{ flex: 1 }}>
-              <DeleteButton label="Удалить заметку" confirmLabel="Удалить заметку?" onConfirm={onDelete} compact />
-            </div>
+          {editing ? (
+            <>
+              <div
+                onClick={saveEdit}
+                style={{
+                  flex: 1,
+                  padding: '7px 12px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(var(--gold-rgb),0.3)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  color: COLORS.gold,
+                  fontSize: fs(11),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                Сохранить
+              </div>
+              <div
+                onClick={() => setEditing(false)}
+                style={{
+                  flex: 1,
+                  padding: '7px 12px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  color: COLORS.textFaint,
+                  fontSize: fs(11),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                Отмена
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                onClick={onToggleDone}
+                style={{
+                  flex: 1,
+                  padding: '7px 12px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(var(--gold-rgb),0.3)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  color: COLORS.gold,
+                  fontSize: fs(11),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                {note.done ? 'Вернуть в работу' : 'Выполнено'}
+              </div>
+              {onEdit && (
+                <div
+                  onClick={startEdit}
+                  style={{
+                    flex: 1,
+                    padding: '7px 12px',
+                    textAlign: 'center',
+                    border: '1px solid rgba(var(--gold-rgb),0.3)',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    color: COLORS.gold,
+                    fontSize: fs(11),
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Изменить
+                </div>
+              )}
+              {onDelete && (
+                <div style={{ flex: 1 }}>
+                  <DeleteButton label="Удалить заметку" confirmLabel="Удалить заметку?" onConfirm={onDelete} compact />
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -5817,6 +6016,7 @@ function AdditionalTab({
               onToggleDone={() => toggleDone(n)}
               onDelete={() => onDeleteNote(n.id)}
               onUpdatePhotos={(photos) => onUpsertNote({ ...n, photos })}
+              onEdit={(text, urgency) => onUpsertNote({ ...n, text, urgency })}
             />
           ))}
         </div>
