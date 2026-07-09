@@ -2919,81 +2919,116 @@ function BottomNav({
       style={{
         // Rendered as a direct child of the (non-scrolling) app shell, so
         // absolute bottom:0 pins the ribbon to the bottom of the screen and it
-        // no longer scrolls away with the card list.
+        // no longer scrolls away with the card list. overflow: visible so the
+        // glowing "+" can poke up above the bar's own notch.
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        // Only a slim slice of the iOS home-indicator inset is reserved (capped
-        // at 10px) instead of the full ~34px — otherwise a big empty band opens
-        // up under the labels and the bar looks huge. The labels still clear the
-        // home indicator.
-        height: 'calc(42px + min(10px, env(safe-area-inset-bottom)))',
-        // Solid (no backdrop-filter): the blur repainted every frame during
-        // scroll and was a major source of jank. A flat bar is also visually
-        // slimmer, hugging the icons. A gold-tinted overlay (stacked as a
-        // second background layer, not a blur) makes the bar read clearly
-        // against the near-black app background instead of blending in.
-        background: 'linear-gradient(rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1)), var(--bg)',
-        borderTop: '1px solid rgba(var(--gold-rgb),0.35)',
-        boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
-        display: 'flex',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        paddingTop: 4,
-        paddingBottom: 'calc(4px + min(10px, env(safe-area-inset-bottom)))',
+        height: 'calc(66px + min(10px, env(safe-area-inset-bottom)))',
+        overflow: 'visible',
         zIndex: 50,
       }}
     >
-      <div
-        onClick={() => onNavigate('list')}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'list' ? 1 : 0.4 }}
+      {/* The bar itself: a rounded rect with a smooth dip in the top edge
+          for the "+" to sit in, drawn as one SVG path so the notch and
+          corners come from a single continuous outline (matching gilded
+          reference art) rather than stacked divs faking the cutout. */}
+      <svg
+        viewBox="0 0 390 66"
+        preserveAspectRatio="none"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: 'calc(100% - min(10px, env(safe-area-inset-bottom)))', filter: 'drop-shadow(0 -2px 10px rgba(var(--gold-rgb),0.15))' }}
       >
-        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
-          <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="currentColor" fillOpacity="0.07" />
-        </svg>
-        <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
-      </div>
-      {/* Create-client — big and centred, replacing the old «Сводка»/«Мастер»
-          tabs (they moved up next to the logo). */}
+        <defs>
+          <linearGradient id="inka-navbar-stroke" x1="0" y1="0" x2="390" y2="0">
+            <stop offset="0%" stopColor="var(--gold)" />
+            <stop offset="50%" stopColor="#f6e8c4" />
+            <stop offset="100%" stopColor="var(--gold)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M12 1 L150 1 C165 1 172 27 195 27 C218 27 225 1 240 1 L378 1 Q389 1 389 12 L389 53 Q389 65 378 65 L12 65 Q1 65 1 53 L1 12 Q1 1 12 1 Z"
+          fill="var(--bg)"
+          stroke="url(#inka-navbar-stroke)"
+          strokeWidth="1.6"
+        />
+      </svg>
+
       <div
-        onClick={onAddClient}
-        role="button"
-        aria-label="Добавить клиента"
         style={{
-          width: 52,
-          height: 52,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.4)',
-          background: 'rgba(var(--gold-rgb),0.08)',
+          position: 'absolute',
+          inset: 0,
+          bottom: 'min(10px, env(safe-area-inset-bottom))',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          flexShrink: 0,
-          marginTop: -16,
+          justifyContent: 'space-around',
         }}
       >
-        <svg width="24" height="24" viewBox="0 0 14 14" fill="none">
-          <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </div>
-      <div
-        onClick={() => onNavigate('summary')}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.4 }}
-      >
-        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
-          <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-          <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-          <rect x="3" y="9" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <path d="M3.6 10.5L4.3 11.2L5.6 9.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-          <line x1="8" y1="10.5" x2="17" y2="10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-          <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-        </svg>
-        <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
+        <div
+          onClick={() => onNavigate('list')}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'list' ? 1 : 0.5 }}
+        >
+          <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)', filter: 'drop-shadow(0 0 3px rgba(var(--gold-rgb),0.5))' }}>
+            <path d="M3 9.5L10 3L17 9.5V17H13V12.5H7V17H3V9.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="currentColor" fillOpacity="0.07" />
+          </svg>
+          <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Клиенты</span>
+        </div>
+
+        {/* Create-client — a glowing, gold-gradient FAB sitting in the bar's
+            notch, replacing the old plain gold-tinted circle. */}
+        <div
+          onClick={onAddClient}
+          role="button"
+          aria-label="Добавить клиента"
+          style={{ position: 'relative', width: 58, height: 58, flexShrink: 0, marginTop: -30, cursor: 'pointer' }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: -26,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(255,214,120,0.55) 0%, rgba(var(--gold-rgb),0.25) 45%, transparent 74%)',
+              filter: 'blur(2px)',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle at 32% 28%, #f6e2ac 0%, #c8943a 10%, #7a4f26 32%, #4a3018 62%, #2e1d10 100%)',
+              border: '2px solid rgba(200,148,58,0.8)',
+              boxShadow: '0 0 16px rgba(200,148,58,0.45), inset 0 0 8px rgba(0,0,0,0.45)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', border: '1px solid rgba(255,230,170,0.5)' }} />
+            <svg width="24" height="24" viewBox="0 0 14 14" fill="none" style={{ position: 'relative', zIndex: 2 }}>
+              <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="#2a1a04" strokeWidth="1.8" strokeLinecap="round" />
+              <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="#2a1a04" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </div>
+        </div>
+
+        <div
+          onClick={() => onNavigate('summary')}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.5 }}
+        >
+          <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)', filter: 'drop-shadow(0 0 3px rgba(var(--gold-rgb),0.5))' }}>
+            <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+            <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+            <rect x="3" y="9" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+            <path d="M3.6 10.5L4.3 11.2L5.6 9.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="8" y1="10.5" x2="17" y2="10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+            <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+            <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          </svg>
+          <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Сводка</span>
+        </div>
       </div>
     </div>
   );
