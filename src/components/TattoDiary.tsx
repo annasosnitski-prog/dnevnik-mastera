@@ -3961,7 +3961,7 @@ function DetailScreen({
           Инфо
         </div>
         <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
-          Заметки и задачи
+          Задачи
         </div>
       </div>
 
