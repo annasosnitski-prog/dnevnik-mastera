@@ -765,8 +765,7 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 // pragmatic fix: give the star field a tall virtual canvas (covers several
 // screens' worth of scrolling) with proportionally more stars, so scrolling
 // a long list/notes feed still reveals stars instead of running out.
-const STARFIELD_COUNT = 220; // small scattered dust
-const STARFIELD_HERO_COUNT = 9; // a few bigger, brighter lone stars
+const STARFIELD_COUNT = 140;
 const STARFIELD_HEIGHT_VH = 300;
 function StarfieldBackground() {
   const [stars] = useState(() =>
@@ -780,16 +779,6 @@ function StarfieldBackground() {
       sparkle: Math.random() < 0.16,
     })),
   );
-  const [heroStars] = useState(() =>
-    Array.from({ length: STARFIELD_HERO_COUNT }, () => ({
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: 6 + Math.random() * 7, // notably bigger than the dust tier
-      lightness: 75 + Math.random() * 20, // brighter gold
-      duration: 2.6 + Math.random() * 3,
-      delay: Math.random() * 4,
-    })),
-  );
   return (
     <div
       style={{
@@ -800,6 +789,7 @@ function StarfieldBackground() {
         height: `${STARFIELD_HEIGHT_VH}vh`,
         overflow: 'hidden',
         pointerEvents: 'none',
+        opacity: 0.6,
         zIndex: 0,
       }}
     >
@@ -825,29 +815,6 @@ function StarfieldBackground() {
               <path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill={`hsl(45, 80%, ${s.lightness}%)`} />
             </svg>
           )}
-        </div>
-      ))}
-      {heroStars.map((s, i) => (
-        <div
-          key={`hero-${i}`}
-          className="inka-star-twinkle"
-          style={{
-            position: 'absolute',
-            left: `${s.x}%`,
-            top: `${s.y}%`,
-            width: s.size,
-            height: s.size,
-            animationDuration: `${s.duration}s`,
-            animationDelay: `${s.delay}s`,
-          }}
-        >
-          <svg width="100%" height="100%" viewBox="0 0 14 14" fill="none">
-            <path
-              d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z"
-              fill={`hsl(45, 80%, ${s.lightness}%)`}
-              style={{ filter: `drop-shadow(0 0 ${s.size * 0.5}px hsla(45, 90%, ${s.lightness}%, 0.9))` }}
-            />
-          </svg>
         </div>
       ))}
     </div>
@@ -1682,14 +1649,20 @@ export default function TattoDiary() {
               cursor: 'pointer',
             }}
           >
+            {/* A proper cog (solid teeth), not the thin-ray sun/settings icon
+                used elsewhere — those two read as near-identical at this
+                size and got mistaken for the removed theme toggle. */}
             <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
-              <circle cx="10" cy="10" r="2.8" stroke="currentColor" strokeWidth="1.2" />
-              <path
-                d="M10 2.5L10 4.5M10 15.5L10 17.5M2.5 10L4.5 10M15.5 10L17.5 10M5.05 5.05L6.46 6.46M13.54 13.54L14.95 14.95M5.05 14.95L6.46 13.54M13.54 6.46L14.95 5.05"
-                stroke="currentColor"
-                strokeWidth="1.1"
-                strokeLinecap="round"
-              />
+              <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.3" />
+              <circle cx="10" cy="10" r="1.5" stroke="currentColor" strokeWidth="1.1" />
+              <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" />
+              <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" />
+              <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(45 10 10)" />
+              <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(45 10 10)" />
+              <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(90 10 10)" />
+              <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(90 10 10)" />
+              <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(135 10 10)" />
+              <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(135 10 10)" />
             </svg>
           </div>
           <div
