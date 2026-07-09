@@ -214,7 +214,10 @@ interface Consultation {
   id: string;
   date: string; // ISO yyyy-mm-dd
   time: string; // HH:MM, 24h
+  area: string; // "Место" — body part/zone under discussion
+  style: string; // "Техника и стиль" — free text, unlike the session's chip picker
   generalNotes: string; // "Общие заметки" — the client's own wishes/agreements + the master's own thoughts
+  feeling: string; // "Чувство/ощущение" — the mood or sensation the piece should evoke
   creative: string; // "Креатив" — the wild/standout idea, the one distinctive twist
   inspirationSources: string; // "Источники вдохновения" — authors, references
   urgency: UrgencyKey;
@@ -442,7 +445,10 @@ function normalizeClient(raw: any, index: number): Client {
           id: String(cn?.id ?? `${Date.now()}-c${i}`),
           date: cn?.date ?? '',
           time: cn?.time ?? '',
+          area: cn?.area ?? '',
+          style: cn?.style ?? '',
           generalNotes: cn?.generalNotes ?? '',
+          feeling: cn?.feeling ?? '',
           creative: cn?.creative ?? '',
           inspirationSources: cn?.inspirationSources ?? '',
           urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
@@ -1282,7 +1288,10 @@ export default function TattoDiary() {
   const handleAddConsultation = (data: {
     date: string;
     time: string;
+    area: string;
+    style: string;
     generalNotes: string;
+    feeling: string;
     creative: string;
     inspirationSources: string;
     urgency: UrgencyKey;
@@ -1813,6 +1822,14 @@ export default function TattoDiary() {
               setActiveTab('extra');
               setScreen('detail');
             }}
+            onOpenConsultation={(clientId, consultationId) => {
+              const client = clients.find((c) => c.id === clientId);
+              const consultation = client?.consultations.find((c) => c.id === consultationId);
+              if (!client || !consultation) return;
+              setSelectedId(client.id);
+              setEditConsultation(consultation);
+              setShowNewConsultationForm(true);
+            }}
           />
         )}
       </div>
@@ -1855,6 +1872,7 @@ export default function TattoDiary() {
               setShowNewSessionForm(true);
             }}
             onOpenSettings={() => setScreen('settings')}
+            onImport={replaceAllClients}
           />
         )}
       </div>
@@ -1877,8 +1895,6 @@ export default function TattoDiary() {
           onToggleTheme={toggleTheme}
           prefs={prefs}
           onChange={setPrefs}
-          clients={clients}
-          onImport={replaceAllClients}
           masterInfo={masterInfo}
           onChangeMasterInfo={setMasterInfo}
         />
@@ -3219,6 +3235,7 @@ function MasterDashboardScreen({
   onChangePrefs,
   onOpenSession,
   onOpenSettings,
+  onImport,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
@@ -3227,6 +3244,7 @@ function MasterDashboardScreen({
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenSettings: () => void;
+  onImport: (clients: Client[]) => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -3238,6 +3256,51 @@ function MasterDashboardScreen({
   const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
   const plannedSessionsCount = statsUpcoming.filter((i) => i.kind === 'session').length;
   const plannedConsultationsCount = statsUpcoming.filter((i) => i.kind === 'consultation').length;
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const handleExport = () => {
+    const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
+        if (!rawClients) throw new Error('bad shape');
+        if (!window.confirm(`Импортировать ${rawClients.length} клиент(ов)? Текущие данные будут заменены.`)) return;
+        onImport(rawClients.map((c: any, i: number) => normalizeClient(c, i)));
+        setImportError(null);
+      } catch {
+        setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const actionButtonStyle: React.CSSProperties = {
+    flex: 1,
+    textAlign: 'center',
+    padding: '10px 0',
+    borderRadius: 2,
+    cursor: 'pointer',
+    fontSize: fs(13),
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+    border: '1px solid rgba(var(--gold-rgb),0.35)',
+    background: 'rgba(var(--gold-rgb),0.05)',
+    color: COLORS.gold,
+  };
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -3456,6 +3519,34 @@ function MasterDashboardScreen({
             </>
           )}
         </GoldFrame>
+
+        {/* Backup — export the whole client list to a JSON file, or restore
+            from one (replaces everything currently stored). */}
+        <GoldFrame style={{ padding: '14px 16px' }}>
+          <div style={statLabelStyle}>Резервная копия</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div onClick={handleExport} style={actionButtonStyle}>
+              Экспортировать
+            </div>
+            <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
+              Импортировать
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImportFile(file);
+              e.target.value = '';
+            }}
+          />
+          {importError && (
+            <div style={{ marginTop: 10, fontSize: fs(12), color: '#e0665a', fontStyle: 'italic' }}>{importError}</div>
+          )}
+        </GoldFrame>
       </div>
     </div>
   );
@@ -3467,8 +3558,6 @@ function SettingsScreen({
   onToggleTheme,
   prefs,
   onChange,
-  clients,
-  onImport,
   masterInfo,
   onChangeMasterInfo,
 }: {
@@ -3476,14 +3565,9 @@ function SettingsScreen({
   onToggleTheme: () => void;
   prefs: Prefs;
   onChange: (p: Prefs) => void;
-  clients: Client[];
-  onImport: (clients: Client[]) => void;
   masterInfo: MasterInfo;
   onChangeMasterInfo: (m: MasterInfo) => void;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-
   const addMasterLink = (label: string, value: string) => {
     const link: MasterLink = { id: Date.now().toString(), label: label.trim(), value: value.trim() };
     onChangeMasterInfo({ ...masterInfo, links: [...masterInfo.links, link] });
@@ -3493,48 +3577,6 @@ function SettingsScreen({
   };
   const setColorLabel = (color: string, label: string) => {
     onChangeMasterInfo({ ...masterInfo, colorLabels: { ...masterInfo.colorLabels, [color]: label } });
-  };
-
-  const handleExport = () => {
-    const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result));
-        const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
-        if (!rawClients) throw new Error('bad shape');
-        if (!window.confirm(`Импортировать ${rawClients.length} клиент(ов)? Текущие данные будут заменены.`)) return;
-        onImport(rawClients.map((c: any, i: number) => normalizeClient(c, i)));
-        setImportError(null);
-      } catch {
-        setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const actionButtonStyle: React.CSSProperties = {
-    flex: 1,
-    textAlign: 'center',
-    padding: '10px 0',
-    borderRadius: 2,
-    cursor: 'pointer',
-    fontSize: fs(13),
-    letterSpacing: '1px',
-    textTransform: 'uppercase',
-    border: '1px solid rgba(var(--gold-rgb),0.35)',
-    background: 'rgba(var(--gold-rgb),0.05)',
-    color: COLORS.gold,
   };
 
   const rowStyle: React.CSSProperties = {
@@ -3723,34 +3765,6 @@ function SettingsScreen({
           Сбросить по умолчанию
         </div>
 
-        {/* Backup — export the whole client list to a JSON file, or restore
-            from one (replaces everything currently stored). */}
-        <div style={rowStyle}>
-          <div style={labelStyle}>Резервная копия</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div onClick={handleExport} style={actionButtonStyle}>
-              Экспортировать
-            </div>
-            <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
-              Импортировать
-            </div>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleImportFile(file);
-              e.target.value = '';
-            }}
-          />
-          {importError && (
-            <div style={{ marginTop: 10, fontSize: fs(12), color: '#e0665a', fontStyle: 'italic' }}>{importError}</div>
-          )}
-        </div>
-
         {/* Master's own card: flexible contact/payment rows + free-text bank
             details, kept in one place instead of scattered notes. */}
         <div style={rowStyle}>
@@ -3817,14 +3831,24 @@ function SummaryScreen({
   onToggleDone,
   onEditNote,
   onOpenClient,
+  onOpenConsultation,
 }: {
   clients: Client[];
   onToggleDone: (clientId: string, note: ClientNote) => void;
   onEditNote: (clientId: string, note: ClientNote) => void;
   onOpenClient: (id: string) => void;
+  onOpenConsultation: (clientId: string, consultationId: string) => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
+
+  // Planned (not-done) consultations, across every client, soonest first —
+  // a quick shortened view (date · client · place) that opens straight into
+  // the consultation when tapped.
+  const plannedConsultations = clients
+    .flatMap((c) => c.consultations.map((consultation) => ({ consultation, client: c })))
+    .filter(({ consultation }) => !consultation.done)
+    .sort((a, b) => (a.consultation.date || '').localeCompare(b.consultation.date || ''));
 
   const items = clients
     .flatMap((c) => c.notes.map((note) => ({ note, client: c })))
@@ -3894,6 +3918,50 @@ function SummaryScreen({
         </div>
         <StarDivider />
       </div>
+
+      {/* Planned consultations — shortened view (date · client · place),
+          tapping opens the consultation itself. */}
+      {plannedConsultations.length > 0 && (
+        <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+            Запланированные консультации
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {plannedConsultations.map(({ consultation, client }) => (
+              <div
+                key={`cons-${client.id}-${consultation.id}`}
+                onClick={() => onOpenConsultation(client.id, consultation.id)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 10px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {client.name || '—'}
+                  </div>
+                  {consultation.area && (
+                    <div style={{ fontSize: fs(11), color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                      {consultation.area}
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
+                  {formatDate(consultation.date).replace(/ \d{4}$/, '')}
+                  {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <StarDivider />
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
@@ -5224,7 +5292,9 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
       <span style={{ color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0, fontSize: fs(11), paddingTop: 2 }}>
         {label}
       </span>
-      <span dir="auto" style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>{value}</span>
+      <span dir="auto" style={{ flex: 1, minWidth: 0, color: 'var(--text-soft)', fontStyle: 'italic', wordBreak: 'break-word' }}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -5558,9 +5628,19 @@ function SessionsTab({
                     <SessionDeleteControl onDelete={() => onDeleteConsultation(consultation.id)} />
                   </div>
                 </div>
+                {(consultation.area || consultation.style) && (
+                  <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
+                    {[consultation.area, consultation.style].filter(Boolean).join(' · ')}
+                  </div>
+                )}
                 {consultation.generalNotes && (
                   <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>
                     {consultation.generalNotes}
+                  </div>
+                )}
+                {consultation.feeling && (
+                  <div style={{ marginTop: 6 }}>
+                    <SessionMeta label="Чувство / ощущение" value={consultation.feeling} />
                   </div>
                 )}
                 {consultation.inspirationSources && (
@@ -6509,13 +6589,13 @@ function NewSessionSheet({
         </div>
 
         <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <FieldLabel>Дата</FieldLabel>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={INPUT_STYLE} />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <FieldLabel>Время</FieldLabel>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={INPUT_STYLE} />
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
           </div>
         </div>
 
@@ -6705,31 +6785,6 @@ function AddChoiceSheet({
   );
 }
 
-// Read-only skin data row inside a consultation — always sourced from the
-// client's own profile (Инфо → Кожа), never edited from here.
-function SkinReadRow({ label, value, swatch }: { label: string; value?: string; swatch?: string }) {
-  return (
-    <div style={{ border: '1px solid rgba(var(--gold-rgb),0.1)', borderRadius: 2, padding: '9px 12px', background: 'rgba(var(--surface-rgb),0.018)' }}>
-      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
-      <div
-        dir="auto"
-        style={{
-          fontSize: fs(13),
-          color: value ? COLORS.textPrimary : COLORS.textGhost,
-          fontStyle: value ? 'normal' : 'italic',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          wordBreak: 'break-word',
-        }}
-      >
-        {swatch && <span style={{ width: 14, height: 14, borderRadius: '50%', background: swatch, display: 'inline-block', flexShrink: 0, border: '1px solid rgba(var(--gold-rgb),0.3)' }} />}
-        {value || '—'}
-      </div>
-    </div>
-  );
-}
-
 function NewConsultationSheet({
   open,
   clientName,
@@ -6746,7 +6801,10 @@ function NewConsultationSheet({
   onAdd: (data: {
     date: string;
     time: string;
+    area: string;
+    style: string;
     generalNotes: string;
+    feeling: string;
     creative: string;
     inspirationSources: string;
     urgency: UrgencyKey;
@@ -6756,7 +6814,10 @@ function NewConsultationSheet({
   const isEdit = !!initial;
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [area, setArea] = useState('');
+  const [style, setStyle] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
+  const [feeling, setFeeling] = useState('');
   const [creative, setCreative] = useState('');
   const [inspirationSources, setInspirationSources] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
@@ -6766,7 +6827,10 @@ function NewConsultationSheet({
     if (open) {
       setDate(initial?.date ?? '');
       setTime(initial?.time ?? '');
+      setArea(initial?.area ?? '');
+      setStyle(initial?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
+      setFeeling(initial?.feeling ?? '');
       setCreative(initial?.creative ?? '');
       setInspirationSources(initial?.inspirationSources ?? '');
       setUrgency(initial?.urgency ?? 'important');
@@ -6790,49 +6854,70 @@ function NewConsultationSheet({
         <div className="inka-consult-left">
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Фотографии</FieldLabel>
-            <SessionPhotos
-              photos={photos}
-              onChange={setPhotos}
-              buttonFirst
-              topSlot={
-                client && (
-                  <div
-                    style={{
-                      border: '1px solid rgba(var(--gold-rgb),0.2)',
-                      borderTop: 'none',
-                      borderRadius: '0 0 2px 2px',
-                      marginTop: -1,
-                      marginBottom: 10,
-                      padding: '12px 14px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-                      Кожа клиента
-                    </div>
-                    <SkinReadRow label="Аллергии" value={client.allergies} />
-                    <SkinReadRow label="Реакции кожи" value={client.skinReactions} />
-                    <SkinReadRow label="Тип кожи" value={SKIN_TYPES.find((s) => s.value === client.skinType)?.label} />
-                    <SkinReadRow label="Тон кожи" value={client.skinTone} swatch={client.skinTone || undefined} />
-                  </div>
-                )
-              }
-            />
+            <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
           </div>
+
+          {/* Compact, read-only — a quick reminder while browsing references,
+              not a form to fill in (that happens on the client's own Инфо
+              tab). Kept small and at the bottom so it doesn't compete with
+              the photos for attention. */}
+          {client && (client.allergies || client.skinReactions || client.skinType || client.skinTone) && (
+            <div
+              style={{
+                border: '1px solid rgba(var(--gold-rgb),0.12)',
+                borderRadius: 2,
+                padding: '8px 10px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 3,
+              }}
+            >
+              <div style={{ fontSize: fs(9), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 2 }}>
+                Кожа клиента
+              </div>
+              {client.allergies && (
+                <div dir="auto" style={{ fontSize: fs(11), color: 'var(--text-soft)' }}>
+                  <span style={{ color: COLORS.textGhost }}>Аллергии: </span>
+                  {client.allergies}
+                </div>
+              )}
+              {client.skinReactions && (
+                <div dir="auto" style={{ fontSize: fs(11), color: 'var(--text-soft)' }}>
+                  <span style={{ color: COLORS.textGhost }}>Реакции: </span>
+                  {client.skinReactions}
+                </div>
+              )}
+              {client.skinType && (
+                <div style={{ fontSize: fs(11), color: 'var(--text-soft)' }}>
+                  <span style={{ color: COLORS.textGhost }}>Тип: </span>
+                  {SKIN_TYPES.find((s) => s.value === client.skinType)?.label}
+                </div>
+              )}
+              {client.skinTone && (
+                <div style={{ fontSize: fs(11), color: 'var(--text-soft)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ color: COLORS.textGhost }}>Тон:</span>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: client.skinTone, flexShrink: 0, border: '1px solid rgba(var(--gold-rgb),0.3)' }} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="inka-consult-right">
           <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FieldLabel>Дата</FieldLabel>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={INPUT_STYLE} />
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <FieldLabel>Время</FieldLabel>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={INPUT_STYLE} />
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
             </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Место</FieldLabel>
+            <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -6842,6 +6927,16 @@ function NewConsultationSheet({
               onChange={(e) => setGeneralNotes(e.target.value)}
               placeholder="Пожелания клиента, договорённости, мысли мастера..."
               style={{ ...INPUT_STYLE, resize: 'none', height: 90 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Чувство / ощущение</FieldLabel>
+            <textarea
+              value={feeling}
+              onChange={(e) => setFeeling(e.target.value)}
+              placeholder="Какое чувство или ощущение должна передавать татуировка..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
             />
           </div>
 
@@ -6866,6 +6961,16 @@ function NewConsultationSheet({
           </div>
 
           <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Техника и стиль</FieldLabel>
+            <input
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              placeholder="Выберите технику и стилистику работы..."
+              style={INPUT_STYLE}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
             <FieldLabel>Срочность</FieldLabel>
             <UrgencyChips value={urgency} onPick={setUrgency} />
           </div>
@@ -6875,7 +6980,7 @@ function NewConsultationSheet({
       <div style={{ padding: '0 24px 40px' }}>
         <div
           className="inka-submit"
-          onClick={() => onAdd({ date, time, generalNotes, creative, inspirationSources, urgency, photos })}
+          onClick={() => onAdd({ date, time, area, style, generalNotes, feeling, creative, inspirationSources, urgency, photos })}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
