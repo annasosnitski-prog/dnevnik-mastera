@@ -3414,7 +3414,7 @@ function BottomNav({
         // the app look like it didn't reach the bottom. On devices without a
         // home indicator env(safe-area-inset-bottom) is 0, so the bar stays
         // slim (just the 46px icon row).
-        height: 'calc(46px + env(safe-area-inset-bottom))',
+        height: 'calc(44px + env(safe-area-inset-bottom))',
         // Solid (no backdrop-filter): the blur repainted every frame during
         // scroll and was a major source of jank. A flat bar is also visually
         // slimmer, hugging the icons. A gold-tinted overlay (stacked as a
@@ -3424,54 +3424,44 @@ function BottomNav({
         borderTop: '1px solid rgba(var(--gold-rgb),0.35)',
         boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
         display: 'flex',
-        justifyContent: 'space-around',
-        // Icons are centred in the content box (the 46px above the inset
-        // padding), so they sit in the visible row and clear the home indicator.
-        alignItems: 'center',
-        paddingTop: 6,
+        // The three items are equal-width columns pinned to the top of the bar
+        // (the inset padding below is the home-indicator zone), so their icons
+        // and labels line up on one baseline regardless of the safe-area size.
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        paddingTop: 5,
         paddingBottom: 'env(safe-area-inset-bottom)',
         zIndex: 50,
       }}
     >
-      <div
-        onClick={() => onNavigate('list')}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'list' ? 1 : 0.4 }}
-      >
-        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
+      <NavItem label="Главная" active={active === 'list'} onClick={() => onNavigate('list')}>
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
           <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
           <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
         </svg>
-        <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Главная</span>
-      </div>
-      {/* Create-client — big and centred, replacing the old «Сводка»/«Мастер»
-          tabs (they moved up next to the logo). */}
-      <div
-        onClick={onAddClient}
-        role="button"
-        aria-label="Добавить клиента"
-        style={{
-          width: 52,
-          height: 52,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.4)',
-          background: 'linear-gradient(rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1)), var(--bg)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        <svg width="24" height="24" viewBox="0 0 14 14" fill="none" style={{ position: 'relative' }}>
-          <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </div>
-      <div
-        onClick={() => onNavigate('summary')}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.4 }}
-      >
-        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
+      </NavItem>
+      {/* Create-client — same footprint as the other two so all three align;
+          a ringed «+» keeps it distinct without towering over the bar. */}
+      <NavItem label="Создать" active={false} accent onClick={onAddClient} ariaLabel="Добавить клиента">
+        <span
+          style={{
+            width: 23,
+            height: 23,
+            borderRadius: '50%',
+            border: '1px solid rgba(var(--gold-rgb),0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </span>
+      </NavItem>
+      <NavItem label="Задачи" active={active === 'summary'} onClick={() => onNavigate('summary')}>
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
           <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
           <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
           <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
@@ -3480,8 +3470,47 @@ function BottomNav({
           <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
           <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Задачи</span>
-      </div>
+      </NavItem>
+    </div>
+  );
+}
+
+// One bottom-nav column: a fixed-height icon slot over a label, so every item
+// (including the ringed «+») lines up on the same baseline and scale.
+function NavItem({
+  children,
+  label,
+  active,
+  accent = false,
+  onClick,
+  ariaLabel,
+}: {
+  children: React.ReactNode;
+  label: string;
+  active: boolean;
+  accent?: boolean;
+  onClick: () => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      aria-label={ariaLabel ?? label}
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 3,
+        cursor: 'pointer',
+        opacity: active || accent ? 1 : 0.45,
+      }}
+    >
+      <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{children}</div>
+      <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+        {label}
+      </span>
     </div>
   );
 }
