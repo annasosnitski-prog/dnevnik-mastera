@@ -331,6 +331,65 @@ const nextPlannedSession = (c: Client): Session | null => {
   return [...planned].sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0];
 };
 
+// ── Client list sorting (list screen) ──
+type SortMode = 'name' | 'added' | 'session';
+const SORT_MODES: { key: SortMode; label: string }[] = [
+  { key: 'name', label: 'А–Я' },
+  { key: 'added', label: 'Новые' },
+  { key: 'session', label: 'По сессии' },
+];
+
+// Local (not UTC) today as yyyy-mm-dd, for string-comparing against ISO dates.
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// For the «По сессии» sort: a client's most relevant appointment date. A nearest
+// upcoming (not-done, today-or-later) session/consultation wins; failing that,
+// the most recent past session date. hasUpcoming lets upcoming clients rank
+// above those with only history.
+function sessionSortKey(c: Client): { hasUpcoming: boolean; date: string } {
+  const today = todayISO();
+  let upcoming = '';
+  const considerUpcoming = (date: string, done: boolean) => {
+    if (done || !ISO_DATE_RE.test(date) || date < today) return;
+    if (!upcoming || date < upcoming) upcoming = date;
+  };
+  c.sessions.forEach((s) => considerUpcoming(s.date, s.done));
+  c.consultations.forEach((cn) => considerUpcoming(cn.date, cn.done));
+  if (upcoming) return { hasUpcoming: true, date: upcoming };
+
+  let last = '';
+  c.sessions.forEach((s) => {
+    if (ISO_DATE_RE.test(s.date) && s.date > last) last = s.date;
+  });
+  return { hasUpcoming: false, date: last };
+}
+
+// Orders the (already-filtered) client list per the chosen sort mode.
+function sortClients(clients: Client[], mode: SortMode): Client[] {
+  const list = [...clients];
+  if (mode === 'name') {
+    return list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru', { sensitivity: 'base' }));
+  }
+  if (mode === 'added') {
+    // Newest first.
+    return list.sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+  }
+  // 'session': nearest upcoming first, then most-recent past, empties last.
+  return list.sort((a, b) => {
+    const ka = sessionSortKey(a);
+    const kb = sessionSortKey(b);
+    if (ka.hasUpcoming !== kb.hasUpcoming) return ka.hasUpcoming ? -1 : 1;
+    if (ka.hasUpcoming) return ka.date.localeCompare(kb.date); // soonest first
+    if (!ka.date && !kb.date) return (a.name || '').localeCompare(b.name || '', 'ru');
+    if (!ka.date) return 1;
+    if (!kb.date) return -1;
+    return kb.date.localeCompare(ka.date); // most recent past first
+  });
+}
+
 // ── Master dashboard helpers ──
 // The tattoo style used across the most clients (ties broken by array order).
 function mostUsedStyle(clients: Client[]): string | null {
@@ -1223,6 +1282,7 @@ export default function TattoDiary() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorFilter, setColorFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | ClientType>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('name');
 
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [showNewSessionForm, setShowNewSessionForm] = useState(false);
@@ -1357,13 +1417,16 @@ export default function TattoDiary() {
 
   const selectedClient = clients.find((c) => c.id === selectedId) || null;
 
-  const filteredClients = clients.filter((c) => {
-    const q = searchQuery.trim().toLowerCase();
-    if (q && !`${c.name} ${c.surname} ${c.style}`.toLowerCase().includes(q)) return false;
-    if (colorFilter !== 'all' && c.color.toLowerCase() !== colorFilter.toLowerCase()) return false;
-    if (typeFilter !== 'all' && (c.clientType || 'client') !== typeFilter) return false;
-    return true;
-  });
+  const filteredClients = sortClients(
+    clients.filter((c) => {
+      const q = searchQuery.trim().toLowerCase();
+      if (q && !`${c.name} ${c.surname} ${c.style}`.toLowerCase().includes(q)) return false;
+      if (colorFilter !== 'all' && c.color.toLowerCase() !== colorFilter.toLowerCase()) return false;
+      if (typeFilter !== 'all' && (c.clientType || 'client') !== typeFilter) return false;
+      return true;
+    }),
+    sortMode,
+  );
   const filtersActive = colorFilter !== 'all' || typeFilter !== 'all';
 
   const openClient = (client: Client) => {
@@ -1675,6 +1738,37 @@ export default function TattoDiary() {
                 letterSpacing: '0.3px',
               }}
             />
+          </div>
+        </div>
+
+        {/* Sort selector — always visible; orders the card grid below. */}
+        <div style={{ padding: '0 20px 12px', position: 'relative', zIndex: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+              Сортировка
+            </span>
+            {SORT_MODES.map((m) => {
+              const active = sortMode === m.key;
+              return (
+                <div
+                  key={m.key}
+                  onClick={() => setSortMode(m.key)}
+                  style={{
+                    fontSize: fs(11),
+                    padding: '4px 10px',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                    background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                    color: active ? COLORS.gold : COLORS.textFaint,
+                    letterSpacing: '0.4px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {m.label}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -2064,17 +2158,21 @@ export default function TattoDiary() {
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
             }
             onUpsertNote={(note) => upsertNote(selectedClient.id, note)}
-            onAddNote={(text, urgency) =>
-              runGated(false, () =>
-                upsertNote(selectedClient.id, {
-                  id: Date.now().toString(),
-                  text,
-                  urgency,
-                  done: false,
-                  createdDate: new Date().toISOString(),
-                  photos: [],
-                }),
-              )
+            // Adding a note is NOT gated behind the mini-game. The composer
+            // clears its text the moment it hands the note off, so gating here
+            // (unlike client/session creation, which gates opening the form
+            // before anything is typed) could eat a task the master already
+            // wrote if they dismissed the game — leaving some clients missing
+            // tasks they thought they'd saved. Notes always save immediately.
+            onAddNote={(text, urgency, photos) =>
+              upsertNote(selectedClient.id, {
+                id: Date.now().toString(),
+                text,
+                urgency,
+                done: false,
+                createdDate: new Date().toISOString(),
+                photos,
+              })
             }
             onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
           />
@@ -4231,7 +4329,7 @@ function DetailScreen({
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey) => void;
+  onAddNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
   const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
@@ -6127,16 +6225,19 @@ function NoteItem({
   );
 }
 
-// Compose a new note: text + urgency marker.
-function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) => void }) {
+// Compose a new note: text + urgency marker + any photos, all attached before
+// the note is saved (photos live on the note from the moment it's created).
+function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey, photos: string[]) => void }) {
   const [text, setText] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
+  const [photos, setPhotos] = useState<string[]>([]);
   const submit = () => {
     const t = text.trim();
     if (!t) return;
-    onAdd(t, urgency);
+    onAdd(t, urgency, photos);
     setText('');
     setUrgency('important');
+    setPhotos([]);
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -6162,6 +6263,9 @@ function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) =>
         }}
       />
       <UrgencyChips value={urgency} onPick={setUrgency} />
+      {/* Attach photos to the note up front — button first so it reads as an
+          action even before any thumbnails exist. */}
+      <SessionPhotos photos={photos} onChange={setPhotos} allowDelete buttonFirst />
       <div
         className="inka-submit"
         onClick={submit}
@@ -6195,7 +6299,7 @@ function AdditionalTab({
 }: {
   client: Client;
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey) => void;
+  onAddNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
   const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
