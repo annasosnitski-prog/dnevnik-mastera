@@ -331,6 +331,65 @@ const nextPlannedSession = (c: Client): Session | null => {
   return [...planned].sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0];
 };
 
+// ── Client list sorting (list screen) ──
+type SortMode = 'name' | 'added' | 'session';
+const SORT_MODES: { key: SortMode; label: string }[] = [
+  { key: 'name', label: 'А–Я' },
+  { key: 'added', label: 'Новые' },
+  { key: 'session', label: 'По сессии' },
+];
+
+// Local (not UTC) today as yyyy-mm-dd, for string-comparing against ISO dates.
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// For the «По сессии» sort: a client's most relevant appointment date. A nearest
+// upcoming (not-done, today-or-later) session/consultation wins; failing that,
+// the most recent past session date. hasUpcoming lets upcoming clients rank
+// above those with only history.
+function sessionSortKey(c: Client): { hasUpcoming: boolean; date: string } {
+  const today = todayISO();
+  let upcoming = '';
+  const considerUpcoming = (date: string, done: boolean) => {
+    if (done || !ISO_DATE_RE.test(date) || date < today) return;
+    if (!upcoming || date < upcoming) upcoming = date;
+  };
+  c.sessions.forEach((s) => considerUpcoming(s.date, s.done));
+  c.consultations.forEach((cn) => considerUpcoming(cn.date, cn.done));
+  if (upcoming) return { hasUpcoming: true, date: upcoming };
+
+  let last = '';
+  c.sessions.forEach((s) => {
+    if (ISO_DATE_RE.test(s.date) && s.date > last) last = s.date;
+  });
+  return { hasUpcoming: false, date: last };
+}
+
+// Orders the (already-filtered) client list per the chosen sort mode.
+function sortClients(clients: Client[], mode: SortMode): Client[] {
+  const list = [...clients];
+  if (mode === 'name') {
+    return list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru', { sensitivity: 'base' }));
+  }
+  if (mode === 'added') {
+    // Newest first.
+    return list.sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+  }
+  // 'session': nearest upcoming first, then most-recent past, empties last.
+  return list.sort((a, b) => {
+    const ka = sessionSortKey(a);
+    const kb = sessionSortKey(b);
+    if (ka.hasUpcoming !== kb.hasUpcoming) return ka.hasUpcoming ? -1 : 1;
+    if (ka.hasUpcoming) return ka.date.localeCompare(kb.date); // soonest first
+    if (!ka.date && !kb.date) return (a.name || '').localeCompare(b.name || '', 'ru');
+    if (!ka.date) return 1;
+    if (!kb.date) return -1;
+    return kb.date.localeCompare(ka.date); // most recent past first
+  });
+}
+
 // ── Master dashboard helpers ──
 // The tattoo style used across the most clients (ties broken by array order).
 function mostUsedStyle(clients: Client[]): string | null {
@@ -1223,6 +1282,8 @@ export default function TattoDiary() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorFilter, setColorFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | ClientType>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('name');
+  const [sortOpen, setSortOpen] = useState(false);
 
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [showNewSessionForm, setShowNewSessionForm] = useState(false);
@@ -1357,13 +1418,16 @@ export default function TattoDiary() {
 
   const selectedClient = clients.find((c) => c.id === selectedId) || null;
 
-  const filteredClients = clients.filter((c) => {
-    const q = searchQuery.trim().toLowerCase();
-    if (q && !`${c.name} ${c.surname} ${c.style}`.toLowerCase().includes(q)) return false;
-    if (colorFilter !== 'all' && c.color.toLowerCase() !== colorFilter.toLowerCase()) return false;
-    if (typeFilter !== 'all' && (c.clientType || 'client') !== typeFilter) return false;
-    return true;
-  });
+  const filteredClients = sortClients(
+    clients.filter((c) => {
+      const q = searchQuery.trim().toLowerCase();
+      if (q && !`${c.name} ${c.surname} ${c.style}`.toLowerCase().includes(q)) return false;
+      if (colorFilter !== 'all' && c.color.toLowerCase() !== colorFilter.toLowerCase()) return false;
+      if (typeFilter !== 'all' && (c.clientType || 'client') !== typeFilter) return false;
+      return true;
+    }),
+    sortMode,
+  );
   const filtersActive = colorFilter !== 'all' || typeFilter !== 'all';
 
   const openClient = (client: Client) => {
@@ -1678,88 +1742,207 @@ export default function TattoDiary() {
           </div>
         </div>
 
-        {/* Filters (цвет-маркер + тип клиента) — collapsed by default */}
-        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 10 }}>
+        {/* Sort + filter — two icon-triggered dropdown menus sitting side by
+            side. A shared invisible backdrop closes whichever is open on an
+            outside tap. */}
+        {(sortOpen || filtersOpen) && (
           <div
-            onClick={() => setFiltersOpen((v) => !v)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              cursor: 'pointer',
-              fontSize: fs(12),
-              color: filtersActive ? COLORS.gold : COLORS.textFaint,
-              letterSpacing: '1.5px',
-              textTransform: 'uppercase',
+            onClick={() => {
+              setSortOpen(false);
+              setFiltersOpen(false);
             }}
-          >
-            Фильтры{filtersActive ? ' •' : ''} {filtersOpen ? '▴' : '▾'}
-          </div>
-          {filtersOpen && (
-            <div style={{ marginTop: 10 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                <div
-                  onClick={() => setColorFilter('all')}
-                  style={{
-                    fontSize: fs(11),
-                    padding: '4px 9px',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                    border: colorFilter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                    background: colorFilter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                    color: colorFilter === 'all' ? COLORS.gold : COLORS.textFaint,
-                    letterSpacing: '0.4px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Все цвета
-                </div>
-                {MARKER_COLORS.map((c) => {
-                  const sel = colorFilter.toLowerCase() === c.toLowerCase();
+            style={{ position: 'fixed', inset: 0, zIndex: 15 }}
+          />
+        )}
+        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 16, display: 'flex', gap: 10 }}>
+          {/* ── Сортировка ── */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => {
+                setSortOpen((v) => !v);
+                setFiltersOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+                fontSize: fs(12),
+                color: COLORS.textFaint,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                padding: '6px 11px',
+                border: '1px solid rgba(var(--gold-rgb),0.15)',
+                borderRadius: 2,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                <line x1="2.5" y1="4" x2="11" y2="4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <line x1="2.5" y1="8" x2="8.5" y2="8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <line x1="2.5" y1="12" x2="6" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              Сортировка {sortOpen ? '▴' : '▾'}
+            </div>
+            {sortOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  minWidth: 150,
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: 6,
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+              >
+                {SORT_MODES.map((m) => {
+                  const active = sortMode === m.key;
                   return (
                     <div
-                      key={c}
-                      onClick={() => setColorFilter(sel ? 'all' : c)}
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        background: c,
-                        cursor: 'pointer',
-                        border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
-                        boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
+                      key={m.key}
+                      onClick={() => {
+                        setSortMode(m.key);
+                        setSortOpen(false);
                       }}
-                    />
-                  );
-                })}
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {(['all', ...CLIENT_TYPES.map((t) => t.value)] as ('all' | ClientType)[]).map((v) => {
-                  const label = v === 'all' ? 'Все' : CLIENT_TYPES.find((t) => t.value === v)?.label;
-                  const active = typeFilter === v;
-                  return (
-                    <div
-                      key={v}
-                      onClick={() => setTypeFilter(v)}
                       style={{
-                        fontSize: fs(11),
-                        padding: '4px 9px',
+                        fontSize: fs(12),
+                        padding: '8px 10px',
                         borderRadius: 2,
                         cursor: 'pointer',
-                        border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                        background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                        background: active ? 'rgba(var(--gold-rgb),0.1)' : 'transparent',
                         color: active ? COLORS.gold : COLORS.textFaint,
-                        letterSpacing: '0.4px',
+                        letterSpacing: '0.5px',
                         textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      {label}
+                      {active ? '• ' : ''}
+                      {m.label}
                     </div>
                   );
                 })}
               </div>
+            )}
+          </div>
+
+          {/* ── Фильтры (цвет-маркер + тип клиента) ── */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => {
+                setFiltersOpen((v) => !v);
+                setSortOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+                fontSize: fs(12),
+                color: filtersActive ? COLORS.gold : COLORS.textFaint,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                padding: '6px 11px',
+                border: filtersActive ? '1px solid rgba(var(--gold-rgb),0.5)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                borderRadius: 2,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+              Фильтры{filtersActive ? ' •' : ''} {filtersOpen ? '▴' : '▾'}
             </div>
-          )}
+            {filtersOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: 250,
+                  maxWidth: 'calc(100vw - 40px)',
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: 12,
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
+                }}
+              >
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Цвет-маркер
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 14 }}>
+                  <div
+                    onClick={() => setColorFilter('all')}
+                    style={{
+                      fontSize: fs(11),
+                      padding: '4px 9px',
+                      borderRadius: 2,
+                      cursor: 'pointer',
+                      border: colorFilter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                      background: colorFilter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                      color: colorFilter === 'all' ? COLORS.gold : COLORS.textFaint,
+                      letterSpacing: '0.4px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Все
+                  </div>
+                  {MARKER_COLORS.map((c) => {
+                    const sel = colorFilter.toLowerCase() === c.toLowerCase();
+                    return (
+                      <div
+                        key={c}
+                        onClick={() => setColorFilter(sel ? 'all' : c)}
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          background: c,
+                          cursor: 'pointer',
+                          border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
+                          boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Тип
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {(['all', ...CLIENT_TYPES.map((t) => t.value)] as ('all' | ClientType)[]).map((v) => {
+                    const label = v === 'all' ? 'Все' : CLIENT_TYPES.find((t) => t.value === v)?.label;
+                    const active = typeFilter === v;
+                    return (
+                      <div
+                        key={v}
+                        onClick={() => setTypeFilter(v)}
+                        style={{
+                          fontSize: fs(11),
+                          padding: '4px 9px',
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                          background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                          color: active ? COLORS.gold : COLORS.textFaint,
+                          letterSpacing: '0.4px',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Error banner */}
@@ -2064,17 +2247,21 @@ export default function TattoDiary() {
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
             }
             onUpsertNote={(note) => upsertNote(selectedClient.id, note)}
-            onAddNote={(text, urgency) =>
-              runGated(false, () =>
-                upsertNote(selectedClient.id, {
-                  id: Date.now().toString(),
-                  text,
-                  urgency,
-                  done: false,
-                  createdDate: new Date().toISOString(),
-                  photos: [],
-                }),
-              )
+            // Adding a note is NOT gated behind the mini-game. The composer
+            // clears its text the moment it hands the note off, so gating here
+            // (unlike client/session creation, which gates opening the form
+            // before anything is typed) could eat a task the master already
+            // wrote if they dismissed the game — leaving some clients missing
+            // tasks they thought they'd saved. Notes always save immediately.
+            onAddNote={(text, urgency, photos) =>
+              upsertNote(selectedClient.id, {
+                id: Date.now().toString(),
+                text,
+                urgency,
+                done: false,
+                createdDate: new Date().toISOString(),
+                photos,
+              })
             }
             onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
           />
@@ -3220,11 +3407,14 @@ function BottomNav({
         bottom: 0,
         left: 0,
         right: 0,
-        // Only a slim slice of the iOS home-indicator inset is reserved (capped
-        // at 10px) instead of the full ~34px — otherwise a big empty band opens
-        // up under the labels and the bar looks huge. The labels still clear the
-        // home indicator.
-        height: 'calc(42px + min(10px, env(safe-area-inset-bottom)))',
+        // The bar reserves the FULL iOS home-indicator inset so its background
+        // reaches the very bottom edge of the screen — the home indicator then
+        // sits inside the bar (same colour) instead of below it, where the old
+        // 10px cap left the indicator zone showing as a stray strip and made
+        // the app look like it didn't reach the bottom. On devices without a
+        // home indicator env(safe-area-inset-bottom) is 0, so the bar stays
+        // slim (just the 46px icon row).
+        height: 'calc(44px + env(safe-area-inset-bottom))',
         // Solid (no backdrop-filter): the blur repainted every frame during
         // scroll and was a major source of jank. A flat bar is also visually
         // slimmer, hugging the icons. A gold-tinted overlay (stacked as a
@@ -3234,52 +3424,44 @@ function BottomNav({
         borderTop: '1px solid rgba(var(--gold-rgb),0.35)',
         boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
         display: 'flex',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        paddingTop: 4,
-        paddingBottom: 'calc(4px + min(10px, env(safe-area-inset-bottom)))',
+        // The three items are equal-width columns pinned to the top of the bar
+        // (the inset padding below is the home-indicator zone), so their icons
+        // and labels line up on one baseline regardless of the safe-area size.
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        paddingTop: 5,
+        paddingBottom: 'env(safe-area-inset-bottom)',
         zIndex: 50,
       }}
     >
-      <div
-        onClick={() => onNavigate('list')}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'list' ? 1 : 0.4 }}
-      >
-        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
+      <NavItem label="Главная" active={active === 'list'} onClick={() => onNavigate('list')}>
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
           <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
           <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
         </svg>
-        <span style={{ fontSize: fs(11), color: active === 'list' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Главная</span>
-      </div>
-      {/* Create-client — big and centred, replacing the old «Сводка»/«Мастер»
-          tabs (they moved up next to the logo). */}
-      <div
-        onClick={onAddClient}
-        role="button"
-        aria-label="Добавить клиента"
-        style={{
-          width: 52,
-          height: 52,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.4)',
-          background: 'linear-gradient(rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1)), var(--bg)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        <svg width="24" height="24" viewBox="0 0 14 14" fill="none" style={{ position: 'relative' }}>
-          <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </div>
-      <div
-        onClick={() => onNavigate('summary')}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: active === 'summary' ? 1 : 0.4 }}
-      >
-        <svg width="25" height="25" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
+      </NavItem>
+      {/* Create-client — same footprint as the other two so all three align;
+          a ringed «+» keeps it distinct without towering over the bar. */}
+      <NavItem label="Создать" active={false} accent onClick={onAddClient} ariaLabel="Добавить клиента">
+        <span
+          style={{
+            width: 23,
+            height: 23,
+            borderRadius: '50%',
+            border: '1px solid rgba(var(--gold-rgb),0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </span>
+      </NavItem>
+      <NavItem label="Задачи" active={active === 'summary'} onClick={() => onNavigate('summary')}>
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
           <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
           <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
           <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
@@ -3288,8 +3470,47 @@ function BottomNav({
           <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
           <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         </svg>
-        <span style={{ fontSize: fs(11), color: active === 'summary' ? COLORS.gold : COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase' }}>Задачи</span>
-      </div>
+      </NavItem>
+    </div>
+  );
+}
+
+// One bottom-nav column: a fixed-height icon slot over a label, so every item
+// (including the ringed «+») lines up on the same baseline and scale.
+function NavItem({
+  children,
+  label,
+  active,
+  accent = false,
+  onClick,
+  ariaLabel,
+}: {
+  children: React.ReactNode;
+  label: string;
+  active: boolean;
+  accent?: boolean;
+  onClick: () => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      aria-label={ariaLabel ?? label}
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 3,
+        cursor: 'pointer',
+        opacity: active || accent ? 1 : 0.45,
+      }}
+    >
+      <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{children}</div>
+      <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+        {label}
+      </span>
     </div>
   );
 }
@@ -4231,7 +4452,7 @@ function DetailScreen({
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey) => void;
+  onAddNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
   const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
@@ -6127,16 +6348,19 @@ function NoteItem({
   );
 }
 
-// Compose a new note: text + urgency marker.
-function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) => void }) {
+// Compose a new note: text + urgency marker + any photos, all attached before
+// the note is saved (photos live on the note from the moment it's created).
+function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey, photos: string[]) => void }) {
   const [text, setText] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
+  const [photos, setPhotos] = useState<string[]>([]);
   const submit = () => {
     const t = text.trim();
     if (!t) return;
-    onAdd(t, urgency);
+    onAdd(t, urgency, photos);
     setText('');
     setUrgency('important');
+    setPhotos([]);
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -6162,6 +6386,9 @@ function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey) =>
         }}
       />
       <UrgencyChips value={urgency} onPick={setUrgency} />
+      {/* Attach photos to the note up front — button first so it reads as an
+          action even before any thumbnails exist. */}
+      <SessionPhotos photos={photos} onChange={setPhotos} allowDelete buttonFirst />
       <div
         className="inka-submit"
         onClick={submit}
@@ -6195,7 +6422,7 @@ function AdditionalTab({
 }: {
   client: Client;
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey) => void;
+  onAddNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
   const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
