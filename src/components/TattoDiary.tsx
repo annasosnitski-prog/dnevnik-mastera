@@ -1283,6 +1283,7 @@ export default function TattoDiary() {
   const [colorFilter, setColorFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | ClientType>('all');
   const [sortMode, setSortMode] = useState<SortMode>('name');
+  const [sortOpen, setSortOpen] = useState(false);
 
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [showNewSessionForm, setShowNewSessionForm] = useState(false);
@@ -1741,119 +1742,207 @@ export default function TattoDiary() {
           </div>
         </div>
 
-        {/* Sort selector — always visible; orders the card grid below. */}
-        <div style={{ padding: '0 20px 12px', position: 'relative', zIndex: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-              Сортировка
-            </span>
-            {SORT_MODES.map((m) => {
-              const active = sortMode === m.key;
-              return (
-                <div
-                  key={m.key}
-                  onClick={() => setSortMode(m.key)}
-                  style={{
-                    fontSize: fs(11),
-                    padding: '4px 10px',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                    border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                    background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                    color: active ? COLORS.gold : COLORS.textFaint,
-                    letterSpacing: '0.4px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {m.label}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Filters (цвет-маркер + тип клиента) — collapsed by default */}
-        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 10 }}>
+        {/* Sort + filter — two icon-triggered dropdown menus sitting side by
+            side. A shared invisible backdrop closes whichever is open on an
+            outside tap. */}
+        {(sortOpen || filtersOpen) && (
           <div
-            onClick={() => setFiltersOpen((v) => !v)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              cursor: 'pointer',
-              fontSize: fs(12),
-              color: filtersActive ? COLORS.gold : COLORS.textFaint,
-              letterSpacing: '1.5px',
-              textTransform: 'uppercase',
+            onClick={() => {
+              setSortOpen(false);
+              setFiltersOpen(false);
             }}
-          >
-            Фильтры{filtersActive ? ' •' : ''} {filtersOpen ? '▴' : '▾'}
-          </div>
-          {filtersOpen && (
-            <div style={{ marginTop: 10 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                <div
-                  onClick={() => setColorFilter('all')}
-                  style={{
-                    fontSize: fs(11),
-                    padding: '4px 9px',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                    border: colorFilter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                    background: colorFilter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                    color: colorFilter === 'all' ? COLORS.gold : COLORS.textFaint,
-                    letterSpacing: '0.4px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Все цвета
-                </div>
-                {MARKER_COLORS.map((c) => {
-                  const sel = colorFilter.toLowerCase() === c.toLowerCase();
+            style={{ position: 'fixed', inset: 0, zIndex: 15 }}
+          />
+        )}
+        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 16, display: 'flex', gap: 10 }}>
+          {/* ── Сортировка ── */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => {
+                setSortOpen((v) => !v);
+                setFiltersOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+                fontSize: fs(12),
+                color: COLORS.textFaint,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                padding: '6px 11px',
+                border: '1px solid rgba(var(--gold-rgb),0.15)',
+                borderRadius: 2,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                <line x1="2.5" y1="4" x2="11" y2="4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <line x1="2.5" y1="8" x2="8.5" y2="8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <line x1="2.5" y1="12" x2="6" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              Сортировка {sortOpen ? '▴' : '▾'}
+            </div>
+            {sortOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  minWidth: 150,
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: 6,
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+              >
+                {SORT_MODES.map((m) => {
+                  const active = sortMode === m.key;
                   return (
                     <div
-                      key={c}
-                      onClick={() => setColorFilter(sel ? 'all' : c)}
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        background: c,
-                        cursor: 'pointer',
-                        border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
-                        boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
+                      key={m.key}
+                      onClick={() => {
+                        setSortMode(m.key);
+                        setSortOpen(false);
                       }}
-                    />
-                  );
-                })}
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {(['all', ...CLIENT_TYPES.map((t) => t.value)] as ('all' | ClientType)[]).map((v) => {
-                  const label = v === 'all' ? 'Все' : CLIENT_TYPES.find((t) => t.value === v)?.label;
-                  const active = typeFilter === v;
-                  return (
-                    <div
-                      key={v}
-                      onClick={() => setTypeFilter(v)}
                       style={{
-                        fontSize: fs(11),
-                        padding: '4px 9px',
+                        fontSize: fs(12),
+                        padding: '8px 10px',
                         borderRadius: 2,
                         cursor: 'pointer',
-                        border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                        background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                        background: active ? 'rgba(var(--gold-rgb),0.1)' : 'transparent',
                         color: active ? COLORS.gold : COLORS.textFaint,
-                        letterSpacing: '0.4px',
+                        letterSpacing: '0.5px',
                         textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      {label}
+                      {active ? '• ' : ''}
+                      {m.label}
                     </div>
                   );
                 })}
               </div>
+            )}
+          </div>
+
+          {/* ── Фильтры (цвет-маркер + тип клиента) ── */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => {
+                setFiltersOpen((v) => !v);
+                setSortOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+                fontSize: fs(12),
+                color: filtersActive ? COLORS.gold : COLORS.textFaint,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                padding: '6px 11px',
+                border: filtersActive ? '1px solid rgba(var(--gold-rgb),0.5)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                borderRadius: 2,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+              Фильтры{filtersActive ? ' •' : ''} {filtersOpen ? '▴' : '▾'}
             </div>
-          )}
+            {filtersOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: 250,
+                  maxWidth: 'calc(100vw - 40px)',
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: 12,
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
+                }}
+              >
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Цвет-маркер
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 14 }}>
+                  <div
+                    onClick={() => setColorFilter('all')}
+                    style={{
+                      fontSize: fs(11),
+                      padding: '4px 9px',
+                      borderRadius: 2,
+                      cursor: 'pointer',
+                      border: colorFilter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                      background: colorFilter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                      color: colorFilter === 'all' ? COLORS.gold : COLORS.textFaint,
+                      letterSpacing: '0.4px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Все
+                  </div>
+                  {MARKER_COLORS.map((c) => {
+                    const sel = colorFilter.toLowerCase() === c.toLowerCase();
+                    return (
+                      <div
+                        key={c}
+                        onClick={() => setColorFilter(sel ? 'all' : c)}
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          background: c,
+                          cursor: 'pointer',
+                          border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
+                          boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Тип
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {(['all', ...CLIENT_TYPES.map((t) => t.value)] as ('all' | ClientType)[]).map((v) => {
+                    const label = v === 'all' ? 'Все' : CLIENT_TYPES.find((t) => t.value === v)?.label;
+                    const active = typeFilter === v;
+                    return (
+                      <div
+                        key={v}
+                        onClick={() => setTypeFilter(v)}
+                        style={{
+                          fontSize: fs(11),
+                          padding: '4px 9px',
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                          background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                          color: active ? COLORS.gold : COLORS.textFaint,
+                          letterSpacing: '0.4px',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Error banner */}
