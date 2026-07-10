@@ -3407,11 +3407,14 @@ function BottomNav({
         bottom: 0,
         left: 0,
         right: 0,
-        // Only a slim slice of the iOS home-indicator inset is reserved (capped
-        // at 10px) instead of the full ~34px — otherwise a big empty band opens
-        // up under the labels and the bar looks huge. The labels still clear the
-        // home indicator.
-        height: 'calc(42px + min(10px, env(safe-area-inset-bottom)))',
+        // The bar reserves the FULL iOS home-indicator inset so its background
+        // reaches the very bottom edge of the screen — the home indicator then
+        // sits inside the bar (same colour) instead of below it, where the old
+        // 10px cap left the indicator zone showing as a stray strip and made
+        // the app look like it didn't reach the bottom. On devices without a
+        // home indicator env(safe-area-inset-bottom) is 0, so the bar stays
+        // slim (just the 46px icon row).
+        height: 'calc(46px + env(safe-area-inset-bottom))',
         // Solid (no backdrop-filter): the blur repainted every frame during
         // scroll and was a major source of jank. A flat bar is also visually
         // slimmer, hugging the icons. A gold-tinted overlay (stacked as a
@@ -3422,9 +3425,11 @@ function BottomNav({
         boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
         display: 'flex',
         justifyContent: 'space-around',
+        // Icons are centred in the content box (the 46px above the inset
+        // padding), so they sit in the visible row and clear the home indicator.
         alignItems: 'center',
-        paddingTop: 4,
-        paddingBottom: 'calc(4px + min(10px, env(safe-area-inset-bottom)))',
+        paddingTop: 6,
+        paddingBottom: 'env(safe-area-inset-bottom)',
         zIndex: 50,
       }}
     >
