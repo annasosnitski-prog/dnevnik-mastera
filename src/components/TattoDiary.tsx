@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
+import {
+  readSyncSettings,
+  writeSyncSettings,
+  syncActive,
+  diffAndSync,
+  DEFAULT_ENDPOINT,
+  type CalendarSyncSettings,
+} from '../lib/calendarSync';
 
 // ===================== DESIGN TOKENS =====================
 // Values resolve to CSS variables (see index.css), so the same component
@@ -1275,6 +1283,13 @@ export default function TattoDiary() {
     }
   }, [masterInfo]);
 
+  // Синхронизация с Инка-календарём. Секрет хранится в отдельном ключе
+  // localStorage (не в бэкапе!) и остаётся только на этом устройстве.
+  const [calendarSync, setCalendarSync] = useState<CalendarSyncSettings>(readSyncSettings);
+  useEffect(() => {
+    writeSyncSettings(calendarSync);
+  }, [calendarSync]);
+
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('sessions');
@@ -1380,9 +1395,18 @@ export default function TattoDiary() {
       setDbError('Хранилище недоступно — изменения не сохранены.');
       return;
     }
+    // Синхронизация с Инка-календарём: saveClient — единственная воронка
+    // всех изменений (сессии, консультации, заметки...), поэтому дифф
+    // старой и новой карточки здесь ловит любое изменение записей.
+    // Снимок старой версии берём ДО записи; сам sync — fire-and-forget
+    // после успешного сохранения, он не блокирует и не ломает UI.
+    const prevClient = clients.find((c) => c.id === client.id) ?? null;
     const tx = db.transaction('clients', 'readwrite');
     tx.objectStore('clients').put(client);
-    tx.oncomplete = () => loadClients(db);
+    tx.oncomplete = () => {
+      loadClients(db);
+      diffAndSync(prevClient, client, calendarSync);
+    };
     tx.onerror = () => setDbError('Не удалось сохранить изменения.');
   };
 
@@ -1391,10 +1415,14 @@ export default function TattoDiary() {
       setDbError('Хранилище недоступно — клиент не удалён.');
       return;
     }
+    // Удаление клиента убирает из календаря и все его синхронизированные
+    // записи (diffAndSync со "старое есть, нового нет" шлёт delete).
+    const prevClient = clients.find((c) => c.id === id) ?? null;
     const tx = db.transaction('clients', 'readwrite');
     tx.objectStore('clients').delete(id);
     tx.oncomplete = () => {
       loadClients(db);
+      diffAndSync(prevClient, null, calendarSync);
       setScreen('list');
       setSelectedId(null);
       setShowEditClientForm(false);
@@ -2210,6 +2238,8 @@ export default function TattoDiary() {
           onChange={setPrefs}
           masterInfo={masterInfo}
           onChangeMasterInfo={setMasterInfo}
+          calendarSync={calendarSync}
+          onChangeCalendarSync={setCalendarSync}
         />
       </div>
 
@@ -3912,6 +3942,8 @@ function SettingsScreen({
   onChange,
   masterInfo,
   onChangeMasterInfo,
+  calendarSync,
+  onChangeCalendarSync,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -3919,6 +3951,8 @@ function SettingsScreen({
   onChange: (p: Prefs) => void;
   masterInfo: MasterInfo;
   onChangeMasterInfo: (m: MasterInfo) => void;
+  calendarSync: CalendarSyncSettings;
+  onChangeCalendarSync: (s: CalendarSyncSettings) => void;
 }) {
   const addMasterLink = (label: string, value: string) => {
     const link: MasterLink = { id: Date.now().toString(), label: label.trim(), value: value.trim() };
@@ -4097,6 +4131,86 @@ function SettingsScreen({
                 {o.label}
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Инка-календарь: зеркалит сессии/консультации в Google Calendar
+            мастера через «дверцу» бота. Настоящий выключатель — СЕКРЕТ:
+            без него переключатель ничего не делает (бот ответит 401),
+            поэтому другие пользователи приложения, не знающие секрета,
+            писать в чужой календарь не могут. Секрет живёт только в
+            localStorage этого устройства и НЕ попадает в резервную копию. */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Инка-календарь · Синхронизация</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {([
+              { v: true, label: 'Включена' },
+              { v: false, label: 'Выключена' },
+            ] as { v: boolean; label: string }[]).map((o) => (
+              <div
+                key={String(o.v)}
+                onClick={() => onChangeCalendarSync({ ...calendarSync, enabled: o.v })}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: fs(13),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  border: calendarSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: calendarSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: calendarSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+          <input
+            type="password"
+            value={calendarSync.secret}
+            onChange={(e) => onChangeCalendarSync({ ...calendarSync, secret: e.target.value })}
+            placeholder="Секретный код синхронизации"
+            autoComplete="off"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px',
+              marginBottom: 8,
+              borderRadius: 2,
+              border: '1px solid rgba(var(--gold-rgb),0.2)',
+              background: 'rgba(var(--surface-rgb),0.03)',
+              color: 'var(--text-secondary)',
+              fontSize: fs(13),
+              outline: 'none',
+            }}
+          />
+          <input
+            type="text"
+            value={calendarSync.endpoint}
+            onChange={(e) => onChangeCalendarSync({ ...calendarSync, endpoint: e.target.value || DEFAULT_ENDPOINT })}
+            placeholder={DEFAULT_ENDPOINT}
+            autoComplete="off"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px',
+              borderRadius: 2,
+              border: '1px solid rgba(var(--gold-rgb),0.2)',
+              background: 'rgba(var(--surface-rgb),0.03)',
+              color: 'var(--text-secondary)',
+              fontSize: fs(12),
+              outline: 'none',
+            }}
+          />
+          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
+            {syncActive(calendarSync)
+              ? 'записи и консультации улетают в календарь Инки при сохранении.'
+              : calendarSync.enabled
+              ? 'нужен секретный код — без него синхронизация не работает.'
+              : 'выключена: записи остаются только в дневнике.'}
           </div>
         </div>
 
