@@ -159,6 +159,43 @@ type SyncPayload =
     }
   | { action: 'delete'; diaryId: string };
 
+// ── Предупреждение о пересечении ──
+// «Дверца» бота после upsert проверяет, не стоит ли на это же время что-то
+// ещё в календаре (например бронь клиента через бота), и возвращает список
+// пересечений. Дневник показывает их мастеру через зарегистрированный
+// обработчик — запись при этом НЕ блокируется, решение за мастером.
+export interface CalendarConflict {
+  summary: string;
+  start: string;
+  end: string;
+}
+
+let conflictHandler: ((message: string) => void) | null = null;
+export function setConflictHandler(fn: ((message: string) => void) | null): void {
+  conflictHandler = fn;
+}
+
+function formatConflictTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('ru-RU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jerusalem',
+  });
+}
+
+export function buildConflictMessage(conflicts: CalendarConflict[]): string {
+  const lines = conflicts.slice(0, 3).map((c) => {
+    const t = formatConflictTime(c.start);
+    return t ? `${c.summary} (${t})` : c.summary;
+  });
+  return `⚠️ На это время в календаре уже есть: ${lines.join('; ')}. Запись сохранена — проверь, нет ли накладки.`;
+}
+
 function send(settings: CalendarSyncSettings, payload: SyncPayload): void {
   fetch(settings.endpoint, {
     method: 'POST',
@@ -171,6 +208,13 @@ function send(settings: CalendarSyncSettings, payload: SyncPayload): void {
     .then(async (res) => {
       if (!res.ok) {
         console.warn('inka-sync: отказ сервера', res.status, await res.text().catch(() => ''));
+        return;
+      }
+      if (payload.action !== 'upsert') return;
+      const body = await res.json().catch(() => null);
+      const conflicts: CalendarConflict[] = Array.isArray(body?.conflicts) ? body.conflicts : [];
+      if (conflicts.length > 0 && conflictHandler) {
+        conflictHandler(buildConflictMessage(conflicts));
       }
     })
     .catch((err) => {
