@@ -5,6 +5,7 @@ import {
   writeSyncSettings,
   syncActive,
   diffAndSync,
+  setConflictHandler,
   DEFAULT_ENDPOINT,
   type CalendarSyncSettings,
 } from '../lib/calendarSync';
@@ -1290,6 +1291,15 @@ export default function TattoDiary() {
     writeSyncSettings(calendarSync);
   }, [calendarSync]);
 
+  // Предупреждение о пересечении: если синхронизированная запись легла
+  // поверх чего-то в календаре (например брони клиента через бота) —
+  // показываем янтарный баннер. Запись не блокируется, решение за мастером.
+  const [syncWarning, setSyncWarning] = useState<string | null>(null);
+  useEffect(() => {
+    setConflictHandler(setSyncWarning);
+    return () => setConflictHandler(null);
+  }, []);
+
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('sessions');
@@ -1993,6 +2003,33 @@ export default function TattoDiary() {
             <button
               onClick={() => setDbError(null)}
               style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Пересечение в Инка-календаре — янтарное предупреждение (не ошибка:
+            запись сохранена, мастер сама решает, накладка это или намеренно). */}
+        {syncWarning && (
+          <div
+            style={{
+              margin: '0 16px 12px',
+              padding: '10px 14px',
+              borderRadius: 3,
+              border: '1px solid rgba(184,134,11,0.5)',
+              background: 'rgba(184,134,11,0.12)',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+              position: 'relative',
+              zIndex: 10,
+            }}
+          >
+            <span style={{ flex: 1, fontSize: fs(15), color: '#D4A94E', fontStyle: 'italic' }}>{syncWarning}</span>
+            <button
+              onClick={() => setSyncWarning(null)}
+              style={{ background: 'none', border: 'none', color: '#D4A94E', cursor: 'pointer', flexShrink: 0 }}
             >
               ✕
             </button>
