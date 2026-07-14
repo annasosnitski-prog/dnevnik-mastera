@@ -1178,9 +1178,14 @@ function CloudsBackground() {
   );
 }
 
-// Sepia tone for the aviation sketches — matches the darker cloud layers so the
-// craft read as part of the same hand-drawn sky.
-const AVIATION_COLOR = '#5A4519';
+// Muted per-type tints, all desaturated to sit quietly inside the warm light
+// palette (never bright): planes a dusty blue, airships a soft burnt-amber,
+// the balloon a faded brick red.
+const CRAFT_COLOR: Record<CraftType, string> = {
+  plane: '#5E6E7A',
+  airship: '#9C6A34',
+  balloon: '#8E463C',
+};
 
 // Per-type flight character. duration = seconds to cross the screen (planes
 // fast, airships slow, balloon barely moves); bobY = vertical float amplitude
@@ -1262,7 +1267,7 @@ function AviationBackground() {
               style={{
                 width: c.width,
                 height: c.width * c.ar,
-                backgroundColor: AVIATION_COLOR,
+                backgroundColor: CRAFT_COLOR[c.type],
                 WebkitMaskImage: `url(${c.src})`,
                 maskImage: `url(${c.src})`,
                 WebkitMaskSize: 'contain',
