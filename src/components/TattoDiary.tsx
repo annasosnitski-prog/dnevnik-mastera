@@ -53,15 +53,13 @@ const CLOUD_SOURCES = [
   '/assets/light/clouds/cloud_7.png',
 ];
 
-// Retro-aviation sketches (light theme) — planes, airships (dirigibles) and a
-// hot-air balloon, each an alpha mask tinted sepia and given motion by type
-// (see AviationBackground): planes streak fast, airships cruise slowly, the
-// balloon barely drifts but bobs high on the air.
-type CraftType = 'plane' | 'airship' | 'balloon';
+// Retro-aviation sketches (light theme) — airships (dirigibles) and a hot-air
+// balloon, each an alpha mask tinted and given motion by type (see
+// AviationBackground): airships cruise slowly, the balloon barely drifts but
+// bobs high on the air.
+type CraftType = 'airship' | 'balloon';
 // ar = sprite height / width, so the mask box keeps each sketch's proportions.
 const AVIATION_SOURCES: { src: string; type: CraftType; ar: number }[] = [
-  { src: '/assets/light/aviation/plane_1.png', type: 'plane', ar: 0.44 },
-  { src: '/assets/light/aviation/plane_2.png', type: 'plane', ar: 0.67 },
   { src: '/assets/light/aviation/airship_1.png', type: 'airship', ar: 0.52 },
   { src: '/assets/light/aviation/airship_2.png', type: 'airship', ar: 0.79 },
   { src: '/assets/light/aviation/balloon.png', type: 'balloon', ar: 1.68 },
@@ -911,17 +909,14 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 // a long list/notes feed still reveals stars instead of running out.
 const STARFIELD_COUNT = 140;
 const STARFIELD_HEIGHT_VH = 300;
-const CONSTELLATION_COUNT = 6;
 const METEOR_COUNT = 7;
 // Cool blue-white star tone (a touch of blue, near-white), varied per star.
 const coolStar = () => `hsl(${205 + Math.random() * 22}, ${34 + Math.random() * 34}%, ${80 + Math.random() * 16}%)`;
-const CONSTELLATION_LINE = 'hsl(212, 48%, 82%)';
 
-// Dark theme's sky: twinkling blue-white stars, a few constellations (clusters
-// of vertices joined by faint lines) and an occasional «звездопад» (meteors
-// streaking down-left). The light theme's counterpart is CloudsBackground —
-// so this renders only in the dark theme (blue-white stars looked out of place
-// speckling the cream light background).
+// Dark theme's sky: twinkling blue-white stars and an occasional «звездопад»
+// (meteors streaking down-left). The light theme's counterpart is
+// CloudsBackground — so this renders only in the dark theme (blue-white stars
+// looked out of place speckling the cream light background).
 function StarfieldBackground() {
   const isLight = useIsLightTheme();
   const [stars] = useState(() =>
@@ -934,21 +929,6 @@ function StarfieldBackground() {
       delay: Math.random() * 4,
       sparkle: Math.random() < 0.16,
     })),
-  );
-
-  // Each constellation is a small box holding 4–6 vertices joined into a path.
-  const [constellations] = useState(() =>
-    Array.from({ length: CONSTELLATION_COUNT }, () => {
-      const n = 4 + Math.floor(Math.random() * 3);
-      return {
-        left: 6 + Math.random() * 78,
-        top: Math.random() * 98,
-        boxSize: 88 + Math.random() * 54,
-        duration: 3 + Math.random() * 3,
-        delay: Math.random() * 3,
-        pts: Array.from({ length: n }, () => ({ x: 6 + Math.random() * 88, y: 6 + Math.random() * 88 })),
-      };
-    }),
   );
 
   // Shooting stars — travel distance drives the CSS custom props; each is
@@ -984,22 +964,6 @@ function StarfieldBackground() {
         zIndex: 0,
       }}
     >
-      {/* Constellations */}
-      {constellations.map((c, ci) => (
-        <div
-          key={`con-${ci}`}
-          className="inka-star-twinkle"
-          style={{ position: 'absolute', left: `${c.left}%`, top: `${c.top}%`, width: c.boxSize, height: c.boxSize, animationDuration: `${c.duration}s`, animationDelay: `${c.delay}s` }}
-        >
-          <svg width={c.boxSize} height={c.boxSize} viewBox="0 0 100 100" fill="none" style={{ overflow: 'visible' }}>
-            <polyline points={c.pts.map((p) => `${p.x},${p.y}`).join(' ')} stroke={CONSTELLATION_LINE} strokeWidth="0.5" strokeOpacity="0.45" fill="none" />
-            {c.pts.map((p, pi) => (
-              <circle key={pi} cx={p.x} cy={p.y} r="1.4" fill={CONSTELLATION_LINE} />
-            ))}
-          </svg>
-        </div>
-      ))}
-
       {/* Twinkling stars */}
       {stars.map((s, i) => (
         <div
@@ -1179,21 +1143,24 @@ function CloudsBackground() {
 }
 
 // Muted per-type tints, all desaturated to sit quietly inside the warm light
-// palette (never bright): planes a dusty blue, airships a soft burnt-amber,
-// the balloon a faded brick red.
+// palette (never bright): airships a soft burnt-amber, the balloon a pale,
+// washed-out brick red.
 const CRAFT_COLOR: Record<CraftType, string> = {
-  plane: '#5E6E7A',
   airship: '#9C6A34',
-  balloon: '#8E463C',
+  balloon: '#BE8E86',
+};
+// The balloon reads paler still — a lower opacity on top of its lighter tone.
+const CRAFT_OPACITY: Record<CraftType, number> = {
+  airship: 0.62,
+  balloon: 0.42,
 };
 
-// Per-type flight character. duration = seconds to cross the screen (planes
-// fast, airships slow, balloon barely moves); bobY = vertical float amplitude
-// (balloon floats highest); width in px; bob = seconds per float cycle.
-const CRAFT_MOTION: Record<CraftType, { width: [number, number]; duration: [number, number]; bobY: [number, number]; bob: [number, number]; tilt: number }> = {
-  plane: { width: [120, 165], duration: [20, 32], bobY: [4, 9], bob: [3.5, 6], tilt: 4 },
-  airship: { width: [165, 215], duration: [78, 120], bobY: [8, 15], bob: [9, 13], tilt: 0 },
-  balloon: { width: [78, 116], duration: [150, 230], bobY: [24, 40], bob: [7, 12], tilt: 0 },
+// Per-type flight character. duration = seconds to cross the screen (airships
+// cruise, balloon barely moves); bobY = vertical float amplitude (balloon
+// floats highest); width in px; bob = seconds per float cycle.
+const CRAFT_MOTION: Record<CraftType, { width: [number, number]; duration: [number, number]; bobY: [number, number]; bob: [number, number] }> = {
+  airship: { width: [165, 215], duration: [78, 120], bobY: [8, 15], bob: [9, 13] },
+  balloon: { width: [78, 116], duration: [150, 230], bobY: [24, 40], bob: [7, 12] },
 };
 
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
@@ -1215,7 +1182,6 @@ function buildCraft(seeded: boolean) {
       goesRight,
       // Face travel direction: right-movers flip (sprites face left natively).
       flip: craft.type === 'balloon' ? false : goesRight,
-      tilt: craft.type === 'plane' ? (goesRight ? -m.tilt : m.tilt) : 0,
       driftDuration: rand(m.duration[0], m.duration[1]),
       driftDelay: seeded ? -rand(0, m.duration[1]) : rand(0, 15),
       bobY: rand(m.bobY[0], m.bobY[1]),
@@ -1225,8 +1191,8 @@ function buildCraft(seeded: boolean) {
   });
 }
 
-// Light theme's retro-aviation layer — planes, airships and a balloon drifting
-// across the sky in front of the clouds, each with motion suited to its kind.
+// Light theme's retro-aviation layer — airships and a balloon drifting across
+// the sky in front of the clouds, each with motion suited to its kind.
 function AviationBackground() {
   const isLight = useIsLightTheme();
   const [craft, setCraft] = useState(() => buildCraft(true));
@@ -1276,8 +1242,8 @@ function AviationBackground() {
                 maskRepeat: 'no-repeat',
                 WebkitMaskPosition: 'center',
                 maskPosition: 'center',
-                opacity: 0.62,
-                transform: `scaleX(${c.flip ? -1 : 1}) rotate(${c.tilt}deg)`,
+                opacity: CRAFT_OPACITY[c.type],
+                transform: `scaleX(${c.flip ? -1 : 1})`,
               }}
             />
           </div>
