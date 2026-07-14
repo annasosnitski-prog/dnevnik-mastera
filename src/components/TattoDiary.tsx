@@ -42,8 +42,7 @@ const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#
 const MARKER_COLORS = ['#B0413E', '#C67A32', '#C9A227', '#5E8C4A', '#3E7CA6', '#7A5AA0', '#A0555F', '#6E7B8B'];
 
 // Hand-drawn engraving clouds (light theme's sky, drifting behind the content) —
-// each sprite is a pre-cut alpha mask, tinted a single dark-gold tone.
-const CLOUD_COLOR = '#8A6A1F';
+// each sprite is a pre-cut alpha mask, tinted per depth layer (see CLOUD_LAYERS).
 const CLOUD_SOURCES = [
   '/assets/light/clouds/cloud_1.png',
   '/assets/light/clouds/cloud_2.png',
@@ -52,6 +51,18 @@ const CLOUD_SOURCES = [
   '/assets/light/clouds/cloud_5.png',
   '/assets/light/clouds/cloud_6.png',
   '/assets/light/clouds/cloud_7.png',
+];
+
+// Retro-aviation sketches (light theme) — airships (dirigibles) and a hot-air
+// balloon, each an alpha mask tinted and given motion by type (see
+// AviationBackground): airships cruise slowly, the balloon barely drifts but
+// bobs high on the air.
+type CraftType = 'airship' | 'balloon';
+// ar = sprite height / width, so the mask box keeps each sketch's proportions.
+const AVIATION_SOURCES: { src: string; type: CraftType; ar: number }[] = [
+  { src: '/assets/light/aviation/airship_1.png', type: 'airship', ar: 0.52 },
+  { src: '/assets/light/aviation/airship_2.png', type: 'airship', ar: 0.79 },
+  { src: '/assets/light/aviation/balloon.png', type: 'balloon', ar: 1.68 },
 ];
 
 // Skin-tone swatches (light → deep) the master picks from when creating a card.
@@ -898,18 +909,47 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 // a long list/notes feed still reveals stars instead of running out.
 const STARFIELD_COUNT = 140;
 const STARFIELD_HEIGHT_VH = 300;
+const METEOR_COUNT = 7;
+// Cool blue-white star tone (a touch of blue, near-white), varied per star.
+const coolStar = () => `hsl(${205 + Math.random() * 22}, ${34 + Math.random() * 34}%, ${80 + Math.random() * 16}%)`;
+
+// Dark theme's sky: twinkling blue-white stars and an occasional «звездопад»
+// (meteors streaking down-left). The light theme's counterpart is
+// CloudsBackground — so this renders only in the dark theme (blue-white stars
+// looked out of place speckling the cream light background).
 function StarfieldBackground() {
+  const isLight = useIsLightTheme();
   const [stars] = useState(() =>
     Array.from({ length: STARFIELD_COUNT }, () => ({
       x: Math.random() * 100,
       y: Math.random() * 100,
       size: 1.2 + Math.random() * 2.2,
-      lightness: 55 + Math.random() * 30, // varying gold saturation/brightness
+      color: coolStar(),
       duration: 1.8 + Math.random() * 3.4,
       delay: Math.random() * 4,
       sparkle: Math.random() < 0.16,
     })),
   );
+
+  // Shooting stars — travel distance drives the CSS custom props; each is
+  // visible for only a slice of its cycle so passes stay occasional.
+  const [meteors] = useState(() =>
+    Array.from({ length: METEOR_COUNT }, () => {
+      const travel = 220 + Math.random() * 220;
+      return {
+        left: 22 + Math.random() * 72,
+        top: Math.random() * 72,
+        length: 70 + Math.random() * 85,
+        mx: -travel,
+        my: travel,
+        duration: 7 + Math.random() * 9,
+        delay: -Math.random() * 16,
+      };
+    }),
+  );
+
+  if (isLight) return null;
+
   return (
     <div
       style={{
@@ -920,10 +960,11 @@ function StarfieldBackground() {
         height: `${STARFIELD_HEIGHT_VH}vh`,
         overflow: 'hidden',
         pointerEvents: 'none',
-        opacity: 0.6,
+        opacity: 0.7,
         zIndex: 0,
       }}
     >
+      {/* Twinkling stars */}
       {stars.map((s, i) => (
         <div
           key={i}
@@ -935,18 +976,40 @@ function StarfieldBackground() {
             width: s.sparkle ? s.size * 2.4 : s.size,
             height: s.sparkle ? s.size * 2.4 : s.size,
             borderRadius: s.sparkle ? 0 : '50%',
-            background: s.sparkle ? 'transparent' : `hsl(45, 75%, ${s.lightness}%)`,
-            boxShadow: s.sparkle ? 'none' : `0 0 ${s.size * 2}px hsla(45, 80%, ${s.lightness}%, 0.8)`,
+            background: s.sparkle ? 'transparent' : s.color,
+            boxShadow: s.sparkle ? 'none' : `0 0 ${s.size * 2}px ${s.color}`,
             animationDuration: `${s.duration}s`,
             animationDelay: `${s.delay}s`,
           }}
         >
           {s.sparkle && (
             <svg width="100%" height="100%" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill={`hsl(45, 80%, ${s.lightness}%)`} />
+              <path d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z" fill={s.color} />
             </svg>
           )}
         </div>
+      ))}
+
+      {/* «Звездопад» — meteors */}
+      {meteors.map((m, i) => (
+        <div
+          key={`met-${i}`}
+          className="inka-meteor"
+          style={{
+            position: 'absolute',
+            left: `${m.left}%`,
+            top: `${m.top}%`,
+            width: m.length,
+            height: 2,
+            borderRadius: 2,
+            background: 'linear-gradient(to left, rgba(223,236,255,0.95), rgba(190,215,255,0.35) 45%, transparent)',
+            boxShadow: '0 0 6px rgba(205,228,255,0.7)',
+            ['--mx' as string]: `${m.mx}px`,
+            ['--my' as string]: `${m.my}px`,
+            animationDuration: `${m.duration}s`,
+            animationDelay: `${m.delay}s`,
+          } as React.CSSProperties}
+        />
       ))}
     </div>
   );
@@ -966,43 +1029,52 @@ function useIsLightTheme(): boolean {
   return isLight;
 }
 
-// A proper overcast sky — reuse the 7 cuts this many times over so the drift
-// reads as thick cumulus cover (think Haifa on a cloudy day) rather than a
-// handful of shapes.
-const CLOUD_COUNT = 32;
+// Five depth layers of clouds, far → near. Nearer layers are DARKER, larger,
+// and drift faster (parallax); farther layers are paler, smaller, slower. They
+// render in this order, so nearer (darker) layers overlap the distant paler
+// ones — the closest-to-the-viewer clouds read darkest.
+const CLOUD_LAYERS = [
+  { color: '#D0C29B', scale: 0.56, durationMul: 1.85, opacity: 0.38, count: 7 }, // far / lightest
+  { color: '#B6A06E', scale: 0.73, durationMul: 1.45, opacity: 0.45, count: 7 },
+  { color: '#957842', scale: 0.92, durationMul: 1.15, opacity: 0.5, count: 6 },
+  { color: '#6D5220', scale: 1.13, durationMul: 0.92, opacity: 0.55, count: 6 },
+  { color: '#493611', scale: 1.38, durationMul: 0.72, opacity: 0.6, count: 6 }, // near / darkest
+];
 
 // Width is capped well under what the drift keyframes' off-screen margin
 // (see .inka-cloud-drift in index.css) can hide, so a cloud never pops into
 // view mid-screen — it always slides in from past the edge.
-function buildClouds(seeded: boolean) {
-  const band = 100 / CLOUD_COUNT;
-  return Array.from({ length: CLOUD_COUNT }, (_, i) => ({
-    src: CLOUD_SOURCES[i % CLOUD_SOURCES.length],
-    // Loose bands (with jitter wider than the band itself) keep clouds
-    // spread down the whole scroll while still letting neighbours drift
-    // into each other and overlap, the way real cloud cover does.
-    top: i * band + (Math.random() - 0.3) * band * 2,
-    width: 160 + Math.random() * 100,
-    flip: Math.random() < 0.5,
-    driftDuration: 40 + Math.random() * 50,
-    // The initial mount seeds clouds already mid-flight (negative delay) so
-    // the sky isn't empty on first paint; refreshes (below) only ever use a
-    // small positive stagger so re-entering clouds always slide in from
-    // off-screen instead of popping up mid-flight.
-    driftDelay: seeded ? -Math.random() * 90 : Math.random() * 20,
-    bobDuration: 6 + Math.random() * 6,
-    bobDelay: -Math.random() * 8,
-  }));
+function buildCloudLayers(seeded: boolean) {
+  return CLOUD_LAYERS.map((layer) => {
+    const band = 100 / layer.count;
+    const offset = Math.floor(Math.random() * CLOUD_SOURCES.length);
+    const clouds = Array.from({ length: layer.count }, (_, i) => ({
+      src: CLOUD_SOURCES[(i + offset) % CLOUD_SOURCES.length],
+      // Loose bands (jitter wider than the band) keep clouds spread down the
+      // whole scroll while still letting neighbours drift into each other.
+      top: i * band + (Math.random() - 0.3) * band * 2,
+      width: (160 + Math.random() * 100) * layer.scale,
+      flip: Math.random() < 0.5,
+      driftDuration: (40 + Math.random() * 40) * layer.durationMul,
+      // Mount seeds clouds already mid-flight (negative delay) so the sky isn't
+      // empty on first paint; refreshes use a small positive stagger so
+      // re-entering clouds always slide in from off-screen.
+      driftDelay: seeded ? -Math.random() * 90 : Math.random() * 20,
+      bobDuration: 6 + Math.random() * 6,
+      bobDelay: -Math.random() * 8,
+    }));
+    return { color: layer.color, opacity: layer.opacity, clouds };
+  });
 }
 
-// Light theme's sky — hand-drawn engraving clouds, all in one dark-gold tone,
+// Light theme's sky — hand-drawn engraving clouds in five depth layers,
 // drifting past at their own speed with a gentle bob. The dark theme's
 // counterpart is StarfieldBackground above. Spans the same tall virtual area
 // as the starfield (rather than just the first viewport) so clouds keep
 // appearing down the whole scroll instead of only in the first screen.
 function CloudsBackground() {
   const isLight = useIsLightTheme();
-  const [clouds, setClouds] = useState(() => buildClouds(true));
+  const [layers, setLayers] = useState(() => buildCloudLayers(true));
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
@@ -1014,7 +1086,7 @@ function CloudsBackground() {
     // than patching props) whenever the app regains visibility, plus every
     // minute regardless, means a stall never lasts long.
     const refresh = () => {
-      setClouds(buildClouds(false));
+      setLayers(buildCloudLayers(false));
       setGeneration((g) => g + 1);
     };
     const onVisibility = () => {
@@ -1032,36 +1104,149 @@ function CloudsBackground() {
 
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${STARFIELD_HEIGHT_VH}vh`, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
-      {clouds.map((c, i) => (
+      {layers.map((layer, li) =>
+        layer.clouds.map((c, i) => (
+          <div
+            key={`${li}-${i}-${generation}`}
+            className="inka-cloud-drift"
+            style={{
+              top: `${c.top}%`,
+              animationDuration: `${c.driftDuration}s`,
+              animationDelay: `${c.driftDelay}s`,
+            }}
+          >
+            <div
+              className="inka-cloud-bob"
+              style={{
+                width: c.width,
+                height: c.width * 0.5,
+                backgroundColor: layer.color,
+                WebkitMaskImage: `url(${c.src})`,
+                maskImage: `url(${c.src})`,
+                WebkitMaskSize: 'contain',
+                maskSize: 'contain',
+                WebkitMaskRepeat: 'no-repeat',
+                maskRepeat: 'no-repeat',
+                WebkitMaskPosition: 'center',
+                maskPosition: 'center',
+                opacity: layer.opacity,
+                transform: c.flip ? 'scaleX(-1)' : undefined,
+                animationDuration: `${c.bobDuration}s`,
+                animationDelay: `${c.bobDelay}s`,
+              }}
+            />
+          </div>
+        )),
+      )}
+    </div>
+  );
+}
+
+// Muted per-type tints, all desaturated to sit quietly inside the warm light
+// palette (never bright): airships a soft burnt-amber, the balloon a pale,
+// washed-out brick red.
+const CRAFT_COLOR: Record<CraftType, string> = {
+  airship: '#9C6A34',
+  balloon: '#BE8E86',
+};
+// The balloon reads paler still — a lower opacity on top of its lighter tone.
+const CRAFT_OPACITY: Record<CraftType, number> = {
+  airship: 0.62,
+  balloon: 0.42,
+};
+
+// Per-type flight character. duration = seconds to cross the screen (airships
+// cruise, balloon barely moves); bobY = vertical float amplitude (balloon
+// floats highest); width in px; bob = seconds per float cycle.
+const CRAFT_MOTION: Record<CraftType, { width: [number, number]; duration: [number, number]; bobY: [number, number]; bob: [number, number] }> = {
+  airship: { width: [165, 215], duration: [78, 120], bobY: [8, 15], bob: [9, 13] },
+  balloon: { width: [78, 116], duration: [150, 230], bobY: [24, 40], bob: [7, 12] },
+};
+
+const rand = (min: number, max: number) => min + Math.random() * (max - min);
+
+function buildCraft(seeded: boolean) {
+  const band = 100 / AVIATION_SOURCES.length;
+  return AVIATION_SOURCES.map((craft, i) => {
+    const m = CRAFT_MOTION[craft.type];
+    // Right-moving craft use the forward drift and are flipped to face right;
+    // left-movers use the reversed drift and keep the sprites' native (left)
+    // facing. Balloons are symmetric, so the flip only sets travel direction.
+    const goesRight = Math.random() < 0.5;
+    return {
+      src: craft.src,
+      type: craft.type,
+      ar: craft.ar,
+      top: i * band + rand(-band * 0.3, band * 0.5),
+      width: rand(m.width[0], m.width[1]),
+      goesRight,
+      // Face travel direction: right-movers flip (sprites face left natively).
+      flip: craft.type === 'balloon' ? false : goesRight,
+      driftDuration: rand(m.duration[0], m.duration[1]),
+      driftDelay: seeded ? -rand(0, m.duration[1]) : rand(0, 15),
+      bobY: rand(m.bobY[0], m.bobY[1]),
+      bobDuration: rand(m.bob[0], m.bob[1]),
+      bobDelay: -rand(0, 8),
+    };
+  });
+}
+
+// Light theme's retro-aviation layer — airships and a balloon drifting across
+// the sky in front of the clouds, each with motion suited to its kind.
+function AviationBackground() {
+  const isLight = useIsLightTheme();
+  const [craft, setCraft] = useState(() => buildCraft(true));
+  const [generation, setGeneration] = useState(0);
+
+  useEffect(() => {
+    // Same stall-guard as the clouds: rebuild on regained visibility + hourly.
+    const refresh = () => {
+      setCraft(buildCraft(false));
+      setGeneration((g) => g + 1);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    const interval = setInterval(refresh, 60000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearInterval(interval);
+    };
+  }, []);
+
+  if (!isLight) return null;
+
+  return (
+    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${STARFIELD_HEIGHT_VH}vh`, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+      {craft.map((c, i) => (
         <div
           key={`${i}-${generation}`}
-          className="inka-cloud-drift"
-          style={{
-            top: `${c.top}%`,
-            animationDuration: `${c.driftDuration}s`,
-            animationDelay: `${c.driftDelay}s`,
-          }}
+          className={c.goesRight ? 'inka-cloud-drift' : 'inka-drift-rev'}
+          style={{ top: `${c.top}%`, animationDuration: `${c.driftDuration}s`, animationDelay: `${c.driftDelay}s` }}
         >
           <div
             className="inka-cloud-bob"
-            style={{
-              width: c.width,
-              height: c.width * 0.5,
-              backgroundColor: CLOUD_COLOR,
-              WebkitMaskImage: `url(${c.src})`,
-              maskImage: `url(${c.src})`,
-              WebkitMaskSize: 'contain',
-              maskSize: 'contain',
-              WebkitMaskRepeat: 'no-repeat',
-              maskRepeat: 'no-repeat',
-              WebkitMaskPosition: 'center',
-              maskPosition: 'center',
-              opacity: 0.6,
-              transform: c.flip ? 'scaleX(-1)' : undefined,
-              animationDuration: `${c.bobDuration}s`,
-              animationDelay: `${c.bobDelay}s`,
-            }}
-          />
+            style={{ ['--bob-y' as string]: `${c.bobY}px`, animationDuration: `${c.bobDuration}s`, animationDelay: `${c.bobDelay}s` } as React.CSSProperties}
+          >
+            <div
+              style={{
+                width: c.width,
+                height: c.width * c.ar,
+                backgroundColor: CRAFT_COLOR[c.type],
+                WebkitMaskImage: `url(${c.src})`,
+                maskImage: `url(${c.src})`,
+                WebkitMaskSize: 'contain',
+                maskSize: 'contain',
+                WebkitMaskRepeat: 'no-repeat',
+                maskRepeat: 'no-repeat',
+                WebkitMaskPosition: 'center',
+                maskPosition: 'center',
+                opacity: CRAFT_OPACITY[c.type],
+                transform: `scaleX(${c.flip ? -1 : 1})`,
+              }}
+            />
+          </div>
         </div>
       ))}
     </div>
@@ -1723,6 +1908,7 @@ export default function TattoDiary() {
         />
         <StarfieldBackground />
         <CloudsBackground />
+        <AviationBackground />
 
         {/* Safe-area / status spacer */}
         <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)', flexShrink: 0 }} />
@@ -3743,6 +3929,7 @@ function MasterDashboardScreen({
       />
       <StarfieldBackground />
       <CloudsBackground />
+      <AviationBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         {/* Settings now lives here rather than as its own top-level nav
@@ -4033,6 +4220,7 @@ function SettingsScreen({
       />
       <StarfieldBackground />
       <CloudsBackground />
+      <AviationBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -4405,6 +4593,7 @@ function SummaryScreen({
       />
       <StarfieldBackground />
       <CloudsBackground />
+      <AviationBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -4814,6 +5003,7 @@ function DetailScreen({
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px', background: COLORS.bg }}>
         <StarfieldBackground />
         <CloudsBackground />
+        <AviationBackground />
         {activeTab === 'sessions' && (
           <SessionsTab
             client={client}

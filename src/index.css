@@ -568,17 +568,65 @@ input[type='date'] {
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
+/* Right-to-left drift — same span, reversed, for craft that face left. */
+@keyframes inka-drift-rev {
+  from {
+    left: 185%;
+  }
+  to {
+    left: -85%;
+  }
+}
+.inka-drift-rev {
+  position: absolute;
+  animation-name: inka-drift-rev;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
 @keyframes inka-cloud-bob {
   0%,
   100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(14px);
+    /* Amplitude is per-element (balloons float higher than clouds drift); the
+       14px default keeps existing cloud bob unchanged. */
+    transform: translateY(var(--bob-y, 14px));
   }
 }
 .inka-cloud-bob {
   animation-name: inka-cloud-bob;
   animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Dark theme «звездопад» — a shooting star streaks down-left, visible only for
+   a slice of each cycle so passes stay occasional. The long transparent tail of
+   the cycle is the wait between meteors. Travel distance is set per-meteor via
+   the --mx / --my custom properties. */
+@keyframes inka-meteor {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(-45deg) scaleX(0.2);
+    opacity: 0;
+  }
+  4% {
+    opacity: 1;
+  }
+  18% {
+    transform: translate3d(calc(var(--mx) * 0.7), calc(var(--my) * 0.7), 0) rotate(-45deg) scaleX(1);
+    opacity: 1;
+  }
+  30% {
+    transform: translate3d(var(--mx), var(--my), 0) rotate(-45deg) scaleX(1);
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(var(--mx), var(--my), 0) rotate(-45deg) scaleX(1);
+    opacity: 0;
+  }
+}
+.inka-meteor {
+  animation-name: inka-meteor;
+  animation-timing-function: ease-in;
   animation-iteration-count: infinite;
 }
