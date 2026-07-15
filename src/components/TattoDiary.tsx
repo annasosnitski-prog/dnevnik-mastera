@@ -909,7 +909,7 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 // a long list/notes feed still reveals stars instead of running out.
 const STARFIELD_COUNT = 140;
 const STARFIELD_HEIGHT_VH = 300;
-const METEOR_COUNT = 7;
+const METEOR_COUNT = 4;
 // Cool blue-white star tone (a touch of blue, near-white), varied per star.
 const coolStar = () => `hsl(${205 + Math.random() * 22}, ${34 + Math.random() * 34}%, ${80 + Math.random() * 16}%)`;
 
@@ -931,19 +931,26 @@ function StarfieldBackground() {
     })),
   );
 
-  // Shooting stars — travel distance drives the CSS custom props; each is
-  // visible for only a slice of its cycle so passes stay occasional.
+  // Shooting stars — gold, and rarer: long cycles with only a brief visible
+  // window (see .inka-meteor). Direction varies per meteor — some fall
+  // down-left, some down-right — with the streak rotated to match its motion.
   const [meteors] = useState(() =>
     Array.from({ length: METEOR_COUNT }, () => {
-      const travel = 220 + Math.random() * 220;
+      const goesLeft = Math.random() < 0.5;
+      const rotDeg = goesLeft ? 135 : 45; // down-left vs down-right
+      const dist = 320 + Math.random() * 260;
+      const rad = (rotDeg * Math.PI) / 180;
       return {
-        left: 22 + Math.random() * 72,
-        top: Math.random() * 72,
+        left: goesLeft ? 45 + Math.random() * 40 : 15 + Math.random() * 40,
+        top: Math.random() * 60,
         length: 70 + Math.random() * 85,
-        mx: -travel,
-        my: travel,
-        duration: 7 + Math.random() * 9,
-        delay: -Math.random() * 16,
+        rot: rotDeg,
+        mx: Math.cos(rad) * dist,
+        my: Math.sin(rad) * dist,
+        // Longer cycles → rarer passes; big negative stagger so they don't all
+        // streak at once.
+        duration: 14 + Math.random() * 16,
+        delay: -Math.random() * 30,
       };
     }),
   );
@@ -1002,10 +1009,12 @@ function StarfieldBackground() {
             width: m.length,
             height: 2,
             borderRadius: 2,
-            background: 'linear-gradient(to left, rgba(223,236,255,0.95), rgba(190,215,255,0.35) 45%, transparent)',
-            boxShadow: '0 0 6px rgba(205,228,255,0.7)',
+            // Gold streak — bright head (right end) leads, trail fades behind.
+            background: 'linear-gradient(to right, transparent, rgba(228,190,110,0.4) 55%, rgba(240,208,140,0.98))',
+            boxShadow: '0 0 6px rgba(230,196,120,0.75)',
             ['--mx' as string]: `${m.mx}px`,
             ['--my' as string]: `${m.my}px`,
+            ['--rot' as string]: `${m.rot}deg`,
             animationDuration: `${m.duration}s`,
             animationDelay: `${m.delay}s`,
           } as React.CSSProperties}
@@ -1034,11 +1043,11 @@ function useIsLightTheme(): boolean {
 // render in this order, so nearer (darker) layers overlap the distant paler
 // ones — the closest-to-the-viewer clouds read darkest.
 const CLOUD_LAYERS = [
-  { color: '#D0C29B', scale: 0.56, durationMul: 1.85, opacity: 0.38, count: 7 }, // far / lightest
-  { color: '#B6A06E', scale: 0.73, durationMul: 1.45, opacity: 0.45, count: 7 },
-  { color: '#957842', scale: 0.92, durationMul: 1.15, opacity: 0.5, count: 6 },
-  { color: '#6D5220', scale: 1.13, durationMul: 0.92, opacity: 0.55, count: 6 },
-  { color: '#493611', scale: 1.38, durationMul: 0.72, opacity: 0.6, count: 6 }, // near / darkest
+  { color: '#D0C29B', scale: 0.56, durationMul: 1.85, opacity: 0.38, count: 35 }, // far / lightest
+  { color: '#B6A06E', scale: 0.73, durationMul: 1.45, opacity: 0.45, count: 35 },
+  { color: '#957842', scale: 0.92, durationMul: 1.15, opacity: 0.5, count: 30 },
+  { color: '#6D5220', scale: 1.13, durationMul: 0.92, opacity: 0.55, count: 30 },
+  { color: '#493611', scale: 1.38, durationMul: 0.72, opacity: 0.6, count: 30 }, // near / darkest
 ];
 
 // Width is capped well under what the drift keyframes' off-screen margin
@@ -1078,26 +1087,22 @@ function CloudsBackground() {
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
-    // Long-running infinite CSS animations can silently stall on mobile
-    // browsers (tab throttling, a PWA backgrounded by screen lock/app
-    // switch) — a couple of minutes parked on one screen was enough for the
-    // sky to freeze and stay frozen. Rebuilding the cloud elements from
-    // scratch (fresh key, so React actually recreates the DOM nodes rather
-    // than patching props) whenever the app regains visibility, plus every
-    // minute regardless, means a stall never lasts long.
-    const refresh = () => {
-      setLayers(buildCloudLayers(false));
-      setGeneration((g) => g + 1);
-    };
+    // A backgrounded PWA (screen lock / app switch) can freeze the CSS drift.
+    // Rebuild the cloud elements from scratch (fresh key, so React recreates
+    // the DOM nodes) only when the app regains visibility — the user isn't
+    // watching while it's hidden, so the reshuffle is unseen. Crucially there
+    // is NO periodic timer: rebuilding while the user watches would make
+    // mid-screen clouds vanish and new ones pop in. During active viewing the
+    // animations just run continuously, so every cloud enters from beyond one
+    // edge and exits past the other, never appearing/disappearing mid-screen.
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') refresh();
+      if (document.visibilityState === 'visible') {
+        setLayers(buildCloudLayers(false));
+        setGeneration((g) => g + 1);
+      }
     };
     document.addEventListener('visibilitychange', onVisibility);
-    const interval = setInterval(refresh, 60000);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      clearInterval(interval);
-    };
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   if (!isLight) return null;
@@ -1199,20 +1204,16 @@ function AviationBackground() {
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
-    // Same stall-guard as the clouds: rebuild on regained visibility + hourly.
-    const refresh = () => {
-      setCraft(buildCraft(false));
-      setGeneration((g) => g + 1);
-    };
+    // Same as the clouds: rebuild only on regained visibility (never on a
+    // timer), so craft never pop in/out mid-screen while the user is watching.
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') refresh();
+      if (document.visibilityState === 'visible') {
+        setCraft(buildCraft(false));
+        setGeneration((g) => g + 1);
+      }
     };
     document.addEventListener('visibilitychange', onVisibility);
-    const interval = setInterval(refresh, 60000);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      clearInterval(interval);
-    };
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   if (!isLight) return null;
@@ -2454,16 +2455,21 @@ export default function TattoDiary() {
           background: COLORS.bg,
         }}
       >
-        <SettingsScreen
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          prefs={prefs}
-          onChange={setPrefs}
-          masterInfo={masterInfo}
-          onChangeMasterInfo={setMasterInfo}
-          calendarSync={calendarSync}
-          onChangeCalendarSync={setCalendarSync}
-        />
+        {/* Gated like the summary/master screens so its (now much denser) sky
+            layer only mounts while Settings is open, not permanently behind the
+            list. */}
+        {screen === 'settings' && (
+          <SettingsScreen
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            prefs={prefs}
+            onChange={setPrefs}
+            masterInfo={masterInfo}
+            onChangeMasterInfo={setMasterInfo}
+            calendarSync={calendarSync}
+            onChangeCalendarSync={setCalendarSync}
+          />
+        )}
       </div>
 
       {/* ═══════════ DETAIL SCREEN ═══════════ */}

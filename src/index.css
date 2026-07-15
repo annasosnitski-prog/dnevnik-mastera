@@ -600,28 +600,29 @@ input[type='date'] {
   animation-iteration-count: infinite;
 }
 
-/* Dark theme «звездопад» — a shooting star streaks down-left, visible only for
-   a slice of each cycle so passes stay occasional. The long transparent tail of
-   the cycle is the wait between meteors. Travel distance is set per-meteor via
-   the --mx / --my custom properties. */
+/* Dark theme «звездопад» — a shooting star streaks across the sky, visible for
+   only a small slice of each cycle so passes stay rare. The long transparent
+   tail of the cycle is the wait between meteors. Travel is set per-meteor via
+   --mx / --my; direction (down-left vs down-right) via --rot so the streak
+   aligns with its motion. */
 @keyframes inka-meteor {
   0% {
-    transform: translate3d(0, 0, 0) rotate(-45deg) scaleX(0.2);
+    transform: translate3d(0, 0, 0) rotate(var(--rot, 135deg)) scaleX(0.2);
     opacity: 0;
   }
-  4% {
+  3% {
     opacity: 1;
   }
-  18% {
-    transform: translate3d(calc(var(--mx) * 0.7), calc(var(--my) * 0.7), 0) rotate(-45deg) scaleX(1);
+  10% {
+    transform: translate3d(calc(var(--mx) * 0.6), calc(var(--my) * 0.6), 0) rotate(var(--rot, 135deg)) scaleX(1);
     opacity: 1;
   }
-  30% {
-    transform: translate3d(var(--mx), var(--my), 0) rotate(-45deg) scaleX(1);
+  17% {
+    transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
     opacity: 0;
   }
   100% {
-    transform: translate3d(var(--mx), var(--my), 0) rotate(-45deg) scaleX(1);
+    transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
     opacity: 0;
   }
 }
