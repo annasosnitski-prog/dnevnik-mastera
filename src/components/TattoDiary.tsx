@@ -1408,8 +1408,9 @@ interface MasterInfo {
   links: MasterLink[];
   bankDetails: string;
   colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
+  notes: ClientNote[]; // the master's own notes (not tied to any client), shown in «Задачи»
 }
-const DEFAULT_MASTER_INFO: MasterInfo = { name: '', links: [], bankDetails: '', colorLabels: {} };
+const DEFAULT_MASTER_INFO: MasterInfo = { name: '', links: [], bankDetails: '', colorLabels: {}, notes: [] };
 
 function readInitialMasterInfo(): MasterInfo {
   try {
@@ -1423,6 +1424,16 @@ function readInitialMasterInfo(): MasterInfo {
           : [],
         bankDetails: typeof p.bankDetails === 'string' ? p.bankDetails : '',
         colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
+        notes: Array.isArray(p.notes)
+          ? p.notes.map((n: any, i: number): ClientNote => ({
+              id: String(n?.id ?? `${Date.now()}-m${i}`),
+              text: n?.text ?? '',
+              urgency: URGENCY.some((u) => u.key === n?.urgency) ? n.urgency : LEGACY_URGENCY_MAP[n?.urgency] ?? 'normal',
+              done: Boolean(n?.done),
+              createdDate: n?.createdDate ?? new Date().toISOString(),
+              photos: Array.isArray(n?.photos) ? n.photos : [],
+            }))
+          : [],
       };
     }
   } catch {
@@ -1505,6 +1516,14 @@ export default function TattoDiary() {
   const [showAddChoice, setShowAddChoice] = useState(false);
   const [showNewConsultationForm, setShowNewConsultationForm] = useState(false);
   const [editConsultation, setEditConsultation] = useState<Consultation | null>(null);
+  // Read-only fullscreen viewer for a consultation or a session, opened by
+  // tapping the card body (the pencil still edits). Holds the client id so the
+  // viewer always reflects the latest stored copy even after an edit.
+  const [viewEntry, setViewEntry] = useState<
+    | { kind: 'session'; clientId: string; id: string }
+    | { kind: 'consultation'; clientId: string; id: string }
+    | null
+  >(null);
 
   // Bumped whenever a new client is created, to (re)trigger the star-shower
   // celebration overlay — see <CelebrationBurst>. celebrationCount captures
@@ -1864,7 +1883,13 @@ export default function TattoDiary() {
     setEditSession(null);
   };
 
-  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm || showNewConsultationForm || showAddChoice;
+  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm || showNewConsultationForm || showAddChoice || !!viewEntry;
+
+  // Resolve the entry being viewed to its latest stored copy (so an edit made
+  // from the viewer is reflected if it reopens).
+  const viewClient = viewEntry ? clients.find((c) => c.id === viewEntry.clientId) ?? null : null;
+  const viewedSession = viewEntry?.kind === 'session' ? viewClient?.sessions.find((s) => s.id === viewEntry.id) ?? null : null;
+  const viewedConsultation = viewEntry?.kind === 'consultation' ? viewClient?.consultations.find((c) => c.id === viewEntry.id) ?? null : null;
 
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
@@ -2379,21 +2404,31 @@ export default function TattoDiary() {
         {screen === 'summary' && (
           <SummaryScreen
             clients={clients}
+            masterNotes={masterInfo.notes}
             onToggleDone={(clientId, note) => upsertNote(clientId, note)}
             onEditNote={(clientId, note) => upsertNote(clientId, note)}
+            onDeleteNote={(clientId, noteId) => deleteNote(clientId, noteId)}
             onOpenClient={(id) => {
               setSelectedId(id);
               setActiveTab('extra');
               setScreen('detail');
             }}
             onOpenConsultation={(clientId, consultationId) => {
-              const client = clients.find((c) => c.id === clientId);
-              const consultation = client?.consultations.find((c) => c.id === consultationId);
-              if (!client || !consultation) return;
-              setSelectedId(client.id);
-              setEditConsultation(consultation);
-              setShowNewConsultationForm(true);
+              // Tap opens the read-only fullscreen viewer (not the edit form).
+              setViewEntry({ kind: 'consultation', clientId, id: consultationId });
             }}
+            onAddMasterNote={(text, urgency, photos) =>
+              setMasterInfo({
+                ...masterInfo,
+                notes: [
+                  ...masterInfo.notes,
+                  { id: Date.now().toString(), text, urgency, done: false, createdDate: new Date().toISOString(), photos },
+                ],
+              })
+            }
+            onToggleMasterDone={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
+            onEditMasterNote={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
+            onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
           />
         )}
       </div>
@@ -2500,6 +2535,8 @@ export default function TattoDiary() {
             onToggleSessionDone={toggleSessionDone}
             onEditConsultation={(consultation) => { setEditConsultation(consultation); setShowNewConsultationForm(true); }}
             onDeleteConsultation={deleteConsultation}
+            onViewSession={(session) => setViewEntry({ kind: 'session', clientId: selectedClient.id, id: session.id })}
+            onViewConsultation={(consultation) => setViewEntry({ kind: 'consultation', clientId: selectedClient.id, id: consultation.id })}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
             onRemoveDocument={(docId) =>
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
@@ -2594,6 +2631,25 @@ export default function TattoDiary() {
         initial={editConsultation}
         onClose={closeNewConsultation}
         onAdd={handleAddConsultation}
+      />
+
+      {/* ═══════════ TIMELINE VIEWER (read-only consultation / session) ═══════════ */}
+      <TimelineViewSheet
+        open={!!viewEntry && (!!viewedSession || !!viewedConsultation)}
+        session={viewedSession}
+        consultation={viewedConsultation}
+        onClose={() => setViewEntry(null)}
+        onEdit={() => {
+          if (viewEntry) setSelectedId(viewEntry.clientId);
+          if (viewedConsultation) {
+            setEditConsultation(viewedConsultation);
+            setShowNewConsultationForm(true);
+          } else if (viewedSession) {
+            setEditSession(viewedSession);
+            setShowNewSessionForm(true);
+          }
+          setViewEntry(null);
+        }}
       />
 
       {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
@@ -4525,16 +4581,28 @@ function SettingsScreen({
 // (🍀) notes; toggling done fades a note out.
 function SummaryScreen({
   clients,
+  masterNotes,
   onToggleDone,
   onEditNote,
+  onDeleteNote,
   onOpenClient,
   onOpenConsultation,
+  onAddMasterNote,
+  onToggleMasterDone,
+  onEditMasterNote,
+  onDeleteMasterNote,
 }: {
   clients: Client[];
+  masterNotes: ClientNote[];
   onToggleDone: (clientId: string, note: ClientNote) => void;
   onEditNote: (clientId: string, note: ClientNote) => void;
+  onDeleteNote: (clientId: string, noteId: string) => void;
   onOpenClient: (id: string) => void;
   onOpenConsultation: (clientId: string, consultationId: string) => void;
+  onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
+  onToggleMasterDone: (note: ClientNote) => void;
+  onEditMasterNote: (note: ClientNote) => void;
+  onDeleteMasterNote: (noteId: string) => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
@@ -4547,8 +4615,12 @@ function SummaryScreen({
     .filter(({ consultation }) => !consultation.done)
     .sort((a, b) => (a.consultation.date || '').localeCompare(b.consultation.date || ''));
 
-  const items = clients
-    .flatMap((c) => c.notes.map((note) => ({ note, client: c })))
+  // Client notes + the master's own (client-less) notes, one flat list.
+  type NoteEntry = { note: ClientNote; client: Client | null };
+  const items: NoteEntry[] = [
+    ...masterNotes.map((note): NoteEntry => ({ note, client: null })),
+    ...clients.flatMap((c) => c.notes.map((note): NoteEntry => ({ note, client: c }))),
+  ]
     .filter(({ note }) => {
       if (!showClosed && note.done) return false;
       if (filter !== 'all' && note.urgency !== filter) return false;
@@ -4559,6 +4631,7 @@ function SummaryScreen({
       const r = urgencyRank(a.note.urgency) - urgencyRank(b.note.urgency);
       return r !== 0 ? r : b.note.createdDate.localeCompare(a.note.createdDate);
     });
+  const hasAnyNote = masterNotes.length > 0 || clients.some((c) => c.notes.length);
 
   const filterChip = (label: string, active: boolean, onClick: () => void) => (
     <div
@@ -4675,23 +4748,46 @@ function SummaryScreen({
         </div>
       </div>
 
-      {/* Aggregated notes */}
+      {/* New general note — not tied to any client (stored on the master). */}
+      <div style={{ padding: '16px 20px 0', position: 'relative', zIndex: 1 }}>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+          Новая общая заметка
+        </div>
+        <NoteComposer onAdd={onAddMasterNote} />
+      </div>
+
+      {/* Aggregated notes (client + general) */}
       <div style={{ padding: '16px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.length === 0 ? (
-          <div style={{ textAlign: 'center', marginTop: 40, fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic' }}>
-            {clients.some((c) => c.notes.length) ? 'Нет заметок по этому фильтру' : 'Заметок пока нет'}
+          <div style={{ textAlign: 'center', marginTop: 24, fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic' }}>
+            {hasAnyNote ? 'Нет заметок по этому фильтру' : 'Заметок пока нет'}
           </div>
         ) : (
-          items.map(({ note, client }) => (
-            <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
-              <NoteItem
-                note={note}
-                client={client}
-                onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
-                onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
-              />
-            </div>
-          ))
+          items.map(({ note, client }) =>
+            client ? (
+              <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
+                <NoteItem
+                  note={note}
+                  client={client}
+                  onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
+                  onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
+                  onDelete={() => onDeleteNote(client.id, note.id)}
+                />
+              </div>
+            ) : (
+              <div key={`master-${note.id}`}>
+                <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 4, marginLeft: 2 }}>
+                  Общая заметка
+                </div>
+                <NoteItem
+                  note={note}
+                  onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
+                  onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
+                  onDelete={() => onDeleteMasterNote(note.id)}
+                />
+              </div>
+            ),
+          )
         )}
       </div>
     </div>
@@ -4760,6 +4856,88 @@ function HeaderCollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onT
   );
 }
 
+// The client's cover note ("Заметки о клиенте"), editable inline from the hero
+// (tap the pencil or the text). Saves straight through onSave — no need to open
+// the full client-edit form for a quick note change.
+function CoverNoteEditor({ client, onSave }: { client: Client; onSave: (c: Client) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(client.note);
+  useEffect(() => {
+    if (!editing) setDraft(client.note);
+  }, [client.note, editing]);
+
+  const save = () => {
+    onSave({ ...client, note: draft.trim() });
+    setEditing(false);
+  };
+
+  const labelRow = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+      <div style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase' }}>
+        Заметки о клиенте
+      </div>
+      {!editing && (
+        <span onClick={() => setEditing(true)} title="Редактировать" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.7 }}>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+            <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+          </svg>
+        </span>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      {labelRow}
+      {editing ? (
+        <div>
+          <textarea
+            dir="auto"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Идеи, пожелания, особенности..."
+            style={{
+              width: '100%',
+              background: 'rgba(var(--surface-rgb),0.03)',
+              border: '1px solid rgba(var(--gold-rgb),0.3)',
+              borderRadius: 2,
+              padding: '9px 11px',
+              fontFamily: "'Inter', sans-serif",
+              color: COLORS.textPrimary,
+              outline: 'none',
+              resize: 'none',
+              height: 90,
+              fontStyle: 'italic',
+              lineHeight: 1.5,
+            }}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <div onClick={save} style={{ flex: 1, padding: '7px 12px', textAlign: 'center', border: '1px solid rgba(var(--gold-rgb),0.3)', borderRadius: 2, cursor: 'pointer', color: COLORS.gold, fontSize: fs(11), letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+              Сохранить
+            </div>
+            <div onClick={() => { setDraft(client.note); setEditing(false); }} style={{ flex: 1, padding: '7px 12px', textAlign: 'center', border: '1px solid rgba(var(--gold-rgb),0.15)', borderRadius: 2, cursor: 'pointer', color: COLORS.textFaint, fontSize: fs(11), letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+              Отмена
+            </div>
+          </div>
+        </div>
+      ) : client.note ? (
+        <div
+          onClick={() => setEditing(true)}
+          dir="auto"
+          style={{ fontSize: fs(15), color: 'var(--text-soft)', fontStyle: 'italic', lineHeight: 1.5, cursor: 'pointer', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+        >
+          {client.note}
+        </div>
+      ) : (
+        <div onClick={() => setEditing(true)} style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer' }}>
+          Добавить заметку…
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ===================== DETAIL SCREEN =====================
 function DetailScreen({
   client,
@@ -4775,6 +4953,8 @@ function DetailScreen({
   onToggleSessionDone,
   onEditConsultation,
   onDeleteConsultation,
+  onViewSession,
+  onViewConsultation,
   onAddDocument,
   onRemoveDocument,
   onUpsertNote,
@@ -4794,6 +4974,8 @@ function DetailScreen({
   onToggleSessionDone: (sessionId: string) => void;
   onEditConsultation: (consultation: Consultation) => void;
   onDeleteConsultation: (consultationId: string) => void;
+  onViewSession: (session: Session) => void;
+  onViewConsultation: (consultation: Consultation) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
@@ -4912,29 +5094,10 @@ function DetailScreen({
               <HeaderCollapseToggle collapsed={headerCollapsed} onToggle={() => setHeaderCollapsed((v) => !v)} />
             </div>
 
-            {/* Notes about the client — moved up into the header (per design). */}
-            {client.note && (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 6 }}>
-                  Заметки о клиенте
-                </div>
-                <div
-                  dir="auto"
-                  style={{
-                    fontSize: fs(15),
-                    color: 'var(--text-soft)',
-                    fontStyle: 'italic',
-                    lineHeight: 1.5,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 4,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {client.note}
-                </div>
-              </div>
-            )}
+            {/* Notes about the client — in the header, editable inline (tap the
+                pencil or the text) so it can be changed without opening the
+                full client-edit form. */}
+            <CoverNoteEditor client={client} onSave={onSave} />
           </div>
         )}
 
@@ -5018,6 +5181,8 @@ function DetailScreen({
             onToggleSessionDone={onToggleSessionDone}
             onEditConsultation={onEditConsultation}
             onDeleteConsultation={onDeleteConsultation}
+            onViewSession={onViewSession}
+            onViewConsultation={onViewConsultation}
           />
         )}
         {activeTab === 'info' && (
@@ -6030,6 +6195,7 @@ function SessionPhotos({
   allowDelete = true,
   buttonFirst = false,
   topSlot,
+  readOnly = false,
 }: {
   photos: string[];
   onChange: (photos: string[]) => void;
@@ -6041,6 +6207,9 @@ function SessionPhotos({
   // remaining space below.
   buttonFirst?: boolean;
   topSlot?: React.ReactNode;
+  // Read-only: just the thumbnails (tap-to-enlarge still works), no "Добавить
+  // фото" button — used in timeline/preview cards.
+  readOnly?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
@@ -6165,7 +6334,9 @@ function SessionPhotos({
 
   return (
     <div style={{ marginTop: 10 }}>
-      {buttonFirst ? (
+      {readOnly ? (
+        thumbnails
+      ) : buttonFirst ? (
         <>
           <div style={{ marginBottom: thumbnails ? 10 : 0 }}>{addButton}</div>
           {topSlot}
@@ -6177,17 +6348,19 @@ function SessionPhotos({
           {addButton}
         </>
       )}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        multiple
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          onPick(e.target.files);
-          e.target.value = '';
-        }}
-      />
+      {!readOnly && (
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            onPick(e.target.files);
+            e.target.value = '';
+          }}
+        />
+      )}
 
       {/* Tap-to-enlarge viewer — plain in-app overlay, no <a>/navigation. */}
       {viewerSrc && (
@@ -6241,6 +6414,8 @@ function SessionsTab({
   onToggleSessionDone,
   onEditConsultation,
   onDeleteConsultation,
+  onViewSession,
+  onViewConsultation,
 }: {
   client: Client;
   onEditSession: (session: Session) => void;
@@ -6249,6 +6424,8 @@ function SessionsTab({
   onToggleSessionDone: (sessionId: string) => void;
   onEditConsultation: (consultation: Consultation) => void;
   onDeleteConsultation: (consultationId: string) => void;
+  onViewSession: (session: Session) => void;
+  onViewConsultation: (consultation: Consultation) => void;
 }) {
   // Sessions and consultations share one dated timeline — most recent first,
   // undated entries sink to the bottom.
@@ -6288,12 +6465,14 @@ function SessionsTab({
                 <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
               </div>
               <div
+                onClick={() => onViewConsultation(consultation)}
                 style={{
                   flex: 1,
                   background: 'rgba(var(--surface-rgb),0.018)',
                   border: '1px solid rgba(var(--gold-rgb),0.22)',
                   borderRadius: 2,
                   padding: '12px 14px',
+                  cursor: 'pointer',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
@@ -6304,7 +6483,9 @@ function SessionsTab({
                       {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+                  {/* Controls sit outside the card's tap-to-view: their own clicks
+                      must not also open the viewer. */}
+                  <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
                     <span style={{ fontSize: fs(13) }} title={meta.label}>{meta.emoji}</span>
                     <div
                       className="inka-back"
@@ -6319,6 +6500,12 @@ function SessionsTab({
                     <SessionDeleteControl onDelete={() => onDeleteConsultation(consultation.id)} />
                   </div>
                 </div>
+                {/* Photos moved up — right under the header — and read-only here. */}
+                {consultation.photos.length > 0 && (
+                  <div onClick={(e) => e.stopPropagation()} style={{ marginBottom: 4 }}>
+                    <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} readOnly />
+                  </div>
+                )}
                 {(consultation.area || consultation.style) && (
                   <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
                     {[consultation.area, consultation.style].filter(Boolean).join(' · ')}
@@ -6344,7 +6531,6 @@ function SessionsTab({
                     <SessionMeta label="Креатив" value={consultation.creative} />
                   </div>
                 )}
-                <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} />
               </div>
             </div>
           );
@@ -6368,12 +6554,14 @@ function SessionsTab({
               <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
             </div>
             <div
+              onClick={() => onViewSession(session)}
               style={{
                 flex: 1,
                 background: 'rgba(var(--surface-rgb),0.018)',
                 border: '1px solid rgba(var(--gold-rgb),0.1)',
                 borderRadius: 2,
                 padding: '12px 14px',
+                cursor: 'pointer',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
@@ -6385,7 +6573,7 @@ function SessionsTab({
                     <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
                   {!session.done && (
                     <span
                       onClick={() => onToggleSessionDone(session.id)}
@@ -6441,11 +6629,13 @@ function SessionsTab({
                   {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
                 </div>
               )}
-              <SessionPhotos
-                photos={session.photos}
-                onChange={(photos) => onUpdateSessionPhotos(session.id, photos)}
-                allowDelete={false}
-              />
+              <div onClick={(e) => e.stopPropagation()}>
+                <SessionPhotos
+                  photos={session.photos}
+                  onChange={(photos) => onUpdateSessionPhotos(session.id, photos)}
+                  allowDelete={false}
+                />
+              </div>
             </div>
           </div>
         );
@@ -6904,6 +7094,104 @@ function AttachmentsSection({
 }
 
 // ===================== BOTTOM SHEET SHELL =====================
+// Read-only fullscreen viewer for a consultation or session — opened by tapping
+// a timeline/Задачи card. A single «Редактировать» button drops into the edit
+// form. Everything else is display-only.
+function ViewField({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <div>
+      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+      <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{value}</div>
+    </div>
+  );
+}
+
+function TimelineViewSheet({
+  open,
+  session,
+  consultation,
+  onClose,
+  onEdit,
+}: {
+  open: boolean;
+  session: Session | null;
+  consultation: Consultation | null;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const isConsult = !!consultation;
+  const dateLine = (() => {
+    const d = isConsult ? consultation!.date : session?.date ?? '';
+    const t = isConsult ? consultation!.time : session?.time ?? '';
+    return [formatDate(d) || 'Дата не указана', t].filter(Boolean).join(' · ');
+  })();
+  const urgency = consultation ? urgencyMeta(consultation.urgency) : null;
+
+  return (
+    <BottomSheet open={open} heightPct={94}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ marginBottom: 5 }}>
+          <InkaLogo height={fs(15)} />
+        </div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
+          {isConsult ? 'Консультация' : session?.name || 'Сессия'}
+        </div>
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 4, letterSpacing: '0.3px' }}>{dateLine}</div>
+        <SheetStarDivider />
+      </div>
+
+      <div style={{ padding: '4px 24px 60px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {isConsult && consultation ? (
+          <>
+            {consultation.photos.length > 0 && <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} readOnly />}
+            <ViewField label="Место" value={consultation.area} />
+            <ViewField label="Общие заметки" value={consultation.generalNotes} />
+            <ViewField label="Чувство / ощущение" value={consultation.feeling} />
+            <ViewField label="Источники вдохновения" value={consultation.inspirationSources} />
+            <ViewField label="Креатив" value={consultation.creative} />
+            <ViewField label="Техника и стиль" value={consultation.style} />
+            {urgency && <ViewField label="Срочность" value={`${urgency.emoji} ${urgency.label}`} />}
+          </>
+        ) : session ? (
+          <>
+            {session.photos.length > 0 && <SessionPhotos photos={session.photos} onChange={() => {}} allowDelete={false} readOnly />}
+            <ViewField label="Статус" value={session.done ? 'Выполнена' : 'Запланирована'} />
+            <ViewField label="Длительность" value={session.duration} />
+            <ViewField label="Место" value={session.area} />
+            <ViewField label="Стиль" value={session.style} />
+            <ViewField label="Заметка" value={session.note} />
+            <ViewField label="Краски" value={session.colors} />
+            <ViewField label="Иглы" value={session.needles} />
+            <ViewField label="Реакция кожи" value={session.skinReaction} />
+          </>
+        ) : null}
+
+        <div
+          className="inka-submit"
+          onClick={onEdit}
+          style={{
+            border: '1px solid rgba(var(--gold-rgb),0.35)',
+            borderRadius: 2,
+            padding: '12px 0',
+            textAlign: 'center',
+            cursor: 'pointer',
+            background: 'rgba(var(--gold-rgb),0.05)',
+            fontSize: fs(13),
+            color: COLORS.gold,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            marginTop: 6,
+          }}
+        >
+          Редактировать
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
 function BottomSheet({
   open,
   heightPct,
