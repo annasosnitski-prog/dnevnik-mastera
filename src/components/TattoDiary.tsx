@@ -910,13 +910,12 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 const STARFIELD_COUNT = 140;
 const STARFIELD_HEIGHT_VH = 300;
 const METEOR_COUNT = 4;
-// Cool blue-white star tone (a touch of blue, near-white), varied per star.
-const coolStar = () => `hsl(${205 + Math.random() * 22}, ${34 + Math.random() * 34}%, ${80 + Math.random() * 16}%)`;
+// Warm gold star tone, varied per star (hue fixed at 45, lightness varies).
+const goldStar = () => `hsl(45, ${68 + Math.random() * 14}%, ${56 + Math.random() * 30}%)`;
 
-// Dark theme's sky: twinkling blue-white stars and an occasional «звездопад»
-// (meteors streaking down-left). The light theme's counterpart is
-// CloudsBackground — so this renders only in the dark theme (blue-white stars
-// looked out of place speckling the cream light background).
+// Dark theme's sky: twinkling gold stars and an occasional «звездопад» (gold
+// meteors). The light theme's counterpart is CloudsBackground — so this renders
+// only in the dark theme (the field would just wash out on cream).
 function StarfieldBackground() {
   const isLight = useIsLightTheme();
   const [stars] = useState(() =>
@@ -924,7 +923,7 @@ function StarfieldBackground() {
       x: Math.random() * 100,
       y: Math.random() * 100,
       size: 1.2 + Math.random() * 2.2,
-      color: coolStar(),
+      color: goldStar(),
       duration: 1.8 + Math.random() * 3.4,
       delay: Math.random() * 4,
       sparkle: Math.random() < 0.16,
