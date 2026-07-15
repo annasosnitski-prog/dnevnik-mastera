@@ -910,51 +910,77 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 const STARFIELD_COUNT = 140;
 const STARFIELD_HEIGHT_VH = 300;
 const METEOR_COUNT = 4;
+// Fixed epoch every background animation delay is measured from, so a cloud /
+// star / craft is at the same phase in every screen regardless of when that
+// screen mounted — screen transitions no longer show the sky jump.
+const SKY_EPOCH = Date.now();
 // Warm gold star tone, varied per star (hue fixed at 45, lightness varies).
 const goldStar = () => `hsl(45, ${68 + Math.random() * 14}%, ${56 + Math.random() * 30}%)`;
 
+function buildStars() {
+  return Array.from({ length: STARFIELD_COUNT }, () => ({
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: 1.2 + Math.random() * 2.2,
+    color: goldStar(),
+    duration: 1.8 + Math.random() * 3.4,
+    baseDelay: Math.random() * 4,
+    sparkle: Math.random() < 0.16,
+  }));
+}
+// Shooting stars — gold, rarer (long cycles, brief visible window). Direction
+// varies (down-left / down-right), streak rotated to match its motion.
+function buildMeteors() {
+  return Array.from({ length: METEOR_COUNT }, () => {
+    const goesLeft = Math.random() < 0.5;
+    const rotDeg = goesLeft ? 135 : 45;
+    const dist = 320 + Math.random() * 260;
+    const rad = (rotDeg * Math.PI) / 180;
+    return {
+      left: goesLeft ? 45 + Math.random() * 40 : 15 + Math.random() * 40,
+      top: Math.random() * 60,
+      length: 70 + Math.random() * 85,
+      rot: rotDeg,
+      mx: Math.cos(rad) * dist,
+      my: Math.sin(rad) * dist,
+      duration: 14 + Math.random() * 16,
+      baseDelay: Math.random() * 30,
+    };
+  });
+}
+// Shared once, so the starfield is identical on every screen.
+let sharedStars: ReturnType<typeof buildStars> | null = null;
+let sharedMeteors: ReturnType<typeof buildMeteors> | null = null;
+function getStars() {
+  if (!sharedStars) sharedStars = buildStars();
+  return sharedStars;
+}
+function getMeteors() {
+  if (!sharedMeteors) sharedMeteors = buildMeteors();
+  return sharedMeteors;
+}
+
 // Dark theme's sky: twinkling gold stars and an occasional «звездопад» (gold
 // meteors). The light theme's counterpart is CloudsBackground — so this renders
-// only in the dark theme (the field would just wash out on cream).
+// only in the dark theme. Shares one layout across screens with delays anchored
+// to SKY_EPOCH, so the field holds still through screen transitions.
 function StarfieldBackground() {
   const isLight = useIsLightTheme();
-  const [stars] = useState(() =>
-    Array.from({ length: STARFIELD_COUNT }, () => ({
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: 1.2 + Math.random() * 2.2,
-      color: goldStar(),
-      duration: 1.8 + Math.random() * 3.4,
-      delay: Math.random() * 4,
-      sparkle: Math.random() < 0.16,
-    })),
-  );
+  const [, setTick] = useState(0);
 
-  // Shooting stars — gold, and rarer: long cycles with only a brief visible
-  // window (see .inka-meteor). Direction varies per meteor — some fall
-  // down-left, some down-right — with the streak rotated to match its motion.
-  const [meteors] = useState(() =>
-    Array.from({ length: METEOR_COUNT }, () => {
-      const goesLeft = Math.random() < 0.5;
-      const rotDeg = goesLeft ? 135 : 45; // down-left vs down-right
-      const dist = 320 + Math.random() * 260;
-      const rad = (rotDeg * Math.PI) / 180;
-      return {
-        left: goesLeft ? 45 + Math.random() * 40 : 15 + Math.random() * 40,
-        top: Math.random() * 60,
-        length: 70 + Math.random() * 85,
-        rot: rotDeg,
-        mx: Math.cos(rad) * dist,
-        my: Math.sin(rad) * dist,
-        // Longer cycles → rarer passes; big negative stagger so they don't all
-        // streak at once.
-        duration: 14 + Math.random() * 16,
-        delay: -Math.random() * 30,
-      };
-    }),
-  );
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') setTick((t) => t + 1);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   if (isLight) return null;
+
+  const stars = getStars();
+  const meteors = getMeteors();
+  const elapsed = (Date.now() - SKY_EPOCH) / 1000;
 
   return (
     <div
@@ -985,7 +1011,7 @@ function StarfieldBackground() {
             background: s.sparkle ? 'transparent' : s.color,
             boxShadow: s.sparkle ? 'none' : `0 0 ${s.size * 2}px ${s.color}`,
             animationDuration: `${s.duration}s`,
-            animationDelay: `${s.delay}s`,
+            animationDelay: `${-(elapsed + s.baseDelay)}s`,
           }}
         >
           {s.sparkle && (
@@ -1015,7 +1041,7 @@ function StarfieldBackground() {
             ['--my' as string]: `${m.my}px`,
             ['--rot' as string]: `${m.rot}deg`,
             animationDuration: `${m.duration}s`,
-            animationDelay: `${m.delay}s`,
+            animationDelay: `${-(elapsed + m.baseDelay)}s`,
           } as React.CSSProperties}
         />
       ))}
@@ -1052,7 +1078,7 @@ const CLOUD_LAYERS = [
 // Width is capped well under what the drift keyframes' off-screen margin
 // (see .inka-cloud-drift in index.css) can hide, so a cloud never pops into
 // view mid-screen — it always slides in from past the edge.
-function buildCloudLayers(seeded: boolean) {
+function buildCloudLayers() {
   return CLOUD_LAYERS.map((layer) => {
     const band = 100 / layer.count;
     const offset = Math.floor(Math.random() * CLOUD_SOURCES.length);
@@ -1064,41 +1090,45 @@ function buildCloudLayers(seeded: boolean) {
       width: (160 + Math.random() * 100) * layer.scale,
       flip: Math.random() < 0.5,
       driftDuration: (40 + Math.random() * 40) * layer.durationMul,
-      // Mount seeds clouds already mid-flight (negative delay) so the sky isn't
-      // empty on first paint; refreshes use a small positive stagger so
-      // re-entering clouds always slide in from off-screen.
-      driftDelay: seeded ? -Math.random() * 90 : Math.random() * 20,
+      // Base offsets (positive); the actual animation-delay is derived from the
+      // global clock at render (see CloudsBackground) so it's identical on
+      // every screen.
+      baseDriftDelay: Math.random() * 90,
       bobDuration: 6 + Math.random() * 6,
-      bobDelay: -Math.random() * 8,
+      baseBobDelay: Math.random() * 8,
     }));
     return { color: layer.color, opacity: layer.opacity, clouds };
   });
 }
 
+// A single cloud layout shared by every CloudsBackground instance (each screen
+// mounts its own), so the sky is IDENTICAL on all screens. Generated once, lazily.
+let sharedCloudLayers: ReturnType<typeof buildCloudLayers> | null = null;
+function getCloudLayers() {
+  if (!sharedCloudLayers) sharedCloudLayers = buildCloudLayers();
+  return sharedCloudLayers;
+}
+
 // Light theme's sky — hand-drawn engraving clouds in five depth layers,
 // drifting past at their own speed with a gentle bob. The dark theme's
 // counterpart is StarfieldBackground above. Spans the same tall virtual area
-// as the starfield (rather than just the first viewport) so clouds keep
-// appearing down the whole scroll instead of only in the first screen.
+// as the starfield so clouds keep appearing down the whole scroll.
+//
+// Every screen renders this, and they all use the SAME shared layout with
+// animation delays anchored to a global epoch (SKY_EPOCH). Because the phase of
+// each cloud then depends only on wall-clock time — not on when a given screen
+// mounted — the sky looks the same across every screen, so sliding from one
+// screen to another shows the clouds holding still instead of jumping/popping.
 function CloudsBackground() {
   const isLight = useIsLightTheme();
-  const [layers, setLayers] = useState(() => buildCloudLayers(true));
-  const [generation, setGeneration] = useState(0);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    // A backgrounded PWA (screen lock / app switch) can freeze the CSS drift.
-    // Rebuild the cloud elements from scratch (fresh key, so React recreates
-    // the DOM nodes) only when the app regains visibility — the user isn't
-    // watching while it's hidden, so the reshuffle is unseen. Crucially there
-    // is NO periodic timer: rebuilding while the user watches would make
-    // mid-screen clouds vanish and new ones pop in. During active viewing the
-    // animations just run continuously, so every cloud enters from beyond one
-    // edge and exits past the other, never appearing/disappearing mid-screen.
+    // A backgrounded PWA can freeze the CSS drift. Re-render on regained
+    // visibility to re-anchor delays to the clock (harmless when not frozen:
+    // the shared layout + global clock reproduce the exact same positions).
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        setLayers(buildCloudLayers(false));
-        setGeneration((g) => g + 1);
-      }
+      if (document.visibilityState === 'visible') setTick((t) => t + 1);
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
@@ -1106,17 +1136,20 @@ function CloudsBackground() {
 
   if (!isLight) return null;
 
+  const layers = getCloudLayers();
+  const elapsed = (Date.now() - SKY_EPOCH) / 1000;
+
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${STARFIELD_HEIGHT_VH}vh`, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       {layers.map((layer, li) =>
         layer.clouds.map((c, i) => (
           <div
-            key={`${li}-${i}-${generation}`}
+            key={`${li}-${i}`}
             className="inka-cloud-drift"
             style={{
               top: `${c.top}%`,
               animationDuration: `${c.driftDuration}s`,
-              animationDelay: `${c.driftDelay}s`,
+              animationDelay: `${-(elapsed + c.baseDriftDelay)}s`,
             }}
           >
             <div
@@ -1136,7 +1169,7 @@ function CloudsBackground() {
                 opacity: layer.opacity,
                 transform: c.flip ? 'scaleX(-1)' : undefined,
                 animationDuration: `${c.bobDuration}s`,
-                animationDelay: `${c.bobDelay}s`,
+                animationDelay: `${-(elapsed + c.baseBobDelay)}s`,
               }}
             />
           </div>
@@ -1169,7 +1202,7 @@ const CRAFT_MOTION: Record<CraftType, { width: [number, number]; duration: [numb
 
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
-function buildCraft(seeded: boolean) {
+function buildCraft() {
   const band = 100 / AVIATION_SOURCES.length;
   return AVIATION_SOURCES.map((craft, i) => {
     const m = CRAFT_MOTION[craft.type];
@@ -1187,29 +1220,32 @@ function buildCraft(seeded: boolean) {
       // Face travel direction: right-movers flip (sprites face left natively).
       flip: craft.type === 'balloon' ? false : goesRight,
       driftDuration: rand(m.duration[0], m.duration[1]),
-      driftDelay: seeded ? -rand(0, m.duration[1]) : rand(0, 15),
+      baseDriftDelay: rand(0, m.duration[1]),
       bobY: rand(m.bobY[0], m.bobY[1]),
       bobDuration: rand(m.bob[0], m.bob[1]),
-      bobDelay: -rand(0, 8),
+      baseBobDelay: rand(0, 8),
     };
   });
 }
 
+// One craft layout shared by every AviationBackground instance, generated once.
+let sharedCraft: ReturnType<typeof buildCraft> | null = null;
+function getCraft() {
+  if (!sharedCraft) sharedCraft = buildCraft();
+  return sharedCraft;
+}
+
 // Light theme's retro-aviation layer — airships and a balloon drifting across
-// the sky in front of the clouds, each with motion suited to its kind.
+// the sky in front of the clouds, each with motion suited to its kind. Shares
+// one layout across all screens, with delays anchored to SKY_EPOCH, so it holds
+// still through screen transitions (same reasoning as CloudsBackground).
 function AviationBackground() {
   const isLight = useIsLightTheme();
-  const [craft, setCraft] = useState(() => buildCraft(true));
-  const [generation, setGeneration] = useState(0);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    // Same as the clouds: rebuild only on regained visibility (never on a
-    // timer), so craft never pop in/out mid-screen while the user is watching.
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        setCraft(buildCraft(false));
-        setGeneration((g) => g + 1);
-      }
+      if (document.visibilityState === 'visible') setTick((t) => t + 1);
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
@@ -1217,17 +1253,20 @@ function AviationBackground() {
 
   if (!isLight) return null;
 
+  const craft = getCraft();
+  const elapsed = (Date.now() - SKY_EPOCH) / 1000;
+
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${STARFIELD_HEIGHT_VH}vh`, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       {craft.map((c, i) => (
         <div
-          key={`${i}-${generation}`}
+          key={`${i}`}
           className={c.goesRight ? 'inka-cloud-drift' : 'inka-drift-rev'}
-          style={{ top: `${c.top}%`, animationDuration: `${c.driftDuration}s`, animationDelay: `${c.driftDelay}s` }}
+          style={{ top: `${c.top}%`, animationDuration: `${c.driftDuration}s`, animationDelay: `${-(elapsed + c.baseDriftDelay)}s` }}
         >
           <div
             className="inka-cloud-bob"
-            style={{ ['--bob-y' as string]: `${c.bobY}px`, animationDuration: `${c.bobDuration}s`, animationDelay: `${c.bobDelay}s` } as React.CSSProperties}
+            style={{ ['--bob-y' as string]: `${c.bobY}px`, animationDuration: `${c.bobDuration}s`, animationDelay: `${-(elapsed + c.baseBobDelay)}s` } as React.CSSProperties}
           >
             <div
               style={{
