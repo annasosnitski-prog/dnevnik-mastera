@@ -474,15 +474,6 @@ function urgencyCounts(clients: Client[]): { urgent: number; important: number }
   return { urgent, important };
 }
 
-// Count of notes marked done (closed), across all clients and urgencies.
-function closedNotesCount(clients: Client[]): number {
-  let count = 0;
-  for (const c of clients) {
-    for (const n of c.notes) if (n.done) count++;
-  }
-  return count;
-}
-
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
 function normalizeClient(raw: any, index: number): Client {
@@ -910,51 +901,77 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 const STARFIELD_COUNT = 140;
 const STARFIELD_HEIGHT_VH = 300;
 const METEOR_COUNT = 4;
+// Fixed epoch every background animation delay is measured from, so a cloud /
+// star / craft is at the same phase in every screen regardless of when that
+// screen mounted — screen transitions no longer show the sky jump.
+const SKY_EPOCH = Date.now();
 // Warm gold star tone, varied per star (hue fixed at 45, lightness varies).
 const goldStar = () => `hsl(45, ${68 + Math.random() * 14}%, ${56 + Math.random() * 30}%)`;
 
+function buildStars() {
+  return Array.from({ length: STARFIELD_COUNT }, () => ({
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: 1.2 + Math.random() * 2.2,
+    color: goldStar(),
+    duration: 1.8 + Math.random() * 3.4,
+    baseDelay: Math.random() * 4,
+    sparkle: Math.random() < 0.16,
+  }));
+}
+// Shooting stars — gold, rarer (long cycles, brief visible window). Direction
+// varies (down-left / down-right), streak rotated to match its motion.
+function buildMeteors() {
+  return Array.from({ length: METEOR_COUNT }, () => {
+    const goesLeft = Math.random() < 0.5;
+    const rotDeg = goesLeft ? 135 : 45;
+    const dist = 320 + Math.random() * 260;
+    const rad = (rotDeg * Math.PI) / 180;
+    return {
+      left: goesLeft ? 45 + Math.random() * 40 : 15 + Math.random() * 40,
+      top: Math.random() * 60,
+      length: 70 + Math.random() * 85,
+      rot: rotDeg,
+      mx: Math.cos(rad) * dist,
+      my: Math.sin(rad) * dist,
+      duration: 14 + Math.random() * 16,
+      baseDelay: Math.random() * 30,
+    };
+  });
+}
+// Shared once, so the starfield is identical on every screen.
+let sharedStars: ReturnType<typeof buildStars> | null = null;
+let sharedMeteors: ReturnType<typeof buildMeteors> | null = null;
+function getStars() {
+  if (!sharedStars) sharedStars = buildStars();
+  return sharedStars;
+}
+function getMeteors() {
+  if (!sharedMeteors) sharedMeteors = buildMeteors();
+  return sharedMeteors;
+}
+
 // Dark theme's sky: twinkling gold stars and an occasional «звездопад» (gold
 // meteors). The light theme's counterpart is CloudsBackground — so this renders
-// only in the dark theme (the field would just wash out on cream).
+// only in the dark theme. Shares one layout across screens with delays anchored
+// to SKY_EPOCH, so the field holds still through screen transitions.
 function StarfieldBackground() {
   const isLight = useIsLightTheme();
-  const [stars] = useState(() =>
-    Array.from({ length: STARFIELD_COUNT }, () => ({
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: 1.2 + Math.random() * 2.2,
-      color: goldStar(),
-      duration: 1.8 + Math.random() * 3.4,
-      delay: Math.random() * 4,
-      sparkle: Math.random() < 0.16,
-    })),
-  );
+  const [, setTick] = useState(0);
 
-  // Shooting stars — gold, and rarer: long cycles with only a brief visible
-  // window (see .inka-meteor). Direction varies per meteor — some fall
-  // down-left, some down-right — with the streak rotated to match its motion.
-  const [meteors] = useState(() =>
-    Array.from({ length: METEOR_COUNT }, () => {
-      const goesLeft = Math.random() < 0.5;
-      const rotDeg = goesLeft ? 135 : 45; // down-left vs down-right
-      const dist = 320 + Math.random() * 260;
-      const rad = (rotDeg * Math.PI) / 180;
-      return {
-        left: goesLeft ? 45 + Math.random() * 40 : 15 + Math.random() * 40,
-        top: Math.random() * 60,
-        length: 70 + Math.random() * 85,
-        rot: rotDeg,
-        mx: Math.cos(rad) * dist,
-        my: Math.sin(rad) * dist,
-        // Longer cycles → rarer passes; big negative stagger so they don't all
-        // streak at once.
-        duration: 14 + Math.random() * 16,
-        delay: -Math.random() * 30,
-      };
-    }),
-  );
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') setTick((t) => t + 1);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   if (isLight) return null;
+
+  const stars = getStars();
+  const meteors = getMeteors();
+  const elapsed = (Date.now() - SKY_EPOCH) / 1000;
 
   return (
     <div
@@ -985,7 +1002,7 @@ function StarfieldBackground() {
             background: s.sparkle ? 'transparent' : s.color,
             boxShadow: s.sparkle ? 'none' : `0 0 ${s.size * 2}px ${s.color}`,
             animationDuration: `${s.duration}s`,
-            animationDelay: `${s.delay}s`,
+            animationDelay: `${-(elapsed + s.baseDelay)}s`,
           }}
         >
           {s.sparkle && (
@@ -1015,7 +1032,7 @@ function StarfieldBackground() {
             ['--my' as string]: `${m.my}px`,
             ['--rot' as string]: `${m.rot}deg`,
             animationDuration: `${m.duration}s`,
-            animationDelay: `${m.delay}s`,
+            animationDelay: `${-(elapsed + m.baseDelay)}s`,
           } as React.CSSProperties}
         />
       ))}
@@ -1052,7 +1069,7 @@ const CLOUD_LAYERS = [
 // Width is capped well under what the drift keyframes' off-screen margin
 // (see .inka-cloud-drift in index.css) can hide, so a cloud never pops into
 // view mid-screen — it always slides in from past the edge.
-function buildCloudLayers(seeded: boolean) {
+function buildCloudLayers() {
   return CLOUD_LAYERS.map((layer) => {
     const band = 100 / layer.count;
     const offset = Math.floor(Math.random() * CLOUD_SOURCES.length);
@@ -1064,41 +1081,45 @@ function buildCloudLayers(seeded: boolean) {
       width: (160 + Math.random() * 100) * layer.scale,
       flip: Math.random() < 0.5,
       driftDuration: (40 + Math.random() * 40) * layer.durationMul,
-      // Mount seeds clouds already mid-flight (negative delay) so the sky isn't
-      // empty on first paint; refreshes use a small positive stagger so
-      // re-entering clouds always slide in from off-screen.
-      driftDelay: seeded ? -Math.random() * 90 : Math.random() * 20,
+      // Base offsets (positive); the actual animation-delay is derived from the
+      // global clock at render (see CloudsBackground) so it's identical on
+      // every screen.
+      baseDriftDelay: Math.random() * 90,
       bobDuration: 6 + Math.random() * 6,
-      bobDelay: -Math.random() * 8,
+      baseBobDelay: Math.random() * 8,
     }));
     return { color: layer.color, opacity: layer.opacity, clouds };
   });
 }
 
+// A single cloud layout shared by every CloudsBackground instance (each screen
+// mounts its own), so the sky is IDENTICAL on all screens. Generated once, lazily.
+let sharedCloudLayers: ReturnType<typeof buildCloudLayers> | null = null;
+function getCloudLayers() {
+  if (!sharedCloudLayers) sharedCloudLayers = buildCloudLayers();
+  return sharedCloudLayers;
+}
+
 // Light theme's sky — hand-drawn engraving clouds in five depth layers,
 // drifting past at their own speed with a gentle bob. The dark theme's
 // counterpart is StarfieldBackground above. Spans the same tall virtual area
-// as the starfield (rather than just the first viewport) so clouds keep
-// appearing down the whole scroll instead of only in the first screen.
+// as the starfield so clouds keep appearing down the whole scroll.
+//
+// Every screen renders this, and they all use the SAME shared layout with
+// animation delays anchored to a global epoch (SKY_EPOCH). Because the phase of
+// each cloud then depends only on wall-clock time — not on when a given screen
+// mounted — the sky looks the same across every screen, so sliding from one
+// screen to another shows the clouds holding still instead of jumping/popping.
 function CloudsBackground() {
   const isLight = useIsLightTheme();
-  const [layers, setLayers] = useState(() => buildCloudLayers(true));
-  const [generation, setGeneration] = useState(0);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    // A backgrounded PWA (screen lock / app switch) can freeze the CSS drift.
-    // Rebuild the cloud elements from scratch (fresh key, so React recreates
-    // the DOM nodes) only when the app regains visibility — the user isn't
-    // watching while it's hidden, so the reshuffle is unseen. Crucially there
-    // is NO periodic timer: rebuilding while the user watches would make
-    // mid-screen clouds vanish and new ones pop in. During active viewing the
-    // animations just run continuously, so every cloud enters from beyond one
-    // edge and exits past the other, never appearing/disappearing mid-screen.
+    // A backgrounded PWA can freeze the CSS drift. Re-render on regained
+    // visibility to re-anchor delays to the clock (harmless when not frozen:
+    // the shared layout + global clock reproduce the exact same positions).
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        setLayers(buildCloudLayers(false));
-        setGeneration((g) => g + 1);
-      }
+      if (document.visibilityState === 'visible') setTick((t) => t + 1);
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
@@ -1106,17 +1127,20 @@ function CloudsBackground() {
 
   if (!isLight) return null;
 
+  const layers = getCloudLayers();
+  const elapsed = (Date.now() - SKY_EPOCH) / 1000;
+
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${STARFIELD_HEIGHT_VH}vh`, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       {layers.map((layer, li) =>
         layer.clouds.map((c, i) => (
           <div
-            key={`${li}-${i}-${generation}`}
+            key={`${li}-${i}`}
             className="inka-cloud-drift"
             style={{
               top: `${c.top}%`,
               animationDuration: `${c.driftDuration}s`,
-              animationDelay: `${c.driftDelay}s`,
+              animationDelay: `${-(elapsed + c.baseDriftDelay)}s`,
             }}
           >
             <div
@@ -1136,7 +1160,7 @@ function CloudsBackground() {
                 opacity: layer.opacity,
                 transform: c.flip ? 'scaleX(-1)' : undefined,
                 animationDuration: `${c.bobDuration}s`,
-                animationDelay: `${c.bobDelay}s`,
+                animationDelay: `${-(elapsed + c.baseBobDelay)}s`,
               }}
             />
           </div>
@@ -1169,7 +1193,7 @@ const CRAFT_MOTION: Record<CraftType, { width: [number, number]; duration: [numb
 
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
-function buildCraft(seeded: boolean) {
+function buildCraft() {
   const band = 100 / AVIATION_SOURCES.length;
   return AVIATION_SOURCES.map((craft, i) => {
     const m = CRAFT_MOTION[craft.type];
@@ -1187,29 +1211,32 @@ function buildCraft(seeded: boolean) {
       // Face travel direction: right-movers flip (sprites face left natively).
       flip: craft.type === 'balloon' ? false : goesRight,
       driftDuration: rand(m.duration[0], m.duration[1]),
-      driftDelay: seeded ? -rand(0, m.duration[1]) : rand(0, 15),
+      baseDriftDelay: rand(0, m.duration[1]),
       bobY: rand(m.bobY[0], m.bobY[1]),
       bobDuration: rand(m.bob[0], m.bob[1]),
-      bobDelay: -rand(0, 8),
+      baseBobDelay: rand(0, 8),
     };
   });
 }
 
+// One craft layout shared by every AviationBackground instance, generated once.
+let sharedCraft: ReturnType<typeof buildCraft> | null = null;
+function getCraft() {
+  if (!sharedCraft) sharedCraft = buildCraft();
+  return sharedCraft;
+}
+
 // Light theme's retro-aviation layer — airships and a balloon drifting across
-// the sky in front of the clouds, each with motion suited to its kind.
+// the sky in front of the clouds, each with motion suited to its kind. Shares
+// one layout across all screens, with delays anchored to SKY_EPOCH, so it holds
+// still through screen transitions (same reasoning as CloudsBackground).
 function AviationBackground() {
   const isLight = useIsLightTheme();
-  const [craft, setCraft] = useState(() => buildCraft(true));
-  const [generation, setGeneration] = useState(0);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    // Same as the clouds: rebuild only on regained visibility (never on a
-    // timer), so craft never pop in/out mid-screen while the user is watching.
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        setCraft(buildCraft(false));
-        setGeneration((g) => g + 1);
-      }
+      if (document.visibilityState === 'visible') setTick((t) => t + 1);
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
@@ -1217,17 +1244,20 @@ function AviationBackground() {
 
   if (!isLight) return null;
 
+  const craft = getCraft();
+  const elapsed = (Date.now() - SKY_EPOCH) / 1000;
+
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${STARFIELD_HEIGHT_VH}vh`, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       {craft.map((c, i) => (
         <div
-          key={`${i}-${generation}`}
+          key={`${i}`}
           className={c.goesRight ? 'inka-cloud-drift' : 'inka-drift-rev'}
-          style={{ top: `${c.top}%`, animationDuration: `${c.driftDuration}s`, animationDelay: `${c.driftDelay}s` }}
+          style={{ top: `${c.top}%`, animationDuration: `${c.driftDuration}s`, animationDelay: `${-(elapsed + c.baseDriftDelay)}s` }}
         >
           <div
             className="inka-cloud-bob"
-            style={{ ['--bob-y' as string]: `${c.bobY}px`, animationDuration: `${c.bobDuration}s`, animationDelay: `${c.bobDelay}s` } as React.CSSProperties}
+            style={{ ['--bob-y' as string]: `${c.bobY}px`, animationDuration: `${c.bobDuration}s`, animationDelay: `${-(elapsed + c.baseBobDelay)}s` } as React.CSSProperties}
           >
             <div
               style={{
@@ -1408,8 +1438,9 @@ interface MasterInfo {
   links: MasterLink[];
   bankDetails: string;
   colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
+  notes: ClientNote[]; // the master's own notes (not tied to any client), shown in «Задачи»
 }
-const DEFAULT_MASTER_INFO: MasterInfo = { name: '', links: [], bankDetails: '', colorLabels: {} };
+const DEFAULT_MASTER_INFO: MasterInfo = { name: '', links: [], bankDetails: '', colorLabels: {}, notes: [] };
 
 function readInitialMasterInfo(): MasterInfo {
   try {
@@ -1423,6 +1454,16 @@ function readInitialMasterInfo(): MasterInfo {
           : [],
         bankDetails: typeof p.bankDetails === 'string' ? p.bankDetails : '',
         colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
+        notes: Array.isArray(p.notes)
+          ? p.notes.map((n: any, i: number): ClientNote => ({
+              id: String(n?.id ?? `${Date.now()}-m${i}`),
+              text: n?.text ?? '',
+              urgency: URGENCY.some((u) => u.key === n?.urgency) ? n.urgency : LEGACY_URGENCY_MAP[n?.urgency] ?? 'normal',
+              done: Boolean(n?.done),
+              createdDate: n?.createdDate ?? new Date().toISOString(),
+              photos: Array.isArray(n?.photos) ? n.photos : [],
+            }))
+          : [],
       };
     }
   } catch {
@@ -1505,6 +1546,14 @@ export default function TattoDiary() {
   const [showAddChoice, setShowAddChoice] = useState(false);
   const [showNewConsultationForm, setShowNewConsultationForm] = useState(false);
   const [editConsultation, setEditConsultation] = useState<Consultation | null>(null);
+  // Read-only fullscreen viewer for a consultation or a session, opened by
+  // tapping the card body (the pencil still edits). Holds the client id so the
+  // viewer always reflects the latest stored copy even after an edit.
+  const [viewEntry, setViewEntry] = useState<
+    | { kind: 'session'; clientId: string; id: string }
+    | { kind: 'consultation'; clientId: string; id: string }
+    | null
+  >(null);
 
   // Bumped whenever a new client is created, to (re)trigger the star-shower
   // celebration overlay — see <CelebrationBurst>. celebrationCount captures
@@ -1864,7 +1913,13 @@ export default function TattoDiary() {
     setEditSession(null);
   };
 
-  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm || showNewConsultationForm || showAddChoice;
+  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm || showNewConsultationForm || showAddChoice || !!viewEntry;
+
+  // Resolve the entry being viewed to its latest stored copy (so an edit made
+  // from the viewer is reflected if it reopens).
+  const viewClient = viewEntry ? clients.find((c) => c.id === viewEntry.clientId) ?? null : null;
+  const viewedSession = viewEntry?.kind === 'session' ? viewClient?.sessions.find((s) => s.id === viewEntry.id) ?? null : null;
+  const viewedConsultation = viewEntry?.kind === 'consultation' ? viewClient?.consultations.find((c) => c.id === viewEntry.id) ?? null : null;
 
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
@@ -2379,21 +2434,31 @@ export default function TattoDiary() {
         {screen === 'summary' && (
           <SummaryScreen
             clients={clients}
+            masterNotes={masterInfo.notes}
             onToggleDone={(clientId, note) => upsertNote(clientId, note)}
             onEditNote={(clientId, note) => upsertNote(clientId, note)}
+            onDeleteNote={(clientId, noteId) => deleteNote(clientId, noteId)}
             onOpenClient={(id) => {
               setSelectedId(id);
               setActiveTab('extra');
               setScreen('detail');
             }}
             onOpenConsultation={(clientId, consultationId) => {
-              const client = clients.find((c) => c.id === clientId);
-              const consultation = client?.consultations.find((c) => c.id === consultationId);
-              if (!client || !consultation) return;
-              setSelectedId(client.id);
-              setEditConsultation(consultation);
-              setShowNewConsultationForm(true);
+              // Tap opens the read-only fullscreen viewer (not the edit form).
+              setViewEntry({ kind: 'consultation', clientId, id: consultationId });
             }}
+            onAddMasterNote={(text, urgency, photos) =>
+              setMasterInfo({
+                ...masterInfo,
+                notes: [
+                  ...masterInfo.notes,
+                  { id: Date.now().toString(), text, urgency, done: false, createdDate: new Date().toISOString(), photos },
+                ],
+              })
+            }
+            onToggleMasterDone={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
+            onEditMasterNote={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
+            onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
           />
         )}
       </div>
@@ -2500,6 +2565,8 @@ export default function TattoDiary() {
             onToggleSessionDone={toggleSessionDone}
             onEditConsultation={(consultation) => { setEditConsultation(consultation); setShowNewConsultationForm(true); }}
             onDeleteConsultation={deleteConsultation}
+            onViewSession={(session) => setViewEntry({ kind: 'session', clientId: selectedClient.id, id: session.id })}
+            onViewConsultation={(consultation) => setViewEntry({ kind: 'consultation', clientId: selectedClient.id, id: consultation.id })}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
             onRemoveDocument={(docId) =>
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
@@ -2594,6 +2661,25 @@ export default function TattoDiary() {
         initial={editConsultation}
         onClose={closeNewConsultation}
         onAdd={handleAddConsultation}
+      />
+
+      {/* ═══════════ TIMELINE VIEWER (read-only consultation / session) ═══════════ */}
+      <TimelineViewSheet
+        open={!!viewEntry && (!!viewedSession || !!viewedConsultation)}
+        session={viewedSession}
+        consultation={viewedConsultation}
+        onClose={() => setViewEntry(null)}
+        onEdit={() => {
+          if (viewEntry) setSelectedId(viewEntry.clientId);
+          if (viewedConsultation) {
+            setEditConsultation(viewedConsultation);
+            setShowNewConsultationForm(true);
+          } else if (viewedSession) {
+            setEditSession(viewedSession);
+            setShowNewSessionForm(true);
+          }
+          setViewEntry(null);
+        }}
       />
 
       {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
@@ -3444,7 +3530,7 @@ function GoldGemCorner({ size = 24 }: { size?: number }) {
 // card, all gold. Used throughout the master dashboard.
 function GoldFrame({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div className="inka-card" style={{ position: 'relative', borderRadius: 3, overflow: 'hidden', background: 'rgba(var(--surface-rgb),0.018)', ...style }}>
+    <div className="inka-static" style={{ position: 'relative', borderRadius: 3, overflow: 'hidden', background: 'rgba(var(--surface-rgb),0.018)', ...style }}>
       <GoldTopStripe />
       <GoldRightStripe />
       <GoldGemCorner />
@@ -3861,7 +3947,6 @@ function MasterDashboardScreen({
   const style = mostUsedStyle(clients);
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
-  const closedCount = closedNotesCount(clients);
   const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
   const plannedSessionsCount = statsUpcoming.filter((i) => i.kind === 'session').length;
   const plannedConsultationsCount = statsUpcoming.filter((i) => i.kind === 'consultation').length;
@@ -4035,17 +4120,31 @@ function MasterDashboardScreen({
           ))}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-          <StatBlock label="Клиентов" value={clients.length} />
+          {/* Клиентов: count on top, срочно/важно pulled up into the lower half. */}
+          <GoldFrame style={{ padding: '16px 10px 14px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ textAlign: 'center', marginBottom: 13 }}>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>Клиентов</div>
+              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(30), fontWeight: 600, lineHeight: 1.15, color: COLORS.gold }}>{clients.length}</div>
+            </div>
+            <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: '100%', height: 1, marginBottom: 13 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{urgent}</div>
+              </div>
+              <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: 1, height: 34, flexShrink: 0 }} />
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[1].emoji} {URGENCY[1].short}</div>
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{important}</div>
+              </div>
+            </div>
+          </GoldFrame>
+          {/* Назначено сессий и консультаций — в одном блоке. */}
           <SplitStatBlock
             direction="column"
             a={{ label: 'Назначено сессий', value: plannedSessionsCount }}
-            b={{ label: `${DONE_EMOJI} Выполнено заметок`, value: closedCount }}
+            b={{ label: 'Консультаций', value: plannedConsultationsCount }}
           />
-          <SplitStatBlock
-            a={{ label: `${URGENCY[0].emoji} ${URGENCY[0].short}`, value: urgent }}
-            b={{ label: `${URGENCY[1].emoji} ${URGENCY[1].short}`, value: important }}
-          />
-          <StatBlock label="Консультаций" value={plannedConsultationsCount} />
           <div style={{ gridColumn: '1 / -1' }}>
             <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
           </div>
@@ -4525,16 +4624,28 @@ function SettingsScreen({
 // (🍀) notes; toggling done fades a note out.
 function SummaryScreen({
   clients,
+  masterNotes,
   onToggleDone,
   onEditNote,
+  onDeleteNote,
   onOpenClient,
   onOpenConsultation,
+  onAddMasterNote,
+  onToggleMasterDone,
+  onEditMasterNote,
+  onDeleteMasterNote,
 }: {
   clients: Client[];
+  masterNotes: ClientNote[];
   onToggleDone: (clientId: string, note: ClientNote) => void;
   onEditNote: (clientId: string, note: ClientNote) => void;
+  onDeleteNote: (clientId: string, noteId: string) => void;
   onOpenClient: (id: string) => void;
   onOpenConsultation: (clientId: string, consultationId: string) => void;
+  onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
+  onToggleMasterDone: (note: ClientNote) => void;
+  onEditMasterNote: (note: ClientNote) => void;
+  onDeleteMasterNote: (noteId: string) => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
@@ -4547,8 +4658,12 @@ function SummaryScreen({
     .filter(({ consultation }) => !consultation.done)
     .sort((a, b) => (a.consultation.date || '').localeCompare(b.consultation.date || ''));
 
-  const items = clients
-    .flatMap((c) => c.notes.map((note) => ({ note, client: c })))
+  // Client notes + the master's own (client-less) notes, one flat list.
+  type NoteEntry = { note: ClientNote; client: Client | null };
+  const items: NoteEntry[] = [
+    ...masterNotes.map((note): NoteEntry => ({ note, client: null })),
+    ...clients.flatMap((c) => c.notes.map((note): NoteEntry => ({ note, client: c }))),
+  ]
     .filter(({ note }) => {
       if (!showClosed && note.done) return false;
       if (filter !== 'all' && note.urgency !== filter) return false;
@@ -4559,6 +4674,7 @@ function SummaryScreen({
       const r = urgencyRank(a.note.urgency) - urgencyRank(b.note.urgency);
       return r !== 0 ? r : b.note.createdDate.localeCompare(a.note.createdDate);
     });
+  const hasAnyNote = masterNotes.length > 0 || clients.some((c) => c.notes.length);
 
   const filterChip = (label: string, active: boolean, onClick: () => void) => (
     <div
@@ -4675,23 +4791,46 @@ function SummaryScreen({
         </div>
       </div>
 
-      {/* Aggregated notes */}
+      {/* New general note — not tied to any client (stored on the master). */}
+      <div style={{ padding: '16px 20px 0', position: 'relative', zIndex: 1 }}>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+          Новая общая заметка
+        </div>
+        <NoteComposer onAdd={onAddMasterNote} />
+      </div>
+
+      {/* Aggregated notes (client + general) */}
       <div style={{ padding: '16px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.length === 0 ? (
-          <div style={{ textAlign: 'center', marginTop: 40, fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic' }}>
-            {clients.some((c) => c.notes.length) ? 'Нет заметок по этому фильтру' : 'Заметок пока нет'}
+          <div style={{ textAlign: 'center', marginTop: 24, fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic' }}>
+            {hasAnyNote ? 'Нет заметок по этому фильтру' : 'Заметок пока нет'}
           </div>
         ) : (
-          items.map(({ note, client }) => (
-            <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
-              <NoteItem
-                note={note}
-                client={client}
-                onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
-                onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
-              />
-            </div>
-          ))
+          items.map(({ note, client }) =>
+            client ? (
+              <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
+                <NoteItem
+                  note={note}
+                  client={client}
+                  onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
+                  onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
+                  onDelete={() => onDeleteNote(client.id, note.id)}
+                />
+              </div>
+            ) : (
+              <div key={`master-${note.id}`}>
+                <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 4, marginLeft: 2 }}>
+                  Общая заметка
+                </div>
+                <NoteItem
+                  note={note}
+                  onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
+                  onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
+                  onDelete={() => onDeleteMasterNote(note.id)}
+                />
+              </div>
+            ),
+          )
         )}
       </div>
     </div>
@@ -4760,6 +4899,88 @@ function HeaderCollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onT
   );
 }
 
+// The client's cover note ("Заметки о клиенте"), editable inline from the hero
+// (tap the pencil or the text). Saves straight through onSave — no need to open
+// the full client-edit form for a quick note change.
+function CoverNoteEditor({ client, onSave }: { client: Client; onSave: (c: Client) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(client.note);
+  useEffect(() => {
+    if (!editing) setDraft(client.note);
+  }, [client.note, editing]);
+
+  const save = () => {
+    onSave({ ...client, note: draft.trim() });
+    setEditing(false);
+  };
+
+  const labelRow = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+      <div style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase' }}>
+        Заметки о клиенте
+      </div>
+      {!editing && (
+        <span onClick={() => setEditing(true)} title="Редактировать" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.7 }}>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+            <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+          </svg>
+        </span>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      {labelRow}
+      {editing ? (
+        <div>
+          <textarea
+            dir="auto"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Идеи, пожелания, особенности..."
+            style={{
+              width: '100%',
+              background: 'rgba(var(--surface-rgb),0.03)',
+              border: '1px solid rgba(var(--gold-rgb),0.3)',
+              borderRadius: 2,
+              padding: '9px 11px',
+              fontFamily: "'Inter', sans-serif",
+              color: COLORS.textPrimary,
+              outline: 'none',
+              resize: 'none',
+              height: 90,
+              fontStyle: 'italic',
+              lineHeight: 1.5,
+            }}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <div onClick={save} style={{ flex: 1, padding: '7px 12px', textAlign: 'center', border: '1px solid rgba(var(--gold-rgb),0.3)', borderRadius: 2, cursor: 'pointer', color: COLORS.gold, fontSize: fs(11), letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+              Сохранить
+            </div>
+            <div onClick={() => { setDraft(client.note); setEditing(false); }} style={{ flex: 1, padding: '7px 12px', textAlign: 'center', border: '1px solid rgba(var(--gold-rgb),0.15)', borderRadius: 2, cursor: 'pointer', color: COLORS.textFaint, fontSize: fs(11), letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+              Отмена
+            </div>
+          </div>
+        </div>
+      ) : client.note ? (
+        <div
+          onClick={() => setEditing(true)}
+          dir="auto"
+          style={{ fontSize: fs(15), color: 'var(--text-soft)', fontStyle: 'italic', lineHeight: 1.5, cursor: 'pointer', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+        >
+          {client.note}
+        </div>
+      ) : (
+        <div onClick={() => setEditing(true)} style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer' }}>
+          Добавить заметку…
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ===================== DETAIL SCREEN =====================
 function DetailScreen({
   client,
@@ -4775,6 +4996,8 @@ function DetailScreen({
   onToggleSessionDone,
   onEditConsultation,
   onDeleteConsultation,
+  onViewSession,
+  onViewConsultation,
   onAddDocument,
   onRemoveDocument,
   onUpsertNote,
@@ -4794,6 +5017,8 @@ function DetailScreen({
   onToggleSessionDone: (sessionId: string) => void;
   onEditConsultation: (consultation: Consultation) => void;
   onDeleteConsultation: (consultationId: string) => void;
+  onViewSession: (session: Session) => void;
+  onViewConsultation: (consultation: Consultation) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
@@ -4912,29 +5137,10 @@ function DetailScreen({
               <HeaderCollapseToggle collapsed={headerCollapsed} onToggle={() => setHeaderCollapsed((v) => !v)} />
             </div>
 
-            {/* Notes about the client — moved up into the header (per design). */}
-            {client.note && (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: 6 }}>
-                  Заметки о клиенте
-                </div>
-                <div
-                  dir="auto"
-                  style={{
-                    fontSize: fs(15),
-                    color: 'var(--text-soft)',
-                    fontStyle: 'italic',
-                    lineHeight: 1.5,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 4,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {client.note}
-                </div>
-              </div>
-            )}
+            {/* Notes about the client — in the header, editable inline (tap the
+                pencil or the text) so it can be changed without opening the
+                full client-edit form. */}
+            <CoverNoteEditor client={client} onSave={onSave} />
           </div>
         )}
 
@@ -5018,6 +5224,8 @@ function DetailScreen({
             onToggleSessionDone={onToggleSessionDone}
             onEditConsultation={onEditConsultation}
             onDeleteConsultation={onDeleteConsultation}
+            onViewSession={onViewSession}
+            onViewConsultation={onViewConsultation}
           />
         )}
         {activeTab === 'info' && (
@@ -6030,6 +6238,7 @@ function SessionPhotos({
   allowDelete = true,
   buttonFirst = false,
   topSlot,
+  readOnly = false,
 }: {
   photos: string[];
   onChange: (photos: string[]) => void;
@@ -6041,6 +6250,9 @@ function SessionPhotos({
   // remaining space below.
   buttonFirst?: boolean;
   topSlot?: React.ReactNode;
+  // Read-only: just the thumbnails (tap-to-enlarge still works), no "Добавить
+  // фото" button — used in timeline/preview cards.
+  readOnly?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
@@ -6165,7 +6377,9 @@ function SessionPhotos({
 
   return (
     <div style={{ marginTop: 10 }}>
-      {buttonFirst ? (
+      {readOnly ? (
+        thumbnails
+      ) : buttonFirst ? (
         <>
           <div style={{ marginBottom: thumbnails ? 10 : 0 }}>{addButton}</div>
           {topSlot}
@@ -6177,17 +6391,19 @@ function SessionPhotos({
           {addButton}
         </>
       )}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        multiple
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          onPick(e.target.files);
-          e.target.value = '';
-        }}
-      />
+      {!readOnly && (
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            onPick(e.target.files);
+            e.target.value = '';
+          }}
+        />
+      )}
 
       {/* Tap-to-enlarge viewer — plain in-app overlay, no <a>/navigation. */}
       {viewerSrc && (
@@ -6241,6 +6457,8 @@ function SessionsTab({
   onToggleSessionDone,
   onEditConsultation,
   onDeleteConsultation,
+  onViewSession,
+  onViewConsultation,
 }: {
   client: Client;
   onEditSession: (session: Session) => void;
@@ -6249,6 +6467,8 @@ function SessionsTab({
   onToggleSessionDone: (sessionId: string) => void;
   onEditConsultation: (consultation: Consultation) => void;
   onDeleteConsultation: (consultationId: string) => void;
+  onViewSession: (session: Session) => void;
+  onViewConsultation: (consultation: Consultation) => void;
 }) {
   // Sessions and consultations share one dated timeline — most recent first,
   // undated entries sink to the bottom.
@@ -6288,12 +6508,14 @@ function SessionsTab({
                 <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
               </div>
               <div
+                onClick={() => onViewConsultation(consultation)}
                 style={{
                   flex: 1,
                   background: 'rgba(var(--surface-rgb),0.018)',
                   border: '1px solid rgba(var(--gold-rgb),0.22)',
                   borderRadius: 2,
                   padding: '12px 14px',
+                  cursor: 'pointer',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
@@ -6304,7 +6526,9 @@ function SessionsTab({
                       {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+                  {/* Controls sit outside the card's tap-to-view: their own clicks
+                      must not also open the viewer. */}
+                  <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
                     <span style={{ fontSize: fs(13) }} title={meta.label}>{meta.emoji}</span>
                     <div
                       className="inka-back"
@@ -6319,6 +6543,12 @@ function SessionsTab({
                     <SessionDeleteControl onDelete={() => onDeleteConsultation(consultation.id)} />
                   </div>
                 </div>
+                {/* Photos moved up — right under the header — and read-only here. */}
+                {consultation.photos.length > 0 && (
+                  <div onClick={(e) => e.stopPropagation()} style={{ marginBottom: 4 }}>
+                    <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} readOnly />
+                  </div>
+                )}
                 {(consultation.area || consultation.style) && (
                   <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
                     {[consultation.area, consultation.style].filter(Boolean).join(' · ')}
@@ -6344,7 +6574,6 @@ function SessionsTab({
                     <SessionMeta label="Креатив" value={consultation.creative} />
                   </div>
                 )}
-                <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} />
               </div>
             </div>
           );
@@ -6368,12 +6597,14 @@ function SessionsTab({
               <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
             </div>
             <div
+              onClick={() => onViewSession(session)}
               style={{
                 flex: 1,
                 background: 'rgba(var(--surface-rgb),0.018)',
                 border: '1px solid rgba(var(--gold-rgb),0.1)',
                 borderRadius: 2,
                 padding: '12px 14px',
+                cursor: 'pointer',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
@@ -6385,7 +6616,7 @@ function SessionsTab({
                     <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
                   {!session.done && (
                     <span
                       onClick={() => onToggleSessionDone(session.id)}
@@ -6441,11 +6672,13 @@ function SessionsTab({
                   {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
                 </div>
               )}
-              <SessionPhotos
-                photos={session.photos}
-                onChange={(photos) => onUpdateSessionPhotos(session.id, photos)}
-                allowDelete={false}
-              />
+              <div onClick={(e) => e.stopPropagation()}>
+                <SessionPhotos
+                  photos={session.photos}
+                  onChange={(photos) => onUpdateSessionPhotos(session.id, photos)}
+                  allowDelete={false}
+                />
+              </div>
             </div>
           </div>
         );
@@ -6904,6 +7137,104 @@ function AttachmentsSection({
 }
 
 // ===================== BOTTOM SHEET SHELL =====================
+// Read-only fullscreen viewer for a consultation or session — opened by tapping
+// a timeline/Задачи card. A single «Редактировать» button drops into the edit
+// form. Everything else is display-only.
+function ViewField({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <div>
+      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+      <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{value}</div>
+    </div>
+  );
+}
+
+function TimelineViewSheet({
+  open,
+  session,
+  consultation,
+  onClose,
+  onEdit,
+}: {
+  open: boolean;
+  session: Session | null;
+  consultation: Consultation | null;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const isConsult = !!consultation;
+  const dateLine = (() => {
+    const d = isConsult ? consultation!.date : session?.date ?? '';
+    const t = isConsult ? consultation!.time : session?.time ?? '';
+    return [formatDate(d) || 'Дата не указана', t].filter(Boolean).join(' · ');
+  })();
+  const urgency = consultation ? urgencyMeta(consultation.urgency) : null;
+
+  return (
+    <BottomSheet open={open} heightPct={94}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ marginBottom: 5 }}>
+          <InkaLogo height={fs(15)} />
+        </div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
+          {isConsult ? 'Консультация' : session?.name || 'Сессия'}
+        </div>
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 4, letterSpacing: '0.3px' }}>{dateLine}</div>
+        <SheetStarDivider />
+      </div>
+
+      <div style={{ padding: '4px 24px 60px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {isConsult && consultation ? (
+          <>
+            {consultation.photos.length > 0 && <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} readOnly />}
+            <ViewField label="Место" value={consultation.area} />
+            <ViewField label="Общие заметки" value={consultation.generalNotes} />
+            <ViewField label="Чувство / ощущение" value={consultation.feeling} />
+            <ViewField label="Источники вдохновения" value={consultation.inspirationSources} />
+            <ViewField label="Креатив" value={consultation.creative} />
+            <ViewField label="Техника и стиль" value={consultation.style} />
+            {urgency && <ViewField label="Срочность" value={`${urgency.emoji} ${urgency.label}`} />}
+          </>
+        ) : session ? (
+          <>
+            {session.photos.length > 0 && <SessionPhotos photos={session.photos} onChange={() => {}} allowDelete={false} readOnly />}
+            <ViewField label="Статус" value={session.done ? 'Выполнена' : 'Запланирована'} />
+            <ViewField label="Длительность" value={session.duration} />
+            <ViewField label="Место" value={session.area} />
+            <ViewField label="Стиль" value={session.style} />
+            <ViewField label="Заметка" value={session.note} />
+            <ViewField label="Краски" value={session.colors} />
+            <ViewField label="Иглы" value={session.needles} />
+            <ViewField label="Реакция кожи" value={session.skinReaction} />
+          </>
+        ) : null}
+
+        <div
+          className="inka-submit"
+          onClick={onEdit}
+          style={{
+            border: '1px solid rgba(var(--gold-rgb),0.35)',
+            borderRadius: 2,
+            padding: '12px 0',
+            textAlign: 'center',
+            cursor: 'pointer',
+            background: 'rgba(var(--gold-rgb),0.05)',
+            fontSize: fs(13),
+            color: COLORS.gold,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            marginTop: 6,
+          }}
+        >
+          Редактировать
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
 function BottomSheet({
   open,
   heightPct,
