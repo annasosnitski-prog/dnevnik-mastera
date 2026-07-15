@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import {
   readSyncSettings,
@@ -1554,6 +1554,8 @@ export default function TattoDiary() {
     | { kind: 'consultation'; clientId: string; id: string }
     | null
   >(null);
+  // Month calendar overlay, opened by tapping the «Ближайшая» badge.
+  const [showCalendar, setShowCalendar] = useState(false);
 
   // Bumped whenever a new client is created, to (re)trigger the star-shower
   // celebration overlay — see <CelebrationBurst>. celebrationCount captures
@@ -1913,7 +1915,7 @@ export default function TattoDiary() {
     setEditSession(null);
   };
 
-  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm || showNewConsultationForm || showAddChoice || !!viewEntry;
+  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm || showNewConsultationForm || showAddChoice || !!viewEntry || showCalendar;
 
   // Resolve the entry being viewed to its latest stored copy (so an edit made
   // from the viewer is reflected if it reopens).
@@ -2372,16 +2374,36 @@ export default function TattoDiary() {
             if (!next) return null;
             return (
               <div
+                onClick={() => setShowCalendar(true)}
+                role="button"
+                aria-label="Открыть календарь"
                 style={{
                   textAlign: 'right',
                   lineHeight: 1.3,
                   fontStyle: 'italic',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 10px',
+                  borderRadius: 20,
+                  border: '1px solid rgba(var(--gold-rgb),0.22)',
+                  background: 'rgba(var(--gold-rgb),0.04)',
                 }}
               >
-                <div style={{ fontSize: 7.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: COLORS.textGhost }}>Ближайшая</div>
-                <div style={{ fontSize: 10.5, fontWeight: 400, color: COLORS.textGhost, whiteSpace: 'nowrap' }}>
-                  {formatDate(next.date).replace(/ \d{4}$/, '')}
+                <div>
+                  <div style={{ fontSize: 7.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: COLORS.textGhost, fontStyle: 'normal' }}>Ближайшая</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 400, color: COLORS.textGhost, whiteSpace: 'nowrap' }}>
+                    {formatDate(next.date).replace(/ \d{4}$/, '')}
+                  </div>
                 </div>
+                {/* tiny calendar glyph — signals the tag is tappable */}
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.55 }}>
+                  <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="var(--gold)" strokeWidth="1.2" />
+                  <line x1="2" y1="6.5" x2="14" y2="6.5" stroke="var(--gold)" strokeWidth="1.2" />
+                  <line x1="5.5" y1="1.5" x2="5.5" y2="4" stroke="var(--gold)" strokeWidth="1.2" strokeLinecap="round" />
+                  <line x1="10.5" y1="1.5" x2="10.5" y2="4" stroke="var(--gold)" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
               </div>
             );
           })()}
@@ -2679,6 +2701,18 @@ export default function TattoDiary() {
             setShowNewSessionForm(true);
           }
           setViewEntry(null);
+        }}
+      />
+
+      {/* ═══════════ CALENDAR (month view, opened from «Ближайшая») ═══════════ */}
+      <CalendarSheet
+        open={showCalendar}
+        onClose={() => setShowCalendar(false)}
+        clients={clients}
+        initialDate={upcomingItems(clients, 365)[0]?.date ?? todayISO()}
+        onOpenEntry={(kind, clientId, id) => {
+          setShowCalendar(false);
+          setViewEntry({ kind, clientId, id });
         }}
       />
 
@@ -7285,6 +7319,262 @@ function SheetCloseButton({ onClose }: { onClose: () => void }) {
         <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     </div>
+  );
+}
+
+// ===================== CALENDAR SHEET =====================
+// A month calendar opened from the «Ближайшая» badge on the client list.
+// Days holding a session or consultation get a marker dot (gold = session,
+// terracotta = consultation); tapping a day lists its entries below, and
+// tapping an entry opens the read-only fullscreen viewer.
+const WEEKDAYS_RU = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const MONTHS_RU_FULL = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const CONSULT_MARK = '#B0413E';
+
+interface CalendarEvent {
+  date: string;
+  time: string;
+  kind: 'session' | 'consultation';
+  clientId: string;
+  clientName: string;
+  id: string;
+  done: boolean;
+}
+
+// Buckets every dated session/consultation across all clients by ISO date,
+// each day's list sorted by time (untimed entries sink to the bottom).
+function collectCalendarEvents(clients: Client[]): Map<string, CalendarEvent[]> {
+  const map = new Map<string, CalendarEvent[]>();
+  const add = (e: CalendarEvent) => {
+    const arr = map.get(e.date) ?? [];
+    arr.push(e);
+    map.set(e.date, arr);
+  };
+  for (const c of clients) {
+    const clientName = [c.name, c.surname].filter(Boolean).join(' ').trim() || 'Клиент';
+    for (const s of c.sessions) {
+      if (ISO_DATE_RE.test(s.date)) add({ date: s.date, time: s.time, kind: 'session', clientId: c.id, clientName, id: s.id, done: s.done });
+    }
+    for (const cs of c.consultations) {
+      if (ISO_DATE_RE.test(cs.date)) add({ date: cs.date, time: cs.time, kind: 'consultation', clientId: c.id, clientName, id: cs.id, done: cs.done });
+    }
+  }
+  for (const arr of map.values()) arr.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  return map;
+}
+
+function CalendarSheet({
+  open,
+  onClose,
+  clients,
+  initialDate,
+  onOpenEntry,
+}: {
+  open: boolean;
+  onClose: () => void;
+  clients: Client[];
+  initialDate: string;
+  onOpenEntry: (kind: 'session' | 'consultation', clientId: string, id: string) => void;
+}) {
+  const events = useMemo(() => collectCalendarEvents(clients), [clients]);
+  const parseISO = (iso: string) => {
+    const [y, mo, d] = iso.split('-').map(Number);
+    return { y, m: mo - 1, d };
+  };
+  const startFrom = () => {
+    if (ISO_DATE_RE.test(initialDate)) return parseISO(initialDate);
+    const t = new Date();
+    return { y: t.getFullYear(), m: t.getMonth(), d: t.getDate() };
+  };
+
+  const [cursor, setCursor] = useState(() => {
+    const s = startFrom();
+    return { y: s.y, m: s.m };
+  });
+  const [selected, setSelected] = useState<string | null>(ISO_DATE_RE.test(initialDate) ? initialDate : null);
+
+  // Re-centre on the initial month/day each time the sheet opens.
+  useEffect(() => {
+    if (!open) return;
+    const s = startFrom();
+    setCursor({ y: s.y, m: s.m });
+    setSelected(ISO_DATE_RE.test(initialDate) ? initialDate : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialDate]);
+
+  const today = todayISO();
+
+  // 6-week grid, Monday-first.
+  const firstOfMonth = new Date(cursor.y, cursor.m, 1);
+  const leading = (firstOfMonth.getDay() + 6) % 7; // JS 0=Sun → Mon-first offset
+  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
+  const cells: (string | null)[] = [];
+  for (let i = 0; i < leading; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(`${cursor.y}-${String(cursor.m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const shiftMonth = (delta: number) =>
+    setCursor((c) => {
+      const nm = c.m + delta;
+      return { y: c.y + Math.floor(nm / 12), m: ((nm % 12) + 12) % 12 };
+    });
+
+  const selectedEvents = selected ? events.get(selected) ?? [] : [];
+
+  const navArrowStyle: React.CSSProperties = {
+    width: 40,
+    height: 40,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '50%',
+    cursor: 'pointer',
+    fontSize: fs(22),
+    color: COLORS.gold,
+    border: '1px solid rgba(var(--gold-rgb),0.2)',
+    userSelect: 'none',
+  };
+  const legendStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: fs(10.5),
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
+    color: COLORS.textFaint,
+  };
+
+  return (
+    <BottomSheet open={open} heightPct={94}>
+      <SheetCloseButton onClose={onClose} />
+      <div style={{ padding: '8px 22px 48px' }}>
+        <div style={{ textAlign: 'center', fontSize: fs(11), letterSpacing: '2.5px', textTransform: 'uppercase', color: COLORS.textGhost, marginBottom: 18 }}>
+          Календарь
+        </div>
+
+        {/* Month navigation */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div onClick={() => shiftMonth(-1)} role="button" aria-label="Предыдущий месяц" style={navArrowStyle}>
+            ‹
+          </div>
+          <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(21), color: COLORS.gold, letterSpacing: '0.5px' }}>
+            {MONTHS_RU_FULL[cursor.m]} {cursor.y}
+          </div>
+          <div onClick={() => shiftMonth(1)} role="button" aria-label="Следующий месяц" style={navArrowStyle}>
+            ›
+          </div>
+        </div>
+
+        {/* Weekday header */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 6 }}>
+          {WEEKDAYS_RU.map((w) => (
+            <div key={w} style={{ textAlign: 'center', fontSize: fs(9.5), letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.textTrace }}>
+              {w}
+            </div>
+          ))}
+        </div>
+
+        {/* Day grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3 }}>
+          {cells.map((iso, i) => {
+            if (!iso) return <div key={i} />;
+            const dayEvents = events.get(iso) ?? [];
+            const hasSession = dayEvents.some((e) => e.kind === 'session');
+            const hasConsult = dayEvents.some((e) => e.kind === 'consultation');
+            const isToday = iso === today;
+            const isSelected = iso === selected;
+            const dayNum = Number(iso.split('-')[2]);
+            return (
+              <div
+                key={i}
+                onClick={() => setSelected(iso)}
+                role="button"
+                style={{
+                  aspectRatio: '1 / 1',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 3,
+                  cursor: 'pointer',
+                  border: isSelected
+                    ? '1px solid rgba(var(--gold-rgb),0.6)'
+                    : isToday
+                    ? '1px solid rgba(var(--gold-rgb),0.28)'
+                    : '1px solid transparent',
+                  background: isSelected ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                }}
+              >
+                <div style={{ fontSize: fs(13.5), color: dayEvents.length ? COLORS.textPrimary : COLORS.textFaint, fontWeight: isToday ? 700 : 400 }}>
+                  {dayNum}
+                </div>
+                <div style={{ display: 'flex', gap: 2, height: 5, marginTop: 2 }}>
+                  {hasSession && <span style={{ width: 4, height: 4, borderRadius: '50%', background: COLORS.gold }} />}
+                  {hasConsult && <span style={{ width: 4, height: 4, borderRadius: '50%', background: CONSULT_MARK }} />}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, margin: '18px 0 6px' }}>
+          <span style={legendStyle}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: COLORS.gold, display: 'inline-block' }} /> сессия
+          </span>
+          <span style={legendStyle}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: CONSULT_MARK, display: 'inline-block' }} /> консультация
+          </span>
+        </div>
+
+        <div style={{ height: 1, background: 'rgba(var(--gold-rgb),0.12)', margin: '14px 0 16px' }} />
+
+        {/* Selected day's entries */}
+        {selected ? (
+          <>
+            <div style={{ fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', color: COLORS.textGhost, marginBottom: 12 }}>
+              {formatDate(selected)}
+            </div>
+            {selectedEvents.length === 0 ? (
+              <div style={{ fontStyle: 'italic', color: COLORS.textFaint, fontSize: fs(13) }}>Нет записей на этот день</div>
+            ) : (
+              selectedEvents.map((e) => (
+                <div
+                  key={e.kind + e.id}
+                  onClick={() => onOpenEntry(e.kind, e.clientId, e.id)}
+                  className="inka-dashed"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '11px 13px',
+                    marginBottom: 8,
+                    borderRadius: 3,
+                    cursor: 'pointer',
+                    border: '1px solid rgba(var(--gold-rgb),0.15)',
+                    opacity: e.done ? 0.55 : 1,
+                  }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: e.kind === 'session' ? COLORS.gold : CONSULT_MARK, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: fs(14.5), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.clientName}</div>
+                    <div style={{ fontSize: fs(10.5), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {e.kind === 'session' ? 'Сессия' : 'Консультация'}
+                      {e.done ? ' · выполнено' : ''}
+                    </div>
+                  </div>
+                  {e.time && <div style={{ fontSize: fs(13.5), color: COLORS.gold, fontVariantNumeric: 'tabular-nums' }}>{e.time}</div>}
+                </div>
+              ))
+            )}
+          </>
+        ) : (
+          <div style={{ fontStyle: 'italic', color: COLORS.textFaint, fontSize: fs(13), textAlign: 'center' }}>Выберите день, чтобы увидеть записи</div>
+        )}
+      </div>
+    </BottomSheet>
   );
 }
 
