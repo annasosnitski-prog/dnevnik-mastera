@@ -249,6 +249,13 @@ input[type='date'] {
   box-shadow: var(--card-rest-shadow);
 }
 
+/* Same framed appearance as .inka-card but with no hover/press reaction —
+   for display-only blocks (stat tiles, info panels) the user shouldn't be
+   able to "poke". Keeps the inset-ring frame, drops the lift/scale. */
+.inka-static {
+  box-shadow: var(--card-rest-shadow);
+}
+
 /* Top marker stripe: tapered to a point on the LEFT (a calligraphic nib), full
    on the right where it meets the right-edge stripe over the gem corner. */
 .inka-stripe {

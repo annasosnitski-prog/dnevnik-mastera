@@ -474,15 +474,6 @@ function urgencyCounts(clients: Client[]): { urgent: number; important: number }
   return { urgent, important };
 }
 
-// Count of notes marked done (closed), across all clients and urgencies.
-function closedNotesCount(clients: Client[]): number {
-  let count = 0;
-  for (const c of clients) {
-    for (const n of c.notes) if (n.done) count++;
-  }
-  return count;
-}
-
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
 function normalizeClient(raw: any, index: number): Client {
@@ -3539,7 +3530,7 @@ function GoldGemCorner({ size = 24 }: { size?: number }) {
 // card, all gold. Used throughout the master dashboard.
 function GoldFrame({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div className="inka-card" style={{ position: 'relative', borderRadius: 3, overflow: 'hidden', background: 'rgba(var(--surface-rgb),0.018)', ...style }}>
+    <div className="inka-static" style={{ position: 'relative', borderRadius: 3, overflow: 'hidden', background: 'rgba(var(--surface-rgb),0.018)', ...style }}>
       <GoldTopStripe />
       <GoldRightStripe />
       <GoldGemCorner />
@@ -3956,7 +3947,6 @@ function MasterDashboardScreen({
   const style = mostUsedStyle(clients);
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
-  const closedCount = closedNotesCount(clients);
   const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
   const plannedSessionsCount = statsUpcoming.filter((i) => i.kind === 'session').length;
   const plannedConsultationsCount = statsUpcoming.filter((i) => i.kind === 'consultation').length;
@@ -4130,17 +4120,31 @@ function MasterDashboardScreen({
           ))}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-          <StatBlock label="Клиентов" value={clients.length} />
+          {/* Клиентов: count on top, срочно/важно pulled up into the lower half. */}
+          <GoldFrame style={{ padding: '16px 10px 14px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ textAlign: 'center', marginBottom: 13 }}>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>Клиентов</div>
+              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(30), fontWeight: 600, lineHeight: 1.15, color: COLORS.gold }}>{clients.length}</div>
+            </div>
+            <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: '100%', height: 1, marginBottom: 13 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{urgent}</div>
+              </div>
+              <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: 1, height: 34, flexShrink: 0 }} />
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[1].emoji} {URGENCY[1].short}</div>
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{important}</div>
+              </div>
+            </div>
+          </GoldFrame>
+          {/* Назначено сессий и консультаций — в одном блоке. */}
           <SplitStatBlock
             direction="column"
             a={{ label: 'Назначено сессий', value: plannedSessionsCount }}
-            b={{ label: `${DONE_EMOJI} Выполнено заметок`, value: closedCount }}
+            b={{ label: 'Консультаций', value: plannedConsultationsCount }}
           />
-          <SplitStatBlock
-            a={{ label: `${URGENCY[0].emoji} ${URGENCY[0].short}`, value: urgent }}
-            b={{ label: `${URGENCY[1].emoji} ${URGENCY[1].short}`, value: important }}
-          />
-          <StatBlock label="Консультаций" value={plannedConsultationsCount} />
           <div style={{ gridColumn: '1 / -1' }}>
             <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
           </div>
