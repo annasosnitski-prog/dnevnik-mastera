@@ -6345,13 +6345,15 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
 function SessionDeleteControl({
   onDelete,
   vertical = false,
-  danger = false,
+  matchEditColor = false,
 }: {
   onDelete: () => void;
   vertical?: boolean;
-  // Dark-red resting icon (vs. the default faint one) — used where delete
-  // sits apart from the other actions and should read as destructive at rest.
-  danger?: boolean;
+  // Renders the resting icon in the same gold/opacity treatment as the
+  // «Изменить» pencil next to it, instead of the default faint grey — used
+  // where delete sits grouped with edit and should read as its equal, not
+  // as a separately-alarming action.
+  matchEditColor?: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
 
@@ -6387,8 +6389,13 @@ function SessionDeleteControl({
   }
 
   return (
-    <span onClick={() => setConfirming(true)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label="Удалить сессию">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: danger ? '#8A3040' : COLORS.textFaint }}>
+    <span
+      onClick={() => setConfirming(true)}
+      className={matchEditColor ? 'inka-back' : undefined}
+      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: matchEditColor ? 0.75 : 1 }}
+      aria-label="Удалить сессию"
+    >
+      <svg width={matchEditColor ? 14 : 12} height={matchEditColor ? 14 : 12} viewBox="0 0 16 16" fill="none" style={{ color: matchEditColor ? COLORS.gold : COLORS.textFaint }}>
         <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       </svg>
@@ -6937,29 +6944,9 @@ function NoteItem({
         transition: 'opacity 0.3s',
       }}
     >
-      {/* Выполнено / Изменить — stacked on the left. */}
+      {/* Изменить / Удалить — kept together on the left, same faint gold look. */}
       {!editing && (
         <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          {/* Выполнено — check (or an undo arrow once done) */}
-          <div
-            onClick={onToggleDone}
-            className="inka-back"
-            role="button"
-            aria-label={note.done ? 'Вернуть в работу' : 'Выполнено'}
-            title={note.done ? 'Вернуть в работу' : 'Выполнено'}
-            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-          >
-            {note.done ? (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-          </div>
           {/* Изменить — same pencil as the consultation card */}
           {onEdit && (
             <div
@@ -6975,6 +6962,8 @@ function NoteItem({
               </svg>
             </div>
           )}
+          {/* Удалить — same control as the consultation card (✕ → confirm), same faint colour as Изменить */}
+          {onDelete && <SessionDeleteControl onDelete={onDelete} vertical matchEditColor />}
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -7077,13 +7066,32 @@ function NoteItem({
         )}
       </div>
 
-      {/* Status marker, with delete tucked right under it — the destructive
-          action separated from Выполнено/Изменить on the opposite side. */}
+      {/* Status marker, with Выполнено (green check) tucked under it on the
+          right — separated from Изменить/Удалить on the opposite side. */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <span style={{ fontSize: fs(16), lineHeight: 1.2 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
-        {!editing && onDelete && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <SessionDeleteControl onDelete={onDelete} vertical danger />
+        {!editing && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleDone();
+            }}
+            className="inka-back"
+            role="button"
+            aria-label={note.done ? 'Вернуть в работу' : 'Выполнено'}
+            title={note.done ? 'Вернуть в работу' : 'Выполнено'}
+            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+          >
+            {note.done ? (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: '#4A7A5A' }}>
+                <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: '#4A7A5A' }}>
+                <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
           </div>
         )}
       </div>
