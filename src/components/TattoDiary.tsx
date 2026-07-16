@@ -3988,15 +3988,39 @@ function MasterDashboardScreen({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
-  const handleExport = () => {
-    const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  // Downloads the backup as a file — the fallback path when the device has no
+  // native share sheet (most desktop browsers).
+  const downloadBackup = (json: string, filename: string) => {
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExport = async () => {
+    const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
+    const json = JSON.stringify(payload, null, 2);
+    const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+    // On mobile / PWA, open the OS "Отправить по…" sheet with the backup file
+    // attached, so the master can send it straight to Telegram, mail, Files,
+    // etc. Falls back to a plain download where file-sharing isn't supported.
+    const file = new File([json], filename, { type: 'application/json' });
+    const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+    if (nav.canShare && nav.canShare({ files: [file] })) {
+      try {
+        await nav.share({ files: [file], title: 'INKA — резервная копия' });
+        return;
+      } catch (err) {
+        // User dismissed the share sheet — don't also trigger a download.
+        if ((err as DOMException)?.name === 'AbortError') return;
+        // Any other failure: fall through to the download fallback.
+      }
+    }
+    downloadBackup(json, filename);
   };
 
   const handleImportFile = (file: File) => {
@@ -4129,60 +4153,29 @@ function MasterDashboardScreen({
           />
         </GoldFrame>
 
-        {/* Quick stats — a 2x2 "character sheet" stat grid. Two of the four
-            cells are split in half to fit a related pair of counters:
-            назначенные сессии sit over выполнено-заметок (both period vs
-            all-time in one cell), and срочно/важно now share one cell,
-            freeing the other half for planned consultations. */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
-          {STATS_WINDOW_OPTIONS.map((o) => (
-            <div
-              key={o.days}
-              onClick={() => onChangePrefs({ ...prefs, statsWindowDays: o.days })}
-              style={{
-                fontSize: fs(12),
-                padding: '4px 10px',
-                borderRadius: 2,
-                cursor: 'pointer',
-                border: prefs.statsWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                background: prefs.statsWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                color: prefs.statsWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
-              }}
-            >
-              {o.label}
+        {/* Contacts & requisites (edited in Настройки → Карточка мастера) */}
+        <GoldFrame style={{ padding: '14px 16px' }}>
+          <div style={statLabelStyle}>Контакты и оплата</div>
+          {masterInfo.links.length === 0 && !masterInfo.bankDetails ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+              Заполните в Настройках → Карточка мастера
             </div>
-          ))}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-          {/* Клиентов: count on top, срочно/важно pulled up into the lower half. */}
-          <GoldFrame style={{ padding: '16px 10px 14px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ textAlign: 'center', marginBottom: 13 }}>
-              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>Клиентов</div>
-              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(30), fontWeight: 600, lineHeight: 1.15, color: COLORS.gold }}>{clients.length}</div>
-            </div>
-            <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: '100%', height: 1, marginBottom: 13 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
-                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{urgent}</div>
-              </div>
-              <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: 1, height: 34, flexShrink: 0 }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[1].emoji} {URGENCY[1].short}</div>
-                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{important}</div>
-              </div>
-            </div>
-          </GoldFrame>
-          {/* Назначено сессий и консультаций — в одном блоке. */}
-          <SplitStatBlock
-            direction="column"
-            a={{ label: 'Назначено сессий', value: plannedSessionsCount }}
-            b={{ label: 'Консультаций', value: plannedConsultationsCount }}
-          />
-          <div style={{ gridColumn: '1 / -1' }}>
-            <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
-          </div>
-        </div>
+          ) : (
+            <>
+              {masterInfo.links.map((l) => (
+                <div key={l.id} style={{ marginBottom: 6 }}>
+                  <span style={{ fontSize: fs(12), color: COLORS.gold }}>{l.label}: </span>
+                  <span style={{ fontSize: fs(13), color: 'var(--text-secondary)' }}>{l.value}</span>
+                </div>
+              ))}
+              {masterInfo.bankDetails && (
+                <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', marginTop: 6 }}>
+                  {masterInfo.bankDetails}
+                </div>
+              )}
+            </>
+          )}
+        </GoldFrame>
 
         {/* Upcoming sessions, with a master-configurable lookahead window */}
         <GoldFrame style={{ padding: '14px 16px' }}>
@@ -4240,29 +4233,59 @@ function MasterDashboardScreen({
           )}
         </GoldFrame>
 
-        {/* Contacts & requisites (edited in Настройки → Карточка мастера) */}
-        <GoldFrame style={{ padding: '14px 16px' }}>
-          <div style={statLabelStyle}>Контакты и оплата</div>
-          {masterInfo.links.length === 0 && !masterInfo.bankDetails ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
-              Заполните в Настройках → Карточка мастера
+        {/* Quick stats — a "character sheet" grid: клиентов (with срочно/важно
+            pulled into its lower half) beside назначено сессий/консультаций,
+            then частый стиль full-width. The window chips above scope the
+            planned counts to the chosen lookahead. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+          {STATS_WINDOW_OPTIONS.map((o) => (
+            <div
+              key={o.days}
+              onClick={() => onChangePrefs({ ...prefs, statsWindowDays: o.days })}
+              style={{
+                fontSize: fs(12),
+                padding: '4px 10px',
+                borderRadius: 2,
+                cursor: 'pointer',
+                border: prefs.statsWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                background: prefs.statsWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                color: prefs.statsWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
+              }}
+            >
+              {o.label}
             </div>
-          ) : (
-            <>
-              {masterInfo.links.map((l) => (
-                <div key={l.id} style={{ marginBottom: 6 }}>
-                  <span style={{ fontSize: fs(12), color: COLORS.gold }}>{l.label}: </span>
-                  <span style={{ fontSize: fs(13), color: 'var(--text-secondary)' }}>{l.value}</span>
-                </div>
-              ))}
-              {masterInfo.bankDetails && (
-                <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', marginTop: 6 }}>
-                  {masterInfo.bankDetails}
-                </div>
-              )}
-            </>
-          )}
-        </GoldFrame>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          {/* Клиентов: count on top, срочно/важно pulled up into the lower half. */}
+          <GoldFrame style={{ padding: '16px 10px 14px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ textAlign: 'center', marginBottom: 13 }}>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>Клиентов</div>
+              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(30), fontWeight: 600, lineHeight: 1.15, color: COLORS.gold }}>{clients.length}</div>
+            </div>
+            <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: '100%', height: 1, marginBottom: 13 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{urgent}</div>
+              </div>
+              <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: 1, height: 34, flexShrink: 0 }} />
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[1].emoji} {URGENCY[1].short}</div>
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{important}</div>
+              </div>
+            </div>
+          </GoldFrame>
+          {/* Назначено сессий и консультаций — в одном блоке. */}
+          <SplitStatBlock
+            direction="column"
+            a={{ label: 'Назначено сессий', value: plannedSessionsCount }}
+            b={{ label: 'Консультаций', value: plannedConsultationsCount }}
+          />
+          <div style={{ gridColumn: '1 / -1' }}>
+            <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
+          </div>
+        </div>
 
         {/* Backup — export the whole client list to a JSON file, or restore
             from one (replaces everything currently stored). */}
