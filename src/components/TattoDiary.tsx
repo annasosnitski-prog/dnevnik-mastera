@@ -4709,9 +4709,10 @@ function SummaryScreen({
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
-  // Filters live behind a «Фильтры ▾» toggle; the new-note composer behind a
-  // «+» — both tucked away until the master wants them.
-  const [showFilters, setShowFilters] = useState(false);
+  // The urgency symbols themselves stay visible; the fuller text list (plus
+  // «Показывать закрытые») lives behind a «⋮» overflow menu. The new-note
+  // composer is behind the header's «+», mirroring the home screen's layout.
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const filtersActive = filter !== 'all' || showClosed;
 
@@ -4789,109 +4790,169 @@ function SummaryScreen({
       <CloudsBackground />
       <AviationBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      {/* Header — same formatting as the home screen: INKA logo + subtitle on
+          the left, a circular «+» (new note) opposite it on the right. */}
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        <div
-          style={{
-            fontFamily: DROP_CAP_FONT,
-            fontSize: fs(24),
-            color: COLORS.gold,
-            letterSpacing: '5px',
-            textTransform: 'uppercase',
-          }}
-        >
-          Задачи
-        </div>
+        <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Рабочие заметки
         </div>
         <StarDivider />
       </div>
+      <div
+        onClick={() => setShowComposer((v) => !v)}
+        role="button"
+        aria-label={showComposer ? 'Скрыть новую заметку' : 'Новая заметка'}
+        style={{
+          position: 'absolute',
+          top: 'calc(env(safe-area-inset-top) + 31px)',
+          right: 20,
+          zIndex: 20,
+          width: 48,
+          height: 48,
+          flexShrink: 0,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.25)',
+          background: showComposer ? 'rgba(var(--gold-rgb),0.1)' : 'rgba(var(--gold-rgb),0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="19" height="19" viewBox="0 0 14 14" fill="none" style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 0.25s' }}>
+          <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </div>
 
-      {/* Top bar: a «Фильтры ▾» toggle that expands the urgency filters, plus
-          a «+» that reveals the new-note composer — both tucked away. */}
-      <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Фильтры toggle */}
-          <div
-            onClick={() => setShowFilters((v) => !v)}
-            role="button"
-            aria-label="Фильтры"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              cursor: 'pointer',
-              fontSize: fs(12),
-              color: filtersActive ? COLORS.gold : COLORS.textFaint,
-              letterSpacing: '1.5px',
-              textTransform: 'uppercase',
-              padding: '6px 11px',
-              border: filtersActive ? '1px solid rgba(var(--gold-rgb),0.5)' : '1px solid rgba(var(--gold-rgb),0.15)',
-              borderRadius: 2,
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-              <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-            </svg>
-            Фильтры{filtersActive ? ' •' : ''} {showFilters ? '▴' : '▾'}
+      {/* New general note (client-less, stored on the master) — collapsed
+          behind the header's «+». */}
+      {showComposer && (
+        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+            Новая общая заметка
           </div>
-          <div style={{ flex: 1 }} />
-          {/* Add-note button — ringed «+», turns to a close glyph when open. */}
+          <NoteComposer
+            onAdd={(text, urgency, photos) => {
+              onAddMasterNote(text, urgency, photos);
+              setShowComposer(false);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Filter bar: urgency symbols stay visible on the left; everything
+          else (text labels, «Показывать закрытые») is tucked behind a «⋮» on
+          the right. z-index 5 (not 1) so this row's own stacking context
+          — and the dropdown inside it — sits above the two-column section
+          below, which is a later sibling and would otherwise win z-index
+          ties by DOM order. */}
+      <div style={{ padding: '4px 20px 14px', position: 'relative', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* «Все» — reset chip, reuses the funnel glyph. */}
           <div
-            onClick={() => setShowComposer((v) => !v)}
+            onClick={() => setFilter('all')}
             role="button"
-            aria-label={showComposer ? 'Скрыть новую заметку' : 'Новая заметка'}
+            aria-label="Все"
+            title="Все"
             style={{
-              flexShrink: 0,
-              width: 40,
-              height: 40,
+              width: 30,
+              height: 30,
               borderRadius: '50%',
-              border: '1px solid rgba(var(--gold-rgb),0.5)',
-              background: showComposer ? 'rgba(var(--gold-rgb),0.1)' : 'rgba(var(--gold-rgb),0.03)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
+              border: filter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              background: filter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
             }}
           >
-            <svg width="15" height="15" viewBox="0 0 14 14" fill="none" style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 0.25s' }}>
-              <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-              <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: filter === 'all' ? COLORS.gold : COLORS.textFaint }}>
+              <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
             </svg>
           </div>
+          {URGENCY.map((u) => (
+            <div
+              key={u.key}
+              onClick={() => setFilter(u.key)}
+              role="button"
+              aria-label={u.label}
+              title={u.label}
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: fs(14),
+                border: filter === u.key ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                background: filter === u.key ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+              }}
+            >
+              {u.emoji}
+            </div>
+          ))}
         </div>
 
-        {/* Expanding filter list — hidden until «Фильтры» is tapped. */}
-        {showFilters && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {filterChip('Все', filter === 'all', () => setFilter('all'))}
-              {URGENCY.map((u) => (
-                <span key={u.key}>{filterChip(`${u.emoji} ${u.short}`, filter === u.key, () => setFilter(u.key))}</span>
-              ))}
-            </div>
-            <div style={{ marginTop: 8 }}>
-              {filterChip(`${DONE_EMOJI} Показывать закрытые`, showClosed, () => setShowClosed((v) => !v))}
-            </div>
+        {/* «⋮» — everything else: the same filters as a text list, plus
+            «Показывать закрытые». */}
+        <div style={{ position: 'relative' }}>
+          <div
+            onClick={() => setShowFilterMenu((v) => !v)}
+            role="button"
+            aria-label="Ещё фильтры"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              border: filtersActive ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              background: showFilterMenu || filtersActive ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+            }}
+          >
+            <svg width="4" height="16" viewBox="0 0 4 16" fill="none">
+              <circle cx="2" cy="2" r="1.6" fill={filtersActive ? COLORS.gold : COLORS.textFaint} />
+              <circle cx="2" cy="8" r="1.6" fill={filtersActive ? COLORS.gold : COLORS.textFaint} />
+              <circle cx="2" cy="14" r="1.6" fill={filtersActive ? COLORS.gold : COLORS.textFaint} />
+            </svg>
           </div>
-        )}
-
-        {/* New general note (client-less, stored on the master) — collapsed
-            behind the «+» above. */}
-        {showComposer && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-              Новая общая заметка
-            </div>
-            <NoteComposer
-              onAdd={(text, urgency, photos) => {
-                onAddMasterNote(text, urgency, photos);
-                setShowComposer(false);
-              }}
-            />
-          </div>
-        )}
-        <StarDivider />
+          {showFilterMenu && (
+            <>
+              <div onClick={() => setShowFilterMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  width: 220,
+                  maxWidth: 'calc(100vw - 40px)',
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: 12,
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
+                }}
+              >
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {filterChip('Все', filter === 'all', () => setFilter('all'))}
+                  {URGENCY.map((u) => (
+                    <span key={u.key}>{filterChip(`${u.emoji} ${u.short}`, filter === u.key, () => setFilter(u.key))}</span>
+                  ))}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  {filterChip(`${DONE_EMOJI} Показывать закрытые`, showClosed, () => setShowClosed((v) => !v))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Two columns, like the client list: planned sessions & consultations
