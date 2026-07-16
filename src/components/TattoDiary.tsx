@@ -1559,14 +1559,20 @@ export default function TattoDiary() {
 
   // ── Calendar-driven creation: «Создать событие» on a picked day walks
   // through kind → client (existing/new) → the actual session/consultation
-  // form, prefilled with that date. Each step is its own small sheet; this
-  // group of state threads the picked date and kind through the walk.
+  // form, prefilled with that date. A single step value (rather than one
+  // independent boolean per sheet) makes the steps mutually exclusive by
+  // construction — two of these sheets can never both be "open" at once,
+  // which a set of separate booleans could otherwise drift into.
+  type CalendarWalkStep = 'kind' | 'clientKind' | 'clientPicker' | 'quickClient' | null;
+  const [calendarWalkStep, setCalendarWalkStep] = useState<CalendarWalkStep>(null);
   const [calendarCreateDate, setCalendarCreateDate] = useState<string | null>(null);
-  const [showCalendarKindChoice, setShowCalendarKindChoice] = useState(false);
   const [calendarEventKind, setCalendarEventKind] = useState<'session' | 'consultation' | null>(null);
-  const [showClientKindChoice, setShowClientKindChoice] = useState(false);
-  const [showClientPicker, setShowClientPicker] = useState(false);
-  const [showQuickClientForm, setShowQuickClientForm] = useState(false);
+  // Cancels the calendar-creation walk from any step, clearing its state.
+  const cancelCalendarWalk = () => {
+    setCalendarWalkStep(null);
+    setCalendarCreateDate(null);
+    setCalendarEventKind(null);
+  };
 
   // Bumped whenever a new client is created, to (re)trigger the star-shower
   // celebration overlay — see <CelebrationBurst>. celebrationCount captures
@@ -1745,12 +1751,9 @@ export default function TattoDiary() {
     setShowAddChoice(false);
     setEditSession(null);
     setEditConsultation(null);
-    setShowCalendarKindChoice(false);
-    setShowClientKindChoice(false);
-    setShowClientPicker(false);
-    setShowQuickClientForm(false);
-    setCalendarCreateDate(null);
-    setCalendarEventKind(null);
+    setShowCalendar(false);
+    setViewEntry(null);
+    cancelCalendarWalk();
   };
 
   // Reached once a client (existing or freshly created) is in place for the
@@ -1794,7 +1797,7 @@ export default function TattoDiary() {
     };
     saveClient(client);
     setSelectedId(client.id);
-    setShowQuickClientForm(false);
+    setCalendarWalkStep(null);
     setCelebrationCount(clients.length + 1);
     setCelebrationKey((k) => k + 1);
     openPendingCalendarEvent();
@@ -1995,10 +1998,7 @@ export default function TattoDiary() {
     showAddChoice ||
     !!viewEntry ||
     showCalendar ||
-    showCalendarKindChoice ||
-    showClientKindChoice ||
-    showClientPicker ||
-    showQuickClientForm;
+    !!calendarWalkStep;
 
   // Resolve the entry being viewed to its latest stored copy (so an edit made
   // from the viewer is reflected if it reopens).
@@ -2803,67 +2803,46 @@ export default function TattoDiary() {
         onCreateEvent={(date) => {
           setShowCalendar(false);
           setCalendarCreateDate(date);
-          setShowCalendarKindChoice(true);
+          setCalendarWalkStep('kind');
         }}
       />
 
       {/* ═══════════ CALENDAR-DRIVEN CREATION WALK ═══════════ */}
       {/* Сессия/Консультация → Новый/Существующий клиент → (поиск или мини-
-          карточка) → сама форма сессии/консультации, с датой из календаря. */}
+          карточка) → сама форма сессии/консультации, с датой из календаря.
+          Only one of these four is ever open — `calendarWalkStep` is a
+          single value, so the sheets are mutually exclusive by construction. */}
       <AddChoiceSheet
-        open={showCalendarKindChoice}
-        onClose={() => {
-          setShowCalendarKindChoice(false);
-          setCalendarCreateDate(null);
-        }}
+        open={calendarWalkStep === 'kind'}
+        onClose={cancelCalendarWalk}
         onPickSession={() => {
           setCalendarEventKind('session');
-          setShowCalendarKindChoice(false);
-          setShowClientKindChoice(true);
+          setCalendarWalkStep('clientKind');
         }}
         onPickConsultation={() => {
           setCalendarEventKind('consultation');
-          setShowCalendarKindChoice(false);
-          setShowClientKindChoice(true);
+          setCalendarWalkStep('clientKind');
         }}
       />
       <ClientKindChoiceSheet
-        open={showClientKindChoice}
-        onClose={() => {
-          setShowClientKindChoice(false);
-          setCalendarCreateDate(null);
-          setCalendarEventKind(null);
-        }}
-        onPickExisting={() => {
-          setShowClientKindChoice(false);
-          setShowClientPicker(true);
-        }}
-        onPickNew={() => {
-          setShowClientKindChoice(false);
-          setShowQuickClientForm(true);
-        }}
+        open={calendarWalkStep === 'clientKind'}
+        onClose={cancelCalendarWalk}
+        onPickExisting={() => setCalendarWalkStep('clientPicker')}
+        onPickNew={() => setCalendarWalkStep('quickClient')}
       />
       <ClientPickerSheet
-        open={showClientPicker}
-        onClose={() => {
-          setShowClientPicker(false);
-          setCalendarCreateDate(null);
-          setCalendarEventKind(null);
-        }}
+        open={calendarWalkStep === 'clientPicker'}
+        onClose={cancelCalendarWalk}
         clients={clients}
         onPick={(clientId) => {
           setSelectedId(clientId);
-          setShowClientPicker(false);
+          setCalendarWalkStep(null);
           openPendingCalendarEvent();
         }}
       />
       <QuickClientSheet
-        open={showQuickClientForm}
-        onClose={() => {
-          setShowQuickClientForm(false);
-          setCalendarCreateDate(null);
-          setCalendarEventKind(null);
-        }}
+        open={calendarWalkStep === 'quickClient'}
+        onClose={cancelCalendarWalk}
         onCreate={handleQuickCreateClient}
       />
 
