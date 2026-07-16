@@ -4709,12 +4709,9 @@ function SummaryScreen({
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
-  // The urgency symbols themselves stay visible; the fuller text list (plus
-  // «Показывать закрытые») lives behind a «⋮» overflow menu. The new-note
-  // composer is behind the header's «+», mirroring the home screen's layout.
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  // The new-note composer is behind the header's «+», mirroring the home
+  // screen's layout.
   const [showComposer, setShowComposer] = useState(false);
-  const filtersActive = filter !== 'all' || showClosed;
 
   // Planned (not-done) sessions + consultations, across every client, soonest
   // first — a compact card (client · type · date) that opens straight into the
@@ -4749,29 +4746,6 @@ function SummaryScreen({
       return r !== 0 ? r : b.note.createdDate.localeCompare(a.note.createdDate);
     });
   const hasAnyNote = masterNotes.length > 0 || clients.some((c) => c.notes.length);
-
-  const filterChip = (label: string, active: boolean, onClick: () => void) => (
-    <div
-      onClick={onClick}
-      style={{
-        fontSize: fs(12),
-        padding: '5px 10px',
-        borderRadius: 2,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        whiteSpace: 'nowrap',
-        border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-        background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-        color: active ? COLORS.gold : COLORS.textFaint,
-        letterSpacing: '0.4px',
-        transition: 'all 0.2s',
-      }}
-    >
-      {label}
-    </div>
-  );
 
   return (
     <div style={{ minHeight: '100%', background: COLORS.bg }}>
@@ -4895,15 +4869,12 @@ function SummaryScreen({
               {u.emoji}
             </div>
           ))}
-        </div>
-
-        {/* «⋮» — everything else: the same filters as a text list, plus
-            «Показывать закрытые». */}
-        <div style={{ position: 'relative' }}>
+          {/* «Показывать закрытые» — its own icon toggle, no overflow menu. */}
           <div
-            onClick={() => setShowFilterMenu((v) => !v)}
+            onClick={() => setShowClosed((v) => !v)}
             role="button"
-            aria-label="Ещё фильтры"
+            aria-label="Показывать закрытые"
+            title="Показывать закрытые"
             style={{
               width: 30,
               height: 30,
@@ -4912,46 +4883,13 @@ function SummaryScreen({
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              border: filtersActive ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-              background: showFilterMenu || filtersActive ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+              fontSize: fs(14),
+              border: showClosed ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              background: showClosed ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
             }}
           >
-            <svg width="4" height="16" viewBox="0 0 4 16" fill="none">
-              <circle cx="2" cy="2" r="1.6" fill={filtersActive ? COLORS.gold : COLORS.textFaint} />
-              <circle cx="2" cy="8" r="1.6" fill={filtersActive ? COLORS.gold : COLORS.textFaint} />
-              <circle cx="2" cy="14" r="1.6" fill={filtersActive ? COLORS.gold : COLORS.textFaint} />
-            </svg>
+            {DONE_EMOJI}
           </div>
-          {showFilterMenu && (
-            <>
-              <div onClick={() => setShowFilterMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  right: 0,
-                  width: 220,
-                  maxWidth: 'calc(100vw - 40px)',
-                  background: COLORS.sheet,
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  borderRadius: 4,
-                  padding: 12,
-                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-                  zIndex: 17,
-                }}
-              >
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {filterChip('Все', filter === 'all', () => setFilter('all'))}
-                  {URGENCY.map((u) => (
-                    <span key={u.key}>{filterChip(`${u.emoji} ${u.short}`, filter === u.key, () => setFilter(u.key))}</span>
-                  ))}
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  {filterChip(`${DONE_EMOJI} Показывать закрытые`, showClosed, () => setShowClosed((v) => !v))}
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
