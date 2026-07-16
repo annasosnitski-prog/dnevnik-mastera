@@ -1557,6 +1557,17 @@ export default function TattoDiary() {
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
 
+  // ── Calendar-driven creation: «Создать событие» on a picked day walks
+  // through kind → client (existing/new) → the actual session/consultation
+  // form, prefilled with that date. Each step is its own small sheet; this
+  // group of state threads the picked date and kind through the walk.
+  const [calendarCreateDate, setCalendarCreateDate] = useState<string | null>(null);
+  const [showCalendarKindChoice, setShowCalendarKindChoice] = useState(false);
+  const [calendarEventKind, setCalendarEventKind] = useState<'session' | 'consultation' | null>(null);
+  const [showClientKindChoice, setShowClientKindChoice] = useState(false);
+  const [showClientPicker, setShowClientPicker] = useState(false);
+  const [showQuickClientForm, setShowQuickClientForm] = useState(false);
+
   // Bumped whenever a new client is created, to (re)trigger the star-shower
   // celebration overlay — see <CelebrationBurst>. celebrationCount captures
   // which client number this is (1st, 2nd, ...), used to pick the milestone
@@ -1716,10 +1727,14 @@ export default function TattoDiary() {
   const closeNewSession = () => {
     setShowNewSessionForm(false);
     setEditSession(null);
+    setCalendarCreateDate(null);
+    setCalendarEventKind(null);
   };
   const closeNewConsultation = () => {
     setShowNewConsultationForm(false);
     setEditConsultation(null);
+    setCalendarCreateDate(null);
+    setCalendarEventKind(null);
   };
   const closeEditClient = () => setShowEditClientForm(false);
   const closeBackdrop = () => {
@@ -1730,6 +1745,59 @@ export default function TattoDiary() {
     setShowAddChoice(false);
     setEditSession(null);
     setEditConsultation(null);
+    setShowCalendarKindChoice(false);
+    setShowClientKindChoice(false);
+    setShowClientPicker(false);
+    setShowQuickClientForm(false);
+    setCalendarCreateDate(null);
+    setCalendarEventKind(null);
+  };
+
+  // Reached once a client (existing or freshly created) is in place for the
+  // event the master started from the calendar — lands on that client's
+  // sessions tab with the session/consultation form open, date prefilled.
+  const openPendingCalendarEvent = () => {
+    setActiveTab('sessions');
+    setScreen('detail');
+    if (calendarEventKind === 'consultation') {
+      setEditConsultation(null);
+      setShowNewConsultationForm(true);
+    } else {
+      setEditSession(null);
+      setShowNewSessionForm(true);
+    }
+  };
+
+  const handleQuickCreateClient = (data: { name: string; color: string; phone: string }) => {
+    const client: Client = {
+      id: Date.now().toString(),
+      name: data.name.trim(),
+      surname: '',
+      styles: [],
+      style: '',
+      color: data.color || ACCENT_COLORS[clients.length % ACCENT_COLORS.length],
+      clientType: 'client',
+      note: '',
+      masterNote: '',
+      phone: data.phone.trim(),
+      skinType: '',
+      skinTone: '',
+      skinNotes: '',
+      allergies: '',
+      skinReactions: '',
+      chatLinks: [],
+      sessions: [],
+      consultations: [],
+      documents: [],
+      notes: [],
+      createdDate: new Date().toISOString(),
+    };
+    saveClient(client);
+    setSelectedId(client.id);
+    setShowQuickClientForm(false);
+    setCelebrationCount(clients.length + 1);
+    setCelebrationKey((k) => k + 1);
+    openPendingCalendarEvent();
   };
 
   const handleUpdateClient = (data: { name: string; surname: string; styles: string[]; color: string; clientType: ClientType; note: string }) => {
@@ -1780,6 +1848,8 @@ export default function TattoDiary() {
     saveClient({ ...selectedClient, consultations });
     setShowNewConsultationForm(false);
     setEditConsultation(null);
+    setCalendarCreateDate(null);
+    setCalendarEventKind(null);
   };
 
   const deleteConsultation = (consultationId: string) => {
@@ -1913,9 +1983,22 @@ export default function TattoDiary() {
     });
     setShowNewSessionForm(false);
     setEditSession(null);
+    setCalendarCreateDate(null);
+    setCalendarEventKind(null);
   };
 
-  const sheetOpen = showNewClientForm || showNewSessionForm || showEditClientForm || showNewConsultationForm || showAddChoice || !!viewEntry || showCalendar;
+  const sheetOpen =
+    showNewClientForm ||
+    showNewSessionForm ||
+    showEditClientForm ||
+    showNewConsultationForm ||
+    showAddChoice ||
+    !!viewEntry ||
+    showCalendar ||
+    showCalendarKindChoice ||
+    showClientKindChoice ||
+    showClientPicker ||
+    showQuickClientForm;
 
   // Resolve the entry being viewed to its latest stored copy (so an edit made
   // from the viewer is reflected if it reopens).
@@ -2652,6 +2735,7 @@ export default function TattoDiary() {
         open={showNewSessionForm}
         clientName={selectedClient?.name || ''}
         initial={editSession}
+        initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewSession}
         onAdd={handleAddSession}
       />
@@ -2682,6 +2766,7 @@ export default function TattoDiary() {
         clientName={selectedClient?.name || ''}
         client={selectedClient}
         initial={editConsultation}
+        initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewConsultation}
         onAdd={handleAddConsultation}
       />
@@ -2715,6 +2800,71 @@ export default function TattoDiary() {
           setShowCalendar(false);
           setViewEntry({ kind, clientId, id });
         }}
+        onCreateEvent={(date) => {
+          setShowCalendar(false);
+          setCalendarCreateDate(date);
+          setShowCalendarKindChoice(true);
+        }}
+      />
+
+      {/* ═══════════ CALENDAR-DRIVEN CREATION WALK ═══════════ */}
+      {/* Сессия/Консультация → Новый/Существующий клиент → (поиск или мини-
+          карточка) → сама форма сессии/консультации, с датой из календаря. */}
+      <AddChoiceSheet
+        open={showCalendarKindChoice}
+        onClose={() => {
+          setShowCalendarKindChoice(false);
+          setCalendarCreateDate(null);
+        }}
+        onPickSession={() => {
+          setCalendarEventKind('session');
+          setShowCalendarKindChoice(false);
+          setShowClientKindChoice(true);
+        }}
+        onPickConsultation={() => {
+          setCalendarEventKind('consultation');
+          setShowCalendarKindChoice(false);
+          setShowClientKindChoice(true);
+        }}
+      />
+      <ClientKindChoiceSheet
+        open={showClientKindChoice}
+        onClose={() => {
+          setShowClientKindChoice(false);
+          setCalendarCreateDate(null);
+          setCalendarEventKind(null);
+        }}
+        onPickExisting={() => {
+          setShowClientKindChoice(false);
+          setShowClientPicker(true);
+        }}
+        onPickNew={() => {
+          setShowClientKindChoice(false);
+          setShowQuickClientForm(true);
+        }}
+      />
+      <ClientPickerSheet
+        open={showClientPicker}
+        onClose={() => {
+          setShowClientPicker(false);
+          setCalendarCreateDate(null);
+          setCalendarEventKind(null);
+        }}
+        clients={clients}
+        onPick={(clientId) => {
+          setSelectedId(clientId);
+          setShowClientPicker(false);
+          openPendingCalendarEvent();
+        }}
+      />
+      <QuickClientSheet
+        open={showQuickClientForm}
+        onClose={() => {
+          setShowQuickClientForm(false);
+          setCalendarCreateDate(null);
+          setCalendarEventKind(null);
+        }}
+        onCreate={handleQuickCreateClient}
       />
 
       {/* ═══════════ CELEBRATION (new client created) ═══════════ */}
@@ -7556,12 +7706,15 @@ function CalendarSheet({
   clients,
   initialDate,
   onOpenEntry,
+  onCreateEvent,
 }: {
   open: boolean;
   onClose: () => void;
   clients: Client[];
   initialDate: string;
   onOpenEntry: (kind: 'session' | 'consultation', clientId: string, id: string) => void;
+  // Starts the record-a-session-or-consultation walk for the selected day.
+  onCreateEvent: (date: string) => void;
 }) {
   const events = useMemo(() => collectCalendarEvents(clients), [clients]);
   const parseISO = (iso: string) => {
@@ -7721,8 +7874,34 @@ function CalendarSheet({
         {/* Selected day's entries */}
         {selected ? (
           <>
-            <div style={{ fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', color: COLORS.textGhost, marginBottom: 12 }}>
-              {formatDate(selected)}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', color: COLORS.textGhost }}>
+                {formatDate(selected)}
+              </div>
+              <div
+                onClick={() => onCreateEvent(selected)}
+                role="button"
+                aria-label="Создать событие"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  fontSize: fs(11),
+                  color: COLORS.gold,
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  padding: '5px 10px',
+                  border: '1px solid rgba(var(--gold-rgb),0.35)',
+                  borderRadius: 20,
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                  <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+                  <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                Создать
+              </div>
             </div>
             {selectedEvents.length === 0 ? (
               <div style={{ fontStyle: 'italic', color: COLORS.textFaint, fontSize: fs(13) }}>Нет записей на этот день</div>
@@ -8014,12 +8193,16 @@ function NewSessionSheet({
   open,
   clientName,
   initial,
+  initialDate,
   onClose,
   onAdd,
 }: {
   open: boolean;
   clientName: string;
   initial?: Session | null;
+  // Prefills the date field for a brand-new session (e.g. started from a day
+  // picked in the calendar) — ignored once `initial` is set (editing wins).
+  initialDate?: string;
   onClose: () => void;
   onAdd: (data: {
     name: string;
@@ -8049,14 +8232,16 @@ function NewSessionSheet({
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
-  // New sessions default to «Выполнена»; editing reflects the session's status.
+  // New sessions default to «Выполнена»; editing reflects the session's
+  // status; started from a calendar date (clearly a future booking), default
+  // to «Запланирована» instead.
   const [done, setDone] = useState(true);
 
   useEffect(() => {
     if (open) {
       // Prefill from the session being edited, or start blank for a new one.
       setName(initial?.name ?? '');
-      setDate(initial?.date ?? '');
+      setDate(initial?.date ?? initialDate ?? '');
       setTime(initial?.time ?? '');
       setDuration(initial?.duration ?? '');
       setStyle(initial?.style ?? '');
@@ -8066,7 +8251,7 @@ function NewSessionSheet({
       setSkinReaction(initial?.skinReaction ?? '');
       setNote(initial?.note ?? '');
       setPhotos(initial?.photos ?? []);
-      setDone(initial ? initial.done : true);
+      setDone(initial ? initial.done : !initialDate);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -8234,6 +8419,8 @@ function AddChoiceSheet({
   const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
     <div
       onClick={onClick}
+      role="button"
+      aria-label={title}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -8301,11 +8488,251 @@ function AddChoiceSheet({
   );
 }
 
+// ===================== CALENDAR CREATION WALK: CLIENT KIND =====================
+// Second step after picking Сессия/Консультация from the calendar — same
+// two-card look as AddChoiceSheet, choosing between an existing client and a
+// brand-new one.
+function ClientKindChoiceSheet({
+  open,
+  onClose,
+  onPickExisting,
+  onPickNew,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPickExisting: () => void;
+  onPickNew: () => void;
+}) {
+  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
+    <div
+      onClick={onClick}
+      role="button"
+      aria-label={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        border: '1px solid rgba(var(--gold-rgb),0.25)',
+        borderRadius: 2,
+        padding: '16px',
+        cursor: 'pointer',
+        background: 'rgba(var(--gold-rgb),0.03)',
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          color: 'var(--gold)',
+        }}
+      >
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <BottomSheet open={open} heightPct={34}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Кто клиент?</div>
+        <SheetStarDivider />
+      </div>
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {choice(
+          'Существующий клиент',
+          'Выбрать из уже сохранённых',
+          onPickExisting,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="6.6" r="3.3" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>,
+        )}
+        {choice(
+          'Новый клиент',
+          'Имя, цвет и телефон — остальное потом',
+          onPickNew,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <circle cx="8" cy="6.6" r="3" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M3 17C3 13.6 5.3 12 8 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="14.5" y1="9" x2="14.5" y2="15" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            <line x1="11.5" y1="12" x2="17.5" y2="12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>,
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
+// ===================== CALENDAR CREATION WALK: EXISTING-CLIENT PICKER =====================
+// A quick search + tap-to-pick list — compact rows, not the big grid cards
+// used on the main list screen, since this is a fast lookup mid-flow.
+function ClientPickerSheet({
+  open,
+  onClose,
+  clients,
+  onPick,
+}: {
+  open: boolean;
+  onClose: () => void;
+  clients: Client[];
+  onPick: (clientId: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (open) setQuery('');
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const sorted = [...clients].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    if (!q) return sorted;
+    return sorted.filter((c) => [c.name, c.surname].filter(Boolean).join(' ').toLowerCase().includes(q));
+  }, [clients, query]);
+
+  return (
+    <BottomSheet open={open} heightPct={80}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Выберите клиента</div>
+        <SheetStarDivider />
+      </div>
+      <div style={{ padding: '4px 24px 12px' }}>
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Найти клиента..."
+          style={INPUT_STYLE}
+        />
+      </div>
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>
+        {filtered.length === 0 ? (
+          <div style={{ fontStyle: 'italic', color: COLORS.textGhost, fontSize: fs(14), textAlign: 'center', marginTop: 16 }}>
+            {clients.length === 0 ? 'Клиентов пока нет' : 'Никого не нашлось'}
+          </div>
+        ) : (
+          filtered.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => onPick(c.id)}
+              className="inka-dashed"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '11px 13px',
+                borderRadius: 3,
+                cursor: 'pointer',
+                border: '1px solid rgba(var(--gold-rgb),0.15)',
+              }}
+            >
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
+              <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textPrimary }}>
+                {[c.name, c.surname].filter(Boolean).join(' ') || '—'}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
+// ===================== CALENDAR CREATION WALK: QUICK NEW CLIENT =====================
+// Minimal client creation for the calendar flow — just enough to attach a
+// session/consultation to somebody real; the rest of the profile (styles,
+// skin, notes...) gets filled in later from the client's own card.
+function QuickClientSheet({
+  open,
+  onClose,
+  onCreate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreate: (data: { name: string; color: string; phone: string }) => void;
+}) {
+  const [name, setName] = useState('');
+  const [color, setColor] = useState(MARKER_COLORS[0]);
+  const [phone, setPhone] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setColor(MARKER_COLORS[0]);
+      setPhone('');
+    }
+  }, [open]);
+
+  const canSubmit = name.trim().length > 0;
+
+  return (
+    <BottomSheet open={open} heightPct={62}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
+        <SheetStarDivider />
+      </div>
+      <div style={{ padding: '4px 24px 40px' }}>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Имя</FieldLabel>
+          <input dir="auto" value={name} onChange={(e) => setName(e.target.value)} placeholder="Александра" style={INPUT_STYLE} autoFocus />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Телефон</FieldLabel>
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 900 000-00-00" style={INPUT_STYLE} />
+        </div>
+        <div style={{ marginBottom: 22 }}>
+          <FieldLabel>Цвет-маркер</FieldLabel>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {MARKER_COLORS.map((c) => (
+              <div
+                key={c}
+                onClick={() => setColor(c)}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  background: c,
+                  cursor: 'pointer',
+                  border: color === c ? '2px solid var(--text)' : '2px solid transparent',
+                  boxShadow: color === c ? '0 0 0 2px rgba(var(--gold-rgb),0.5)' : 'none',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <div
+          className="inka-submit"
+          onClick={() => canSubmit && onCreate({ name, color, phone })}
+          style={{ ...SUBMIT_STYLE, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? 'pointer' : 'default' }}
+        >
+          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
+            Создать и продолжить
+          </span>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
 function NewConsultationSheet({
   open,
   clientName,
   client,
   initial,
+  initialDate,
   onClose,
   onAdd,
 }: {
@@ -8313,6 +8740,9 @@ function NewConsultationSheet({
   clientName: string;
   client: Client | null;
   initial?: Consultation | null;
+  // Prefills the date field for a brand-new consultation (e.g. started from a
+  // day picked in the calendar) — ignored once `initial` is set.
+  initialDate?: string;
   onClose: () => void;
   onAdd: (data: {
     date: string;
@@ -8341,7 +8771,7 @@ function NewConsultationSheet({
 
   useEffect(() => {
     if (open) {
-      setDate(initial?.date ?? '');
+      setDate(initial?.date ?? initialDate ?? '');
       setTime(initial?.time ?? '');
       setArea(initial?.area ?? '');
       setStyle(initial?.style ?? '');
