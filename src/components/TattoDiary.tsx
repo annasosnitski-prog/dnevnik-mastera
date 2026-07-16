@@ -6403,36 +6403,10 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
 }
 
 // Small ✕ on a session card; a tap reveals "Удалить? Да/Нет" inline.
-function SessionDeleteControl({
-  onDelete,
-  vertical = false,
-  matchEditColor = false,
-}: {
-  onDelete: () => void;
-  vertical?: boolean;
-  // Renders the resting icon in the same gold/opacity treatment as the
-  // «Изменить» pencil next to it, instead of the default faint grey — used
-  // where delete sits grouped with edit and should read as its equal, not
-  // as a separately-alarming action.
-  matchEditColor?: boolean;
-}) {
+function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
   const [confirming, setConfirming] = useState(false);
 
   if (confirming) {
-    // In a narrow vertical action strip the "Удалить? Да Нет" row won't fit, so
-    // stack a compact Да / Нет instead.
-    if (vertical) {
-      return (
-        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-          <span onClick={onDelete} style={{ fontSize: fs(11), color: '#C56676', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
-            Да
-          </span>
-          <span onClick={() => setConfirming(false)} style={{ fontSize: fs(11), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
-            Нет
-          </span>
-        </span>
-      );
-    }
     return (
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: fs(12), color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
@@ -6450,13 +6424,8 @@ function SessionDeleteControl({
   }
 
   return (
-    <span
-      onClick={() => setConfirming(true)}
-      className={matchEditColor ? 'inka-back' : undefined}
-      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: matchEditColor ? 0.75 : 1 }}
-      aria-label="Удалить сессию"
-    >
-      <svg width={matchEditColor ? 14 : 12} height={matchEditColor ? 14 : 12} viewBox="0 0 16 16" fill="none" style={{ color: matchEditColor ? COLORS.gold : COLORS.textFaint }}>
+    <span onClick={() => setConfirming(true)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label="Удалить сессию">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.textFaint }}>
         <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       </svg>
@@ -6979,16 +6948,32 @@ function NoteItem({
   const [editing, setEditing] = useState(false);
   const [draftText, setDraftText] = useState(note.text);
   const [draftUrgency, setDraftUrgency] = useState<UrgencyKey>(note.urgency);
+  // Actions (Выполнено/Изменить/Удалить) live behind a «⋮» overflow menu —
+  // only the urgency symbol stays visible at rest, mirroring the filter bar.
+  const [showActions, setShowActions] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const startEdit = () => {
     setDraftText(note.text);
     setDraftUrgency(note.urgency);
     setEditing(true);
+    setShowActions(false);
   };
   const saveEdit = () => {
     const trimmed = draftText.trim();
     if (trimmed && onEdit) onEdit(trimmed, draftUrgency);
     setEditing(false);
+  };
+
+  const menuRowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 6px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    fontSize: fs(12.5),
+    letterSpacing: '0.3px',
   };
 
   return (
@@ -7005,28 +6990,8 @@ function NoteItem({
         transition: 'opacity 0.3s',
       }}
     >
-      {/* Изменить / Удалить — kept together on the left, same faint gold look. */}
-      {!editing && (
-        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          {/* Изменить — same pencil as the consultation card */}
-          {onEdit && (
-            <div
-              onClick={startEdit}
-              className="inka-back"
-              role="button"
-              aria-label="Изменить"
-              title="Изменить"
-              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-              </svg>
-            </div>
-          )}
-          {/* Удалить — same control as the consultation card (✕ → confirm), same faint colour as Изменить */}
-          {onDelete && <SessionDeleteControl onDelete={onDelete} vertical matchEditColor />}
-        </div>
-      )}
+      {/* Status marker — decorative only, always visible. */}
+      <span style={{ fontSize: fs(16), lineHeight: 1.2, flexShrink: 0 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         {client && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
@@ -7127,35 +7092,120 @@ function NoteItem({
         )}
       </div>
 
-      {/* Status marker, with Выполнено (green check) tucked under it on the
-          right — separated from Изменить/Удалить on the opposite side. */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <span style={{ fontSize: fs(16), lineHeight: 1.2 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
-        {!editing && (
+      {/* «⋮» — Выполнено / Изменить / Удалить, collapsed exactly like the
+          filter bar's overflow menu: one dot-icon at rest, a small opaque
+          dropdown with labelled rows when tapped. */}
+      {!editing && (
+        <div style={{ position: 'relative', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
           <div
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleDone();
+            onClick={() => {
+              setShowActions((v) => !v);
+              setDeleteConfirm(false);
             }}
-            className="inka-back"
             role="button"
-            aria-label={note.done ? 'Вернуть в работу' : 'Выполнено'}
-            title={note.done ? 'Вернуть в работу' : 'Выполнено'}
-            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+            aria-label="Действия"
+            style={{
+              width: 26,
+              height: 26,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              borderRadius: '50%',
+              border: showActions ? '1px solid rgba(var(--gold-rgb),0.4)' : '1px solid transparent',
+              background: showActions ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+            }}
           >
-            {note.done ? (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: '#4A7A5A' }}>
-                <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: '#4A7A5A' }}>
-                <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
+            <svg width="4" height="16" viewBox="0 0 4 16" fill="none">
+              <circle cx="2" cy="2" r="1.6" fill={COLORS.textFaint} />
+              <circle cx="2" cy="8" r="1.6" fill={COLORS.textFaint} />
+              <circle cx="2" cy="14" r="1.6" fill={COLORS.textFaint} />
+            </svg>
           </div>
-        )}
-      </div>
+          {showActions && (
+            <>
+              <div onClick={() => setShowActions(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: 168,
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: 6,
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
+                }}
+              >
+                {deleteConfirm ? (
+                  <div style={{ padding: '6px 6px 4px' }}>
+                    <div style={{ fontSize: fs(12), color: '#A85A66', fontStyle: 'italic', marginBottom: 8 }}>Удалить заметку?</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <div
+                        onClick={() => {
+                          onDelete?.();
+                          setShowActions(false);
+                          setDeleteConfirm(false);
+                        }}
+                        style={{ flex: 1, textAlign: 'center', padding: '6px 0', fontSize: fs(11.5), color: '#C56676', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', border: '1px solid rgba(138,48,64,0.4)', borderRadius: 2 }}
+                      >
+                        Да
+                      </div>
+                      <div
+                        onClick={() => setDeleteConfirm(false)}
+                        style={{ flex: 1, textAlign: 'center', padding: '6px 0', fontSize: fs(11.5), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', border: '1px solid rgba(var(--gold-rgb),0.15)', borderRadius: 2 }}
+                      >
+                        Нет
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      onClick={() => {
+                        onToggleDone();
+                        setShowActions(false);
+                      }}
+                      style={{ ...menuRowStyle, color: '#4A7A5A' }}
+                    >
+                      {note.done ? (
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                          <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      ) : (
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                          <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                      {note.done ? 'Вернуть в работу' : 'Выполнено'}
+                    </div>
+                    {onEdit && (
+                      <div onClick={startEdit} style={{ ...menuRowStyle, color: COLORS.gold }}>
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                          <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                        </svg>
+                        Изменить
+                      </div>
+                    )}
+                    {onDelete && (
+                      <div onClick={() => setDeleteConfirm(true)} style={{ ...menuRowStyle, color: '#A85A66' }}>
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                          <line x1="4" y1="4" x2="12" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                          <line x1="12" y1="4" x2="4" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                        </svg>
+                        Удалить
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
