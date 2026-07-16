@@ -147,6 +147,7 @@ interface Session {
   note: string;
   photos: string[]; // captured/uploaded photos (data URLs)
   done: boolean;
+  healed: boolean; // manually ticked once a healed-skin photo has been added
 }
 
 interface ClientDocument {
@@ -474,6 +475,58 @@ function urgencyCounts(clients: Client[]): { urgent: number; important: number }
   return { urgent, important };
 }
 
+// Whole days between an ISO date and today (local), floored — used for the
+// fixed 30-day healing check-in window.
+function daysSinceISO(date: string): number {
+  const then = new Date(date + 'T00:00:00');
+  const today = new Date(todayISO() + 'T00:00:00');
+  return Math.floor((today.getTime() - then.getTime()) / 86400000);
+}
+
+const HEALING_REMINDER_DAYS = 30;
+// The message offered for copying on a healing check-in — deliberately not
+// personalised with the client's name (master's preference).
+const HEALING_REMINDER_MESSAGE = 'Привет, как дела? Пишу узнать как зажила татуировка';
+
+// Sessions AND consultations whose date has passed while still marked
+// not-done — the master either ticks them done (it happened, wasn't logged)
+// or reschedules. Sorted oldest-first, so the most overdue leads.
+type OverdueItem = { client: Client; kind: 'session' | 'consultation'; id: string; date: string; time: string };
+
+function overdueEntries(clients: Client[]): OverdueItem[] {
+  const today = todayISO();
+  const result: OverdueItem[] = [];
+  for (const client of clients) {
+    for (const session of client.sessions) {
+      if (session.done || !ISO_DATE_RE.test(session.date) || session.date >= today) continue;
+      result.push({ client, kind: 'session', id: session.id, date: session.date, time: session.time });
+    }
+    for (const consultation of client.consultations) {
+      if (consultation.done || !ISO_DATE_RE.test(consultation.date) || consultation.date >= today) continue;
+      result.push({ client, kind: 'consultation', id: consultation.id, date: consultation.date, time: consultation.time });
+    }
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Done sessions, not yet marked healed, whose date is at least
+// HEALING_REMINDER_DAYS in the past — a nudge to check in with the client and
+// (once they send a healed-skin photo) tick «Зажив». Sorted oldest-first.
+type HealingItem = { client: Client; sessionId: string; date: string };
+
+function healingReminders(clients: Client[]): HealingItem[] {
+  const result: HealingItem[] = [];
+  for (const client of clients) {
+    for (const session of client.sessions) {
+      if (!session.done || session.healed || !ISO_DATE_RE.test(session.date)) continue;
+      if (daysSinceISO(session.date) >= HEALING_REMINDER_DAYS) {
+        result.push({ client, sessionId: session.id, date: session.date });
+      }
+    }
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
 function normalizeClient(raw: any, index: number): Client {
@@ -492,6 +545,7 @@ function normalizeClient(raw: any, index: number): Client {
         note: s?.note ?? s?.notes ?? '',
         photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
         done: s?.done ?? true,
+        healed: s?.healed ?? false,
       }))
     : [];
 
@@ -1897,6 +1951,43 @@ export default function TattoDiary() {
     });
   };
 
+  // clientId-scoped variants of the toggles above — for quick actions fired
+  // from the Задачи/Мастер screens' «Напоминания» section, which act on
+  // overdue entries across every client, not just whichever one happens to
+  // be open (selectedClient may well be null there).
+  const markEntryDone = (clientId: string, itemId: string, kind: 'session' | 'consultation') => {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    if (kind === 'session') {
+      saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === itemId ? { ...s, done: true } : s)) });
+    } else {
+      saveClient({ ...c, consultations: c.consultations.map((cn) => (cn.id === itemId ? { ...cn, done: true } : cn)) });
+    }
+  };
+
+  // Shared navigation: land on the client's own card and pop the edit form
+  // open for that session/consultation — used both by the Мастер dashboard's
+  // upcoming list and the reminder quick-actions (reschedule an overdue entry,
+  // or jump into a session to tick «Зажив» once a healed photo's in).
+  const openEntryForEdit = (clientId: string, itemId: string, kind: 'session' | 'consultation') => {
+    const client = clients.find((c) => c.id === clientId);
+    if (!client) return;
+    setSelectedId(client.id);
+    setActiveTab('sessions');
+    setScreen('detail');
+    if (kind === 'consultation') {
+      const consultation = client.consultations.find((c) => c.id === itemId);
+      if (!consultation) return;
+      setEditConsultation(consultation);
+      setShowNewConsultationForm(true);
+      return;
+    }
+    const session = client.sessions.find((s) => s.id === itemId);
+    if (!session) return;
+    setEditSession(session);
+    setShowNewSessionForm(true);
+  };
+
   const handleCreateClient = (data: {
     name: string;
     surname: string;
@@ -1951,6 +2042,7 @@ export default function TattoDiary() {
     note: string;
     photos: string[];
     done: boolean;
+    healed: boolean;
   }) => {
     if (!selectedClient) return;
     const fields = {
@@ -1966,6 +2058,7 @@ export default function TattoDiary() {
       note: data.note.trim(),
       photos: data.photos,
       done: data.done,
+      healed: data.healed,
     };
     let sessions: Session[];
     if (editSession) {
@@ -2435,6 +2528,7 @@ export default function TattoDiary() {
           active={screen}
           onNavigate={(s) => setScreen(s)}
           onAddClient={() => runGated(clients.length === 0, () => setShowNewClientForm(true))}
+          tasksBadge={overdueEntries(clients).length > 0 ? 'urgent' : healingReminders(clients).length > 0 ? 'reminder' : null}
         />
       )}
 
@@ -2556,6 +2650,10 @@ export default function TattoDiary() {
               setViewEntry({ kind: 'consultation', clientId, id: consultationId });
             }}
             onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
+            overdue={overdueEntries(clients)}
+            healing={healingReminders(clients)}
+            onMarkDone={markEntryDone}
+            onOpenEntry={openEntryForEdit}
             onAddMasterNote={(text, urgency, photos) =>
               setMasterInfo({
                 ...masterInfo,
@@ -2592,30 +2690,13 @@ export default function TattoDiary() {
             onChangeMasterInfo={setMasterInfo}
             prefs={prefs}
             onChangePrefs={setPrefs}
-            onOpenSession={(clientId, itemId, kind) => {
-              const client = clients.find((c) => c.id === clientId);
-              if (!client) return;
-              // Land on the client's own card (like the calendar-driven flow
-              // does) instead of just popping the edit form open in place —
-              // otherwise closing the form leaves the master stranded on the
-              // dashboard with no obvious way to reach that client's profile.
-              setSelectedId(client.id);
-              setActiveTab('sessions');
-              setScreen('detail');
-              if (kind === 'consultation') {
-                const consultation = client.consultations.find((c) => c.id === itemId);
-                if (!consultation) return;
-                setEditConsultation(consultation);
-                setShowNewConsultationForm(true);
-                return;
-              }
-              const session = client.sessions.find((s) => s.id === itemId);
-              if (!session) return;
-              setEditSession(session);
-              setShowNewSessionForm(true);
-            }}
+            onOpenSession={openEntryForEdit}
             onOpenSettings={() => setScreen('settings')}
             onImport={replaceAllClients}
+            overdue={overdueEntries(clients)}
+            healing={healingReminders(clients)}
+            onMarkDone={markEntryDone}
+            onOpenEntry={openEntryForEdit}
           />
         )}
       </div>
@@ -3916,10 +3997,12 @@ function BottomNav({
   active,
   onNavigate,
   onAddClient,
+  tasksBadge,
 }: {
   active: 'list' | 'settings' | 'summary' | 'master';
   onNavigate: (screen: 'list' | 'settings' | 'summary' | 'master') => void;
   onAddClient: () => void;
+  tasksBadge?: 'urgent' | 'reminder' | null;
 }) {
   return (
     <div
@@ -3988,7 +4071,7 @@ function BottomNav({
           </svg>
         </span>
       </NavItem>
-      <NavItem label="Задачи" active={active === 'summary'} onClick={() => onNavigate('summary')}>
+      <NavItem label="Задачи" active={active === 'summary'} onClick={() => onNavigate('summary')} badge={tasksBadge}>
         <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
           <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
           <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
@@ -4012,6 +4095,7 @@ function NavItem({
   accent = false,
   onClick,
   ariaLabel,
+  badge,
 }: {
   children: React.ReactNode;
   label: string;
@@ -4019,6 +4103,9 @@ function NavItem({
   accent?: boolean;
   onClick: () => void;
   ariaLabel?: string;
+  // 'urgent' (red) beats 'reminder' (yellow) — an overdue entry outranks a
+  // plain healing check-in, so only one dot ever shows.
+  badge?: 'urgent' | 'reminder' | null;
 }) {
   return (
     <div
@@ -4035,7 +4122,30 @@ function NavItem({
         opacity: active || accent ? 1 : 0.45,
       }}
     >
-      <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{children}</div>
+      <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+        {children}
+        {badge && (
+          <span
+            style={{
+              position: 'absolute',
+              top: -3,
+              right: -1,
+              minWidth: 13,
+              height: 13,
+              borderRadius: '50%',
+              background: badge === 'urgent' ? '#e0665a' : '#e0b84a',
+              color: '#1a1410',
+              fontSize: fs(9),
+              fontWeight: 700,
+              lineHeight: '13px',
+              textAlign: 'center',
+              boxShadow: '0 0 0 1.5px var(--bg)',
+            }}
+          >
+            !
+          </span>
+        )}
+      </div>
       <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15 }}>
         {label}
       </span>
@@ -4105,6 +4215,166 @@ function SplitStatBlock({
   );
 }
 
+// Copies text to the clipboard, showing a brief «Скопировано» confirmation —
+// shared by every healing-reminder card (Задачи + Мастер both render one).
+function CopyMessageButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
+  return (
+    <div
+      onClick={copy}
+      role="button"
+      aria-label="Скопировать сообщение"
+      style={{
+        fontSize: fs(11),
+        color: COLORS.gold,
+        border: '1px solid rgba(var(--gold-rgb),0.4)',
+        borderRadius: 2,
+        padding: '4px 9px',
+        letterSpacing: '0.6px',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+      }}
+    >
+      {copied ? 'Скопировано' : 'Скопировать'}
+    </div>
+  );
+}
+
+// «Напоминания» — shared by both the Задачи and Мастер screens. Two kinds of
+// card: overdue (planned entry whose date has passed while still not marked
+// done — reschedule or mark done) and healing check-ins (a done session,
+// ≥30 days old, not yet ticked «Зажив» — copy the ready-made message and jump
+// to the session to tick it once the healed photo's in). Renders nothing
+// when both lists are empty, so callers can drop it in unconditionally.
+function RemindersSection({
+  overdue,
+  healing,
+  onMarkDone,
+  onOpenEntry,
+}: {
+  overdue: OverdueItem[];
+  healing: HealingItem[];
+  onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+}) {
+  if (overdue.length === 0 && healing.length === 0) return null;
+  return (
+    <GoldFrame style={{ padding: '14px 16px' }}>
+      <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10 }}>
+        Напоминания
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {overdue.map((it) => (
+          <div
+            key={`overdue-${it.kind}-${it.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '9px 10px',
+              borderRadius: 2,
+              border: '1px solid rgba(224,102,90,0.35)',
+              background: 'rgba(224,102,90,0.06)',
+            }}
+          >
+            <div onClick={() => onOpenEntry(it.client.id, it.id, it.kind)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {it.client.name || '—'}
+              </div>
+              <div style={{ fontSize: fs(11), color: '#e0665a', marginTop: 2 }}>
+                {it.kind === 'session' ? 'Сессия' : 'Консультация'} просрочена · {formatDate(it.date)}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <div
+                onClick={() => onMarkDone(it.client.id, it.id, it.kind)}
+                role="button"
+                aria-label="Отметить выполненной"
+                style={{
+                  fontSize: fs(11),
+                  color: COLORS.gold,
+                  border: '1px solid rgba(var(--gold-rgb),0.4)',
+                  borderRadius: 2,
+                  padding: '4px 9px',
+                  letterSpacing: '0.6px',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Выполнено
+              </div>
+              <div
+                onClick={() => onOpenEntry(it.client.id, it.id, it.kind)}
+                role="button"
+                aria-label="Перенести"
+                style={{
+                  fontSize: fs(11),
+                  color: COLORS.textFaint,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 2,
+                  padding: '4px 9px',
+                  letterSpacing: '0.6px',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Перенести
+              </div>
+            </div>
+          </div>
+        ))}
+        {healing.map((it) => (
+          <div
+            key={`healing-${it.sessionId}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '9px 10px',
+              borderRadius: 2,
+              border: '1px solid rgba(var(--gold-rgb),0.2)',
+              background: 'rgba(var(--surface-rgb),0.018)',
+            }}
+          >
+            <div onClick={() => onOpenEntry(it.client.id, it.sessionId, 'session')} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {it.client.name || '—'}
+              </div>
+              <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
+                Узнать про заживление · сессия {formatDate(it.date)}
+              </div>
+            </div>
+            <CopyMessageButton text={HEALING_REMINDER_MESSAGE} />
+          </div>
+        ))}
+      </div>
+    </GoldFrame>
+  );
+}
+
 // ===================== MASTER DASHBOARD =====================
 function MasterDashboardScreen({
   clients,
@@ -4115,6 +4385,10 @@ function MasterDashboardScreen({
   onOpenSession,
   onOpenSettings,
   onImport,
+  overdue,
+  healing,
+  onMarkDone,
+  onOpenEntry,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
@@ -4124,6 +4398,10 @@ function MasterDashboardScreen({
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenSettings: () => void;
   onImport: (clients: Client[]) => void;
+  overdue: OverdueItem[];
+  healing: HealingItem[];
+  onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -4302,6 +4580,8 @@ function MasterDashboardScreen({
             }}
           />
         </GoldFrame>
+
+        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} />
 
         {/* Contacts & requisites (edited in Настройки → Карточка мастера) */}
         <GoldFrame style={{ padding: '14px 16px' }}>
@@ -4846,6 +5126,10 @@ function SummaryScreen({
   onOpenClient,
   onOpenConsultation,
   onOpenSession,
+  overdue,
+  healing,
+  onMarkDone,
+  onOpenEntry,
   onAddMasterNote,
   onToggleMasterDone,
   onEditMasterNote,
@@ -4859,6 +5143,10 @@ function SummaryScreen({
   onOpenClient: (id: string) => void;
   onOpenConsultation: (clientId: string, consultationId: string) => void;
   onOpenSession: (clientId: string, sessionId: string) => void;
+  overdue: OverdueItem[];
+  healing: HealingItem[];
+  onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
@@ -5048,6 +5336,10 @@ function SummaryScreen({
             {DONE_EMOJI}
           </div>
         </div>
+      </div>
+
+      <div style={{ padding: '0 16px 12px', position: 'relative', zIndex: 1 }}>
+        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} />
       </div>
 
       {/* Two columns, like the client list: planned sessions & consultations
@@ -6935,6 +7227,23 @@ function SessionsTab({
                       Запланирована
                     </span>
                   )}
+                  {session.done && session.healed && (
+                    <span
+                      title="Зажила"
+                      style={{
+                        fontSize: fs(10),
+                        color: COLORS.textFaint,
+                        border: '1px solid rgba(var(--gold-rgb),0.2)',
+                        borderRadius: 2,
+                        padding: '2px 6px',
+                        letterSpacing: '0.8px',
+                        textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Зажила
+                    </span>
+                  )}
                   {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
                   <div
                     className="inka-back"
@@ -8224,6 +8533,7 @@ function NewSessionSheet({
     note: string;
     photos: string[];
     done: boolean;
+    healed: boolean;
   }) => void;
 }) {
   const isEdit = !!initial;
@@ -8243,6 +8553,7 @@ function NewSessionSheet({
   // status; started from a calendar date (clearly a future booking), default
   // to «Запланирована» instead.
   const [done, setDone] = useState(true);
+  const [healed, setHealed] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -8259,6 +8570,7 @@ function NewSessionSheet({
       setNote(initial?.note ?? '');
       setPhotos(initial?.photos ?? []);
       setDone(initial ? initial.done : !initialDate);
+      setHealed(initial?.healed ?? false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -8390,14 +8702,44 @@ function NewSessionSheet({
         </div>
 
         {/* Photos: upload (native picker offers "Take Photo" on mobile) */}
-        <div style={{ marginBottom: 22 }}>
+        <div style={{ marginBottom: 14 }}>
           <FieldLabel>Фото</FieldLabel>
           <SessionPhotos photos={photos} onChange={setPhotos} />
         </div>
 
+        {/* Manually ticked once a healed-skin photo has been added — drives
+            the ~30-day «напомнить о себе» reminder in Задачи/Мастер. */}
+        <div
+          onClick={() => setHealed((v) => !v)}
+          role="button"
+          aria-label="Зажив"
+          style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22, cursor: 'pointer' }}
+        >
+          <div
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: 2,
+              flexShrink: 0,
+              border: healed ? '1px solid rgba(var(--gold-rgb),0.7)' : '1px solid rgba(var(--gold-rgb),0.3)',
+              background: healed ? 'rgba(var(--gold-rgb),0.15)' : 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {healed && (
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <path d="M2.5 7.3L5.5 10.3L11.5 3.7" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+          <span style={{ fontSize: fs(14), color: healed ? COLORS.gold : COLORS.textFaint }}>Зажив</span>
+        </div>
+
         <div
           className="inka-submit"
-          onClick={() => onAdd({ name, date, time, duration, style, area, colors, needles, skinReaction, note, photos, done })}
+          onClick={() => onAdd({ name, date, time, duration, style, area, colors, needles, skinReaction, note, photos, done, healed })}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
@@ -8596,9 +8938,18 @@ function ClientPickerSheet({
   onPick: (clientId: string) => void;
 }) {
   const [query, setQuery] = useState('');
+  // BottomSheet content stays mounted even while closed (only translated
+  // off-screen), so a plain `autoFocus` attribute would fire once on the
+  // sheet's very first mount — regardless of `open` — and drag the whole
+  // (still-hidden) sheet into view via the browser's focus-scroll behaviour.
+  // Focusing explicitly on the open transition avoids that.
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) setQuery('');
+    if (open) {
+      setQuery('');
+      searchRef.current?.focus();
+    }
   }, [open]);
 
   const filtered = useMemo(() => {
@@ -8617,7 +8968,7 @@ function ClientPickerSheet({
       </div>
       <div style={{ padding: '4px 24px 12px' }}>
         <input
-          autoFocus
+          ref={searchRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Найти клиента..."
@@ -8673,12 +9024,18 @@ function QuickClientSheet({
   const [name, setName] = useState('');
   const [color, setColor] = useState(MARKER_COLORS[0]);
   const [phone, setPhone] = useState('');
+  // See ClientPickerSheet — BottomSheet content stays mounted while closed,
+  // so focusing is driven by the `open` transition, not a raw `autoFocus`
+  // attribute (which would fire once on first mount regardless of visibility
+  // and drag the still-hidden sheet into view).
+  const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setName('');
       setColor(MARKER_COLORS[0]);
       setPhone('');
+      nameRef.current?.focus();
     }
   }, [open]);
 
@@ -8694,7 +9051,7 @@ function QuickClientSheet({
       <div style={{ padding: '4px 24px 40px' }}>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Имя</FieldLabel>
-          <input dir="auto" value={name} onChange={(e) => setName(e.target.value)} placeholder="Александра" style={INPUT_STYLE} autoFocus />
+          <input ref={nameRef} dir="auto" value={name} onChange={(e) => setName(e.target.value)} placeholder="Александра" style={INPUT_STYLE} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Телефон</FieldLabel>
