@@ -2469,6 +2469,7 @@ export default function TattoDiary() {
               // Tap opens the read-only fullscreen viewer (not the edit form).
               setViewEntry({ kind: 'consultation', clientId, id: consultationId });
             }}
+            onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
             onAddMasterNote={(text, urgency, photos) =>
               setMasterInfo({
                 ...masterInfo,
@@ -3820,7 +3821,7 @@ function BottomNav({
       </NavItem>
       {/* Create-client — same footprint as the other two so all three align;
           a ringed «+» keeps it distinct without towering over the bar. */}
-      <NavItem label="Создать" active={false} accent onClick={onAddClient} ariaLabel="Добавить клиента">
+      <NavItem label="Создать клиента" active={false} accent onClick={onAddClient} ariaLabel="Добавить клиента">
         <span
           style={{
             width: 23,
@@ -3886,7 +3887,7 @@ function NavItem({
       }}
     >
       <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{children}</div>
-      <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+      <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15 }}>
         {label}
       </span>
     </div>
@@ -4687,6 +4688,7 @@ function SummaryScreen({
   onDeleteNote,
   onOpenClient,
   onOpenConsultation,
+  onOpenSession,
   onAddMasterNote,
   onToggleMasterDone,
   onEditMasterNote,
@@ -4699,6 +4701,7 @@ function SummaryScreen({
   onDeleteNote: (clientId: string, noteId: string) => void;
   onOpenClient: (id: string) => void;
   onOpenConsultation: (clientId: string, consultationId: string) => void;
+  onOpenSession: (clientId: string, sessionId: string) => void;
   onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
@@ -4706,14 +4709,25 @@ function SummaryScreen({
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
+  // The new-note composer is tucked away behind a «+» at the top; revealed
+  // only when the master wants to jot something down.
+  const [showComposer, setShowComposer] = useState(false);
 
-  // Planned (not-done) consultations, across every client, soonest first —
-  // a quick shortened view (date · client · place) that opens straight into
-  // the consultation when tapped.
-  const plannedConsultations = clients
-    .flatMap((c) => c.consultations.map((consultation) => ({ consultation, client: c })))
-    .filter(({ consultation }) => !consultation.done)
-    .sort((a, b) => (a.consultation.date || '').localeCompare(b.consultation.date || ''));
+  // Planned (not-done) sessions + consultations, across every client, soonest
+  // first — a compact card (client · type · date) that opens straight into the
+  // read-only viewer when tapped. Sessions need a real date to count as
+  // planned; consultations show whether dated or not (undated sort last).
+  type PlannedItem = { kind: 'session' | 'consultation'; client: Client; id: string; date: string; time: string; label: string };
+  const plannedItems: PlannedItem[] = clients
+    .flatMap((c): PlannedItem[] => [
+      ...c.sessions
+        .filter((s) => !s.done && ISO_DATE_RE.test(s.date))
+        .map((s): PlannedItem => ({ kind: 'session', client: c, id: s.id, date: s.date, time: s.time, label: s.name || s.area })),
+      ...c.consultations
+        .filter((cs) => !cs.done)
+        .map((cs): PlannedItem => ({ kind: 'consultation', client: c, id: cs.id, date: cs.date, time: cs.time, label: cs.area })),
+    ])
+    .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
 
   // Client notes + the master's own (client-less) notes, one flat list.
   type NoteEntry = { note: ClientNote; client: Client | null };
@@ -4791,104 +4805,145 @@ function SummaryScreen({
         <StarDivider />
       </div>
 
-      {/* Planned consultations — shortened view (date · client · place),
-          tapping opens the consultation itself. */}
-      {plannedConsultations.length > 0 && (
-        <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-            Запланированные консультации
+      {/* Top bar: urgency filters (moved up) + a «+» that reveals the
+          new-note composer, tucked away until the master wants it. */}
+      <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {filterChip('Все', filter === 'all', () => setFilter('all'))}
+              {URGENCY.map((u) => (
+                <span key={u.key}>{filterChip(`${u.emoji} ${u.short}`, filter === u.key, () => setFilter(u.key))}</span>
+              ))}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              {filterChip(`${DONE_EMOJI} Показывать закрытые`, showClosed, () => setShowClosed((v) => !v))}
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {plannedConsultations.map(({ consultation, client }) => (
+          {/* Add-note button — ringed «+», turns to a close glyph when open. */}
+          <div
+            onClick={() => setShowComposer((v) => !v)}
+            role="button"
+            aria-label={showComposer ? 'Скрыть новую заметку' : 'Новая заметка'}
+            style={{
+              flexShrink: 0,
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              border: '1px solid rgba(var(--gold-rgb),0.5)',
+              background: showComposer ? 'rgba(var(--gold-rgb),0.1)' : 'rgba(var(--gold-rgb),0.03)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 14 14" fill="none" style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 0.25s' }}>
+              <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+              <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
+        </div>
+
+        {/* New general note (client-less, stored on the master) — collapsed
+            behind the «+» above. */}
+        {showComposer && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+              Новая общая заметка
+            </div>
+            <NoteComposer
+              onAdd={(text, urgency, photos) => {
+                onAddMasterNote(text, urgency, photos);
+                setShowComposer(false);
+              }}
+            />
+          </div>
+        )}
+        <StarDivider />
+      </div>
+
+      {/* Two columns, like the client list: planned sessions & consultations
+          on the left, the task list on the right. */}
+      <div style={{ padding: '2px 16px 110px', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+        {/* Column 1 — planned sessions & consultations */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
+            Сессии и консультации
+          </div>
+          {plannedItems.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
+          ) : (
+            plannedItems.map((it) => (
               <div
-                key={`cons-${client.id}-${consultation.id}`}
-                onClick={() => onOpenConsultation(client.id, consultation.id)}
+                key={`${it.kind}-${it.client.id}-${it.id}`}
+                onClick={() => (it.kind === 'session' ? onOpenSession(it.client.id, it.id) : onOpenConsultation(it.client.id, it.id))}
                 style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 10px',
+                  flexDirection: 'column',
+                  gap: 3,
+                  padding: '9px 11px',
                   borderRadius: 2,
                   cursor: 'pointer',
                   border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: 'rgba(var(--surface-rgb),0.018)',
                 }}
               >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {client.name || '—'}
-                  </div>
-                  {consultation.area && (
-                    <div style={{ fontSize: fs(11), color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                      {consultation.area}
-                    </div>
-                  )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.client.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {it.client.name || '—'}
+                  </span>
                 </div>
-                <div style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
-                  {formatDate(consultation.date).replace(/ \d{4}$/, '')}
-                  {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
+                <div style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  {it.kind === 'session' ? 'Сессия' : 'Консультация'}
+                </div>
+                <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
+                  {it.date ? formatDate(it.date).replace(/ \d{4}$/, '') : 'Без даты'}
+                  {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
                 </div>
               </div>
-            ))}
-          </div>
-          <StarDivider />
-        </div>
-      )}
-
-      {/* Filters */}
-      <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {filterChip('Все', filter === 'all', () => setFilter('all'))}
-          {URGENCY.map((u) =>
-            <span key={u.key}>{filterChip(`${u.emoji} ${u.short}`, filter === u.key, () => setFilter(u.key))}</span>,
+            ))
           )}
         </div>
-        <div style={{ marginTop: 8 }}>
-          {filterChip(`${DONE_EMOJI} Показывать закрытые`, showClosed, () => setShowClosed((v) => !v))}
-        </div>
-      </div>
 
-      {/* New general note — not tied to any client (stored on the master). */}
-      <div style={{ padding: '16px 20px 0', position: 'relative', zIndex: 1 }}>
-        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-          Новая общая заметка
-        </div>
-        <NoteComposer onAdd={onAddMasterNote} />
-      </div>
-
-      {/* Aggregated notes (client + general) */}
-      <div style={{ padding: '16px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {items.length === 0 ? (
-          <div style={{ textAlign: 'center', marginTop: 24, fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic' }}>
-            {hasAnyNote ? 'Нет заметок по этому фильтру' : 'Заметок пока нет'}
+        {/* Column 2 — the task list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
+            Задачи
           </div>
-        ) : (
-          items.map(({ note, client }) =>
-            client ? (
-              <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
-                <NoteItem
-                  note={note}
-                  client={client}
-                  onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
-                  onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
-                  onDelete={() => onDeleteNote(client.id, note.id)}
-                />
-              </div>
-            ) : (
-              <div key={`master-${note.id}`}>
-                <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 4, marginLeft: 2 }}>
-                  Общая заметка
+          {items.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+              {hasAnyNote ? 'Нет по этому фильтру' : 'Заметок пока нет'}
+            </div>
+          ) : (
+            items.map(({ note, client }) =>
+              client ? (
+                <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
+                  <NoteItem
+                    note={note}
+                    client={client}
+                    onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
+                    onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
+                    onDelete={() => onDeleteNote(client.id, note.id)}
+                  />
                 </div>
-                <NoteItem
-                  note={note}
-                  onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
-                  onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
-                  onDelete={() => onDeleteMasterNote(note.id)}
-                />
-              </div>
-            ),
-          )
-        )}
+              ) : (
+                <div key={`master-${note.id}`}>
+                  <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 4, marginLeft: 2 }}>
+                    Общая заметка
+                  </div>
+                  <NoteItem
+                    note={note}
+                    onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
+                    onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
+                    onDelete={() => onDeleteMasterNote(note.id)}
+                  />
+                </div>
+              ),
+            )
+          )}
+        </div>
       </div>
     </div>
   );
@@ -6891,13 +6946,13 @@ function NoteItem({
             confirm needed), an «Изменить» button that switches the text
             above into an editable field, plus (where deletion is allowed) a
             labelled delete button with its own confirm step. No bare ✕ icon. */}
-        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
           {editing ? (
             <>
               <div
                 onClick={saveEdit}
                 style={{
-                  flex: 1,
+                  flex: '1 1 72px',
                   padding: '7px 12px',
                   textAlign: 'center',
                   border: '1px solid rgba(var(--gold-rgb),0.3)',
@@ -6915,7 +6970,7 @@ function NoteItem({
               <div
                 onClick={() => setEditing(false)}
                 style={{
-                  flex: 1,
+                  flex: '1 1 72px',
                   padding: '7px 12px',
                   textAlign: 'center',
                   border: '1px solid rgba(var(--gold-rgb),0.15)',
@@ -6936,7 +6991,7 @@ function NoteItem({
               <div
                 onClick={onToggleDone}
                 style={{
-                  flex: 1,
+                  flex: '1 1 72px',
                   padding: '7px 12px',
                   textAlign: 'center',
                   border: '1px solid rgba(var(--gold-rgb),0.3)',
@@ -6972,7 +7027,7 @@ function NoteItem({
                 </div>
               )}
               {onDelete && (
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: '1 1 72px' }}>
                   <DeleteButton label="Удалить заметку" confirmLabel="Удалить заметку?" onConfirm={onDelete} compact />
                 </div>
               )}
