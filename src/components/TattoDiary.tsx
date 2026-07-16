@@ -2469,6 +2469,7 @@ export default function TattoDiary() {
               // Tap opens the read-only fullscreen viewer (not the edit form).
               setViewEntry({ kind: 'consultation', clientId, id: consultationId });
             }}
+            onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
             onAddMasterNote={(text, urgency, photos) =>
               setMasterInfo({
                 ...masterInfo,
@@ -3820,7 +3821,7 @@ function BottomNav({
       </NavItem>
       {/* Create-client — same footprint as the other two so all three align;
           a ringed «+» keeps it distinct without towering over the bar. */}
-      <NavItem label="Создать" active={false} accent onClick={onAddClient} ariaLabel="Добавить клиента">
+      <NavItem label="Создать клиента" active={false} accent onClick={onAddClient} ariaLabel="Добавить клиента">
         <span
           style={{
             width: 23,
@@ -3886,7 +3887,7 @@ function NavItem({
       }}
     >
       <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{children}</div>
-      <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+      <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15 }}>
         {label}
       </span>
     </div>
@@ -4687,6 +4688,7 @@ function SummaryScreen({
   onDeleteNote,
   onOpenClient,
   onOpenConsultation,
+  onOpenSession,
   onAddMasterNote,
   onToggleMasterDone,
   onEditMasterNote,
@@ -4699,6 +4701,7 @@ function SummaryScreen({
   onDeleteNote: (clientId: string, noteId: string) => void;
   onOpenClient: (id: string) => void;
   onOpenConsultation: (clientId: string, consultationId: string) => void;
+  onOpenSession: (clientId: string, sessionId: string) => void;
   onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
@@ -4706,14 +4709,25 @@ function SummaryScreen({
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
+  // The new-note composer is behind the header's «+», mirroring the home
+  // screen's layout.
+  const [showComposer, setShowComposer] = useState(false);
 
-  // Planned (not-done) consultations, across every client, soonest first —
-  // a quick shortened view (date · client · place) that opens straight into
-  // the consultation when tapped.
-  const plannedConsultations = clients
-    .flatMap((c) => c.consultations.map((consultation) => ({ consultation, client: c })))
-    .filter(({ consultation }) => !consultation.done)
-    .sort((a, b) => (a.consultation.date || '').localeCompare(b.consultation.date || ''));
+  // Planned (not-done) sessions + consultations, across every client, soonest
+  // first — a compact card (client · type · date) that opens straight into the
+  // read-only viewer when tapped. Sessions need a real date to count as
+  // planned; consultations show whether dated or not (undated sort last).
+  type PlannedItem = { kind: 'session' | 'consultation'; client: Client; id: string; date: string; time: string; label: string };
+  const plannedItems: PlannedItem[] = clients
+    .flatMap((c): PlannedItem[] => [
+      ...c.sessions
+        .filter((s) => !s.done && ISO_DATE_RE.test(s.date))
+        .map((s): PlannedItem => ({ kind: 'session', client: c, id: s.id, date: s.date, time: s.time, label: s.name || s.area })),
+      ...c.consultations
+        .filter((cs) => !cs.done)
+        .map((cs): PlannedItem => ({ kind: 'consultation', client: c, id: cs.id, date: cs.date, time: cs.time, label: cs.area })),
+    ])
+    .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
 
   // Client notes + the master's own (client-less) notes, one flat list.
   type NoteEntry = { note: ClientNote; client: Client | null };
@@ -4733,29 +4747,6 @@ function SummaryScreen({
     });
   const hasAnyNote = masterNotes.length > 0 || clients.some((c) => c.notes.length);
 
-  const filterChip = (label: string, active: boolean, onClick: () => void) => (
-    <div
-      onClick={onClick}
-      style={{
-        fontSize: fs(12),
-        padding: '5px 10px',
-        borderRadius: 2,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        whiteSpace: 'nowrap',
-        border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-        background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-        color: active ? COLORS.gold : COLORS.textFaint,
-        letterSpacing: '0.4px',
-        transition: 'all 0.2s',
-      }}
-    >
-      {label}
-    </div>
-  );
-
   return (
     <div style={{ minHeight: '100%', background: COLORS.bg }}>
       {/* Dot-grid texture overlay */}
@@ -4773,122 +4764,216 @@ function SummaryScreen({
       <CloudsBackground />
       <AviationBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      {/* Header — same formatting as the home screen: INKA logo + subtitle on
+          the left, a circular «+» (new note) opposite it on the right. */}
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        <div
-          style={{
-            fontFamily: DROP_CAP_FONT,
-            fontSize: fs(24),
-            color: COLORS.gold,
-            letterSpacing: '5px',
-            textTransform: 'uppercase',
-          }}
-        >
-          Задачи
-        </div>
+        <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Рабочие заметки
         </div>
         <StarDivider />
       </div>
+      <div
+        onClick={() => setShowComposer((v) => !v)}
+        role="button"
+        aria-label={showComposer ? 'Скрыть новую заметку' : 'Новая заметка'}
+        style={{
+          position: 'absolute',
+          top: 'calc(env(safe-area-inset-top) + 31px)',
+          right: 20,
+          zIndex: 20,
+          width: 48,
+          height: 48,
+          flexShrink: 0,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.25)',
+          background: showComposer ? 'rgba(var(--gold-rgb),0.1)' : 'rgba(var(--gold-rgb),0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="19" height="19" viewBox="0 0 14 14" fill="none" style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 0.25s' }}>
+          <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </div>
 
-      {/* Planned consultations — shortened view (date · client · place),
-          tapping opens the consultation itself. */}
-      {plannedConsultations.length > 0 && (
-        <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
+      {/* New general note (client-less, stored on the master) — collapsed
+          behind the header's «+». */}
+      {showComposer && (
+        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 1 }}>
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-            Запланированные консультации
+            Новая общая заметка
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {plannedConsultations.map(({ consultation, client }) => (
-              <div
-                key={`cons-${client.id}-${consultation.id}`}
-                onClick={() => onOpenConsultation(client.id, consultation.id)}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 10px',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  border: '1px solid rgba(var(--gold-rgb),0.15)',
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {client.name || '—'}
-                  </div>
-                  {consultation.area && (
-                    <div style={{ fontSize: fs(11), color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                      {consultation.area}
-                    </div>
-                  )}
-                </div>
-                <div style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
-                  {formatDate(consultation.date).replace(/ \d{4}$/, '')}
-                  {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-          <StarDivider />
+          <NoteComposer
+            onAdd={(text, urgency, photos) => {
+              onAddMasterNote(text, urgency, photos);
+              setShowComposer(false);
+            }}
+          />
         </div>
       )}
 
-      {/* Filters */}
-      <div style={{ padding: '4px 20px 0', position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {filterChip('Все', filter === 'all', () => setFilter('all'))}
-          {URGENCY.map((u) =>
-            <span key={u.key}>{filterChip(`${u.emoji} ${u.short}`, filter === u.key, () => setFilter(u.key))}</span>,
+      {/* Filter bar: urgency symbols stay visible on the left; everything
+          else (text labels, «Показывать закрытые») is tucked behind a «⋮» on
+          the right. z-index 5 (not 1) so this row's own stacking context
+          — and the dropdown inside it — sits above the two-column section
+          below, which is a later sibling and would otherwise win z-index
+          ties by DOM order. */}
+      <div style={{ padding: '4px 20px 14px', position: 'relative', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* «Все» — reset chip, reuses the funnel glyph. */}
+          <div
+            onClick={() => setFilter('all')}
+            role="button"
+            aria-label="Все"
+            title="Все"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              border: filter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              background: filter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: filter === 'all' ? COLORS.gold : COLORS.textFaint }}>
+              <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+            </svg>
+          </div>
+          {URGENCY.map((u) => (
+            <div
+              key={u.key}
+              onClick={() => setFilter(u.key)}
+              role="button"
+              aria-label={u.label}
+              title={u.label}
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: fs(14),
+                border: filter === u.key ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                background: filter === u.key ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+              }}
+            >
+              {u.emoji}
+            </div>
+          ))}
+          {/* «Показывать закрытые» — its own icon toggle, no overflow menu. */}
+          <div
+            onClick={() => setShowClosed((v) => !v)}
+            role="button"
+            aria-label="Показывать закрытые"
+            title="Показывать закрытые"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: fs(14),
+              border: showClosed ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              background: showClosed ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+            }}
+          >
+            {DONE_EMOJI}
+          </div>
+        </div>
+      </div>
+
+      {/* Two columns, like the client list: planned sessions & consultations
+          on the left, the task list on the right. */}
+      <div style={{ padding: '2px 16px 110px', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+        {/* Column 1 — planned sessions & consultations */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
+            Сессии и консультации
+          </div>
+          {plannedItems.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
+          ) : (
+            plannedItems.map((it) => (
+              <div
+                key={`${it.kind}-${it.client.id}-${it.id}`}
+                onClick={() => (it.kind === 'session' ? onOpenSession(it.client.id, it.id) : onOpenConsultation(it.client.id, it.id))}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 3,
+                  padding: '9px 11px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: 'rgba(var(--surface-rgb),0.018)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.client.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {it.client.name || '—'}
+                  </span>
+                </div>
+                <div style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  {it.kind === 'session' ? 'Сессия' : 'Консультация'}
+                </div>
+                <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
+                  {it.date ? formatDate(it.date).replace(/ \d{4}$/, '') : 'Без даты'}
+                  {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
+                </div>
+              </div>
+            ))
           )}
         </div>
-        <div style={{ marginTop: 8 }}>
-          {filterChip(`${DONE_EMOJI} Показывать закрытые`, showClosed, () => setShowClosed((v) => !v))}
-        </div>
-      </div>
 
-      {/* New general note — not tied to any client (stored on the master). */}
-      <div style={{ padding: '16px 20px 0', position: 'relative', zIndex: 1 }}>
-        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-          Новая общая заметка
-        </div>
-        <NoteComposer onAdd={onAddMasterNote} />
-      </div>
-
-      {/* Aggregated notes (client + general) */}
-      <div style={{ padding: '16px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {items.length === 0 ? (
-          <div style={{ textAlign: 'center', marginTop: 24, fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic' }}>
-            {hasAnyNote ? 'Нет заметок по этому фильтру' : 'Заметок пока нет'}
+        {/* Column 2 — the task list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
+            Задачи
           </div>
-        ) : (
-          items.map(({ note, client }) =>
-            client ? (
-              <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
-                <NoteItem
-                  note={note}
-                  client={client}
-                  onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
-                  onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
-                  onDelete={() => onDeleteNote(client.id, note.id)}
-                />
-              </div>
-            ) : (
-              <div key={`master-${note.id}`}>
-                <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 4, marginLeft: 2 }}>
-                  Общая заметка
+          {items.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+              {hasAnyNote ? 'Нет по этому фильтру' : 'Заметок пока нет'}
+            </div>
+          ) : (
+            items.map(({ note, client }) =>
+              client ? (
+                <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
+                  <NoteItem
+                    note={note}
+                    client={client}
+                    onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
+                    onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
+                    onDelete={() => onDeleteNote(client.id, note.id)}
+                  />
                 </div>
-                <NoteItem
-                  note={note}
-                  onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
-                  onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
-                  onDelete={() => onDeleteMasterNote(note.id)}
-                />
-              </div>
-            ),
-          )
-        )}
+              ) : (
+                <div key={`master-${note.id}`}>
+                  <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 4, marginLeft: 2 }}>
+                    Общая заметка
+                  </div>
+                  <NoteItem
+                    note={note}
+                    onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
+                    onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
+                    onDelete={() => onDeleteMasterNote(note.id)}
+                  />
+                </div>
+              ),
+            )
+          )}
+        </div>
       </div>
     </div>
   );
@@ -6801,16 +6886,32 @@ function NoteItem({
   const [editing, setEditing] = useState(false);
   const [draftText, setDraftText] = useState(note.text);
   const [draftUrgency, setDraftUrgency] = useState<UrgencyKey>(note.urgency);
+  // Actions (Выполнено/Изменить/Удалить) live behind a «⋮» overflow menu —
+  // only the urgency symbol stays visible at rest, mirroring the filter bar.
+  const [showActions, setShowActions] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const startEdit = () => {
     setDraftText(note.text);
     setDraftUrgency(note.urgency);
     setEditing(true);
+    setShowActions(false);
   };
   const saveEdit = () => {
     const trimmed = draftText.trim();
     if (trimmed && onEdit) onEdit(trimmed, draftUrgency);
     setEditing(false);
+  };
+
+  const menuRowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 6px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    fontSize: fs(12.5),
+    letterSpacing: '0.3px',
   };
 
   return (
@@ -6827,8 +6928,7 @@ function NoteItem({
         transition: 'opacity 0.3s',
       }}
     >
-      {/* Status marker — decorative only; done/undone is now driven by the
-          explicit «Выполнено» button below, not by tapping this glyph. */}
+      {/* Status marker — decorative only, always visible. */}
       <span style={{ fontSize: fs(16), lineHeight: 1.2, flexShrink: 0 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         {client && (
@@ -6887,99 +6987,163 @@ function NoteItem({
         )}
         {onUpdatePhotos && !editing && <SessionPhotos photos={note.photos} onChange={onUpdatePhotos} allowDelete />}
 
-        {/* Explicit actions — a labelled «Выполнено» button (toggles, no
-            confirm needed), an «Изменить» button that switches the text
-            above into an editable field, plus (where deletion is allowed) a
-            labelled delete button with its own confirm step. No bare ✕ icon. */}
-        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          {editing ? (
+        {/* Edit mode keeps its Save/Cancel buttons inside the body. */}
+        {editing && (
+          <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+            <div
+              onClick={saveEdit}
+              style={{
+                flex: '1 1 72px',
+                padding: '7px 12px',
+                textAlign: 'center',
+                border: '1px solid rgba(var(--gold-rgb),0.3)',
+                borderRadius: 2,
+                cursor: 'pointer',
+                color: COLORS.gold,
+                fontSize: fs(11),
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                fontStyle: 'italic',
+              }}
+            >
+              Сохранить
+            </div>
+            <div
+              onClick={() => setEditing(false)}
+              style={{
+                flex: '1 1 72px',
+                padding: '7px 12px',
+                textAlign: 'center',
+                border: '1px solid rgba(var(--gold-rgb),0.15)',
+                borderRadius: 2,
+                cursor: 'pointer',
+                color: COLORS.textFaint,
+                fontSize: fs(11),
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                fontStyle: 'italic',
+              }}
+            >
+              Отмена
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* «⋮» — Выполнено / Изменить / Удалить, collapsed exactly like the
+          filter bar's overflow menu: one dot-icon at rest, a small opaque
+          dropdown with labelled rows when tapped. */}
+      {!editing && (
+        <div style={{ position: 'relative', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+          <div
+            onClick={() => {
+              setShowActions((v) => !v);
+              setDeleteConfirm(false);
+            }}
+            role="button"
+            aria-label="Действия"
+            style={{
+              width: 26,
+              height: 26,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              borderRadius: '50%',
+              border: showActions ? '1px solid rgba(var(--gold-rgb),0.4)' : '1px solid transparent',
+              background: showActions ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+            }}
+          >
+            <svg width="4" height="16" viewBox="0 0 4 16" fill="none">
+              <circle cx="2" cy="2" r="1.6" fill={COLORS.textFaint} />
+              <circle cx="2" cy="8" r="1.6" fill={COLORS.textFaint} />
+              <circle cx="2" cy="14" r="1.6" fill={COLORS.textFaint} />
+            </svg>
+          </div>
+          {showActions && (
             <>
+              <div onClick={() => setShowActions(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
               <div
-                onClick={saveEdit}
                 style={{
-                  flex: 1,
-                  padding: '7px 12px',
-                  textAlign: 'center',
-                  border: '1px solid rgba(var(--gold-rgb),0.3)',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  color: COLORS.gold,
-                  fontSize: fs(11),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  fontStyle: 'italic',
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: 168,
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: 6,
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
                 }}
               >
-                Сохранить
+                {deleteConfirm ? (
+                  <div style={{ padding: '6px 6px 4px' }}>
+                    <div style={{ fontSize: fs(12), color: '#A85A66', fontStyle: 'italic', marginBottom: 8 }}>Удалить заметку?</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <div
+                        onClick={() => {
+                          onDelete?.();
+                          setShowActions(false);
+                          setDeleteConfirm(false);
+                        }}
+                        style={{ flex: 1, textAlign: 'center', padding: '6px 0', fontSize: fs(11.5), color: '#C56676', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', border: '1px solid rgba(138,48,64,0.4)', borderRadius: 2 }}
+                      >
+                        Да
+                      </div>
+                      <div
+                        onClick={() => setDeleteConfirm(false)}
+                        style={{ flex: 1, textAlign: 'center', padding: '6px 0', fontSize: fs(11.5), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', border: '1px solid rgba(var(--gold-rgb),0.15)', borderRadius: 2 }}
+                      >
+                        Нет
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      onClick={() => {
+                        onToggleDone();
+                        setShowActions(false);
+                      }}
+                      style={{ ...menuRowStyle, color: '#4A7A5A' }}
+                    >
+                      {note.done ? (
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                          <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      ) : (
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                          <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                      {note.done ? 'Вернуть в работу' : 'Выполнено'}
+                    </div>
+                    {onEdit && (
+                      <div onClick={startEdit} style={{ ...menuRowStyle, color: COLORS.gold }}>
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                          <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                        </svg>
+                        Изменить
+                      </div>
+                    )}
+                    {onDelete && (
+                      <div onClick={() => setDeleteConfirm(true)} style={{ ...menuRowStyle, color: '#A85A66' }}>
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                          <line x1="4" y1="4" x2="12" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                          <line x1="12" y1="4" x2="4" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                        </svg>
+                        Удалить
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-              <div
-                onClick={() => setEditing(false)}
-                style={{
-                  flex: 1,
-                  padding: '7px 12px',
-                  textAlign: 'center',
-                  border: '1px solid rgba(var(--gold-rgb),0.15)',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  color: COLORS.textFaint,
-                  fontSize: fs(11),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  fontStyle: 'italic',
-                }}
-              >
-                Отмена
-              </div>
-            </>
-          ) : (
-            <>
-              <div
-                onClick={onToggleDone}
-                style={{
-                  flex: 1,
-                  padding: '7px 12px',
-                  textAlign: 'center',
-                  border: '1px solid rgba(var(--gold-rgb),0.3)',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  color: COLORS.gold,
-                  fontSize: fs(11),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  fontStyle: 'italic',
-                }}
-              >
-                {note.done ? 'Вернуть в работу' : 'Выполнено'}
-              </div>
-              {onEdit && (
-                <div
-                  onClick={startEdit}
-                  style={{
-                    flex: 1,
-                    padding: '7px 12px',
-                    textAlign: 'center',
-                    border: '1px solid rgba(var(--gold-rgb),0.3)',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                    color: COLORS.gold,
-                    fontSize: fs(11),
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                    fontStyle: 'italic',
-                  }}
-                >
-                  Изменить
-                </div>
-              )}
-              {onDelete && (
-                <div style={{ flex: 1 }}>
-                  <DeleteButton label="Удалить заметку" confirmLabel="Удалить заметку?" onConfirm={onDelete} compact />
-                </div>
-              )}
             </>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -7939,15 +8103,16 @@ function NewSessionSheet({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
         </div>
 
-        <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <FieldLabel>Дата</FieldLabel>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <FieldLabel>Время</FieldLabel>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
-          </div>
+        {/* Date & time stacked full-width. Side-by-side used to overlap on
+            iOS, where the native pickers keep a large intrinsic width and
+            won't shrink into a flex half-column. */}
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Дата</FieldLabel>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Время</FieldLabel>
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -8255,15 +8420,15 @@ function NewConsultationSheet({
         </div>
 
         <div className="inka-consult-right">
-          <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Дата</FieldLabel>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Время</FieldLabel>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, maxWidth: '100%', padding: '10px 8px' }} />
-            </div>
+          {/* Stacked full-width (see NewSessionSheet) — avoids the iOS overlap
+              of side-by-side native date/time pickers. */}
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Дата</FieldLabel>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Время</FieldLabel>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
           </div>
 
           <div style={{ marginBottom: 16 }}>
