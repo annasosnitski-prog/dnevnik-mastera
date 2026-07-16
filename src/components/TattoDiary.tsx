@@ -6342,7 +6342,17 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
 }
 
 // Small ✕ on a session card; a tap reveals "Удалить? Да/Нет" inline.
-function SessionDeleteControl({ onDelete, vertical = false }: { onDelete: () => void; vertical?: boolean }) {
+function SessionDeleteControl({
+  onDelete,
+  vertical = false,
+  danger = false,
+}: {
+  onDelete: () => void;
+  vertical?: boolean;
+  // Dark-red resting icon (vs. the default faint one) — used where delete
+  // sits apart from the other actions and should read as destructive at rest.
+  danger?: boolean;
+}) {
   const [confirming, setConfirming] = useState(false);
 
   if (confirming) {
@@ -6378,7 +6388,7 @@ function SessionDeleteControl({ onDelete, vertical = false }: { onDelete: () => 
 
   return (
     <span onClick={() => setConfirming(true)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label="Удалить сессию">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.textFaint }}>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: danger ? '#8A3040' : COLORS.textFaint }}>
         <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       </svg>
@@ -6927,9 +6937,16 @@ function NoteItem({
         transition: 'opacity 0.3s',
       }}
     >
-      {/* Status marker — decorative only; done/undone is now driven by the
-          explicit «Выполнено» button below, not by tapping this glyph. */}
-      <span style={{ fontSize: fs(16), lineHeight: 1.2, flexShrink: 0 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
+      {/* Status marker, with delete tucked right under it — the destructive
+          action separated from Выполнено/Изменить on the opposite side. */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <span style={{ fontSize: fs(16), lineHeight: 1.2 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
+        {!editing && onDelete && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <SessionDeleteControl onDelete={onDelete} vertical danger />
+          </div>
+        )}
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         {client && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
@@ -7069,8 +7086,6 @@ function NoteItem({
               </svg>
             </div>
           )}
-          {/* Удалить — same control as the consultation card (✕ → confirm) */}
-          {onDelete && <SessionDeleteControl onDelete={onDelete} vertical />}
         </div>
       )}
     </div>
