@@ -6937,16 +6937,46 @@ function NoteItem({
         transition: 'opacity 0.3s',
       }}
     >
-      {/* Status marker, with delete tucked right under it — the destructive
-          action separated from Выполнено/Изменить on the opposite side. */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <span style={{ fontSize: fs(16), lineHeight: 1.2 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
-        {!editing && onDelete && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <SessionDeleteControl onDelete={onDelete} vertical danger />
+      {/* Выполнено / Изменить — stacked on the left. */}
+      {!editing && (
+        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          {/* Выполнено — check (or an undo arrow once done) */}
+          <div
+            onClick={onToggleDone}
+            className="inka-back"
+            role="button"
+            aria-label={note.done ? 'Вернуть в работу' : 'Выполнено'}
+            title={note.done ? 'Вернуть в работу' : 'Выполнено'}
+            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+          >
+            {note.done ? (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
           </div>
-        )}
-      </div>
+          {/* Изменить — same pencil as the consultation card */}
+          {onEdit && (
+            <div
+              onClick={startEdit}
+              className="inka-back"
+              role="button"
+              aria-label="Изменить"
+              title="Изменить"
+              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
         {client && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
@@ -7047,47 +7077,16 @@ function NoteItem({
         )}
       </div>
 
-      {/* Actions stacked vertically along the right edge — small bare icons
-          (like the consultation card). Hidden while editing. */}
-      {!editing && (
-        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          {/* Выполнено — check (or an undo arrow once done) */}
-          <div
-            onClick={onToggleDone}
-            className="inka-back"
-            role="button"
-            aria-label={note.done ? 'Вернуть в работу' : 'Выполнено'}
-            title={note.done ? 'Вернуть в работу' : 'Выполнено'}
-            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-          >
-            {note.done ? (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
+      {/* Status marker, with delete tucked right under it — the destructive
+          action separated from Выполнено/Изменить on the opposite side. */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <span style={{ fontSize: fs(16), lineHeight: 1.2 }}>{note.done ? DONE_EMOJI : meta.emoji}</span>
+        {!editing && onDelete && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <SessionDeleteControl onDelete={onDelete} vertical danger />
           </div>
-          {/* Изменить — same pencil as the consultation card */}
-          {onEdit && (
-            <div
-              onClick={startEdit}
-              className="inka-back"
-              role="button"
-              aria-label="Изменить"
-              title="Изменить"
-              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-              </svg>
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
