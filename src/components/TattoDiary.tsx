@@ -6342,10 +6342,24 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
 }
 
 // Small ✕ on a session card; a tap reveals "Удалить? Да/Нет" inline.
-function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
+function SessionDeleteControl({ onDelete, vertical = false }: { onDelete: () => void; vertical?: boolean }) {
   const [confirming, setConfirming] = useState(false);
 
   if (confirming) {
+    // In a narrow vertical action strip the "Удалить? Да Нет" row won't fit, so
+    // stack a compact Да / Нет instead.
+    if (vertical) {
+      return (
+        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          <span onClick={onDelete} style={{ fontSize: fs(11), color: '#C56676', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
+            Да
+          </span>
+          <span onClick={() => setConfirming(false)} style={{ fontSize: fs(11), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
+            Нет
+          </span>
+        </span>
+      );
+    }
     return (
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: fs(12), color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
@@ -6973,95 +6987,92 @@ function NoteItem({
         )}
         {onUpdatePhotos && !editing && <SessionPhotos photos={note.photos} onChange={onUpdatePhotos} allowDelete />}
 
-        {/* Explicit actions — a labelled «Выполнено» button (toggles, no
-            confirm needed), an «Изменить» button that switches the text
-            above into an editable field, plus (where deletion is allowed) a
-            labelled delete button with its own confirm step. No bare ✕ icon. */}
-        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, marginTop: 10 }}>
-          {editing ? (
-            <>
-              <div
-                onClick={saveEdit}
-                style={{
-                  flex: '1 1 72px',
-                  padding: '7px 12px',
-                  textAlign: 'center',
-                  border: '1px solid rgba(var(--gold-rgb),0.3)',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  color: COLORS.gold,
-                  fontSize: fs(11),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  fontStyle: 'italic',
-                }}
-              >
-                Сохранить
-              </div>
-              <div
-                onClick={() => setEditing(false)}
-                style={{
-                  flex: '1 1 72px',
-                  padding: '7px 12px',
-                  textAlign: 'center',
-                  border: '1px solid rgba(var(--gold-rgb),0.15)',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  color: COLORS.textFaint,
-                  fontSize: fs(11),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  fontStyle: 'italic',
-                }}
-              >
-                Отмена
-              </div>
-            </>
-          ) : (
-            // Small bare icons (no circles), matching the consultation card's
-            // edit/delete controls.
-            <>
-              {/* Выполнено — check (or an undo arrow once done) */}
-              <div
-                onClick={onToggleDone}
-                className="inka-back"
-                role="button"
-                aria-label={note.done ? 'Вернуть в работу' : 'Выполнено'}
-                title={note.done ? 'Вернуть в работу' : 'Выполнено'}
-                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-              >
-                {note.done ? (
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                    <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                    <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </div>
-              {/* Изменить — same pencil as the consultation card */}
-              {onEdit && (
-                <div
-                  onClick={startEdit}
-                  className="inka-back"
-                  role="button"
-                  aria-label="Изменить"
-                  title="Изменить"
-                  style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                    <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                  </svg>
-                </div>
-              )}
-              {/* Удалить — same control as the consultation card (✕ → confirm) */}
-              {onDelete && <SessionDeleteControl onDelete={onDelete} />}
-            </>
-          )}
-        </div>
+        {/* Edit mode keeps its Save/Cancel buttons inside the body. */}
+        {editing && (
+          <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+            <div
+              onClick={saveEdit}
+              style={{
+                flex: '1 1 72px',
+                padding: '7px 12px',
+                textAlign: 'center',
+                border: '1px solid rgba(var(--gold-rgb),0.3)',
+                borderRadius: 2,
+                cursor: 'pointer',
+                color: COLORS.gold,
+                fontSize: fs(11),
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                fontStyle: 'italic',
+              }}
+            >
+              Сохранить
+            </div>
+            <div
+              onClick={() => setEditing(false)}
+              style={{
+                flex: '1 1 72px',
+                padding: '7px 12px',
+                textAlign: 'center',
+                border: '1px solid rgba(var(--gold-rgb),0.15)',
+                borderRadius: 2,
+                cursor: 'pointer',
+                color: COLORS.textFaint,
+                fontSize: fs(11),
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                fontStyle: 'italic',
+              }}
+            >
+              Отмена
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Actions stacked vertically along the right edge — small bare icons
+          (like the consultation card). Hidden while editing. */}
+      {!editing && (
+        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          {/* Выполнено — check (or an undo arrow once done) */}
+          <div
+            onClick={onToggleDone}
+            className="inka-back"
+            role="button"
+            aria-label={note.done ? 'Вернуть в работу' : 'Выполнено'}
+            title={note.done ? 'Вернуть в работу' : 'Выполнено'}
+            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+          >
+            {note.done ? (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+          {/* Изменить — same pencil as the consultation card */}
+          {onEdit && (
+            <div
+              onClick={startEdit}
+              className="inka-back"
+              role="button"
+              aria-label="Изменить"
+              title="Изменить"
+              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </div>
+          )}
+          {/* Удалить — same control as the consultation card (✕ → confirm) */}
+          {onDelete && <SessionDeleteControl onDelete={onDelete} vertical />}
+        </div>
+      )}
     </div>
   );
 }
