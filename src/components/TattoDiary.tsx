@@ -1586,14 +1586,17 @@ export default function TattoDiary() {
   // client; a random chance after that (client/session/note creation), all of
   // it disabled via prefs.gameMode. Which mini-game shows (RPS or cups) is a
   // separate coin flip inside TrialGate itself.
-  const [rpsChallenge, setRpsChallenge] = useState<null | { onWin: () => void }>(null);
+  // `forceRps`: the mandatory first-client gate always plays rock-paper-
+  // scissors specifically (not the cups/blackjack coin flip) — it's the
+  // simplest of the three, fitting for someone who's never seen the game.
+  const [rpsChallenge, setRpsChallenge] = useState<null | { onWin: () => void; forceRps: boolean }>(null);
   const RPS_RANDOM_CHANCE = 0.15;
   const runGated = (mandatory: boolean, action: () => void) => {
     if (!prefs.gameMode || !(mandatory || Math.random() < RPS_RANDOM_CHANCE)) {
       action();
       return;
     }
-    setRpsChallenge({ onWin: action });
+    setRpsChallenge({ onWin: action, forceRps: mandatory });
   };
 
   // Purely-for-fun trial gate: same random chance, but rolled on opening or
@@ -2592,17 +2595,22 @@ export default function TattoDiary() {
             onOpenSession={(clientId, itemId, kind) => {
               const client = clients.find((c) => c.id === clientId);
               if (!client) return;
+              // Land on the client's own card (like the calendar-driven flow
+              // does) instead of just popping the edit form open in place —
+              // otherwise closing the form leaves the master stranded on the
+              // dashboard with no obvious way to reach that client's profile.
+              setSelectedId(client.id);
+              setActiveTab('sessions');
+              setScreen('detail');
               if (kind === 'consultation') {
                 const consultation = client.consultations.find((c) => c.id === itemId);
                 if (!consultation) return;
-                setSelectedId(client.id);
                 setEditConsultation(consultation);
                 setShowNewConsultationForm(true);
                 return;
               }
               const session = client.sessions.find((s) => s.id === itemId);
               if (!session) return;
-              setSelectedId(client.id);
               setEditSession(session);
               setShowNewSessionForm(true);
             }}
@@ -2638,6 +2646,7 @@ export default function TattoDiary() {
             onChangeMasterInfo={setMasterInfo}
             calendarSync={calendarSync}
             onChangeCalendarSync={setCalendarSync}
+            onBack={() => setScreen('master')}
           />
         )}
       </div>
@@ -2828,7 +2837,7 @@ export default function TattoDiary() {
         open={calendarWalkStep === 'clientKind'}
         onClose={cancelCalendarWalk}
         onPickExisting={() => setCalendarWalkStep('clientPicker')}
-        onPickNew={() => setCalendarWalkStep('quickClient')}
+        onPickNew={() => runGated(clients.length === 0, () => setCalendarWalkStep('quickClient'))}
       />
       <ClientPickerSheet
         open={calendarWalkStep === 'clientPicker'}
@@ -2859,6 +2868,7 @@ export default function TattoDiary() {
             onWin();
           }}
           onCancel={() => setRpsChallenge(null)}
+          forceKind={rpsChallenge.forceRps ? 'rps' : undefined}
         />
       )}
 
@@ -3404,6 +3414,7 @@ function TrialGate({
   onWin,
   onCancel,
   onOutcome,
+  forceKind,
 }: {
   onWin: () => void;
   onCancel: () => void;
@@ -3411,9 +3422,14 @@ function TrialGate({
   // pass-through after 3 losses — onWin alone can't tell them apart since it
   // fires (eventually) either way to unblock whatever action is gated.
   onOutcome?: (result: 'win' | 'lossStreak') => void;
+  // Skips the random pick and always plays this game — used for the
+  // mandatory first-client gate, which should always be the simplest game
+  // (rock-paper-scissors) rather than risk cups or Black Jack on a first go.
+  forceKind?: TrialGameKind;
 }) {
   // Weighted pick — RPS shows up often, cups a bit less, Black Jack rarest.
   const [gameKind] = useState<TrialGameKind>(() => {
+    if (forceKind) return forceKind;
     const r = Math.random();
     return r < 0.5 ? 'rps' : r < 0.8 ? 'cups' : 'blackjack';
   });
@@ -3942,8 +3958,12 @@ function BottomNav({
         zIndex: 50,
       }}
     >
-      <NavItem label="Главная" active={active === 'list'} onClick={() => onNavigate('list')}>
-        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' ? 'var(--gold)' : 'var(--text)' }}>
+      {/* «Главная» stays lit for Мастер/Настройки too — both are reached
+          from the home area, not a separate section, so this at least tells
+          you «you're not in Задачи» when the bar has no literal Мастер/
+          Настройки icon of its own to light up. */}
+      <NavItem label="Главная" active={active === 'list' || active === 'master' || active === 'settings'} onClick={() => onNavigate('list')}>
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' || active === 'master' || active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
           <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
           <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
         </svg>
@@ -4459,6 +4479,7 @@ function SettingsScreen({
   onChangeMasterInfo,
   calendarSync,
   onChangeCalendarSync,
+  onBack,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -4468,6 +4489,7 @@ function SettingsScreen({
   onChangeMasterInfo: (m: MasterInfo) => void;
   calendarSync: CalendarSyncSettings;
   onChangeCalendarSync: (s: CalendarSyncSettings) => void;
+  onBack: () => void;
 }) {
   const addMasterLink = (label: string, value: string) => {
     const link: MasterLink = { id: Date.now().toString(), label: label.trim(), value: value.trim() };
@@ -4514,6 +4536,12 @@ function SettingsScreen({
       <AviationBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginBottom: 10 }}>
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+            <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
+          </svg>
+          <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+        </div>
         <div
           style={{
             fontFamily: DROP_CAP_FONT,
@@ -6581,12 +6609,12 @@ function SessionPhotos({
                     gap: 6,
                   }}
                 >
-                  <span style={{ fontSize: fs(11), color: '#EDE4CC', fontStyle: 'italic' }}>Удалить?</span>
+                  <span style={{ fontSize: fs(11), color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
                   <span style={{ display: 'flex', gap: 10 }}>
-                    <span onClick={() => remove(i)} style={{ fontSize: fs(12), color: '#E08694', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <span onClick={() => remove(i)} style={{ fontSize: fs(12), color: '#C56676', textTransform: 'uppercase', cursor: 'pointer' }}>
                       Да
                     </span>
-                    <span onClick={() => setConfirmIndex(null)} style={{ fontSize: fs(12), color: '#CFC3AE', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <span onClick={() => setConfirmIndex(null)} style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', cursor: 'pointer' }}>
                       Нет
                     </span>
                   </span>
