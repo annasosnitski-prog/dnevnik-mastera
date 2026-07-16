@@ -6885,24 +6885,8 @@ function NoteItem({
 }) {
   const meta = urgencyMeta(note.urgency);
   const [editing, setEditing] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [draftText, setDraftText] = useState(note.text);
   const [draftUrgency, setDraftUrgency] = useState<UrgencyKey>(note.urgency);
-
-  // Shared look for the compact icon actions (done / edit / delete).
-  const iconBtn = (danger = false): React.CSSProperties => ({
-    width: 34,
-    height: 34,
-    flexShrink: 0,
-    borderRadius: '50%',
-    border: `1px solid ${danger ? 'rgba(138,48,64,0.4)' : 'rgba(var(--gold-rgb),0.35)'}`,
-    background: danger ? 'rgba(138,48,64,0.05)' : 'rgba(var(--gold-rgb),0.04)',
-    color: danger ? '#A85A66' : 'var(--gold)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-  });
 
   const startEdit = () => {
     setDraftText(note.text);
@@ -6993,7 +6977,7 @@ function NoteItem({
             confirm needed), an «Изменить» button that switches the text
             above into an editable field, plus (where deletion is allowed) a
             labelled delete button with its own confirm step. No bare ✕ icon. */}
-        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, marginTop: 10 }}>
           {editing ? (
             <>
               <div
@@ -7033,53 +7017,47 @@ function NoteItem({
                 Отмена
               </div>
             </>
-          ) : deleteConfirm ? (
-            // Inline delete confirm — replaces the icon row while active.
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: fs(11), color: '#A85A66', fontStyle: 'italic', letterSpacing: '0.3px' }}>Удалить?</span>
-              <div onClick={() => { onDelete?.(); setDeleteConfirm(false); }} role="button" aria-label="Подтвердить удаление" style={iconBtn(true)}>
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-                  <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <div onClick={() => setDeleteConfirm(false)} role="button" aria-label="Отмена" style={iconBtn(false)}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                  <line x1="4" y1="4" x2="12" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="12" y1="4" x2="4" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </div>
-            </div>
           ) : (
+            // Small bare icons (no circles), matching the consultation card's
+            // edit/delete controls.
             <>
               {/* Выполнено — check (or an undo arrow once done) */}
-              <div onClick={onToggleDone} role="button" aria-label={note.done ? 'Вернуть в работу' : 'Выполнено'} style={iconBtn(false)}>
+              <div
+                onClick={onToggleDone}
+                className="inka-back"
+                role="button"
+                aria-label={note.done ? 'Вернуть в работу' : 'Выполнено'}
+                title={note.done ? 'Вернуть в работу' : 'Выполнено'}
+                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+              >
                 {note.done ? (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                    <path d="M6 3.5L3 6.5L6 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M3 6.5H9.5C11.4 6.5 13 8.1 13 10C13 11.9 11.4 13.5 9.5 13.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 ) : (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                    <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
               </div>
-              {/* Изменить — pencil */}
+              {/* Изменить — same pencil as the consultation card */}
               {onEdit && (
-                <div onClick={startEdit} role="button" aria-label="Изменить" style={iconBtn(false)}>
-                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-                    <path d="M11.2 2.8L13.2 4.8L5 13H3V11L11.2 2.8Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                <div
+                  onClick={startEdit}
+                  className="inka-back"
+                  role="button"
+                  aria-label="Изменить"
+                  title="Изменить"
+                  style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                    <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                   </svg>
                 </div>
               )}
-              {/* Удалить — trash (opens inline confirm above) */}
-              {onDelete && (
-                <div onClick={() => setDeleteConfirm(true)} role="button" aria-label="Удалить заметку" style={iconBtn(true)}>
-                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-                    <path d="M3.5 4.5H12.5M6.5 4.5V3.2H9.5V4.5M5 4.5L5.5 12.5H10.5L11 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-              )}
+              {/* Удалить — same control as the consultation card (✕ → confirm) */}
+              {onDelete && <SessionDeleteControl onDelete={onDelete} />}
             </>
           )}
         </div>
