@@ -113,6 +113,10 @@ html,
 body {
   background: var(--bg);
   overscroll-behavior-y: none;
+  /* The app scrolls internally (each screen owns its own overflow:auto
+     area) — the page itself must never scroll. See index.html for why this
+     matters even though the app-shell already clips itself. */
+  overflow: hidden;
 }
 
 body {
