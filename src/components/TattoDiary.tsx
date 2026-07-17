@@ -2669,6 +2669,8 @@ export default function TattoDiary() {
                 role="button"
                 aria-label="Открыть календарь"
                 style={{
+                  position: 'relative',
+                  overflow: 'hidden',
                   textAlign: 'right',
                   lineHeight: 1.3,
                   fontStyle: 'italic',
@@ -2677,19 +2679,20 @@ export default function TattoDiary() {
                   alignItems: 'center',
                   gap: 6,
                   padding: '5px 10px',
-                  borderRadius: 20,
+                  borderRadius: 3,
                   border: '1px solid rgba(var(--gold-rgb),0.22)',
                   background: 'rgba(var(--gold-rgb),0.04)',
                 }}
               >
-                <div>
+                <GoldGemCornerBL size={16} />
+                <div style={{ position: 'relative', zIndex: 1 }}>
                   <div style={{ fontSize: 7.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: COLORS.textGhost, fontStyle: 'normal' }}>Ближайшая</div>
                   <div style={{ fontSize: 10.5, fontWeight: 400, color: COLORS.textGhost, whiteSpace: 'nowrap' }}>
                     {formatDate(next.date).replace(/ \d{4}$/, '')}
                   </div>
                 </div>
                 {/* tiny calendar glyph — signals the tag is tappable */}
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.55 }}>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.55, position: 'relative', zIndex: 1 }}>
                   <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="var(--gold)" strokeWidth="1.2" />
                   <line x1="2" y1="6.5" x2="14" y2="6.5" stroke="var(--gold)" strokeWidth="1.2" />
                   <line x1="5.5" y1="1.5" x2="5.5" y2="4" stroke="var(--gold)" strokeWidth="1.2" strokeLinecap="round" />
@@ -3900,6 +3903,43 @@ function GoldGemCorner({ size = 24 }: { size?: number }) {
     </>
   );
 }
+// Same glass-gem recipe as GoldGemCorner, mirrored into the bottom-left
+// corner instead of the usual top-right — used where the top-right is
+// already busy with other content (e.g. the calendar tag on the home
+// screen).
+function GoldGemCornerBL({ size = 20 }: { size?: number }) {
+  return (
+    <>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: -6,
+          left: -6,
+          width: size + 20,
+          height: size + 20,
+          background: 'radial-gradient(circle at bottom left, rgba(var(--gold-rgb),0.45), transparent 66%)',
+          filter: 'blur(5px)',
+          zIndex: 2,
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          width: size,
+          height: size,
+          clipPath: 'polygon(0 100%, 0 0, 100% 100%)',
+          background: 'linear-gradient(35deg, var(--gold) 0%, rgba(var(--gold-rgb),0.6) 52%, rgba(var(--gold-rgb),0.12) 100%)',
+          boxShadow: 'inset -2px 2px 3px rgba(var(--gold-rgb),0.5)',
+          zIndex: 3,
+          pointerEvents: 'none',
+        }}
+      />
+    </>
+  );
+}
 // Wraps a box in the same stripe+gem-corner+inset-ring frame as a client
 // card, all gold. Used throughout the master dashboard.
 function GoldFrame({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -4382,6 +4422,68 @@ function CopyMessageButton({ text }: { text: string }) {
   );
 }
 
+// Shared horizontal-swipe gesture: past SWIPE_THRESHOLD it calls onReveal
+// then snaps back to rest — used to REVEAL a delete confirm («Удалить? Да/
+// Нет»), never to delete outright, so an accidental swipe can't destroy data
+// (unlike the reminder cards' swipe, which is safe to complete immediately
+// because nothing is actually deleted there). Reused by every delete-confirm
+// spot in the app (sessions/consultations, notes) so swiping to delete is one
+// consistent gesture rather than a per-screen reimplementation.
+function useSwipeToReveal(onReveal: () => void) {
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startXRef = useRef(0);
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+  const MOVE_THRESHOLD = 8;
+  const SWIPE_THRESHOLD = 70;
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    startXRef.current = e.clientX;
+    draggingRef.current = true;
+    movedRef.current = false;
+    setDragging(true);
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const delta = e.clientX - startXRef.current;
+    if (Math.abs(delta) > MOVE_THRESHOLD) movedRef.current = true;
+    setDragX(delta);
+  };
+  const finishDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setDragging(false);
+    setDragX((x) => {
+      if (Math.abs(x) > SWIPE_THRESHOLD) onReveal();
+      return 0;
+    });
+  };
+  // Capture phase, so a dragged gesture's trailing click never reaches
+  // whatever tap-to-open handler the row itself has.
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (movedRef.current) {
+      e.stopPropagation();
+      e.preventDefault();
+      movedRef.current = false;
+    }
+  };
+
+  return {
+    // `transition` deliberately omitted — callers compose their own (using
+    // `dragging` to suppress it mid-drag) since some rows already animate
+    // other properties (e.g. a note's opacity fading on done/undone) and a
+    // fixed transition string here would silently clobber theirs.
+    swipeStyle: {
+      transform: `translateX(${dragX}px)`,
+      touchAction: 'pan-y' as const,
+    },
+    dragging,
+    swipeHandlers: { onPointerDown, onPointerMove, onPointerUp: finishDrag, onPointerCancel: finishDrag, onClickCapture },
+  };
+}
+
 // «Напоминания» — shared by both the Задачи and Мастер screens. Two kinds of
 // card: overdue (planned entry whose date has passed while still not marked
 // done — reschedule or mark done) and healing check-ins (a done session,
@@ -4408,18 +4510,25 @@ function ReminderCloseButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-// Wraps a reminder card so it can be swiped left/right to dismiss it (in
-// addition to the explicit «×» inside), like a native notification. Drags
-// with the finger while held; past the threshold it flies the rest of the
-// way out and THEN calls onDismiss, so the card doesn't just vanish mid-swipe.
+// Wraps a reminder card so it can be swiped left/right, like a native
+// notification. Drags with the finger while held; past the threshold it
+// flies the rest of the way out and THEN runs the swipe action — the swipe
+// gesture and the card's own «×» can trigger DIFFERENT actions (e.g. an
+// overdue reminder's swipe marks it done, while its «×» just hides it),
+// which is why the completion action isn't fixed to one prop: swiping calls
+// onSwipeComplete, the «×» calls whatever action the render prop is invoked
+// with, and both play the same fly-out animation either way.
 function SwipeDismissCard({
-  onDismiss,
+  onSwipeComplete,
+  revealLabel,
   children,
 }: {
-  onDismiss: () => void;
-  // Render prop so the card content can wire its own «×» button to the same
-  // fly-out animation the swipe gesture uses, instead of unmounting abruptly.
-  children: (dismissViaButton: () => void) => React.ReactNode;
+  onSwipeComplete: () => void;
+  // Label shown in a strip revealed behind the card as it's dragged,
+  // signalling what the swipe will do (e.g. «Выполнено»). Omit for a plain
+  // hide with no particular action to announce.
+  revealLabel?: string;
+  children: (flyOutThen: (action: () => void) => void) => React.ReactNode;
 }) {
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -4434,6 +4543,11 @@ function SwipeDismissCard({
   const MOVE_THRESHOLD = 8;
   const movedRef = useRef(false);
   const SWIPE_THRESHOLD = 84;
+
+  const flyOutThen = (action: () => void, direction: 'left' | 'right') => {
+    setFlyingOut(direction);
+    setTimeout(action, 200);
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (flyingOut) return;
@@ -4455,15 +4569,10 @@ function SwipeDismissCard({
     setDragging(false);
     setDragX((x) => {
       if (Math.abs(x) > SWIPE_THRESHOLD) {
-        setFlyingOut(x < 0 ? 'left' : 'right');
-        setTimeout(onDismiss, 200);
+        flyOutThen(onSwipeComplete, x < 0 ? 'left' : 'right');
       }
       return Math.abs(x) > SWIPE_THRESHOLD ? x : 0;
     });
-  };
-  const dismissViaButton = () => {
-    setFlyingOut('right');
-    setTimeout(onDismiss, 200);
   };
   // Capture phase, so a dragged gesture's trailing click never reaches the
   // card's own onClick (which would otherwise open the entry mid-swipe).
@@ -4477,20 +4586,45 @@ function SwipeDismissCard({
 
   const offset = flyingOut ? (flyingOut === 'left' ? -400 : 400) : dragX;
   return (
-    <div
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={finishDrag}
-      onPointerCancel={finishDrag}
-      onClickCapture={onClickCapture}
-      style={{
-        transform: `translateX(${offset}px)`,
-        opacity: flyingOut ? 0 : 1 - Math.min(Math.abs(dragX) / 260, 0.65),
-        transition: dragging ? 'none' : 'transform 0.2s ease, opacity 0.2s ease',
-        touchAction: 'pan-y',
-      }}
-    >
-      {children(dismissViaButton)}
+    <div style={{ position: 'relative' }}>
+      {revealLabel && dragX !== 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 2,
+            display: 'flex',
+            alignItems: 'center',
+            // The strip sits on the side being uncovered — opposite the
+            // direction the card is sliding.
+            justifyContent: dragX > 0 ? 'flex-start' : 'flex-end',
+            padding: '0 16px',
+            background: 'rgba(var(--gold-rgb),0.14)',
+            color: COLORS.gold,
+            fontSize: fs(12),
+            letterSpacing: '0.6px',
+            textTransform: 'uppercase',
+          }}
+        >
+          {revealLabel}
+        </div>
+      )}
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        onClickCapture={onClickCapture}
+        style={{
+          position: 'relative',
+          transform: `translateX(${offset}px)`,
+          opacity: flyingOut ? 0 : 1,
+          transition: dragging ? 'none' : 'transform 0.2s ease, opacity 0.2s ease',
+          touchAction: 'pan-y',
+        }}
+      >
+        {children((action) => flyOutThen(action, 'right'))}
+      </div>
     </div>
   );
 }
@@ -4518,8 +4652,8 @@ function RemindersSection({
         {overdue.map((it) => {
           const key = overdueReminderKey(it);
           return (
-            <SwipeDismissCard key={key} onDismiss={() => onDismiss(key)}>
-              {(dismissViaButton) => (
+            <SwipeDismissCard key={key} onSwipeComplete={() => onMarkDone(it.client.id, it.id, it.kind)} revealLabel="Выполнено">
+              {(flyOutThen) => (
               <div
                 style={{
                   display: 'flex',
@@ -4577,7 +4711,7 @@ function RemindersSection({
                   >
                     Перенести
                   </div>
-                  <ReminderCloseButton onClick={dismissViaButton} />
+                  <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
                 </div>
               </div>
               )}
@@ -4587,8 +4721,8 @@ function RemindersSection({
         {healing.map((it) => {
           const key = healingReminderKey(it);
           return (
-            <SwipeDismissCard key={key} onDismiss={() => onDismiss(key)}>
-              {(dismissViaButton) => (
+            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)}>
+              {(flyOutThen) => (
               <div
                 style={{
                   display: 'flex',
@@ -4611,7 +4745,7 @@ function RemindersSection({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                   <CopyMessageButton text={HEALING_REMINDER_MESSAGE} />
-                  <ReminderCloseButton onClick={dismissViaButton} />
+                  <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
                 </div>
               </div>
               )}
@@ -7040,9 +7174,17 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
 }
 
 // Small ✕ on a session card; a tap reveals "Удалить? Да/Нет" inline.
-function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
-  const [confirming, setConfirming] = useState(false);
-
+function SessionDeleteControl({
+  onDelete,
+  confirming,
+  onConfirmingChange,
+}: {
+  onDelete: () => void;
+  // Controlled so a swiped-open row (see useSwipeToReveal) can reveal the
+  // same confirm this «×» would — one confirm state either way, not two.
+  confirming: boolean;
+  onConfirmingChange: (v: boolean) => void;
+}) {
   if (confirming) {
     return (
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -7051,7 +7193,7 @@ function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
           Да
         </span>
         <span
-          onClick={() => setConfirming(false)}
+          onClick={() => onConfirmingChange(false)}
           style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
         >
           Нет
@@ -7061,7 +7203,7 @@ function SessionDeleteControl({ onDelete }: { onDelete: () => void }) {
   }
 
   return (
-    <span onClick={() => setConfirming(true)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label="Удалить сессию">
+    <span onClick={() => onConfirmingChange(true)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label="Удалить сессию">
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.textFaint }}>
         <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
@@ -7329,218 +7471,276 @@ function SessionsTab({
         <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий и консультаций пока нет.</div>
       )}
 
-      {timeline.map((entry) => {
-        if (entry.kind === 'consultation') {
-          const consultation = entry.consultation;
-          const meta = urgencyMeta(consultation.urgency);
-          return (
-            <div key={`c-${consultation.id}`} style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    flexShrink: 0,
-                    marginTop: 4,
-                    border: '1px solid rgba(var(--gold-rgb),0.5)',
-                  }}
-                />
-                <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
-              </div>
-              <div
-                onClick={() => onViewConsultation(consultation)}
-                style={{
-                  flex: 1,
-                  background: 'rgba(var(--surface-rgb),0.018)',
-                  border: '1px solid rgba(var(--gold-rgb),0.22)',
-                  borderRadius: 2,
-                  padding: '12px 14px',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Консультация</div>
-                    <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>
-                      {formatDate(consultation.date) || 'Дата не указана'}
-                      {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
-                    </div>
-                  </div>
-                  {/* Controls sit outside the card's tap-to-view: their own clicks
-                      must not also open the viewer. */}
-                  <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
-                    <span style={{ fontSize: fs(13) }} title={meta.label}>{meta.emoji}</span>
-                    <div
-                      className="inka-back"
-                      onClick={() => onEditConsultation(consultation)}
-                      style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-                      title="Редактировать консультацию"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                        <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                      </svg>
-                    </div>
-                    <SessionDeleteControl onDelete={() => onDeleteConsultation(consultation.id)} />
-                  </div>
-                </div>
-                {/* Photos moved up — right under the header — and read-only here. */}
-                {consultation.photos.length > 0 && (
-                  <div onClick={(e) => e.stopPropagation()} style={{ marginBottom: 4 }}>
-                    <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} readOnly />
-                  </div>
-                )}
-                {(consultation.area || consultation.style) && (
-                  <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
-                    {[consultation.area, consultation.style].filter(Boolean).join(' · ')}
-                  </div>
-                )}
-                {consultation.generalNotes && (
-                  <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>
-                    {consultation.generalNotes}
-                  </div>
-                )}
-                {consultation.feeling && (
-                  <div style={{ marginTop: 6 }}>
-                    <SessionMeta label="Чувство / ощущение" value={consultation.feeling} />
-                  </div>
-                )}
-                {consultation.inspirationSources && (
-                  <div style={{ marginTop: 6 }}>
-                    <SessionMeta label="Источники вдохновения" value={consultation.inspirationSources} />
-                  </div>
-                )}
-                {consultation.creative && (
-                  <div style={{ marginTop: 6 }}>
-                    <SessionMeta label="Креатив" value={consultation.creative} />
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        }
+      {timeline.map((entry) =>
+        entry.kind === 'consultation' ? (
+          <ConsultationRow
+            key={`c-${entry.consultation.id}`}
+            consultation={entry.consultation}
+            onEdit={onEditConsultation}
+            onDelete={() => onDeleteConsultation(entry.consultation.id)}
+            onView={onViewConsultation}
+          />
+        ) : (
+          <SessionRow
+            key={entry.session.id}
+            session={entry.session}
+            clientColor={client.color}
+            onEdit={onEditSession}
+            onDelete={() => onDeleteSession(entry.session.id)}
+            onView={onViewSession}
+            onToggleDone={() => onToggleSessionDone(entry.session.id)}
+            onUpdatePhotos={(photos) => onUpdateSessionPhotos(entry.session.id, photos)}
+          />
+        ),
+      )}
+    </div>
+  );
+}
 
-        const session = entry.session;
-        return (
-          <div key={session.id} style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  flexShrink: 0,
-                  marginTop: 4,
-                  background: session.done ? client.color : 'transparent',
-                  border: session.done ? 'none' : '1px solid rgba(var(--gold-rgb),0.25)',
-                }}
-              />
-              <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
-            </div>
-            <div
-              onClick={() => onViewSession(session)}
-              style={{
-                flex: 1,
-                background: 'rgba(var(--surface-rgb),0.018)',
-                border: '1px solid rgba(var(--gold-rgb),0.1)',
-                borderRadius: 2,
-                padding: '12px 14px',
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div dir="auto" style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.3px' }}>
-                    {session.name || formatDate(session.date) || 'Сессия'}
-                  </div>
-                  {session.name && formatDate(session.date) && (
-                    <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
-                  )}
-                </div>
-                <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
-                  {!session.done && (
-                    <span
-                      onClick={() => onToggleSessionDone(session.id)}
-                      title="Отметить выполненной"
-                      style={{
-                        fontSize: fs(10),
-                        color: COLORS.gold,
-                        border: '1px solid rgba(var(--gold-rgb),0.4)',
-                        borderRadius: 2,
-                        padding: '2px 6px',
-                        letterSpacing: '0.8px',
-                        textTransform: 'uppercase',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Запланирована
-                    </span>
-                  )}
-                  {session.done && session.healed && (
-                    <span
-                      title="Зажила"
-                      style={{
-                        fontSize: fs(10),
-                        color: COLORS.textFaint,
-                        border: '1px solid rgba(var(--gold-rgb),0.2)',
-                        borderRadius: 2,
-                        padding: '2px 6px',
-                        letterSpacing: '0.8px',
-                        textTransform: 'uppercase',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Зажила
-                    </span>
-                  )}
-                  {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
-                  <div
-                    className="inka-back"
-                    onClick={() => onEditSession(session)}
-                    style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-                    title="Редактировать сессию"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                      <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <SessionDeleteControl onDelete={() => onDeleteSession(session.id)} />
-                </div>
-              </div>
-              {session.area && (
-                <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
-                  {session.area}
-                </div>
-              )}
-              {session.note && <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
-              {(session.colors || session.needles || session.skinReaction) && (
-                <div
-                  style={{
-                    marginTop: 9,
-                    paddingTop: 9,
-                    borderTop: '1px solid rgba(var(--gold-rgb),0.08)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
-                  }}
-                >
-                  {session.colors && <SessionMeta label="Краски" value={session.colors} />}
-                  {session.needles && <SessionMeta label="Иглы" value={session.needles} />}
-                  {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
-                </div>
-              )}
-              <div onClick={(e) => e.stopPropagation()}>
-                <SessionPhotos
-                  photos={session.photos}
-                  onChange={(photos) => onUpdateSessionPhotos(session.id, photos)}
-                  allowDelete={false}
-                />
-              </div>
+// One consultation card in the client's dated timeline. Swiping the card
+// (see useSwipeToReveal) reveals the same «Удалить? Да/Нет» its «×» does —
+// swiping never deletes outright.
+function ConsultationRow({
+  consultation,
+  onEdit,
+  onDelete,
+  onView,
+}: {
+  consultation: Consultation;
+  onEdit: (consultation: Consultation) => void;
+  onDelete: () => void;
+  onView: (consultation: Consultation) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(() => setConfirming(true));
+  const meta = urgencyMeta(consultation.urgency);
+  return (
+    <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            flexShrink: 0,
+            marginTop: 4,
+            border: '1px solid rgba(var(--gold-rgb),0.5)',
+          }}
+        />
+        <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
+      </div>
+      <div
+        onClick={() => onView(consultation)}
+        {...swipeHandlers}
+        style={{
+          flex: 1,
+          background: 'rgba(var(--surface-rgb),0.018)',
+          border: '1px solid rgba(var(--gold-rgb),0.22)',
+          borderRadius: 2,
+          padding: '12px 14px',
+          cursor: 'pointer',
+          transition: dragging ? 'none' : 'transform 0.2s ease',
+          ...swipeStyle,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Консультация</div>
+            <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>
+              {formatDate(consultation.date) || 'Дата не указана'}
+              {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
             </div>
           </div>
-        );
-      })}
+          {/* Controls sit outside the card's tap-to-view: their own clicks
+              must not also open the viewer. */}
+          <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+            <span style={{ fontSize: fs(13) }} title={meta.label}>{meta.emoji}</span>
+            <div
+              className="inka-back"
+              onClick={() => onEdit(consultation)}
+              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+              title="Редактировать консультацию"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+          </div>
+        </div>
+        {/* Photos moved up — right under the header — and read-only here. */}
+        {consultation.photos.length > 0 && (
+          <div onClick={(e) => e.stopPropagation()} style={{ marginBottom: 4 }}>
+            <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} readOnly />
+          </div>
+        )}
+        {(consultation.area || consultation.style) && (
+          <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
+            {[consultation.area, consultation.style].filter(Boolean).join(' · ')}
+          </div>
+        )}
+        {consultation.generalNotes && (
+          <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>
+            {consultation.generalNotes}
+          </div>
+        )}
+        {consultation.feeling && (
+          <div style={{ marginTop: 6 }}>
+            <SessionMeta label="Чувство / ощущение" value={consultation.feeling} />
+          </div>
+        )}
+        {consultation.inspirationSources && (
+          <div style={{ marginTop: 6 }}>
+            <SessionMeta label="Источники вдохновения" value={consultation.inspirationSources} />
+          </div>
+        )}
+        {consultation.creative && (
+          <div style={{ marginTop: 6 }}>
+            <SessionMeta label="Креатив" value={consultation.creative} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// One session card in the client's dated timeline — same swipe-to-confirm
+// delete as ConsultationRow above.
+function SessionRow({
+  session,
+  clientColor,
+  onEdit,
+  onDelete,
+  onView,
+  onToggleDone,
+  onUpdatePhotos,
+}: {
+  session: Session;
+  clientColor: string;
+  onEdit: (session: Session) => void;
+  onDelete: () => void;
+  onView: (session: Session) => void;
+  onToggleDone: () => void;
+  onUpdatePhotos: (photos: string[]) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(() => setConfirming(true));
+  return (
+    <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            flexShrink: 0,
+            marginTop: 4,
+            background: session.done ? clientColor : 'transparent',
+            border: session.done ? 'none' : '1px solid rgba(var(--gold-rgb),0.25)',
+          }}
+        />
+        <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
+      </div>
+      <div
+        onClick={() => onView(session)}
+        {...swipeHandlers}
+        style={{
+          flex: 1,
+          background: 'rgba(var(--surface-rgb),0.018)',
+          border: '1px solid rgba(var(--gold-rgb),0.1)',
+          borderRadius: 2,
+          padding: '12px 14px',
+          cursor: 'pointer',
+          transition: dragging ? 'none' : 'transform 0.2s ease',
+          ...swipeStyle,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
+          <div style={{ minWidth: 0 }}>
+            <div dir="auto" style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.3px' }}>
+              {session.name || formatDate(session.date) || 'Сессия'}
+            </div>
+            {session.name && formatDate(session.date) && (
+              <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>{formatDate(session.date)}</div>
+            )}
+          </div>
+          <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+            {!session.done && (
+              <span
+                onClick={onToggleDone}
+                title="Отметить выполненной"
+                style={{
+                  fontSize: fs(10),
+                  color: COLORS.gold,
+                  border: '1px solid rgba(var(--gold-rgb),0.4)',
+                  borderRadius: 2,
+                  padding: '2px 6px',
+                  letterSpacing: '0.8px',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Запланирована
+              </span>
+            )}
+            {session.done && session.healed && (
+              <span
+                title="Зажила"
+                style={{
+                  fontSize: fs(10),
+                  color: COLORS.textFaint,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 2,
+                  padding: '2px 6px',
+                  letterSpacing: '0.8px',
+                  textTransform: 'uppercase',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Зажила
+              </span>
+            )}
+            {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+            <div
+              className="inka-back"
+              onClick={() => onEdit(session)}
+              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+              title="Редактировать сессию"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+          </div>
+        </div>
+        {session.area && (
+          <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
+            {session.area}
+          </div>
+        )}
+        {session.note && <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+        {(session.colors || session.needles || session.skinReaction) && (
+          <div
+            style={{
+              marginTop: 9,
+              paddingTop: 9,
+              borderTop: '1px solid rgba(var(--gold-rgb),0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            {session.colors && <SessionMeta label="Краски" value={session.colors} />}
+            {session.needles && <SessionMeta label="Иглы" value={session.needles} />}
+            {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
+          </div>
+        )}
+        <div onClick={(e) => e.stopPropagation()}>
+          <SessionPhotos photos={session.photos} onChange={onUpdatePhotos} allowDelete={false} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -7606,6 +7806,12 @@ function NoteItem({
   // only the urgency symbol stays visible at rest, mirroring the filter bar.
   const [showActions, setShowActions] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  // Swiping the row is a shortcut straight to the same «Удалить? Да/Нет» —
+  // it only reveals the confirm (via the «⋮» menu), never deletes outright.
+  const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(() => {
+    setShowActions(true);
+    setDeleteConfirm(true);
+  });
 
   const startEdit = () => {
     setDraftText(note.text);
@@ -7632,6 +7838,7 @@ function NoteItem({
 
   return (
     <div
+      {...swipeHandlers}
       style={{
         display: 'flex',
         alignItems: 'flex-start',
@@ -7641,7 +7848,8 @@ function NoteItem({
         padding: '10px 12px',
         background: 'rgba(var(--surface-rgb),0.018)',
         opacity: note.done ? 0.45 : 1,
-        transition: 'opacity 0.3s',
+        transition: dragging ? 'opacity 0.3s' : 'opacity 0.3s, transform 0.2s ease',
+        ...swipeStyle,
       }}
     >
       {/* Status marker — decorative only, always visible. */}
