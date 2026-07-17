@@ -4357,10 +4357,12 @@ function BottomNav({
         borderTop: '1px solid rgba(var(--gold-rgb),0.35)',
         boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
         display: 'flex',
-        // Equal-width columns, centered vertically in the bar — the plates
-        // and labels sit as a balanced block rather than hugging the top.
+        // The three items are equal-width columns pinned to the top of the bar
+        // (the inset padding below is the home-indicator zone), so their icons
+        // and labels line up on one baseline regardless of the safe-area size.
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        paddingTop: 5,
         paddingBottom: 'env(safe-area-inset-bottom)',
         zIndex: 50,
       }}
@@ -4371,13 +4373,13 @@ function BottomNav({
           above). «Клиенты» stays lit for Настройки too — reached from the
           home area, not a separate section. */}
       <NavItem label="Клиенты" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
-        <svg width="21" height="21" viewBox="0 0 20 20" fill="none">
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' || active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
           <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
           <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
         </svg>
       </NavItem>
       <NavItem label="Блокнот" active={active === 'summary'} onClick={() => onNavigate('summary')}>
-        <svg width="21" height="21" viewBox="0 0 20 20" fill="none">
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
           <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
           <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
           <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
@@ -4388,7 +4390,7 @@ function BottomNav({
         </svg>
       </NavItem>
       <NavItem label="Админка" active={active === 'admin'} onClick={() => onNavigate('admin')} badges={adminBadges}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style={{ color: active === 'admin' ? 'var(--gold)' : 'var(--text)' }}>
           <rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
           <rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
           <rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
@@ -4396,7 +4398,7 @@ function BottomNav({
         </svg>
       </NavItem>
       <NavItem label="Мастер" active={active === 'master'} onClick={() => onNavigate('master')}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style={{ color: active === 'master' ? 'var(--gold)' : 'var(--text)' }}>
           <circle cx="10" cy="6.6" r="3.3" stroke="currentColor" strokeWidth="1.3" fill="currentColor" fillOpacity="0.12" />
           <path
             d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17"
@@ -4413,11 +4415,8 @@ function BottomNav({
   );
 }
 
-// One bottom-nav column: a small gold-plate tile (etched icon, lit when
-// active) over a label, so every item lines up on the same baseline and
-// scale. The tiles sit edge to edge like a row of matching floor plates —
-// same material, same bevel — rather than reading as separate free-floating
-// icon buttons.
+// One bottom-nav column: a fixed-height icon slot over a label, so every item
+// (including the ringed «+») lines up on the same baseline and scale.
 function NavItem({
   children,
   label,
@@ -4441,7 +4440,6 @@ function NavItem({
   // visible instead of piling on the exact same spot.
   badges?: ('urgent' | 'reminder')[];
 }) {
-  const lit = active || accent;
   return (
     <div
       onClick={disabled ? undefined : onClick}
@@ -4453,38 +4451,20 @@ function NavItem({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 2,
+        gap: 3,
         cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.28 : 1,
+        opacity: disabled ? 0.28 : active || accent ? 1 : 0.45,
       }}
     >
-      <div
-        className={`inka-navtile${lit ? ' is-active' : ''}`}
-        style={{
-          width: 40,
-          height: 27,
-          borderRadius: 7,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          color: lit ? 'var(--gold)' : 'rgba(var(--gold-rgb),0.55)',
-          filter: lit ? 'drop-shadow(0 0 3px rgba(var(--gold-rgb),0.55))' : 'drop-shadow(0 1px 0 rgba(255,255,255,0.2))',
-          background: lit
-            ? 'linear-gradient(145deg, rgba(var(--gold-rgb),0.4) 0%, rgba(var(--gold-rgb),0.2) 55%, rgba(var(--gold-rgb),0.1) 100%)'
-            : 'linear-gradient(145deg, rgba(var(--gold-rgb),0.22) 0%, rgba(var(--gold-rgb),0.1) 55%, rgba(var(--gold-rgb),0.045) 100%)',
-          border: `1px solid rgba(var(--gold-rgb),${lit ? 0.55 : 0.26})`,
-          boxShadow: lit ? undefined : 'inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -1px 0 rgba(0,0,0,0.22)',
-        }}
-      >
+      <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         {children}
         {badges?.map((kind, i) => (
           <span
             key={kind}
             style={{
               position: 'absolute',
-              top: -5 - i * 7,
-              right: -3 - i * 7,
+              top: -3 - i * 7,
+              right: -1 - i * 7,
               minWidth: 13,
               height: 13,
               borderRadius: '50%',
@@ -4502,7 +4482,7 @@ function NavItem({
           </span>
         ))}
       </div>
-      <span style={{ fontSize: fs(10.5), color: lit ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15 }}>
+      <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15 }}>
         {label}
       </span>
     </div>
