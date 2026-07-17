@@ -4360,23 +4360,24 @@ function BottomNav({
         zIndex: 50,
       }}
     >
-      {/* One brushed-gold plate spans all four buttons — same metal, thin
-          dividers instead of gaps, so they read as one object with four
-          slots rather than four separate floating icons — icon only, no
-          caption underneath. A soft warm glow drifts to sit behind
-          whichever cell is active. */}
+      {/* One brushed-gold plate spans all four buttons, flush to every edge
+          (including the safe-area padding at the very bottom) so the bar
+          reads as one solid continuous band rather than a floating tile —
+          thin dividers instead of gaps, icon only, no caption underneath.
+          Half-opacity lets the dark app background tint through the gold.
+          A soft warm glow drifts to sit behind whichever cell is active. */}
       <div
         style={{
           position: 'absolute',
-          left: 8,
-          right: 8,
-          top: 5,
-          bottom: 5,
-          borderRadius: 8,
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
           overflow: 'hidden',
           background: 'linear-gradient(160deg, #E7BD68 0%, #CC9A3E 42%, #A87B27 75%, #8C6117 100%)',
-          border: '1px solid rgba(35,20,5,0.55)',
-          boxShadow: 'inset 0 1px 0 rgba(255,248,214,0.55), inset 0 -2px 4px rgba(35,20,5,0.35), 0 2px 6px rgba(0,0,0,0.35)',
+          opacity: 0.5,
+          borderTop: '1px solid rgba(35,20,5,0.55)',
+          boxShadow: 'inset 0 1px 0 rgba(255,248,214,0.55), inset 0 -2px 4px rgba(35,20,5,0.35)',
         }}
       >
         <div
@@ -4427,7 +4428,7 @@ function BottomNav({
           {(() => {
             const lit = active === 'list' || active === 'settings';
             return (
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+              <svg width="34" height="34" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
                 <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.6 : 1.3} strokeLinecap="round" strokeLinejoin="round">
                   <line x1="10" y1="1" x2="10" y2="19" />
                   <path d="M14.2 4.2H8.1a2.9 2.9 0 0 0 0 5.8h3.8a2.9 2.9 0 0 1 0 5.8H5.1" />
@@ -4440,7 +4441,7 @@ function BottomNav({
           {(() => {
             const lit = active === 'summary';
             return (
-              <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+              <svg width="34" height="34" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
                 <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.4 : 1.1} strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="3" height="3" rx="0.5" />
                   <path d="M3.6 5.5L4.3 6.2L5.6 4.7" />
@@ -4458,7 +4459,7 @@ function BottomNav({
           {(() => {
             const lit = active === 'admin';
             return (
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+              <svg width="34" height="34" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
                 <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.5 : 1.2}>
                   <rect x="3" y="3" width="6" height="6" rx="1" />
                   <rect x="11" y="3" width="6" height="6" rx="1" />
@@ -4473,7 +4474,7 @@ function BottomNav({
           {(() => {
             const lit = active === 'master';
             return (
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+              <svg width="34" height="34" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
                 <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.6 : 1.3} strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="10" cy="6.6" r="3.3" />
                   <path d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17" />
