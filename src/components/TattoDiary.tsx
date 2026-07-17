@@ -2875,8 +2875,8 @@ export default function TattoDiary() {
             role="button"
             aria-label="Добавить клиента"
             style={{
-              width: 48,
-              height: 48,
+              width: 42,
+              height: 42,
               flexShrink: 0,
               borderRadius: '50%',
               border: '1px solid rgba(var(--gold-rgb),0.55)',
@@ -2887,7 +2887,7 @@ export default function TattoDiary() {
               cursor: 'pointer',
             }}
           >
-            <svg width="19" height="19" viewBox="0 0 14 14" fill="none">
+            <svg width="17" height="17" viewBox="0 0 14 14" fill="none">
               <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
               <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
@@ -4494,9 +4494,36 @@ function BottomNav({
         zIndex: 50,
       }}
     >
-      {/* Left-to-right: Мастер — Задачи — Главная — Админка. Only page
-          destinations live here now — create-client moved to the «+» pinned
-          by the logo on «Главная» (see its render site above). */}
+      {/* Left-to-right by frequency of use: Клиенты — Блокнот — Админка —
+          Мастер. Only page destinations live here now — create-client moved
+          to the «+» pinned by the logo on «Клиенты» (see its render site
+          above). «Клиенты» stays lit for Настройки too — reached from the
+          home area, not a separate section. */}
+      <NavItem label="Клиенты" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' || active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
+          <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+          <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
+        </svg>
+      </NavItem>
+      <NavItem label="Блокнот" active={active === 'summary'} onClick={() => onNavigate('summary')}>
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
+          <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+          <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+          <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          <rect x="3" y="9" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+          <line x1="8" y1="10.5" x2="17" y2="10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
+          <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+        </svg>
+      </NavItem>
+      <NavItem label="Админка" active={active === 'admin'} onClick={() => onNavigate('admin')} badges={adminBadges}>
+        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style={{ color: active === 'admin' ? 'var(--gold)' : 'var(--text)' }}>
+          <rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="11" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
+      </NavItem>
       <NavItem label="Мастер" active={active === 'master'} onClick={() => onNavigate('master')}>
         <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style={{ color: active === 'master' ? 'var(--gold)' : 'var(--text)' }}>
           <circle cx="10" cy="6.6" r="3.3" stroke="currentColor" strokeWidth="1.3" fill="currentColor" fillOpacity="0.12" />
@@ -4509,33 +4536,6 @@ function BottomNav({
             fill="currentColor"
             fillOpacity="0.12"
           />
-        </svg>
-      </NavItem>
-      <NavItem label="Задачи" active={active === 'summary'} onClick={() => onNavigate('summary')}>
-        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
-          <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-          <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-          <rect x="3" y="9" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <line x1="8" y1="10.5" x2="17" y2="10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-          <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-        </svg>
-      </NavItem>
-      {/* «Главная» stays lit for Настройки too — reached from the home area,
-          not a separate section. */}
-      <NavItem label="Главная" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
-        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' || active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
-          <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-          <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
-        </svg>
-      </NavItem>
-      <NavItem label="Админка" active={active === 'admin'} onClick={() => onNavigate('admin')} badges={adminBadges}>
-        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style={{ color: active === 'admin' ? 'var(--gold)' : 'var(--text)' }}>
-          <rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="11" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
         </svg>
       </NavItem>
     </div>
@@ -5335,11 +5335,25 @@ function AdminDashboardScreen({
           + Запланировать сессию / консультацию
         </div>
 
-        <RemindersSection overdue={overdue} healing={healing} soon={soon} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
-
-        {/* Upcoming sessions, with a master-configurable lookahead window */}
+        {/* Upcoming sessions, with a master-configurable lookahead window — the
+            calendar glyph opens the same full month view as «Запланировать». */}
         <GoldFrame style={{ padding: '14px 16px' }}>
-          <div style={statLabelStyle}>Предстоящие сессии</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Предстоящие сессии</div>
+            <div
+              onClick={onOpenSchedule}
+              role="button"
+              aria-label="Открыть календарь"
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 2, opacity: 0.75 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="var(--gold)" strokeWidth="1.2" />
+                <line x1="2" y1="6.5" x2="14" y2="6.5" stroke="var(--gold)" strokeWidth="1.2" />
+                <line x1="5.5" y1="1.5" x2="5.5" y2="4" stroke="var(--gold)" strokeWidth="1.2" strokeLinecap="round" />
+                <line x1="10.5" y1="1.5" x2="10.5" y2="4" stroke="var(--gold)" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </div>
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: 8 }}>
             {UPCOMING_WINDOW_OPTIONS.map((d) => (
               <div
@@ -5392,6 +5406,8 @@ function AdminDashboardScreen({
             </div>
           )}
         </GoldFrame>
+
+        <RemindersSection overdue={overdue} healing={healing} soon={soon} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
 
         {/* Quick stats — clients (with срочно/важно in the lower half) beside
             назначено сессий/консультаций. «Частый стиль» stays on Мастер. */}
