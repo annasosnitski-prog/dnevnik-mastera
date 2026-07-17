@@ -153,11 +153,6 @@ interface Session {
   // `done`. Excluded from upcoming/overdue lists; shown as «Отменена» in
   // the client's history instead of just disappearing.
   cancelled: boolean;
-  // Opted into the master's creative notebook («Задачи» → «Сессии и
-  // консультации») via the «Отправить в задачи?» prompt shown right after
-  // creating a brand-new session — not every session needs mood-board prep,
-  // so this defaults to false and is never asked again on edit.
-  inTasks: boolean;
 }
 
 interface ClientDocument {
@@ -269,8 +264,6 @@ interface Consultation {
   // See Session.cancelled — same meaning, set only via the overdue
   // reminder's «Отменить» action.
   cancelled: boolean;
-  // See Session.inTasks — same «Отправить в задачи?» opt-in.
-  inTasks: boolean;
   createdDate: string;
 }
 
@@ -649,7 +642,6 @@ function normalizeClient(raw: any, index: number): Client {
         done: s?.done ?? true,
         healed: s?.healed ?? false,
         cancelled: s?.cancelled ?? false,
-        inTasks: s?.inTasks ?? false,
       }))
     : [];
 
@@ -695,7 +687,6 @@ function normalizeClient(raw: any, index: number): Client {
           photos: Array.isArray(cn?.photos) ? cn.photos : [],
           done: Boolean(cn?.done),
           cancelled: Boolean(cn?.cancelled),
-          inTasks: Boolean(cn?.inTasks),
           createdDate: cn?.createdDate ?? new Date().toISOString(),
         }))
       : [],
@@ -1814,10 +1805,6 @@ export default function TattoDiary() {
     | { kind: 'consultation'; clientId: string; id: string }
     | null
   >(null);
-  // The творческий блокнот's mood-board sheet — tapping a session/
-  // consultation card there opens this (photos + a couple of creative
-  // fields) instead of the full read-only TimelineViewSheet.
-  const [moodBoardEntry, setMoodBoardEntry] = useState<{ kind: 'session' | 'consultation'; clientId: string; id: string } | null>(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
 
@@ -1836,25 +1823,6 @@ export default function TattoDiary() {
     setCalendarWalkStep(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
-  };
-
-  // «Отправить в задачи?» — shown once, right after a brand-new session or
-  // consultation is created (never on edit), to opt it into the creative
-  // notebook (see Session.inTasks / Consultation.inTasks).
-  const [inTasksPrompt, setInTasksPrompt] = useState<{ clientId: string; itemId: string; kind: 'session' | 'consultation' } | null>(null);
-  const resolveInTasksPrompt = (value: boolean) => {
-    if (inTasksPrompt) {
-      const { clientId, itemId, kind } = inTasksPrompt;
-      const c = clients.find((x) => x.id === clientId);
-      if (c) {
-        if (kind === 'session') {
-          saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === itemId ? { ...s, inTasks: value } : s)) });
-        } else {
-          saveClient({ ...c, consultations: c.consultations.map((cn) => (cn.id === itemId ? { ...cn, inTasks: value } : cn)) });
-        }
-      }
-    }
-    setInTasksPrompt(null);
   };
 
   // Bumped whenever a new client is created, to (re)trigger the star-shower
@@ -2124,8 +2092,6 @@ export default function TattoDiary() {
     if (!selectedClient) return;
     const fields = { ...data, done: false };
     let consultations: Consultation[];
-    const isNew = !editConsultation;
-    const newId = Date.now().toString();
     if (editConsultation) {
       consultations = selectedClient.consultations.map((c) =>
         c.id === editConsultation.id ? { ...c, ...fields } : c,
@@ -2133,7 +2099,7 @@ export default function TattoDiary() {
     } else {
       consultations = [
         ...selectedClient.consultations,
-        { id: newId, createdDate: new Date().toISOString(), cancelled: false, inTasks: false, ...fields },
+        { id: Date.now().toString(), createdDate: new Date().toISOString(), cancelled: false, ...fields },
       ];
     }
     saveClient({ ...selectedClient, consultations });
@@ -2141,9 +2107,6 @@ export default function TattoDiary() {
     setEditConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
-    // Brand-new consultation — offer to flag it for the master's creative
-    // notebook («Задачи»). Never asked again on edit.
-    if (isNew) setInTasksPrompt({ clientId: selectedClient.id, itemId: newId, kind: 'consultation' });
   };
 
   const deleteConsultation = (consultationId: string) => {
@@ -2307,8 +2270,6 @@ export default function TattoDiary() {
       healed: data.healed,
     };
     let sessions: Session[];
-    const isNew = !editSession;
-    const newId = Date.now().toString();
     if (editSession) {
       // Update the existing session in place, keeping its id (status can now
       // change between planned and done via the form).
@@ -2316,7 +2277,7 @@ export default function TattoDiary() {
         s.id === editSession.id ? { ...s, ...fields } : s,
       );
     } else {
-      sessions = [...selectedClient.sessions, { id: newId, cancelled: false, inTasks: false, ...fields }];
+      sessions = [...selectedClient.sessions, { id: Date.now().toString(), cancelled: false, ...fields }];
     }
     const mergedStyles =
       data.style && !clientStyles(selectedClient).includes(data.style)
@@ -2332,9 +2293,6 @@ export default function TattoDiary() {
     setEditSession(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
-    // Brand-new session — offer to flag it for the master's creative
-    // notebook («Задачи»). Never asked again on edit.
-    if (isNew) setInTasksPrompt({ clientId: selectedClient.id, itemId: newId, kind: 'session' });
   };
 
   const sheetOpen =
@@ -2344,7 +2302,6 @@ export default function TattoDiary() {
     showNewConsultationForm ||
     showAddChoice ||
     !!viewEntry ||
-    !!moodBoardEntry ||
     showCalendar ||
     !!calendarWalkStep;
 
@@ -2353,18 +2310,6 @@ export default function TattoDiary() {
   const viewClient = viewEntry ? clients.find((c) => c.id === viewEntry.clientId) ?? null : null;
   const viewedSession = viewEntry?.kind === 'session' ? viewClient?.sessions.find((s) => s.id === viewEntry.id) ?? null : null;
   const viewedConsultation = viewEntry?.kind === 'consultation' ? viewClient?.consultations.find((c) => c.id === viewEntry.id) ?? null : null;
-
-  const moodBoardClient = moodBoardEntry ? clients.find((c) => c.id === moodBoardEntry.clientId) ?? null : null;
-  const moodBoardSession = moodBoardEntry?.kind === 'session' ? moodBoardClient?.sessions.find((s) => s.id === moodBoardEntry.id) ?? null : null;
-  const moodBoardConsultation = moodBoardEntry?.kind === 'consultation' ? moodBoardClient?.consultations.find((c) => c.id === moodBoardEntry.id) ?? null : null;
-  const updateMoodBoardPhotos = (photos: string[]) => {
-    if (!moodBoardEntry || !moodBoardClient) return;
-    if (moodBoardEntry.kind === 'session') {
-      saveClient({ ...moodBoardClient, sessions: moodBoardClient.sessions.map((s) => (s.id === moodBoardEntry.id ? { ...s, photos } : s)) });
-    } else {
-      saveClient({ ...moodBoardClient, consultations: moodBoardClient.consultations.map((c) => (c.id === moodBoardEntry.id ? { ...c, photos } : c)) });
-    }
-  };
 
   // Reminders (see RemindersSection), minus whatever the master has closed —
   // computed once and shared by the toolbar badge, «Задачи», and «Мастер».
@@ -2920,7 +2865,11 @@ export default function TattoDiary() {
               setActiveTab('extra');
               setScreen('detail');
             }}
-            onOpenMoodBoard={(clientId, id, kind) => setMoodBoardEntry({ clientId, id, kind })}
+            onOpenConsultation={(clientId, consultationId) => {
+              // Tap opens the read-only fullscreen viewer (not the edit form).
+              setViewEntry({ kind: 'consultation', clientId, id: consultationId });
+            }}
+            onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
             onAddMasterNote={(text, urgency, photos) =>
               setMasterInfo({
                 ...masterInfo,
@@ -3030,7 +2979,7 @@ export default function TattoDiary() {
           transform: screen === 'detail' ? 'translateX(0)' : 'translateX(110%)',
           transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
           overflow: 'hidden',
-          zIndex: 2,
+          zIndex: 3,
           background: COLORS.bg,
           display: 'flex',
           flexDirection: 'column',
@@ -3170,19 +3119,6 @@ export default function TattoDiary() {
         }}
       />
 
-      {/* ═══════════ MOOD BOARD (творческий блокнот entry) ═══════════ */}
-      <MoodBoardSheet
-        open={!!moodBoardEntry && (!!moodBoardSession || !!moodBoardConsultation)}
-        session={moodBoardSession}
-        consultation={moodBoardConsultation}
-        onClose={() => setMoodBoardEntry(null)}
-        onChangePhotos={updateMoodBoardPhotos}
-        onOpenFull={() => {
-          if (moodBoardEntry) setViewEntry({ kind: moodBoardEntry.kind, clientId: moodBoardEntry.clientId, id: moodBoardEntry.id });
-          setMoodBoardEntry(null);
-        }}
-      />
-
       {/* ═══════════ CALENDAR (month view, opened from «Ближайшая») ═══════════ */}
       <CalendarSheet
         open={showCalendar}
@@ -3267,69 +3203,6 @@ export default function TattoDiary() {
         />
       )}
 
-      {/* «Отправить в задачи?» — fires once, right after creating a brand-new
-          session/consultation (see resolveInTasksPrompt). */}
-      {inTasksPrompt && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 300,
-            background: 'rgba(0,0,0,0.55)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 24,
-          }}
-        >
-          <div style={{ background: COLORS.sheet, border: '1px solid rgba(var(--gold-rgb),0.25)', borderRadius: 4, padding: '20px 22px', maxWidth: 320, width: '100%', textAlign: 'center' }}>
-            <div style={{ fontSize: fs(15), color: COLORS.textPrimary, marginBottom: 4, fontStyle: 'italic' }}>Отправить в задачи?</div>
-            <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginBottom: 16 }}>
-              Появится в творческом блокноте — для мудборда и подготовки
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div
-                onClick={() => resolveInTasksPrompt(true)}
-                role="button"
-                aria-label="Отправить в задачи: да"
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  border: '1px solid rgba(var(--gold-rgb),0.4)',
-                  borderRadius: 2,
-                  color: COLORS.gold,
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                  letterSpacing: '1px',
-                  fontSize: fs(12),
-                }}
-              >
-                Да
-              </div>
-              <div
-                onClick={() => resolveInTasksPrompt(false)}
-                role="button"
-                aria-label="Отправить в задачи: нет"
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  border: '1px solid rgba(var(--gold-rgb),0.15)',
-                  borderRadius: 2,
-                  color: COLORS.textFaint,
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                  letterSpacing: '1px',
-                  fontSize: fs(12),
-                }}
-              >
-                Нет
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -5639,7 +5512,7 @@ function MasterDashboardScreen({
       <div style={{ padding: '4px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Master's own name */}
         <GoldFrame style={{ padding: '14px 16px' }}>
-          <div style={statLabelStyle}>Имя мастера</div>
+          <div style={{ ...statLabelStyle, textAlign: 'center' }}>Имя мастера</div>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -5651,6 +5524,7 @@ function MasterDashboardScreen({
               border: 'none',
               outline: 'none',
               padding: 0,
+              textAlign: 'center',
               fontFamily: "'Inter', sans-serif",
               fontSize: fs(18),
               color: COLORS.textPrimary,
@@ -6085,7 +5959,8 @@ function SummaryScreen({
   onEditNote,
   onDeleteNote,
   onOpenClient,
-  onOpenMoodBoard,
+  onOpenConsultation,
+  onOpenSession,
   onAddMasterNote,
   onToggleMasterDone,
   onEditMasterNote,
@@ -6097,9 +5972,8 @@ function SummaryScreen({
   onEditNote: (clientId: string, note: ClientNote) => void;
   onDeleteNote: (clientId: string, noteId: string) => void;
   onOpenClient: (id: string) => void;
-  // Tapping a творческий блокнот card opens the mood-board sheet (photos +
-  // quick creative fields), not the full read-only viewer.
-  onOpenMoodBoard: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  onOpenConsultation: (clientId: string, consultationId: string) => void;
+  onOpenSession: (clientId: string, sessionId: string) => void;
   onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
@@ -6112,18 +5986,18 @@ function SummaryScreen({
   // screen's layout.
   const [showComposer, setShowComposer] = useState(false);
 
-  // The «творческий блокнот» — planned sessions/consultations the master
-  // opted into (see Session/Consultation.inTasks and the «Отправить в
-  // задачи?» prompt shown right after creating a new one), soonest first. Tap
-  // opens the mood-board sheet rather than the full read-only viewer.
+  // Planned (not-done) sessions + consultations, across every client, soonest
+  // first — a compact card (client · type · date) that opens straight into the
+  // read-only viewer when tapped. Sessions need a real date to count as
+  // planned; consultations show whether dated or not (undated sort last).
   type PlannedItem = { kind: 'session' | 'consultation'; client: Client; id: string; date: string; time: string; label: string };
   const plannedItems: PlannedItem[] = clients
     .flatMap((c): PlannedItem[] => [
       ...c.sessions
-        .filter((s) => !s.done && !s.cancelled && s.inTasks && ISO_DATE_RE.test(s.date))
+        .filter((s) => !s.done && !s.cancelled && ISO_DATE_RE.test(s.date))
         .map((s): PlannedItem => ({ kind: 'session', client: c, id: s.id, date: s.date, time: s.time, label: s.name || s.area })),
       ...c.consultations
-        .filter((cs) => !cs.done && !cs.cancelled && cs.inTasks)
+        .filter((cs) => !cs.done && !cs.cancelled)
         .map((cs): PlannedItem => ({ kind: 'consultation', client: c, id: cs.id, date: cs.date, time: cs.time, label: cs.area })),
     ])
     .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
@@ -6316,52 +6190,10 @@ function SummaryScreen({
         </div>
       )}
 
-      {/* Two columns, like the client list: the творческий блокнот on the
-          left, the task list on the right. */}
+      {/* Two columns, like the client list: the task list on the left,
+          planned sessions & consultations on the right. */}
       <div style={{ padding: '2px 16px 110px', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
-        {/* Column 1 — творческий блокнот: sessions/consultations the master
-            opted into via «Отправить в задачи?». Tap opens the mood-board. */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
-            Творческий блокнот
-          </div>
-          {plannedItems.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
-          ) : (
-            plannedItems.map((it) => (
-              <div
-                key={`${it.kind}-${it.client.id}-${it.id}`}
-                onClick={() => onOpenMoodBoard(it.client.id, it.id, it.kind)}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 3,
-                  padding: '9px 11px',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  border: '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: 'rgba(var(--surface-rgb),0.018)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.client.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {it.client.name || '—'}
-                  </span>
-                </div>
-                <div style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                  {it.kind === 'session' ? 'Сессия' : 'Консультация'}
-                </div>
-                <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
-                  {it.date ? formatDate(it.date).replace(/ \d{4}$/, '') : 'Без даты'}
-                  {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Column 2 — the task list */}
+        {/* Column 1 — the task list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
             Задачи
@@ -6396,6 +6228,47 @@ function SummaryScreen({
                 </div>
               ),
             )
+          )}
+        </div>
+
+        {/* Column 2 — planned sessions & consultations */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
+            Сессии и консультации
+          </div>
+          {plannedItems.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
+          ) : (
+            plannedItems.map((it) => (
+              <div
+                key={`${it.kind}-${it.client.id}-${it.id}`}
+                onClick={() => (it.kind === 'session' ? onOpenSession(it.client.id, it.id) : onOpenConsultation(it.client.id, it.id))}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 3,
+                  padding: '9px 11px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: 'rgba(var(--surface-rgb),0.018)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.client.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {it.client.name || '—'}
+                  </span>
+                </div>
+                <div style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  {it.kind === 'session' ? 'Сессия' : 'Консультация'}
+                </div>
+                <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
+                  {it.date ? formatDate(it.date).replace(/ \d{4}$/, '') : 'Без даты'}
+                  {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>
@@ -8918,75 +8791,6 @@ function ViewField({ label, value }: { label: string; value: string }) {
   );
 }
 
-// «Мудборд» — what a творческий блокнот card opens into instead of the full
-// read-only TimelineViewSheet: just the reference photos (add/remove freely,
-// this IS the prep surface) plus a couple of at-a-glance creative fields. A
-// link through to the full card covers everything else.
-function MoodBoardSheet({
-  open,
-  session,
-  consultation,
-  onClose,
-  onChangePhotos,
-  onOpenFull,
-}: {
-  open: boolean;
-  session: Session | null;
-  consultation: Consultation | null;
-  onClose: () => void;
-  onChangePhotos: (photos: string[]) => void;
-  onOpenFull: () => void;
-}) {
-  const isConsult = !!consultation;
-  const item = isConsult ? consultation : session;
-  const dateLine = item ? [formatDate(item.date) || 'Дата не указана', item.time].filter(Boolean).join(' · ') : '';
-
-  return (
-    <BottomSheet open={open} heightPct={94}>
-      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        <SheetCloseButton onClose={onClose} />
-        <div style={{ marginBottom: 5 }}>
-          <InkaLogo height={fs(15)} />
-        </div>
-        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Мудборд</div>
-        <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 4, letterSpacing: '0.3px' }}>
-          {isConsult ? 'Консультация' : session?.name || 'Сессия'} · {dateLine}
-        </div>
-        <SheetStarDivider />
-      </div>
-
-      {item && (
-        <div style={{ padding: '4px 24px 60px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <SessionPhotos photos={item.photos} onChange={onChangePhotos} />
-          <ViewField label="Место" value={item.area} />
-          <ViewField label="Стиль" value={isConsult ? consultation!.style : session!.style} />
-          {isConsult && <ViewField label="Источники вдохновения" value={consultation!.inspirationSources} />}
-          {isConsult && <ViewField label="Креатив" value={consultation!.creative} />}
-          <div
-            className="inka-submit"
-            onClick={onOpenFull}
-            style={{
-              border: '1px solid rgba(var(--gold-rgb),0.35)',
-              borderRadius: 2,
-              padding: '12px 0',
-              textAlign: 'center',
-              cursor: 'pointer',
-              background: 'rgba(var(--gold-rgb),0.05)',
-              fontSize: fs(13),
-              color: COLORS.gold,
-              letterSpacing: '2px',
-              textTransform: 'uppercase',
-              marginTop: 6,
-            }}
-          >
-            Открыть карточку
-          </div>
-        </div>
-      )}
-    </BottomSheet>
-  );
-}
-
 function TimelineViewSheet({
   open,
   session,
@@ -9359,7 +9163,7 @@ function CalendarSheet({
                   cursor: 'pointer',
                   padding: '5px 10px',
                   border: '1px solid rgba(var(--gold-rgb),0.35)',
-                  borderRadius: 20,
+                  borderRadius: 2,
                 }}
               >
                 <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
