@@ -300,6 +300,20 @@ function formatDate(value: string): string {
   return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
 }
 
+const WEEKDAYS_SHORT_RU = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
+
+// Splits an ISO yyyy-mm-dd into weekday/day-number/month for the tear-off
+// calendar-square badge (see the «Ближайшая» tag). Local calendar date, not
+// UTC — a plain `new Date(iso)` would land on the previous day in western
+// timezones since the string parses as UTC midnight.
+function dateParts(value: string): { weekday: string; day: string; month: string } | null {
+  const m = ISO_DATE_RE.exec(value);
+  if (!m) return null;
+  const [y, mo, d] = value.split('-').map(Number);
+  const dt = new Date(y, mo - 1, d);
+  return { weekday: WEEKDAYS_SHORT_RU[dt.getDay()], day: String(d), month: MONTHS_RU[mo - 1] };
+}
+
 
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
@@ -2774,42 +2788,33 @@ export default function TattoDiary() {
         >
           {(() => {
             const next = upcomingItems(clients, 365)[0];
-            if (!next) return null;
+            const parts = next ? dateParts(next.date) : null;
+            if (!next || !parts) return null;
             return (
+              // Tear-off calendar square — weekday/day/month, clean frame, no
+              // corner ornament (that read as clutter at this size).
               <div
                 onClick={() => setShowCalendar(true)}
                 role="button"
                 aria-label="Открыть календарь"
                 style={{
-                  position: 'relative',
-                  overflow: 'hidden',
-                  textAlign: 'right',
-                  lineHeight: 1.3,
-                  fontStyle: 'italic',
-                  cursor: 'pointer',
+                  width: 42,
+                  height: 42,
+                  flexShrink: 0,
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 6,
-                  padding: '5px 10px',
-                  borderRadius: 3,
-                  border: '1px solid rgba(var(--gold-rgb),0.22)',
+                  justifyContent: 'center',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  borderRadius: 4,
+                  border: '1px solid rgba(var(--gold-rgb),0.3)',
                   background: 'rgba(var(--gold-rgb),0.04)',
                 }}
               >
-                <GemCornerBL color="#0A4D00" size={16} />
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                  <div style={{ fontSize: 7.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: COLORS.textGhost, fontStyle: 'normal' }}>Ближайшая</div>
-                  <div style={{ fontSize: 10.5, fontWeight: 400, color: COLORS.textGhost, whiteSpace: 'nowrap' }}>
-                    {formatDate(next.date).replace(/ \d{4}$/, '')}
-                  </div>
-                </div>
-                {/* tiny calendar glyph — signals the tag is tappable */}
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.55, position: 'relative', zIndex: 1 }}>
-                  <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="var(--gold)" strokeWidth="1.2" />
-                  <line x1="2" y1="6.5" x2="14" y2="6.5" stroke="var(--gold)" strokeWidth="1.2" />
-                  <line x1="5.5" y1="1.5" x2="5.5" y2="4" stroke="var(--gold)" strokeWidth="1.2" strokeLinecap="round" />
-                  <line x1="10.5" y1="1.5" x2="10.5" y2="4" stroke="var(--gold)" strokeWidth="1.2" strokeLinecap="round" />
-                </svg>
+                <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.gold, marginBottom: 2 }}>{parts.weekday}</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.textPrimary }}>{parts.day}</div>
+                <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.textGhost, marginTop: 2 }}>{parts.month}</div>
               </div>
             );
           })()}
@@ -4036,46 +4041,7 @@ function cornerPalette(color: string): { solid: string; mid: string; faint: stri
   }
   return { solid: color, mid: hexToRgba(color, 0.6), faint: hexToRgba(color, 0.45) };
 }
-// Same glass-gem recipe as GoldGemCorner, mirrored into the bottom-left
-// corner instead of the usual top-right — used where the top-right is
-// already busy with other content. Takes an explicit `color` (defaults to
-// the theme's gold) so it can also render in an arbitrary accent colour —
-// e.g. green for the calendar tag.
-function GemCornerBL({ color = COLORS.gold, size = 20 }: { color?: string; size?: number }) {
-  const { solid, mid, faint } = cornerPalette(color);
-  return (
-    <>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: -6,
-          left: -6,
-          width: size + 20,
-          height: size + 20,
-          background: `radial-gradient(circle at bottom left, ${faint}, transparent 66%)`,
-          filter: 'blur(5px)',
-          zIndex: 2,
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          width: size,
-          height: size,
-          clipPath: 'polygon(0 100%, 0 0, 100% 100%)',
-          background: `linear-gradient(35deg, ${solid} 0%, ${mid} 52%, ${hexToRgba(color, 0.12)} 100%)`,
-          boxShadow: `inset -2px 2px 3px ${faint}`,
-          zIndex: 3,
-          pointerEvents: 'none',
-        }}
-      />
-    </>
-  );
-}
-// Bottom-right mirror of GemCornerBL — used to give the overdue reminder
+// Bottom-right mirror of the old GemCornerBL — used to give the overdue reminder
 // card a corner accent without colliding with its «×» (top-right) or its
 // «Напомнить» preset menu (which opens below the button, left-anchored).
 function GemCornerBR({ color = COLORS.gold, size = 20 }: { color?: string; size?: number }) {
@@ -4346,8 +4312,9 @@ function BottomNav({
         // 10px cap left the indicator zone showing as a stray strip and made
         // the app look like it didn't reach the bottom. On devices without a
         // home indicator env(safe-area-inset-bottom) is 0, so the bar stays
-        // slim (just the 46px icon row).
-        height: 'calc(44px + env(safe-area-inset-bottom))',
+        // slim (just the icon row). Row trimmed to hug the icons closely
+        // rather than the old, noticeably thicker band.
+        height: 'calc(34px + env(safe-area-inset-bottom))',
         // Solid (no backdrop-filter): the blur repainted every frame during
         // scroll and was a major source of jank. A flat bar is also visually
         // slimmer, hugging the icons. A gold-tinted overlay (stacked as a
@@ -4413,7 +4380,7 @@ function BottomNav({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          height: 44,
+          height: 34,
         }}
       >
         {/* Left-to-right by frequency of use: Клиенты — Блокнот — Админка —
@@ -6578,11 +6545,11 @@ function DetailScreen({
   }, [client.id, activeTab]);
 
   // The hero (name, styles, client note) can be collapsed to a slim strip so
-  // «Сессии»/«Доп.» get more room to work with — resets to expanded whenever
-  // a different client is opened.
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  // «Сессии»/«Доп.» get more room to work with — starts collapsed (and resets
+  // to collapsed whenever a different client is opened), expand on demand.
+  const [headerCollapsed, setHeaderCollapsed] = useState(true);
   useEffect(() => {
-    setHeaderCollapsed(false);
+    setHeaderCollapsed(true);
   }, [client.id]);
 
   return (
