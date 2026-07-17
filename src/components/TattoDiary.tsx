@@ -527,6 +527,29 @@ function healingReminders(clients: Client[]): HealingItem[] {
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// Stable identity for a reminder card, independent of render order — used to
+// persist which cards the master has manually closed (see dismissedReminders
+// in the main component and RemindersSection below).
+function overdueReminderKey(it: OverdueItem): string {
+  return `overdue:${it.kind}:${it.id}`;
+}
+function healingReminderKey(it: HealingItem): string {
+  return `healing:${it.sessionId}`;
+}
+
+function readInitialDismissedReminders(): string[] {
+  try {
+    const raw = localStorage.getItem('inka-dismissed-reminders');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.filter((x) => typeof x === 'string');
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
 function normalizeClient(raw: any, index: number): Client {
@@ -973,10 +996,16 @@ function buildStars() {
     sparkle: Math.random() < 0.16,
   }));
 }
-// Shooting stars — gold, rarer (long cycles, brief visible window). Direction
-// varies (down-left / down-right), streak rotated to match its motion.
+// Shooting stars — gold, rare, brief. All meteors share one long cycle
+// (METEOR_CYCLE) split into equal slots, one per meteor, with jitter kept
+// well inside each slot's margin — since every meteor shares the exact same
+// period, that phase relationship holds forever, so two meteors' visible
+// windows can never land at the same time (unlike independent random delays,
+// which drift in and out of overlap over a long enough session).
+const METEOR_CYCLE = 74;
 function buildMeteors() {
-  return Array.from({ length: METEOR_COUNT }, () => {
+  const slot = METEOR_CYCLE / METEOR_COUNT;
+  return Array.from({ length: METEOR_COUNT }, (_, i) => {
     const goesLeft = Math.random() < 0.5;
     const rotDeg = goesLeft ? 135 : 45;
     const dist = 320 + Math.random() * 260;
@@ -988,8 +1017,8 @@ function buildMeteors() {
       rot: rotDeg,
       mx: Math.cos(rad) * dist,
       my: Math.sin(rad) * dist,
-      duration: 14 + Math.random() * 16,
-      baseDelay: Math.random() * 30,
+      duration: METEOR_CYCLE,
+      baseDelay: i * slot + (Math.random() - 0.5) * slot * 0.3,
     };
   });
 }
@@ -1005,10 +1034,46 @@ function getMeteors() {
   return sharedMeteors;
 }
 
-// Dark theme's sky: twinkling gold stars and an occasional «звездопад» (gold
-// meteors). The light theme's counterpart is CloudsBackground — so this renders
-// only in the dark theme. Shares one layout across screens with delays anchored
-// to SKY_EPOCH, so the field holds still through screen transitions.
+// Comets — one each in gold, blue, and red; much rarer than the meteors and
+// drift across slowly instead of flashing past. Same non-overlapping-slot
+// trick as buildMeteors, just with a far longer shared cycle.
+const COMET_CYCLE = 150;
+const COMET_COLORS = [
+  { head: 'rgba(240,208,140,0.98)', mid: 'rgba(228,190,110,0.4)', glow: 'rgba(230,196,120,0.75)' }, // gold
+  { head: 'rgba(158,205,255,0.95)', mid: 'rgba(120,172,230,0.38)', glow: 'rgba(130,182,240,0.7)' }, // blue
+  { head: 'rgba(240,142,124,0.95)', mid: 'rgba(220,112,96,0.38)', glow: 'rgba(225,122,102,0.7)' }, // red
+];
+function buildComets() {
+  const slot = COMET_CYCLE / COMET_COLORS.length;
+  return COMET_COLORS.map((color, i) => {
+    const goesLeft = Math.random() < 0.5;
+    const rotDeg = goesLeft ? 135 : 45;
+    const dist = 380 + Math.random() * 220;
+    const rad = (rotDeg * Math.PI) / 180;
+    return {
+      color,
+      left: goesLeft ? 40 + Math.random() * 45 : 15 + Math.random() * 45,
+      top: Math.random() * 50,
+      length: 110 + Math.random() * 60,
+      rot: rotDeg,
+      mx: Math.cos(rad) * dist,
+      my: Math.sin(rad) * dist,
+      duration: COMET_CYCLE,
+      baseDelay: i * slot + (Math.random() - 0.5) * slot * 0.2,
+    };
+  });
+}
+let sharedComets: ReturnType<typeof buildComets> | null = null;
+function getComets() {
+  if (!sharedComets) sharedComets = buildComets();
+  return sharedComets;
+}
+
+// Dark theme's sky: twinkling gold stars, an occasional «звездопад» (gold
+// meteors), and rarer still, three slow-drifting comets. The light theme's
+// counterpart is CloudsBackground — so this renders only in the dark theme.
+// Shares one layout across screens with delays anchored to SKY_EPOCH, so the
+// field holds still through screen transitions.
 function StarfieldBackground() {
   const isLight = useIsLightTheme();
   const [, setTick] = useState(0);
@@ -1025,6 +1090,7 @@ function StarfieldBackground() {
 
   const stars = getStars();
   const meteors = getMeteors();
+  const comets = getComets();
   const elapsed = (Date.now() - SKY_EPOCH) / 1000;
 
   return (
@@ -1087,6 +1153,30 @@ function StarfieldBackground() {
             ['--rot' as string]: `${m.rot}deg`,
             animationDuration: `${m.duration}s`,
             animationDelay: `${-(elapsed + m.baseDelay)}s`,
+          } as React.CSSProperties}
+        />
+      ))}
+
+      {/* Comets — rarer and slower than the meteors above, one each in gold,
+          blue, and red. */}
+      {comets.map((c, i) => (
+        <div
+          key={`comet-${i}`}
+          className="inka-comet"
+          style={{
+            position: 'absolute',
+            left: `${c.left}%`,
+            top: `${c.top}%`,
+            width: c.length,
+            height: 2.6,
+            borderRadius: 2,
+            background: `linear-gradient(to right, transparent, ${c.color.mid} 50%, ${c.color.head})`,
+            boxShadow: `0 0 9px ${c.color.glow}`,
+            ['--mx' as string]: `${c.mx}px`,
+            ['--my' as string]: `${c.my}px`,
+            ['--rot' as string]: `${c.rot}deg`,
+            animationDuration: `${c.duration}s`,
+            animationDelay: `${-(elapsed + c.baseDelay)}s`,
           } as React.CSSProperties}
         />
       ))}
@@ -1579,6 +1669,22 @@ export default function TattoDiary() {
     setConflictHandler(setSyncWarning);
     return () => setConflictHandler(null);
   }, []);
+
+  // Reminder cards (see RemindersSection) the master has explicitly closed —
+  // by «×» or swipe — so they stay hidden even though the underlying overdue
+  // /healing condition hasn't changed. Keyed by a stable per-reminder string
+  // (see reminderKey below), not by anything that would naturally clear this
+  // — marking done, rescheduling, or ticking «Зажив» already removes the
+  // entry from its source list regardless of this set.
+  const [dismissedReminders, setDismissedReminders] = useState<string[]>(readInitialDismissedReminders);
+  useEffect(() => {
+    try {
+      localStorage.setItem('inka-dismissed-reminders', JSON.stringify(dismissedReminders));
+    } catch {
+      /* ignore */
+    }
+  }, [dismissedReminders]);
+  const dismissReminder = (key: string) => setDismissedReminders((prev) => (prev.includes(key) ? prev : [...prev, key]));
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -2102,6 +2208,11 @@ export default function TattoDiary() {
   const viewedSession = viewEntry?.kind === 'session' ? viewClient?.sessions.find((s) => s.id === viewEntry.id) ?? null : null;
   const viewedConsultation = viewEntry?.kind === 'consultation' ? viewClient?.consultations.find((c) => c.id === viewEntry.id) ?? null : null;
 
+  // Reminders (see RemindersSection), minus whatever the master has closed —
+  // computed once and shared by the toolbar badge, «Задачи», and «Мастер».
+  const visibleOverdue = overdueEntries(clients).filter((it) => !dismissedReminders.includes(overdueReminderKey(it)));
+  const visibleHealing = healingReminders(clients).filter((it) => !dismissedReminders.includes(healingReminderKey(it)));
+
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
 
@@ -2528,7 +2639,7 @@ export default function TattoDiary() {
           active={screen}
           onNavigate={(s) => setScreen(s)}
           onAddClient={() => runGated(clients.length === 0, () => setShowNewClientForm(true))}
-          tasksBadge={overdueEntries(clients).length > 0 ? 'urgent' : healingReminders(clients).length > 0 ? 'reminder' : null}
+          tasksBadge={visibleOverdue.length > 0 ? 'urgent' : visibleHealing.length > 0 ? 'reminder' : null}
         />
       )}
 
@@ -2650,10 +2761,11 @@ export default function TattoDiary() {
               setViewEntry({ kind: 'consultation', clientId, id: consultationId });
             }}
             onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
-            overdue={overdueEntries(clients)}
-            healing={healingReminders(clients)}
+            overdue={visibleOverdue}
+            healing={visibleHealing}
             onMarkDone={markEntryDone}
             onOpenEntry={openEntryForEdit}
+            onDismissReminder={dismissReminder}
             onAddMasterNote={(text, urgency, photos) =>
               setMasterInfo({
                 ...masterInfo,
@@ -2693,10 +2805,11 @@ export default function TattoDiary() {
             onOpenSession={openEntryForEdit}
             onOpenSettings={() => setScreen('settings')}
             onImport={replaceAllClients}
-            overdue={overdueEntries(clients)}
-            healing={healingReminders(clients)}
+            overdue={visibleOverdue}
+            healing={visibleHealing}
             onMarkDone={markEntryDone}
             onOpenEntry={openEntryForEdit}
+            onDismissReminder={dismissReminder}
           />
         )}
       </div>
@@ -4082,6 +4195,11 @@ function BottomNav({
           <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         </svg>
       </NavItem>
+      {/* Placeholder for a future admin panel — visibly asleep («💤»), no
+          handler wired up yet. */}
+      <NavItem label="Админка" active={false} disabled onClick={() => {}} ariaLabel="Админка — скоро">
+        <span style={{ fontSize: 19, lineHeight: 1 }}>💤</span>
+      </NavItem>
     </div>
   );
 }
@@ -4093,6 +4211,7 @@ function NavItem({
   label,
   active,
   accent = false,
+  disabled = false,
   onClick,
   ariaLabel,
   badge,
@@ -4101,6 +4220,9 @@ function NavItem({
   label: string;
   active: boolean;
   accent?: boolean;
+  // Rendered but inert — no tap target, dimmer than a plain inactive item
+  // (used for the «Админка» placeholder).
+  disabled?: boolean;
   onClick: () => void;
   ariaLabel?: string;
   // 'urgent' (red) beats 'reminder' (yellow) — an overdue entry outranks a
@@ -4109,8 +4231,9 @@ function NavItem({
 }) {
   return (
     <div
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       role="button"
+      aria-disabled={disabled || undefined}
       aria-label={ariaLabel ?? label}
       style={{
         flex: 1,
@@ -4118,8 +4241,8 @@ function NavItem({
         flexDirection: 'column',
         alignItems: 'center',
         gap: 3,
-        cursor: 'pointer',
-        opacity: active || accent ? 1 : 0.45,
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.28 : active || accent ? 1 : 0.45,
       }}
     >
       <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -4265,113 +4388,238 @@ function CopyMessageButton({ text }: { text: string }) {
 // ≥30 days old, not yet ticked «Зажив» — copy the ready-made message and jump
 // to the session to tick it once the healed photo's in). Renders nothing
 // when both lists are empty, so callers can drop it in unconditionally.
+// A small «×» — closes a reminder card outright (no confirm step; reminders
+// are non-destructive, re-derived from live data, so there's nothing to lose
+// beyond the card itself, which reappears if the master reopens the app...
+// except once dismissed it's meant to stay gone, see dismissedReminders).
+function ReminderCloseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <span
+      onClick={onClick}
+      role="button"
+      aria-label="Скрыть напоминание"
+      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0, opacity: 0.55, padding: 2 }}
+    >
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.textFaint }}>
+        <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
+// Wraps a reminder card so it can be swiped left/right to dismiss it (in
+// addition to the explicit «×» inside), like a native notification. Drags
+// with the finger while held; past the threshold it flies the rest of the
+// way out and THEN calls onDismiss, so the card doesn't just vanish mid-swipe.
+function SwipeDismissCard({
+  onDismiss,
+  children,
+}: {
+  onDismiss: () => void;
+  // Render prop so the card content can wire its own «×» button to the same
+  // fly-out animation the swipe gesture uses, instead of unmounting abruptly.
+  children: (dismissViaButton: () => void) => React.ReactNode;
+}) {
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [flyingOut, setFlyingOut] = useState<'left' | 'right' | null>(null);
+  const startXRef = useRef(0);
+  const draggingRef = useRef(false);
+  // Distinguishes a tap (lets the card's own onClick — open the entry —
+  // through) from a real swipe (past this many px, the gesture is a
+  // dismiss attempt, not a tap, so the following synthetic «click» the
+  // browser fires on pointer-up must be swallowed before it reaches the
+  // card's onClick).
+  const MOVE_THRESHOLD = 8;
+  const movedRef = useRef(false);
+  const SWIPE_THRESHOLD = 84;
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (flyingOut) return;
+    startXRef.current = e.clientX;
+    draggingRef.current = true;
+    movedRef.current = false;
+    setDragging(true);
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const delta = e.clientX - startXRef.current;
+    if (Math.abs(delta) > MOVE_THRESHOLD) movedRef.current = true;
+    setDragX(delta);
+  };
+  const finishDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setDragging(false);
+    setDragX((x) => {
+      if (Math.abs(x) > SWIPE_THRESHOLD) {
+        setFlyingOut(x < 0 ? 'left' : 'right');
+        setTimeout(onDismiss, 200);
+      }
+      return Math.abs(x) > SWIPE_THRESHOLD ? x : 0;
+    });
+  };
+  const dismissViaButton = () => {
+    setFlyingOut('right');
+    setTimeout(onDismiss, 200);
+  };
+  // Capture phase, so a dragged gesture's trailing click never reaches the
+  // card's own onClick (which would otherwise open the entry mid-swipe).
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (movedRef.current) {
+      e.stopPropagation();
+      e.preventDefault();
+      movedRef.current = false;
+    }
+  };
+
+  const offset = flyingOut ? (flyingOut === 'left' ? -400 : 400) : dragX;
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onClickCapture={onClickCapture}
+      style={{
+        transform: `translateX(${offset}px)`,
+        opacity: flyingOut ? 0 : 1 - Math.min(Math.abs(dragX) / 260, 0.65),
+        transition: dragging ? 'none' : 'transform 0.2s ease, opacity 0.2s ease',
+        touchAction: 'pan-y',
+      }}
+    >
+      {children(dismissViaButton)}
+    </div>
+  );
+}
+
 function RemindersSection({
   overdue,
   healing,
   onMarkDone,
   onOpenEntry,
+  onDismiss,
 }: {
   overdue: OverdueItem[];
   healing: HealingItem[];
   onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  onDismiss: (key: string) => void;
 }) {
   if (overdue.length === 0 && healing.length === 0) return null;
   return (
-    <GoldFrame style={{ padding: '14px 16px' }}>
-      <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10 }}>
+    <div>
+      <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
         Напоминания
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {overdue.map((it) => (
-          <div
-            key={`overdue-${it.kind}-${it.id}`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-              padding: '9px 10px',
-              borderRadius: 2,
-              border: '1px solid rgba(224,102,90,0.35)',
-              background: 'rgba(224,102,90,0.06)',
-            }}
-          >
-            <div onClick={() => onOpenEntry(it.client.id, it.id, it.kind)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {it.client.name || '—'}
-              </div>
-              <div style={{ fontSize: fs(11), color: '#e0665a', marginTop: 2 }}>
-                {it.kind === 'session' ? 'Сессия' : 'Консультация'} просрочена · {formatDate(it.date)}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+        {overdue.map((it) => {
+          const key = overdueReminderKey(it);
+          return (
+            <SwipeDismissCard key={key} onDismiss={() => onDismiss(key)}>
+              {(dismissViaButton) => (
               <div
-                onClick={() => onMarkDone(it.client.id, it.id, it.kind)}
-                role="button"
-                aria-label="Отметить выполненной"
                 style={{
-                  fontSize: fs(11),
-                  color: COLORS.gold,
-                  border: '1px solid rgba(var(--gold-rgb),0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  padding: '9px 10px',
                   borderRadius: 2,
-                  padding: '4px 9px',
-                  letterSpacing: '0.6px',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
+                  border: '1px solid rgba(224,102,90,0.35)',
+                  background: 'rgba(224,102,90,0.06)',
                 }}
               >
-                Выполнено
+                <div onClick={() => onOpenEntry(it.client.id, it.id, it.kind)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                  <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {it.client.name || '—'}
+                  </div>
+                  <div style={{ fontSize: fs(11), color: '#e0665a', marginTop: 2 }}>
+                    {it.kind === 'session' ? 'Сессия' : 'Консультация'} просрочена · {formatDate(it.date)}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <div
+                    onClick={() => onMarkDone(it.client.id, it.id, it.kind)}
+                    role="button"
+                    aria-label="Отметить выполненной"
+                    style={{
+                      fontSize: fs(11),
+                      color: COLORS.gold,
+                      border: '1px solid rgba(var(--gold-rgb),0.4)',
+                      borderRadius: 2,
+                      padding: '4px 9px',
+                      letterSpacing: '0.6px',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Выполнено
+                  </div>
+                  <div
+                    onClick={() => onOpenEntry(it.client.id, it.id, it.kind)}
+                    role="button"
+                    aria-label="Перенести"
+                    style={{
+                      fontSize: fs(11),
+                      color: COLORS.textFaint,
+                      border: '1px solid rgba(var(--gold-rgb),0.2)',
+                      borderRadius: 2,
+                      padding: '4px 9px',
+                      letterSpacing: '0.6px',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Перенести
+                  </div>
+                  <ReminderCloseButton onClick={dismissViaButton} />
+                </div>
               </div>
+              )}
+            </SwipeDismissCard>
+          );
+        })}
+        {healing.map((it) => {
+          const key = healingReminderKey(it);
+          return (
+            <SwipeDismissCard key={key} onDismiss={() => onDismiss(key)}>
+              {(dismissViaButton) => (
               <div
-                onClick={() => onOpenEntry(it.client.id, it.id, it.kind)}
-                role="button"
-                aria-label="Перенести"
                 style={{
-                  fontSize: fs(11),
-                  color: COLORS.textFaint,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  padding: '9px 10px',
+                  borderRadius: 2,
                   border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  borderRadius: 2,
-                  padding: '4px 9px',
-                  letterSpacing: '0.6px',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
+                  background: 'rgba(var(--surface-rgb),0.018)',
                 }}
               >
-                Перенести
+                <div onClick={() => onOpenEntry(it.client.id, it.sessionId, 'session')} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                  <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {it.client.name || '—'}
+                  </div>
+                  <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
+                    Узнать про заживление · сессия {formatDate(it.date)}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <CopyMessageButton text={HEALING_REMINDER_MESSAGE} />
+                  <ReminderCloseButton onClick={dismissViaButton} />
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
-        {healing.map((it) => (
-          <div
-            key={`healing-${it.sessionId}`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-              padding: '9px 10px',
-              borderRadius: 2,
-              border: '1px solid rgba(var(--gold-rgb),0.2)',
-              background: 'rgba(var(--surface-rgb),0.018)',
-            }}
-          >
-            <div onClick={() => onOpenEntry(it.client.id, it.sessionId, 'session')} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {it.client.name || '—'}
-              </div>
-              <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
-                Узнать про заживление · сессия {formatDate(it.date)}
-              </div>
-            </div>
-            <CopyMessageButton text={HEALING_REMINDER_MESSAGE} />
-          </div>
-        ))}
+              )}
+            </SwipeDismissCard>
+          );
+        })}
       </div>
-    </GoldFrame>
+    </div>
   );
 }
 
@@ -4389,6 +4637,7 @@ function MasterDashboardScreen({
   healing,
   onMarkDone,
   onOpenEntry,
+  onDismissReminder,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
@@ -4402,6 +4651,7 @@ function MasterDashboardScreen({
   healing: HealingItem[];
   onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  onDismissReminder: (key: string) => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -4581,7 +4831,7 @@ function MasterDashboardScreen({
           />
         </GoldFrame>
 
-        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} />
+        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} />
 
         {/* Contacts & requisites (edited in Настройки → Карточка мастера) */}
         <GoldFrame style={{ padding: '14px 16px' }}>
@@ -5130,6 +5380,7 @@ function SummaryScreen({
   healing,
   onMarkDone,
   onOpenEntry,
+  onDismissReminder,
   onAddMasterNote,
   onToggleMasterDone,
   onEditMasterNote,
@@ -5147,6 +5398,7 @@ function SummaryScreen({
   healing: HealingItem[];
   onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  onDismissReminder: (key: string) => void;
   onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
@@ -5339,7 +5591,7 @@ function SummaryScreen({
       </div>
 
       <div style={{ padding: '0 16px 12px', position: 'relative', zIndex: 1 }}>
-        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} />
+        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} />
       </div>
 
       {/* Two columns, like the client list: planned sessions & consultations
