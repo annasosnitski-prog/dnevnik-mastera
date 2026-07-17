@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
+import { BottomToolbar } from './navigation/BottomToolbar';
 import {
   readSyncSettings,
   writeSyncSettings,
@@ -2696,7 +2697,7 @@ export default function TattoDiary() {
         <div
           className="inka-client-grid"
           style={{
-            padding: '2px 16px 88px',
+            padding: '2px 16px calc(var(--toolbar-total-height) + 20px)',
             display: 'grid',
             gap: 10,
             position: 'relative',
@@ -2758,9 +2759,10 @@ export default function TattoDiary() {
           bottom (never scrolls). Shown on the list and settings screens, hidden
           while a bottom sheet is open so it can't sit over the sheet's controls. */}
       {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin') && !sheetOpen && (
-        <BottomNav
+        <BottomToolbar
           active={screen}
           onNavigate={(s) => setScreen(s)}
+          isLight={theme === 'light'}
           adminBadges={[
             ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
             ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
@@ -4280,274 +4282,6 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
   );
 }
 
-// ===================== BOTTOM NAV =====================
-// The theme toggle now lives only inside the Settings screen (see the "Тема"
-// row there) — it used to also be pinned at the top of the list screen.
-
-function BottomNav({
-  active,
-  onNavigate,
-  adminBadges,
-}: {
-  active: 'list' | 'settings' | 'summary' | 'master' | 'admin';
-  onNavigate: (screen: 'list' | 'settings' | 'summary' | 'master' | 'admin') => void;
-  // Reminders now live entirely on «Админка», and more than one kind can be
-  // outstanding at once (an overdue entry AND a healing check-in) — both
-  // show, stacked, rather than one hiding the other. See NavItem.
-  adminBadges?: ('urgent' | 'reminder')[];
-}) {
-  return (
-    <div
-      style={{
-        // Rendered as a direct child of the (non-scrolling) app shell, so
-        // absolute bottom:0 pins the ribbon to the bottom of the screen and it
-        // no longer scrolls away with the card list.
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        // The bar reserves the FULL iOS home-indicator inset so its background
-        // reaches the very bottom edge of the screen — the home indicator then
-        // sits inside the bar (same colour) instead of below it, where the old
-        // 10px cap left the indicator zone showing as a stray strip and made
-        // the app look like it didn't reach the bottom. On devices without a
-        // home indicator env(safe-area-inset-bottom) is 0, so the bar stays
-        // slim (just the icon row). Row trimmed to hug the icons closely
-        // rather than the old, noticeably thicker band.
-        height: 'calc(34px + env(safe-area-inset-bottom))',
-        // Solid (no backdrop-filter): the blur repainted every frame during
-        // scroll and was a major source of jank. A flat bar is also visually
-        // slimmer, hugging the icons. A gold-tinted overlay (stacked as a
-        // second background layer, not a blur) makes the bar read clearly
-        // against the near-black app background instead of blending in.
-        background: 'linear-gradient(rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1)), var(--bg)',
-        borderTop: '1px solid rgba(var(--gold-rgb),0.35)',
-        boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        zIndex: 50,
-      }}
-    >
-      {/* One brushed-gold plate spans all four buttons, flush to every edge
-          (including the safe-area padding at the very bottom) so the bar
-          reads as one solid continuous band rather than a floating tile —
-          thin dividers instead of gaps, icon only, no caption underneath.
-          Half-opacity lets the dark app background tint through the gold.
-          A soft warm glow drifts to sit behind whichever cell is active. */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          overflow: 'hidden',
-          background: 'linear-gradient(160deg, #E7BD68 0%, #CC9A3E 42%, #A87B27 75%, #8C6117 100%)',
-          opacity: 0.5,
-          borderTop: '1px solid rgba(35,20,5,0.55)',
-          boxShadow: 'inset 0 1px 0 rgba(255,248,214,0.55), inset 0 -2px 4px rgba(35,20,5,0.35)',
-        }}
-      >
-        <div
-          style={{
-            position: 'absolute',
-            top: '-60%',
-            left: `${ACTIVE_NAV_INDEX[active] * 25}%`,
-            width: '25%',
-            height: '220%',
-            background: 'radial-gradient(circle, rgba(255,248,214,0.65) 0%, rgba(255,248,214,0) 68%)',
-            transition: 'left 0.3s cubic-bezier(0.25,0.46,0.45,0.94)',
-            pointerEvents: 'none',
-          }}
-        />
-        {[25, 50, 75].map((pct) => (
-          <div
-            key={pct}
-            style={{
-              position: 'absolute',
-              left: `${pct}%`,
-              top: 3,
-              bottom: 3,
-              width: 1,
-              background: 'rgba(255,246,220,0.9)',
-              boxShadow: '0 0 4px 1px rgba(255,214,140,0.85), 0 0 9px 2px rgba(255,190,110,0.4)',
-            }}
-          />
-        ))}
-      </div>
-      <div
-        style={{
-          position: 'relative',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          height: 34,
-        }}
-      >
-        {/* Left-to-right by frequency of use: Клиенты — Блокнот — Админка —
-            Мастер. Only page destinations live here now — create-client
-            moved to the «+» pinned by the logo on «Клиенты» (see its render
-            site above). «Клиенты» stays lit for Настройки too — reached
-            from the home area, not a separate section. Icons (and the
-            dividers above) read as cut-outs in the plate with a lamp behind
-            it — a warm glow bleeding through the slit, brighter on the
-            active tab, dimmer but never fully dark on the rest. */}
-        <NavItem label="Клиенты" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
-          {(() => {
-            const lit = active === 'list' || active === 'settings';
-            return (
-              <svg width="34" height="34" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
-                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.6 : 1.3} strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="10" y1="1" x2="10" y2="19" />
-                  <path d="M14.2 4.2H8.1a2.9 2.9 0 0 0 0 5.8h3.8a2.9 2.9 0 0 1 0 5.8H5.1" />
-                </g>
-              </svg>
-            );
-          })()}
-        </NavItem>
-        <NavItem label="Блокнот" active={active === 'summary'} onClick={() => onNavigate('summary')}>
-          {(() => {
-            const lit = active === 'summary';
-            return (
-              <svg width="34" height="34" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
-                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.4 : 1.1} strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="3" height="3" rx="0.5" />
-                  <path d="M3.6 5.5L4.3 6.2L5.6 4.7" />
-                  <line x1="8" y1="5.5" x2="17" y2="5.5" />
-                  <rect x="3" y="9" width="3" height="3" rx="0.5" />
-                  <line x1="8" y1="10.5" x2="17" y2="10.5" />
-                  <rect x="3" y="14" width="3" height="3" rx="0.5" />
-                  <line x1="8" y1="15.5" x2="14" y2="15.5" />
-                </g>
-              </svg>
-            );
-          })()}
-        </NavItem>
-        <NavItem label="Админка" active={active === 'admin'} onClick={() => onNavigate('admin')} badges={adminBadges}>
-          {(() => {
-            const lit = active === 'admin';
-            return (
-              <svg width="34" height="34" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
-                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.5 : 1.2}>
-                  <rect x="3" y="3" width="6" height="6" rx="1" />
-                  <rect x="11" y="3" width="6" height="6" rx="1" />
-                  <rect x="3" y="11" width="6" height="6" rx="1" />
-                  <rect x="11" y="11" width="6" height="6" rx="1" />
-                </g>
-              </svg>
-            );
-          })()}
-        </NavItem>
-        <NavItem label="Мастер" active={active === 'master'} onClick={() => onNavigate('master')}>
-          {(() => {
-            const lit = active === 'master';
-            return (
-              <svg width="34" height="34" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
-                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.6 : 1.3} strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="10" cy="6.6" r="3.3" />
-                  <path d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17" />
-                </g>
-              </svg>
-            );
-          })()}
-        </NavItem>
-      </div>
-    </div>
-  );
-}
-
-// Index (0-3) of the nav item lit up for a given screen — drives the warm
-// glow drifting behind the active cell on the shared gold plate.
-const ACTIVE_NAV_INDEX: Record<'list' | 'settings' | 'summary' | 'master' | 'admin', number> = {
-  list: 0,
-  settings: 0,
-  summary: 1,
-  admin: 2,
-  master: 3,
-};
-
-// Nav icons read as cut-outs in the gold plate with a lamp behind it — the
-// glyph itself is a light, near-white line; this filter is the warm halo
-// bleeding through the slit around it. Brighter/wider on the active tab,
-// dimmer (never fully dark — the lamp doesn't switch off) on the rest.
-function NAV_GLOW_FILTER(lit: boolean): string {
-  return lit
-    ? 'drop-shadow(0 0 1.5px rgba(255,250,230,0.95)) drop-shadow(0 0 4px rgba(255,214,140,0.85)) drop-shadow(0 0 8px rgba(255,190,110,0.5))'
-    : 'drop-shadow(0 0 1px rgba(255,248,224,0.5)) drop-shadow(0 0 2.5px rgba(255,214,140,0.3))';
-}
-
-// One bottom-nav column: icon over a label, sized to match one quarter of
-// the shared gold plate drawn behind the row (see BottomNav) — this renders
-// no background of its own.
-function NavItem({
-  children,
-  label,
-  active,
-  accent = false,
-  disabled = false,
-  onClick,
-  ariaLabel,
-  badges,
-}: {
-  children: React.ReactNode;
-  label: string;
-  active: boolean;
-  accent?: boolean;
-  // Rendered but inert — no tap target, dimmer than a plain inactive item.
-  disabled?: boolean;
-  onClick: () => void;
-  ariaLabel?: string;
-  // Every outstanding kind shows, stacked — a new badge never fully hides an
-  // existing one. At most 2 render (urgent + reminder), offset so both stay
-  // visible instead of piling on the exact same spot.
-  badges?: ('urgent' | 'reminder')[];
-}) {
-  return (
-    <div
-      onClick={disabled ? undefined : onClick}
-      role="button"
-      aria-current={active || accent ? 'page' : undefined}
-      aria-disabled={disabled || undefined}
-      aria-label={ariaLabel ?? label}
-      style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.28 : 1,
-      }}
-    >
-      <div className="inka-navsquare" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        {children}
-        {badges?.map((kind, i) => (
-          <span
-            key={kind}
-            style={{
-              position: 'absolute',
-              top: -3 - i * 7,
-              right: -1 - i * 7,
-              minWidth: 13,
-              height: 13,
-              borderRadius: '50%',
-              background: kind === 'urgent' ? '#e0665a' : '#e0b84a',
-              color: '#1a1410',
-              fontSize: fs(9),
-              fontWeight: 700,
-              lineHeight: '13px',
-              textAlign: 'center',
-              boxShadow: '0 0 0 1.5px var(--bg)',
-              zIndex: badges.length - i,
-            }}
-          >
-            !
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // A single "ability score" style tile for the master dashboard's stat grid —
 // bracketed corners and a big centered number, like a tabletop character
 // sheet's stat block, but in the app's own gold/dark palette.
@@ -5260,7 +4994,7 @@ function AdminDashboardScreen({
         <StarDivider />
       </div>
 
-      <div style={{ padding: '4px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: '4px 20px calc(var(--toolbar-total-height) + 42px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Schedule a session/consultation straight from Админка — reuses the
             same calendar-driven creation walk as the «Ближайшая» tag. */}
         <div onClick={onOpenSchedule} role="button" aria-label="Запланировать" style={{ ...actionButtonStyle, padding: '12px 0' }}>
@@ -5568,7 +5302,7 @@ function MasterDashboardScreen({
         <StarDivider />
       </div>
 
-      <div style={{ padding: '4px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: '4px 20px calc(var(--toolbar-total-height) + 42px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Master's own name */}
         <GoldFrame style={{ padding: '14px 16px' }}>
           <div style={{ ...statLabelStyle, textAlign: 'center' }}>Имя мастера</div>
@@ -5786,7 +5520,7 @@ function SettingsScreen({
         <StarDivider />
       </div>
 
-      <div style={{ padding: '4px 20px 110px', position: 'relative', zIndex: 1 }}>
+      <div style={{ padding: '4px 20px calc(var(--toolbar-total-height) + 42px)', position: 'relative', zIndex: 1 }}>
         {/* Theme */}
         <div style={rowStyle}>
           <div style={labelStyle}>Тема</div>
@@ -6251,7 +5985,7 @@ function SummaryScreen({
 
       {/* Two columns, like the client list: the task list on the left,
           planned sessions & consultations on the right. */}
-      <div style={{ padding: '2px 16px 110px', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+      <div style={{ padding: '2px 16px calc(var(--toolbar-total-height) + 42px)', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
         {/* Column 1 — the task list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
