@@ -188,21 +188,25 @@
   color: var(--toolbar-icon-active);
 }
 
+/* A halo behind the active icon — with no plate behind the row anymore,
+   this is the only thing marking which page you're on, so it needs to read
+   clearly at a glance, not just as a faint tint. */
 .bottom-toolbar__button[aria-current='page']::before {
   content: '';
   position: absolute;
-  inset: 8px 18%;
-  border-radius: 12px;
-  background: radial-gradient(circle, rgba(255, 221, 144, 0.22) 0%, rgba(255, 221, 144, 0) 72%);
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 221, 144, 0.4) 0%, rgba(255, 221, 144, 0) 70%);
   pointer-events: none;
 }
 
 :root[data-theme='dark'] .bottom-toolbar__button[aria-current='page'] {
-  filter: drop-shadow(0 0 5px rgba(218, 167, 72, 0.4));
+  filter: drop-shadow(0 0 6px rgba(218, 167, 72, 0.65)) drop-shadow(0 0 12px rgba(218, 167, 72, 0.3));
 }
 
 :root[data-theme='light'] .bottom-toolbar__button[aria-current='page'] {
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.7)) drop-shadow(0 0 10px rgba(156, 111, 34, 0.35));
 }
 
 .bottom-toolbar__icon {
@@ -318,12 +322,16 @@ svg {
   color: var(--gold);
 }
 
-/* Full-height container that tracks the real visible viewport on iOS Safari.
-   100vh alone is the height with the address bar hidden, so it overshoots
-   when the bar is showing. */
+/* Full-height container. #root (see index.html) is already position:fixed;
+   inset:0 — pinned to the exact visual viewport, safe areas included — so
+   height:100% here just inherits that instead of re-deriving it from a dvh
+   unit. dvh and the fixed/inset box don't always agree: in iOS standalone
+   (Add to Home Screen) mode some WebKit versions compute 100dvh a few
+   millimetres short of the true screen bottom, leaving a blank strip below
+   anything anchored to .app-shell (the bottom toolbar, its safe-area strip)
+   that isn't there when sized off #root directly. */
 .app-shell {
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   max-width: 480px;
 }
 
