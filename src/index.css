@@ -116,7 +116,14 @@
 }
 
 .bottom-toolbar {
-  position: fixed;
+  /* Anchored to .app-shell (position: relative), not the true viewport —
+     position: fixed computes against the device viewport directly, which
+     has a longstanding WebKit quirk in standalone (Add to Home Screen) PWAs
+     on iOS: fixed elements can end up offset from the real bottom edge by
+     more than the reported safe-area-inset-bottom, leaving a blank gap.
+     Every other bottom-pinned element in this app anchors to .app-shell
+     instead, which is sized with 100dvh and has proven reliable. */
+  position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
