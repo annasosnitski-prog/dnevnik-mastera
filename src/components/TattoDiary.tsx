@@ -4362,17 +4362,16 @@ function BottomNav({
     >
       {/* One brushed-gold plate spans all four buttons — same metal, thin
           dividers instead of gaps, so they read as one object with four
-          slots rather than four separate floating icons. Tall enough to
-          hold the label under each icon too — the caption is engraved into
-          the plate, not printed on the page behind it. A soft warm glow
-          drifts to sit behind whichever cell is active. */}
+          slots rather than four separate floating icons — icon only, no
+          caption underneath. A soft warm glow drifts to sit behind
+          whichever cell is active. */}
       <div
         style={{
           position: 'absolute',
           left: 8,
           right: 8,
-          top: 2,
-          bottom: 2,
+          top: 5,
+          bottom: 5,
           borderRadius: 8,
           overflow: 'hidden',
           background: 'linear-gradient(160deg, #E7BD68 0%, #CC9A3E 42%, #A87B27 75%, #8C6117 100%)',
@@ -4412,8 +4411,8 @@ function BottomNav({
           position: 'relative',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          paddingTop: 5,
+          alignItems: 'center',
+          height: 44,
         }}
       >
         {/* Left-to-right by frequency of use: Клиенты — Блокнот — Админка —
@@ -4422,17 +4421,20 @@ function BottomNav({
             site above). «Клиенты» stays lit for Настройки too — reached
             from the home area, not a separate section. Icons are a single
             dark bronze line etched into the gold plate above, with one
-            bright spark on the active tab's corner. */}
+            bright spark on the active tab's corner. No captions — icon
+            only. */}
         <NavItem label="Клиенты" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
           {(() => {
             const lit = active === 'list' || active === 'settings';
             return (
-              <svg width="19" height="19" viewBox="0 0 20 20" fill="none">
-                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.5 : 1.3} strokeLinejoin="round">
-                  <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" />
-                  <rect x="13" y="2.3" width="1.8" height="4" fill="rgba(38,22,6,0.85)" stroke="none" />
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.4 : 1.2} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="13.3" cy="6.9" r="2.4" />
+                  <path d="M9.6 16.3C9.6 13.4 11.2 12 13.3 12C15.5 12 17.1 13.4 17.1 16.3" />
+                  <circle cx="7" cy="7.1" r="2.9" />
+                  <path d="M2.6 16.3C2.6 12.9 4.4 11.2 7 11.2C9.6 11.2 11.4 12.9 11.4 16.3" />
                 </g>
-                {lit && <circle cx="10" cy="4" r="1" fill="#FFFCF0" />}
+                {lit && <circle cx="7" cy="4.2" r="1" fill="#FFFCF0" />}
               </svg>
             );
           })()}
@@ -4527,24 +4529,24 @@ function NavItem({
   // visible instead of piling on the exact same spot.
   badges?: ('urgent' | 'reminder')[];
 }) {
-  const lit = active || accent;
   return (
     <div
       onClick={disabled ? undefined : onClick}
       role="button"
+      aria-current={active || accent ? 'page' : undefined}
       aria-disabled={disabled || undefined}
       aria-label={ariaLabel ?? label}
       style={{
         flex: 1,
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        gap: 1,
+        justifyContent: 'center',
+        height: '100%',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.28 : 1,
       }}
     >
-      <div className="inka-navsquare" style={{ height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+      <div className="inka-navsquare" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         {children}
         {badges?.map((kind, i) => (
           <span
@@ -4570,19 +4572,6 @@ function NavItem({
           </span>
         ))}
       </div>
-      <span
-        style={{
-          fontSize: fs(9.5),
-          color: lit ? 'rgba(38,22,6,0.88)' : 'rgba(38,22,6,0.5)',
-          fontWeight: lit ? 600 : 400,
-          letterSpacing: '0.6px',
-          textTransform: 'uppercase',
-          textAlign: 'center',
-          lineHeight: 1.1,
-        }}
-      >
-        {label}
-      </span>
     </div>
   );
 }
