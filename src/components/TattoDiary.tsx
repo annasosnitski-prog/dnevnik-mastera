@@ -148,6 +148,11 @@ interface Session {
   photos: string[]; // captured/uploaded photos (data URLs)
   done: boolean;
   healed: boolean; // manually ticked once a healed-skin photo has been added
+  // Set only via the overdue reminder's «Отменить» quick action — a planned
+  // session that won't happen and won't be rescheduled, distinct from
+  // `done`. Excluded from upcoming/overdue lists; shown as «Отменена» in
+  // the client's history instead of just disappearing.
+  cancelled: boolean;
 }
 
 interface ClientDocument {
@@ -256,6 +261,9 @@ interface Consultation {
   urgency: UrgencyKey;
   photos: string[]; // reference / mood-board images
   done: boolean;
+  // See Session.cancelled — same meaning, set only via the overdue
+  // reminder's «Отменить» action.
+  cancelled: boolean;
   createdDate: string;
 }
 
@@ -373,12 +381,12 @@ function todayISO(): string {
 function sessionSortKey(c: Client): { hasUpcoming: boolean; date: string } {
   const today = todayISO();
   let upcoming = '';
-  const considerUpcoming = (date: string, done: boolean) => {
-    if (done || !ISO_DATE_RE.test(date) || date < today) return;
+  const considerUpcoming = (date: string, done: boolean, cancelled: boolean) => {
+    if (done || cancelled || !ISO_DATE_RE.test(date) || date < today) return;
     if (!upcoming || date < upcoming) upcoming = date;
   };
-  c.sessions.forEach((s) => considerUpcoming(s.date, s.done));
-  c.consultations.forEach((cn) => considerUpcoming(cn.date, cn.done));
+  c.sessions.forEach((s) => considerUpcoming(s.date, s.done, s.cancelled));
+  c.consultations.forEach((cn) => considerUpcoming(cn.date, cn.done, cn.cancelled));
   if (upcoming) return { hasUpcoming: true, date: upcoming };
 
   let last = '';
@@ -445,12 +453,12 @@ function upcomingItems(clients: Client[], days: number): UpcomingItem[] {
   const result: UpcomingItem[] = [];
   for (const client of clients) {
     for (const session of client.sessions) {
-      if (session.done || !ISO_DATE_RE.test(session.date)) continue;
+      if (session.done || session.cancelled || !ISO_DATE_RE.test(session.date)) continue;
       const d = new Date(session.date + 'T00:00:00');
       if (d >= today && d <= horizon) result.push({ client, kind: 'session', id: session.id, date: session.date, time: session.time });
     }
     for (const consultation of client.consultations) {
-      if (consultation.done || !ISO_DATE_RE.test(consultation.date)) continue;
+      if (consultation.done || consultation.cancelled || !ISO_DATE_RE.test(consultation.date)) continue;
       const d = new Date(consultation.date + 'T00:00:00');
       if (d >= today && d <= horizon) {
         result.push({ client, kind: 'consultation', id: consultation.id, date: consultation.date, time: consultation.time });
@@ -498,11 +506,11 @@ function overdueEntries(clients: Client[]): OverdueItem[] {
   const result: OverdueItem[] = [];
   for (const client of clients) {
     for (const session of client.sessions) {
-      if (session.done || !ISO_DATE_RE.test(session.date) || session.date >= today) continue;
+      if (session.done || session.cancelled || !ISO_DATE_RE.test(session.date) || session.date >= today) continue;
       result.push({ client, kind: 'session', id: session.id, date: session.date, time: session.time });
     }
     for (const consultation of client.consultations) {
-      if (consultation.done || !ISO_DATE_RE.test(consultation.date) || consultation.date >= today) continue;
+      if (consultation.done || consultation.cancelled || !ISO_DATE_RE.test(consultation.date) || consultation.date >= today) continue;
       result.push({ client, kind: 'consultation', id: consultation.id, date: consultation.date, time: consultation.time });
     }
   }
@@ -550,6 +558,41 @@ function readInitialDismissedReminders(): string[] {
   return [];
 }
 
+// «Напомнить позже» on an overdue entry — snoozes the reminder card without
+// touching the underlying session/consultation at all (unlike «Отменить» or
+// «Выполнено»), so it just goes quiet until the chosen time.
+type SnoozePreset = 'hours3' | 'tomorrow' | 'week';
+function snoozeUntilFor(preset: SnoozePreset): number {
+  const now = new Date();
+  if (preset === 'hours3') return now.getTime() + 3 * 60 * 60 * 1000;
+  if (preset === 'week') return now.getTime() + 7 * 24 * 60 * 60 * 1000;
+  // 'tomorrow' — next day, 9am local (a sensible re-surface time rather than
+  // the exact minute 24h from now, which could land at 2am).
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+  return tomorrow.getTime();
+}
+
+function readInitialSnoozedReminders(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem('inka-reminders-snooze');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        const out: Record<string, number> = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          if (typeof v === 'number') out[k] = v;
+        }
+        return out;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
 function normalizeClient(raw: any, index: number): Client {
@@ -569,6 +612,7 @@ function normalizeClient(raw: any, index: number): Client {
         photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
         done: s?.done ?? true,
         healed: s?.healed ?? false,
+        cancelled: s?.cancelled ?? false,
       }))
     : [];
 
@@ -613,6 +657,7 @@ function normalizeClient(raw: any, index: number): Client {
           urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
           photos: Array.isArray(cn?.photos) ? cn.photos : [],
           done: Boolean(cn?.done),
+          cancelled: Boolean(cn?.cancelled),
           createdDate: cn?.createdDate ?? new Date().toISOString(),
         }))
       : [],
@@ -1686,6 +1731,21 @@ export default function TattoDiary() {
   }, [dismissedReminders]);
   const dismissReminder = (key: string) => setDismissedReminders((prev) => (prev.includes(key) ? prev : [...prev, key]));
 
+  // «Напомнить позже» on an overdue card — key -> timestamp (ms) it should
+  // stay quiet until. Unlike dismissedReminders this clears itself: once
+  // Date.now() passes the stored moment the entry is simply no longer
+  // filtered out (see visibleOverdue below), no separate cleanup needed.
+  const [snoozedReminders, setSnoozedReminders] = useState<Record<string, number>>(readInitialSnoozedReminders);
+  useEffect(() => {
+    try {
+      localStorage.setItem('inka-reminders-snooze', JSON.stringify(snoozedReminders));
+    } catch {
+      /* ignore */
+    }
+  }, [snoozedReminders]);
+  const snoozeReminder = (key: string, preset: SnoozePreset) =>
+    setSnoozedReminders((prev) => ({ ...prev, [key]: snoozeUntilFor(preset) }));
+
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('sessions');
@@ -2008,7 +2068,7 @@ export default function TattoDiary() {
     } else {
       consultations = [
         ...selectedClient.consultations,
-        { id: Date.now().toString(), createdDate: new Date().toISOString(), ...fields },
+        { id: Date.now().toString(), createdDate: new Date().toISOString(), cancelled: false, ...fields },
       ];
     }
     saveClient({ ...selectedClient, consultations });
@@ -2068,6 +2128,18 @@ export default function TattoDiary() {
       saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === itemId ? { ...s, done: true } : s)) });
     } else {
       saveClient({ ...c, consultations: c.consultations.map((cn) => (cn.id === itemId ? { ...cn, done: true } : cn)) });
+    }
+  };
+  // Overdue reminder's «Отменить» — this planned entry won't happen and
+  // won't be rescheduled, distinct from done. Drops out of upcoming/overdue
+  // everywhere; stays visible in the timeline tagged «Отменена».
+  const markEntryCancelled = (clientId: string, itemId: string, kind: 'session' | 'consultation') => {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    if (kind === 'session') {
+      saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === itemId ? { ...s, cancelled: true } : s)) });
+    } else {
+      saveClient({ ...c, consultations: c.consultations.map((cn) => (cn.id === itemId ? { ...cn, cancelled: true } : cn)) });
     }
   };
 
@@ -2174,7 +2246,7 @@ export default function TattoDiary() {
         s.id === editSession.id ? { ...s, ...fields } : s,
       );
     } else {
-      sessions = [...selectedClient.sessions, { id: Date.now().toString(), ...fields }];
+      sessions = [...selectedClient.sessions, { id: Date.now().toString(), cancelled: false, ...fields }];
     }
     const mergedStyles =
       data.style && !clientStyles(selectedClient).includes(data.style)
@@ -2210,7 +2282,12 @@ export default function TattoDiary() {
 
   // Reminders (see RemindersSection), minus whatever the master has closed —
   // computed once and shared by the toolbar badge, «Задачи», and «Мастер».
-  const visibleOverdue = overdueEntries(clients).filter((it) => !dismissedReminders.includes(overdueReminderKey(it)));
+  const visibleOverdue = overdueEntries(clients).filter((it) => {
+    const key = overdueReminderKey(it);
+    if (dismissedReminders.includes(key)) return false;
+    const until = snoozedReminders[key];
+    return !(until && until > Date.now());
+  });
   const visibleHealing = healingReminders(clients).filter((it) => !dismissedReminders.includes(healingReminderKey(it)));
 
   // Set the text-size multiplier for this render pass before any child renders.
@@ -2769,6 +2846,8 @@ export default function TattoDiary() {
             onMarkDone={markEntryDone}
             onOpenEntry={openEntryForEdit}
             onDismissReminder={dismissReminder}
+            onSnoozeReminder={snoozeReminder}
+            onCancelEntry={markEntryCancelled}
             onAddMasterNote={(text, urgency, photos) =>
               setMasterInfo({
                 ...masterInfo,
@@ -2813,6 +2892,8 @@ export default function TattoDiary() {
             onMarkDone={markEntryDone}
             onOpenEntry={openEntryForEdit}
             onDismissReminder={dismissReminder}
+            onSnoozeReminder={snoozeReminder}
+            onCancelEntry={markEntryCancelled}
           />
         )}
       </div>
@@ -4521,6 +4602,7 @@ function ReminderCloseButton({ onClick }: { onClick: () => void }) {
 function SwipeDismissCard({
   onSwipeComplete,
   revealLabel,
+  raised,
   children,
 }: {
   onSwipeComplete: () => void;
@@ -4528,6 +4610,13 @@ function SwipeDismissCard({
   // signalling what the swipe will do (e.g. «Выполнено»). Omit for a plain
   // hide with no particular action to announce.
   revealLabel?: string;
+  // The card's own `transform` (used for the drag offset, always set — even
+  // translateX(0) at rest) creates a CSS stacking context, which traps any
+  // z-index inside it: a later sibling card, being its own equally-ranked
+  // stacking context, paints over this one regardless of an inner element's
+  // z-index. Set `raised` while this card has its own popover open (e.g. the
+  // overdue card's snooze menu) so it outranks later siblings for real.
+  raised?: boolean;
   children: (flyOutThen: (action: () => void) => void) => React.ReactNode;
 }) {
   const [dragX, setDragX] = useState(0);
@@ -4617,6 +4706,9 @@ function SwipeDismissCard({
         onClickCapture={onClickCapture}
         style={{
           position: 'relative',
+          // z-index only matters here (on the element that actually has the
+          // transform) — see the `raised` doc comment above.
+          zIndex: raised ? 5 : undefined,
           transform: `translateX(${offset}px)`,
           opacity: flyingOut ? 0 : 1,
           transition: dragging ? 'none' : 'transform 0.2s ease, opacity 0.2s ease',
@@ -4629,18 +4721,147 @@ function SwipeDismissCard({
   );
 }
 
+// One overdue reminder card: name/date up top with the close «×», the three
+// quick actions (Выполнено / Напомнить ▾ / Отменить) in their own full-width
+// row below — replaces the old single-line layout, which had no room left
+// for a third action once «Напомнить» grew its own preset menu.
+function OverdueReminderCard({
+  item,
+  onMarkDone,
+  onOpenEntry,
+  onDismiss,
+  onSnooze,
+  onCancel,
+}: {
+  item: OverdueItem;
+  onMarkDone: () => void;
+  onOpenEntry: () => void;
+  onDismiss: () => void;
+  onSnooze: (preset: SnoozePreset) => void;
+  onCancel: () => void;
+}) {
+  const [showSnooze, setShowSnooze] = useState(false);
+  const chipStyle: React.CSSProperties = {
+    fontSize: fs(11),
+    color: COLORS.textFaint,
+    border: '1px solid rgba(var(--gold-rgb),0.2)',
+    borderRadius: 2,
+    padding: '4px 9px',
+    letterSpacing: '0.6px',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flex: '1 1 auto',
+    textAlign: 'center',
+  };
+  const snoozeRowStyle: React.CSSProperties = {
+    padding: '8px 10px',
+    fontSize: fs(12.5),
+    color: COLORS.textPrimary,
+    cursor: 'pointer',
+    borderRadius: 2,
+    whiteSpace: 'nowrap',
+  };
+  return (
+    <SwipeDismissCard onSwipeComplete={onMarkDone} revealLabel="Выполнено" raised={showSnooze}>
+      {(flyOutThen) => (
+        <div
+          style={{
+            padding: '9px 10px',
+            borderRadius: 2,
+            border: '1px solid rgba(224,102,90,0.35)',
+            background: 'rgba(224,102,90,0.06)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <div onClick={onOpenEntry} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {item.client.name || '—'}
+              </div>
+              <div style={{ fontSize: fs(11), color: '#e0665a', marginTop: 2 }}>
+                {item.kind === 'session' ? 'Сессия' : 'Консультация'} просрочена · {formatDate(item.date)}
+              </div>
+            </div>
+            <ReminderCloseButton onClick={() => flyOutThen(onDismiss)} />
+          </div>
+          <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+            <div
+              onClick={onMarkDone}
+              role="button"
+              aria-label="Отметить выполненной"
+              style={{ ...chipStyle, color: COLORS.gold, border: '1px solid rgba(var(--gold-rgb),0.4)' }}
+            >
+              Выполнено
+            </div>
+            <div style={{ position: 'relative', flex: '1 1 auto' }}>
+              <div onClick={() => setShowSnooze((v) => !v)} role="button" aria-label="Напомнить позже" style={chipStyle}>
+                Напомнить ▾
+              </div>
+              {showSnooze && (
+                <>
+                  <div onClick={() => setShowSnooze(false)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 4px)',
+                      left: 0,
+                      minWidth: 150,
+                      background: COLORS.sheet,
+                      border: '1px solid rgba(var(--gold-rgb),0.2)',
+                      borderRadius: 4,
+                      padding: 4,
+                      boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                      zIndex: 21,
+                    }}
+                  >
+                    {(
+                      [
+                        ['hours3', 'Через 3 часа'],
+                        ['tomorrow', 'Завтра'],
+                        ['week', 'Через неделю'],
+                      ] as [SnoozePreset, string][]
+                    ).map(([preset, label]) => (
+                      <div
+                        key={preset}
+                        onClick={() => {
+                          onSnooze(preset);
+                          setShowSnooze(false);
+                        }}
+                        style={snoozeRowStyle}
+                      >
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <div onClick={onCancel} role="button" aria-label="Отменить" style={chipStyle}>
+              Отменить
+            </div>
+          </div>
+        </div>
+      )}
+    </SwipeDismissCard>
+  );
+}
+
 function RemindersSection({
   overdue,
   healing,
   onMarkDone,
   onOpenEntry,
   onDismiss,
+  onSnooze,
+  onCancel,
 }: {
   overdue: OverdueItem[];
   healing: HealingItem[];
   onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismiss: (key: string) => void;
+  onSnooze: (key: string, preset: SnoozePreset) => void;
+  onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   if (overdue.length === 0 && healing.length === 0) return null;
   return (
@@ -4652,70 +4873,15 @@ function RemindersSection({
         {overdue.map((it) => {
           const key = overdueReminderKey(it);
           return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onMarkDone(it.client.id, it.id, it.kind)} revealLabel="Выполнено">
-              {(flyOutThen) => (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                  padding: '9px 10px',
-                  borderRadius: 2,
-                  border: '1px solid rgba(224,102,90,0.35)',
-                  background: 'rgba(224,102,90,0.06)',
-                }}
-              >
-                <div onClick={() => onOpenEntry(it.client.id, it.id, it.kind)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-                  <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {it.client.name || '—'}
-                  </div>
-                  <div style={{ fontSize: fs(11), color: '#e0665a', marginTop: 2 }}>
-                    {it.kind === 'session' ? 'Сессия' : 'Консультация'} просрочена · {formatDate(it.date)}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <div
-                    onClick={() => onMarkDone(it.client.id, it.id, it.kind)}
-                    role="button"
-                    aria-label="Отметить выполненной"
-                    style={{
-                      fontSize: fs(11),
-                      color: COLORS.gold,
-                      border: '1px solid rgba(var(--gold-rgb),0.4)',
-                      borderRadius: 2,
-                      padding: '4px 9px',
-                      letterSpacing: '0.6px',
-                      textTransform: 'uppercase',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Выполнено
-                  </div>
-                  <div
-                    onClick={() => onOpenEntry(it.client.id, it.id, it.kind)}
-                    role="button"
-                    aria-label="Перенести"
-                    style={{
-                      fontSize: fs(11),
-                      color: COLORS.textFaint,
-                      border: '1px solid rgba(var(--gold-rgb),0.2)',
-                      borderRadius: 2,
-                      padding: '4px 9px',
-                      letterSpacing: '0.6px',
-                      textTransform: 'uppercase',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Перенести
-                  </div>
-                  <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
-                </div>
-              </div>
-              )}
-            </SwipeDismissCard>
+            <OverdueReminderCard
+              key={key}
+              item={it}
+              onMarkDone={() => onMarkDone(it.client.id, it.id, it.kind)}
+              onOpenEntry={() => onOpenEntry(it.client.id, it.id, it.kind)}
+              onDismiss={() => onDismiss(key)}
+              onSnooze={(preset) => onSnooze(key, preset)}
+              onCancel={() => onCancel(it.client.id, it.id, it.kind)}
+            />
           );
         })}
         {healing.map((it) => {
@@ -4772,6 +4938,8 @@ function MasterDashboardScreen({
   onMarkDone,
   onOpenEntry,
   onDismissReminder,
+  onSnoozeReminder,
+  onCancelEntry,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
@@ -4786,6 +4954,8 @@ function MasterDashboardScreen({
   onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
+  onSnoozeReminder: (key: string, preset: SnoozePreset) => void;
+  onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -4965,7 +5135,7 @@ function MasterDashboardScreen({
           />
         </GoldFrame>
 
-        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} />
+        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
 
         {/* Contacts & requisites (edited in Настройки → Карточка мастера) */}
         <GoldFrame style={{ padding: '14px 16px' }}>
@@ -5515,6 +5685,8 @@ function SummaryScreen({
   onMarkDone,
   onOpenEntry,
   onDismissReminder,
+  onSnoozeReminder,
+  onCancelEntry,
   onAddMasterNote,
   onToggleMasterDone,
   onEditMasterNote,
@@ -5533,6 +5705,8 @@ function SummaryScreen({
   onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
+  onSnoozeReminder: (key: string, preset: SnoozePreset) => void;
+  onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
@@ -5552,10 +5726,10 @@ function SummaryScreen({
   const plannedItems: PlannedItem[] = clients
     .flatMap((c): PlannedItem[] => [
       ...c.sessions
-        .filter((s) => !s.done && ISO_DATE_RE.test(s.date))
+        .filter((s) => !s.done && !s.cancelled && ISO_DATE_RE.test(s.date))
         .map((s): PlannedItem => ({ kind: 'session', client: c, id: s.id, date: s.date, time: s.time, label: s.name || s.area })),
       ...c.consultations
-        .filter((cs) => !cs.done)
+        .filter((cs) => !cs.done && !cs.cancelled)
         .map((cs): PlannedItem => ({ kind: 'consultation', client: c, id: cs.id, date: cs.date, time: cs.time, label: cs.area })),
     ])
     .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
@@ -5723,7 +5897,7 @@ function SummaryScreen({
       )}
 
       <div style={{ padding: '0 16px 12px', position: 'relative', zIndex: 1 }}>
-        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} />
+        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
       </div>
 
       {/* Two columns, like the client list: planned sessions & consultations
@@ -7554,6 +7728,22 @@ function ConsultationRow({
           {/* Controls sit outside the card's tap-to-view: their own clicks
               must not also open the viewer. */}
           <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
+            {consultation.cancelled && (
+              <span
+                style={{
+                  fontSize: fs(10),
+                  color: COLORS.textFaint,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 2,
+                  padding: '2px 6px',
+                  letterSpacing: '0.8px',
+                  textTransform: 'uppercase',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Отменена
+              </span>
+            )}
             <span style={{ fontSize: fs(13) }} title={meta.label}>{meta.emoji}</span>
             <div
               className="inka-back"
@@ -7665,7 +7855,23 @@ function SessionRow({
             )}
           </div>
           <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
-            {!session.done && (
+            {session.cancelled && (
+              <span
+                style={{
+                  fontSize: fs(10),
+                  color: COLORS.textFaint,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 2,
+                  padding: '2px 6px',
+                  letterSpacing: '0.8px',
+                  textTransform: 'uppercase',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Отменена
+              </span>
+            )}
+            {!session.done && !session.cancelled && (
               <span
                 onClick={onToggleDone}
                 title="Отметить выполненной"
