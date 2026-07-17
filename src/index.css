@@ -59,6 +59,13 @@
     0 3px 10px rgba(0, 0, 0, 0.6);
   /* Frame drawn as a smooth inset ring (covered by the stripes on top/right). */
   --card-rest-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.2);
+
+  /* Bottom toolbar — jewelry (gold-engraved) look over the starfield. */
+  --toolbar-background: linear-gradient(180deg, #2b2417 0%, #17130d 52%, #0d0b08 100%);
+  --toolbar-icon: #a77a31;
+  --toolbar-icon-active: #e2b85e;
+  --toolbar-divider: rgba(184, 137, 53, 0.32);
+  --toolbar-border: rgba(194, 148, 61, 0.55);
 }
 
 /* ── Light (warm parchment / "Casa di Vetro") ── */
@@ -92,6 +99,118 @@
   /* Smooth inset frame ring + a soft warm elevation shadow (letterpress lift). */
   --card-rest-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.2), 0 1px 2px rgba(80, 60, 20, 0.06),
     0 6px 18px rgba(80, 60, 20, 0.07);
+
+  /* Bottom toolbar — naturalist (engraved-paper) look over the parchment/sky. */
+  --toolbar-background: linear-gradient(180deg, #d8bb7d 0%, #caa55c 50%, #b88c3b 100%);
+  --toolbar-icon: rgba(255, 255, 255, 0.82);
+  --toolbar-icon-active: #ffffff;
+  --toolbar-divider: rgba(255, 255, 255, 0.46);
+  --toolbar-border: rgba(126, 88, 24, 0.38);
+}
+
+/* Bottom toolbar geometry, shared by both themes — see BottomToolbar.tsx. */
+:root {
+  --toolbar-content-height: 72px;
+  --toolbar-safe-height: env(safe-area-inset-bottom, 0px);
+  --toolbar-total-height: calc(var(--toolbar-content-height) + var(--toolbar-safe-height));
+}
+
+.bottom-toolbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: calc(var(--toolbar-content-height) + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  z-index: 50;
+  background: var(--toolbar-background);
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--toolbar-border);
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.12), 0 -8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.bottom-toolbar__content {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  height: var(--toolbar-content-height);
+  box-sizing: border-box;
+}
+
+.bottom-toolbar__safe-area {
+  width: 100%;
+  height: env(safe-area-inset-bottom, 0px);
+  background: inherit;
+  pointer-events: none;
+}
+
+.bottom-toolbar__button {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--toolbar-icon);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  border-right: 1px solid var(--toolbar-divider);
+  transition: color 140ms ease, background-color 140ms ease, transform 100ms ease;
+}
+
+.bottom-toolbar__button:last-child {
+  border-right: 0;
+}
+
+.bottom-toolbar__button:active {
+  transform: translateY(1px);
+}
+
+.bottom-toolbar__button[aria-current='page'] {
+  color: var(--toolbar-icon-active);
+}
+
+.bottom-toolbar__button[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  inset: 8px 18%;
+  border-radius: 12px;
+  background: radial-gradient(circle, rgba(255, 221, 144, 0.22) 0%, rgba(255, 221, 144, 0) 72%);
+  pointer-events: none;
+}
+
+:root[data-theme='dark'] .bottom-toolbar__button[aria-current='page'] {
+  filter: drop-shadow(0 0 5px rgba(218, 167, 72, 0.4));
+}
+
+:root[data-theme='light'] .bottom-toolbar__button[aria-current='page'] {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
+}
+
+.bottom-toolbar__icon {
+  width: 30px;
+  height: 30px;
+  display: block;
+  flex: 0 0 auto;
+}
+
+@media (hover: hover) {
+  .bottom-toolbar__button:hover {
+    color: var(--toolbar-icon-active);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-toolbar__button {
+    transition: none;
+  }
 }
 
 * {
@@ -328,16 +447,6 @@ input[type='date'] {
 }
 .inka-close:hover {
   opacity: 1 !important;
-}
-
-/* Bottom-nav icon slot — sits over the shared gold plate drawn behind the
-   row (see BottomNav). Tapping recoils the icon briefly, like pressing an
-   engraved button. */
-.inka-navsquare {
-  transition: transform 0.13s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.inka-navsquare:active {
-  transform: scale(0.88);
 }
 
 /* ── Animations ── */
