@@ -153,6 +153,11 @@ interface Session {
   // `done`. Excluded from upcoming/overdue lists; shown as «Отменена» in
   // the client's history instead of just disappearing.
   cancelled: boolean;
+  // Opted into the master's creative notebook («Задачи» → «Сессии и
+  // консультации») via the «Отправить в задачи?» prompt shown right after
+  // creating a brand-new session — not every session needs mood-board prep,
+  // so this defaults to false and is never asked again on edit.
+  inTasks: boolean;
 }
 
 interface ClientDocument {
@@ -264,6 +269,8 @@ interface Consultation {
   // See Session.cancelled — same meaning, set only via the overdue
   // reminder's «Отменить» action.
   cancelled: boolean;
+  // See Session.inTasks — same «Отправить в задачи?» opt-in.
+  inTasks: boolean;
   createdDate: string;
 }
 
@@ -535,6 +542,32 @@ function healingReminders(clients: Client[]): HealingItem[] {
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// Sessions/consultations starting 36–48 hours from now (not done, not
+// cancelled) — a heads-up to prep materials before the client arrives.
+// Undated/untimed entries have nothing to count down, so they're skipped.
+type UpcomingSoonItem = { client: Client; kind: 'session' | 'consultation'; id: string; date: string; time: string };
+const SOON_REMINDER_MIN_HOURS = 36;
+const SOON_REMINDER_MAX_HOURS = 48;
+
+function upcomingSoonReminders(clients: Client[]): UpcomingSoonItem[] {
+  const now = Date.now();
+  const result: UpcomingSoonItem[] = [];
+  const consider = (client: Client, kind: 'session' | 'consultation', id: string, date: string, time: string, done: boolean, cancelled: boolean) => {
+    if (done || cancelled || !ISO_DATE_RE.test(date) || !time) return;
+    const at = new Date(`${date}T${time}`).getTime();
+    if (Number.isNaN(at)) return;
+    const hoursUntil = (at - now) / 3600000;
+    if (hoursUntil >= SOON_REMINDER_MIN_HOURS && hoursUntil <= SOON_REMINDER_MAX_HOURS) {
+      result.push({ client, kind, id, date, time });
+    }
+  };
+  for (const client of clients) {
+    for (const session of client.sessions) consider(client, 'session', session.id, session.date, session.time, session.done, session.cancelled);
+    for (const consultation of client.consultations) consider(client, 'consultation', consultation.id, consultation.date, consultation.time, consultation.done, consultation.cancelled);
+  }
+  return result.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+}
+
 // Stable identity for a reminder card, independent of render order — used to
 // persist which cards the master has manually closed (see dismissedReminders
 // in the main component and RemindersSection below).
@@ -543,6 +576,9 @@ function overdueReminderKey(it: OverdueItem): string {
 }
 function healingReminderKey(it: HealingItem): string {
   return `healing:${it.sessionId}`;
+}
+function soonReminderKey(it: UpcomingSoonItem): string {
+  return `soon:${it.kind}:${it.id}`;
 }
 
 function readInitialDismissedReminders(): string[] {
@@ -613,6 +649,7 @@ function normalizeClient(raw: any, index: number): Client {
         done: s?.done ?? true,
         healed: s?.healed ?? false,
         cancelled: s?.cancelled ?? false,
+        inTasks: s?.inTasks ?? false,
       }))
     : [];
 
@@ -658,6 +695,7 @@ function normalizeClient(raw: any, index: number): Client {
           photos: Array.isArray(cn?.photos) ? cn.photos : [],
           done: Boolean(cn?.done),
           cancelled: Boolean(cn?.cancelled),
+          inTasks: Boolean(cn?.inTasks),
           createdDate: cn?.createdDate ?? new Date().toISOString(),
         }))
       : [],
@@ -1626,10 +1664,11 @@ interface MasterInfo {
   name: string; // the master's own name, shown on the dashboard
   links: MasterLink[];
   bankDetails: string;
+  phone: string; // the master's own phone — its own tap-to-copy block, separate from `links`
   colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
   notes: ClientNote[]; // the master's own notes (not tied to any client), shown in «Задачи»
 }
-const DEFAULT_MASTER_INFO: MasterInfo = { name: '', links: [], bankDetails: '', colorLabels: {}, notes: [] };
+const DEFAULT_MASTER_INFO: MasterInfo = { name: '', links: [], bankDetails: '', phone: '', colorLabels: {}, notes: [] };
 
 function readInitialMasterInfo(): MasterInfo {
   try {
@@ -1642,6 +1681,7 @@ function readInitialMasterInfo(): MasterInfo {
           ? p.links.map((l: any, i: number) => ({ id: String(l?.id ?? i), label: l?.label ?? '', value: l?.value ?? '' }))
           : [],
         bankDetails: typeof p.bankDetails === 'string' ? p.bankDetails : '',
+        phone: typeof p.phone === 'string' ? p.phone : '',
         colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
         notes: Array.isArray(p.notes)
           ? p.notes.map((n: any, i: number): ClientNote => ({
@@ -1746,7 +1786,7 @@ export default function TattoDiary() {
   const snoozeReminder = (key: string, preset: SnoozePreset) =>
     setSnoozedReminders((prev) => ({ ...prev, [key]: snoozeUntilFor(preset) }));
 
-  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master'>('list');
+  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1774,6 +1814,10 @@ export default function TattoDiary() {
     | { kind: 'consultation'; clientId: string; id: string }
     | null
   >(null);
+  // The творческий блокнот's mood-board sheet — tapping a session/
+  // consultation card there opens this (photos + a couple of creative
+  // fields) instead of the full read-only TimelineViewSheet.
+  const [moodBoardEntry, setMoodBoardEntry] = useState<{ kind: 'session' | 'consultation'; clientId: string; id: string } | null>(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
 
@@ -1792,6 +1836,25 @@ export default function TattoDiary() {
     setCalendarWalkStep(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+  };
+
+  // «Отправить в задачи?» — shown once, right after a brand-new session or
+  // consultation is created (never on edit), to opt it into the creative
+  // notebook (see Session.inTasks / Consultation.inTasks).
+  const [inTasksPrompt, setInTasksPrompt] = useState<{ clientId: string; itemId: string; kind: 'session' | 'consultation' } | null>(null);
+  const resolveInTasksPrompt = (value: boolean) => {
+    if (inTasksPrompt) {
+      const { clientId, itemId, kind } = inTasksPrompt;
+      const c = clients.find((x) => x.id === clientId);
+      if (c) {
+        if (kind === 'session') {
+          saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === itemId ? { ...s, inTasks: value } : s)) });
+        } else {
+          saveClient({ ...c, consultations: c.consultations.map((cn) => (cn.id === itemId ? { ...cn, inTasks: value } : cn)) });
+        }
+      }
+    }
+    setInTasksPrompt(null);
   };
 
   // Bumped whenever a new client is created, to (re)trigger the star-shower
@@ -2061,6 +2124,8 @@ export default function TattoDiary() {
     if (!selectedClient) return;
     const fields = { ...data, done: false };
     let consultations: Consultation[];
+    const isNew = !editConsultation;
+    const newId = Date.now().toString();
     if (editConsultation) {
       consultations = selectedClient.consultations.map((c) =>
         c.id === editConsultation.id ? { ...c, ...fields } : c,
@@ -2068,7 +2133,7 @@ export default function TattoDiary() {
     } else {
       consultations = [
         ...selectedClient.consultations,
-        { id: Date.now().toString(), createdDate: new Date().toISOString(), cancelled: false, ...fields },
+        { id: newId, createdDate: new Date().toISOString(), cancelled: false, inTasks: false, ...fields },
       ];
     }
     saveClient({ ...selectedClient, consultations });
@@ -2076,6 +2141,9 @@ export default function TattoDiary() {
     setEditConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    // Brand-new consultation — offer to flag it for the master's creative
+    // notebook («Задачи»). Never asked again on edit.
+    if (isNew) setInTasksPrompt({ clientId: selectedClient.id, itemId: newId, kind: 'consultation' });
   };
 
   const deleteConsultation = (consultationId: string) => {
@@ -2239,6 +2307,8 @@ export default function TattoDiary() {
       healed: data.healed,
     };
     let sessions: Session[];
+    const isNew = !editSession;
+    const newId = Date.now().toString();
     if (editSession) {
       // Update the existing session in place, keeping its id (status can now
       // change between planned and done via the form).
@@ -2246,7 +2316,7 @@ export default function TattoDiary() {
         s.id === editSession.id ? { ...s, ...fields } : s,
       );
     } else {
-      sessions = [...selectedClient.sessions, { id: Date.now().toString(), cancelled: false, ...fields }];
+      sessions = [...selectedClient.sessions, { id: newId, cancelled: false, inTasks: false, ...fields }];
     }
     const mergedStyles =
       data.style && !clientStyles(selectedClient).includes(data.style)
@@ -2262,6 +2332,9 @@ export default function TattoDiary() {
     setEditSession(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    // Brand-new session — offer to flag it for the master's creative
+    // notebook («Задачи»). Never asked again on edit.
+    if (isNew) setInTasksPrompt({ clientId: selectedClient.id, itemId: newId, kind: 'session' });
   };
 
   const sheetOpen =
@@ -2271,6 +2344,7 @@ export default function TattoDiary() {
     showNewConsultationForm ||
     showAddChoice ||
     !!viewEntry ||
+    !!moodBoardEntry ||
     showCalendar ||
     !!calendarWalkStep;
 
@@ -2279,6 +2353,18 @@ export default function TattoDiary() {
   const viewClient = viewEntry ? clients.find((c) => c.id === viewEntry.clientId) ?? null : null;
   const viewedSession = viewEntry?.kind === 'session' ? viewClient?.sessions.find((s) => s.id === viewEntry.id) ?? null : null;
   const viewedConsultation = viewEntry?.kind === 'consultation' ? viewClient?.consultations.find((c) => c.id === viewEntry.id) ?? null : null;
+
+  const moodBoardClient = moodBoardEntry ? clients.find((c) => c.id === moodBoardEntry.clientId) ?? null : null;
+  const moodBoardSession = moodBoardEntry?.kind === 'session' ? moodBoardClient?.sessions.find((s) => s.id === moodBoardEntry.id) ?? null : null;
+  const moodBoardConsultation = moodBoardEntry?.kind === 'consultation' ? moodBoardClient?.consultations.find((c) => c.id === moodBoardEntry.id) ?? null : null;
+  const updateMoodBoardPhotos = (photos: string[]) => {
+    if (!moodBoardEntry || !moodBoardClient) return;
+    if (moodBoardEntry.kind === 'session') {
+      saveClient({ ...moodBoardClient, sessions: moodBoardClient.sessions.map((s) => (s.id === moodBoardEntry.id ? { ...s, photos } : s)) });
+    } else {
+      saveClient({ ...moodBoardClient, consultations: moodBoardClient.consultations.map((c) => (c.id === moodBoardEntry.id ? { ...c, photos } : c)) });
+    }
+  };
 
   // Reminders (see RemindersSection), minus whatever the master has closed —
   // computed once and shared by the toolbar badge, «Задачи», and «Мастер».
@@ -2289,6 +2375,7 @@ export default function TattoDiary() {
     return !(until && until > Date.now());
   });
   const visibleHealing = healingReminders(clients).filter((it) => !dismissedReminders.includes(healingReminderKey(it)));
+  const visibleSoon = upcomingSoonReminders(clients).filter((it) => !dismissedReminders.includes(soonReminderKey(it)));
 
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
@@ -2711,20 +2798,23 @@ export default function TattoDiary() {
       {/* Bottom navigation — sibling of the screens so it pins to the shell
           bottom (never scrolls). Shown on the list and settings screens, hidden
           while a bottom sheet is open so it can't sit over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master') && !sheetOpen && (
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin') && !sheetOpen && (
         <BottomNav
           active={screen}
           onNavigate={(s) => setScreen(s)}
-          onAddClient={() => runGated(clients.length === 0, () => setShowNewClientForm(true))}
-          tasksBadge={visibleOverdue.length > 0 ? 'urgent' : visibleHealing.length > 0 ? 'reminder' : null}
+          adminBadges={[
+            ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
+            ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
+          ]}
         />
       )}
 
-      {/* «Мастер» shortcut — pinned next to the logo (sibling of the
-          screens, so it never scrolls away with the client grid
-          underneath). Settings now lives inside the Мастер page itself; the
-          add-client button moved to the bottom nav centre. Next to the
-          icon, a small tag previews the nearest upcoming session's date. */}
+      {/* Create-client «+» — pinned next to the logo (sibling of the screens,
+          so it never scrolls away with the client grid underneath). Мастер
+          is now a full bottom-nav page, so this spot (which used to hold its
+          shortcut) took over the add-client action instead — the bottom nav
+          holds only page destinations now. Next to the «+», a small tag
+          previews the nearest upcoming session's date. */}
       {screen === 'list' && !sheetOpen && (
         <div
           style={{
@@ -2761,7 +2851,7 @@ export default function TattoDiary() {
                   background: 'rgba(var(--gold-rgb),0.04)',
                 }}
               >
-                <GoldGemCornerBL size={16} />
+                <GemCornerBL color="#0A4D00" size={16} />
                 <div style={{ position: 'relative', zIndex: 1 }}>
                   <div style={{ fontSize: 7.5, letterSpacing: '0.8px', textTransform: 'uppercase', color: COLORS.textGhost, fontStyle: 'normal' }}>Ближайшая</div>
                   <div style={{ fontSize: 10.5, fontWeight: 400, color: COLORS.textGhost, whiteSpace: 'nowrap' }}>
@@ -2778,16 +2868,18 @@ export default function TattoDiary() {
               </div>
             );
           })()}
+          {/* Create-client — moved here from the bottom nav (which now holds
+              only page destinations); same gated flow as before. */}
           <div
-            onClick={() => setScreen('master')}
+            onClick={() => runGated(clients.length === 0, () => setShowNewClientForm(true))}
             role="button"
-            aria-label="Мастер"
+            aria-label="Добавить клиента"
             style={{
               width: 48,
               height: 48,
               flexShrink: 0,
               borderRadius: '50%',
-              border: '1px solid rgba(var(--gold-rgb),0.25)',
+              border: '1px solid rgba(var(--gold-rgb),0.55)',
               background: 'rgba(var(--gold-rgb),0.03)',
               display: 'flex',
               alignItems: 'center',
@@ -2795,17 +2887,9 @@ export default function TattoDiary() {
               cursor: 'pointer',
             }}
           >
-            <svg width="24" height="24" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
-              <circle cx="10" cy="6.6" r="3.3" stroke="currentColor" strokeWidth="1.3" fill="currentColor" fillOpacity="0.12" />
-              <path
-                d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="currentColor"
-                fillOpacity="0.12"
-              />
+            <svg width="19" height="19" viewBox="0 0 14 14" fill="none">
+              <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+              <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </div>
         </div>
@@ -2836,18 +2920,7 @@ export default function TattoDiary() {
               setActiveTab('extra');
               setScreen('detail');
             }}
-            onOpenConsultation={(clientId, consultationId) => {
-              // Tap opens the read-only fullscreen viewer (not the edit form).
-              setViewEntry({ kind: 'consultation', clientId, id: consultationId });
-            }}
-            onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
-            overdue={visibleOverdue}
-            healing={visibleHealing}
-            onMarkDone={markEntryDone}
-            onOpenEntry={openEntryForEdit}
-            onDismissReminder={dismissReminder}
-            onSnoozeReminder={snoozeReminder}
-            onCancelEntry={markEntryCancelled}
+            onOpenMoodBoard={(clientId, id, kind) => setMoodBoardEntry({ clientId, id, kind })}
             onAddMasterNote={(text, urgency, photos) =>
               setMasterInfo({
                 ...masterInfo,
@@ -2882,13 +2955,35 @@ export default function TattoDiary() {
             clients={clients}
             masterInfo={masterInfo}
             onChangeMasterInfo={setMasterInfo}
+            onOpenSettings={() => setScreen('settings')}
+          />
+        )}
+      </div>
+
+      {/* ═══════════ ADMIN DASHBOARD ═══════════ */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: screen === 'admin' ? 'translateX(0)' : 'translateX(110%)',
+          transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          zIndex: 3,
+          background: COLORS.bg,
+        }}
+      >
+        {screen === 'admin' && (
+          <AdminDashboardScreen
+            clients={clients}
             prefs={prefs}
             onChangePrefs={setPrefs}
             onOpenSession={openEntryForEdit}
-            onOpenSettings={() => setScreen('settings')}
             onImport={replaceAllClients}
+            onOpenSchedule={() => setShowCalendar(true)}
             overdue={visibleOverdue}
             healing={visibleHealing}
+            soon={visibleSoon}
             onMarkDone={markEntryDone}
             onOpenEntry={openEntryForEdit}
             onDismissReminder={dismissReminder}
@@ -2920,8 +3015,6 @@ export default function TattoDiary() {
             onToggleTheme={toggleTheme}
             prefs={prefs}
             onChange={setPrefs}
-            masterInfo={masterInfo}
-            onChangeMasterInfo={setMasterInfo}
             calendarSync={calendarSync}
             onChangeCalendarSync={setCalendarSync}
             onBack={() => setScreen('master')}
@@ -3077,6 +3170,19 @@ export default function TattoDiary() {
         }}
       />
 
+      {/* ═══════════ MOOD BOARD (творческий блокнот entry) ═══════════ */}
+      <MoodBoardSheet
+        open={!!moodBoardEntry && (!!moodBoardSession || !!moodBoardConsultation)}
+        session={moodBoardSession}
+        consultation={moodBoardConsultation}
+        onClose={() => setMoodBoardEntry(null)}
+        onChangePhotos={updateMoodBoardPhotos}
+        onOpenFull={() => {
+          if (moodBoardEntry) setViewEntry({ kind: moodBoardEntry.kind, clientId: moodBoardEntry.clientId, id: moodBoardEntry.id });
+          setMoodBoardEntry(null);
+        }}
+      />
+
       {/* ═══════════ CALENDAR (month view, opened from «Ближайшая») ═══════════ */}
       <CalendarSheet
         open={showCalendar}
@@ -3159,6 +3265,70 @@ export default function TattoDiary() {
             if (result === 'win') setFunWinTrigger((k) => k + 1);
           }}
         />
+      )}
+
+      {/* «Отправить в задачи?» — fires once, right after creating a brand-new
+          session/consultation (see resolveInTasksPrompt). */}
+      {inTasksPrompt && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 300,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          <div style={{ background: COLORS.sheet, border: '1px solid rgba(var(--gold-rgb),0.25)', borderRadius: 4, padding: '20px 22px', maxWidth: 320, width: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: fs(15), color: COLORS.textPrimary, marginBottom: 4, fontStyle: 'italic' }}>Отправить в задачи?</div>
+            <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginBottom: 16 }}>
+              Появится в творческом блокноте — для мудборда и подготовки
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div
+                onClick={() => resolveInTasksPrompt(true)}
+                role="button"
+                aria-label="Отправить в задачи: да"
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  border: '1px solid rgba(var(--gold-rgb),0.4)',
+                  borderRadius: 2,
+                  color: COLORS.gold,
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  fontSize: fs(12),
+                }}
+              >
+                Да
+              </div>
+              <div
+                onClick={() => resolveInTasksPrompt(false)}
+                role="button"
+                aria-label="Отправить в задачи: нет"
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  borderRadius: 2,
+                  color: COLORS.textFaint,
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  fontSize: fs(12),
+                }}
+              >
+                Нет
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -3984,11 +4154,22 @@ function GoldGemCorner({ size = 24 }: { size?: number }) {
     </>
   );
 }
+// Gold reads through the theme's --gold-rgb custom property (so it tracks
+// light/dark theme changes); any other accent is a literal hex, tinted via
+// hexToRgba instead. Shared by GemCornerBL/BR below.
+function cornerPalette(color: string): { solid: string; mid: string; faint: string } {
+  if (color === COLORS.gold) {
+    return { solid: 'var(--gold)', mid: 'rgba(var(--gold-rgb),0.6)', faint: 'rgba(var(--gold-rgb),0.45)' };
+  }
+  return { solid: color, mid: hexToRgba(color, 0.6), faint: hexToRgba(color, 0.45) };
+}
 // Same glass-gem recipe as GoldGemCorner, mirrored into the bottom-left
 // corner instead of the usual top-right — used where the top-right is
-// already busy with other content (e.g. the calendar tag on the home
-// screen).
-function GoldGemCornerBL({ size = 20 }: { size?: number }) {
+// already busy with other content. Takes an explicit `color` (defaults to
+// the theme's gold) so it can also render in an arbitrary accent colour —
+// e.g. green for the calendar tag.
+function GemCornerBL({ color = COLORS.gold, size = 20 }: { color?: string; size?: number }) {
+  const { solid, mid, faint } = cornerPalette(color);
   return (
     <>
       <div
@@ -3998,7 +4179,7 @@ function GoldGemCornerBL({ size = 20 }: { size?: number }) {
           left: -6,
           width: size + 20,
           height: size + 20,
-          background: 'radial-gradient(circle at bottom left, rgba(var(--gold-rgb),0.45), transparent 66%)',
+          background: `radial-gradient(circle at bottom left, ${faint}, transparent 66%)`,
           filter: 'blur(5px)',
           zIndex: 2,
           pointerEvents: 'none',
@@ -4012,8 +4193,45 @@ function GoldGemCornerBL({ size = 20 }: { size?: number }) {
           width: size,
           height: size,
           clipPath: 'polygon(0 100%, 0 0, 100% 100%)',
-          background: 'linear-gradient(35deg, var(--gold) 0%, rgba(var(--gold-rgb),0.6) 52%, rgba(var(--gold-rgb),0.12) 100%)',
-          boxShadow: 'inset -2px 2px 3px rgba(var(--gold-rgb),0.5)',
+          background: `linear-gradient(35deg, ${solid} 0%, ${mid} 52%, ${hexToRgba(color, 0.12)} 100%)`,
+          boxShadow: `inset -2px 2px 3px ${faint}`,
+          zIndex: 3,
+          pointerEvents: 'none',
+        }}
+      />
+    </>
+  );
+}
+// Bottom-right mirror of GemCornerBL — used to give the overdue reminder
+// card a corner accent without colliding with its «×» (top-right) or its
+// «Напомнить» preset menu (which opens below the button, left-anchored).
+function GemCornerBR({ color = COLORS.gold, size = 20 }: { color?: string; size?: number }) {
+  const { solid, mid, faint } = cornerPalette(color);
+  return (
+    <>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: -6,
+          right: -6,
+          width: size + 20,
+          height: size + 20,
+          background: `radial-gradient(circle at bottom right, ${faint}, transparent 66%)`,
+          filter: 'blur(5px)',
+          zIndex: 2,
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          right: 0,
+          width: size,
+          height: size,
+          clipPath: 'polygon(100% 100%, 100% 0, 0 100%)',
+          background: `linear-gradient(145deg, ${solid} 0%, ${mid} 52%, ${hexToRgba(color, 0.12)} 100%)`,
+          boxShadow: `inset 2px 2px 3px ${faint}`,
           zIndex: 3,
           pointerEvents: 'none',
         }}
@@ -4230,13 +4448,14 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
 function BottomNav({
   active,
   onNavigate,
-  onAddClient,
-  tasksBadge,
+  adminBadges,
 }: {
-  active: 'list' | 'settings' | 'summary' | 'master';
-  onNavigate: (screen: 'list' | 'settings' | 'summary' | 'master') => void;
-  onAddClient: () => void;
-  tasksBadge?: 'urgent' | 'reminder' | null;
+  active: 'list' | 'settings' | 'summary' | 'master' | 'admin';
+  onNavigate: (screen: 'list' | 'settings' | 'summary' | 'master' | 'admin') => void;
+  // Reminders now live entirely on «Админка», and more than one kind can be
+  // outstanding at once (an overdue entry AND a healing check-in) — both
+  // show, stacked, rather than one hiding the other. See NavItem.
+  adminBadges?: ('urgent' | 'reminder')[];
 }) {
   return (
     <div
@@ -4275,37 +4494,24 @@ function BottomNav({
         zIndex: 50,
       }}
     >
-      {/* «Главная» stays lit for Мастер/Настройки too — both are reached
-          from the home area, not a separate section, so this at least tells
-          you «you're not in Задачи» when the bar has no literal Мастер/
-          Настройки icon of its own to light up. */}
-      <NavItem label="Главная" active={active === 'list' || active === 'master' || active === 'settings'} onClick={() => onNavigate('list')}>
-        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' || active === 'master' || active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
-          <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-          <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
+      {/* Left-to-right: Мастер — Задачи — Главная — Админка. Only page
+          destinations live here now — create-client moved to the «+» pinned
+          by the logo on «Главная» (see its render site above). */}
+      <NavItem label="Мастер" active={active === 'master'} onClick={() => onNavigate('master')}>
+        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style={{ color: active === 'master' ? 'var(--gold)' : 'var(--text)' }}>
+          <circle cx="10" cy="6.6" r="3.3" stroke="currentColor" strokeWidth="1.3" fill="currentColor" fillOpacity="0.12" />
+          <path
+            d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="currentColor"
+            fillOpacity="0.12"
+          />
         </svg>
       </NavItem>
-      {/* Create-client — same footprint as the other two so all three align;
-          a ringed «+» keeps it distinct without towering over the bar. */}
-      <NavItem label="Создать клиента" active={false} accent onClick={onAddClient} ariaLabel="Добавить клиента">
-        <span
-          style={{
-            width: 23,
-            height: 23,
-            borderRadius: '50%',
-            border: '1px solid rgba(var(--gold-rgb),0.55)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-            <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-            <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </span>
-      </NavItem>
-      <NavItem label="Задачи" active={active === 'summary'} onClick={() => onNavigate('summary')} badge={tasksBadge}>
+      <NavItem label="Задачи" active={active === 'summary'} onClick={() => onNavigate('summary')}>
         <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
           <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
           <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
@@ -4316,10 +4522,21 @@ function BottomNav({
           <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         </svg>
       </NavItem>
-      {/* Placeholder for a future admin panel — visibly asleep («💤»), no
-          handler wired up yet. */}
-      <NavItem label="Админка" active={false} disabled onClick={() => {}} ariaLabel="Админка — скоро">
-        <span style={{ fontSize: 19, lineHeight: 1 }}>💤</span>
+      {/* «Главная» stays lit for Настройки too — reached from the home area,
+          not a separate section. */}
+      <NavItem label="Главная" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
+        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' || active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
+          <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+          <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
+        </svg>
+      </NavItem>
+      <NavItem label="Админка" active={active === 'admin'} onClick={() => onNavigate('admin')} badges={adminBadges}>
+        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style={{ color: active === 'admin' ? 'var(--gold)' : 'var(--text)' }}>
+          <rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="11" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
       </NavItem>
     </div>
   );
@@ -4335,20 +4552,20 @@ function NavItem({
   disabled = false,
   onClick,
   ariaLabel,
-  badge,
+  badges,
 }: {
   children: React.ReactNode;
   label: string;
   active: boolean;
   accent?: boolean;
-  // Rendered but inert — no tap target, dimmer than a plain inactive item
-  // (used for the «Админка» placeholder).
+  // Rendered but inert — no tap target, dimmer than a plain inactive item.
   disabled?: boolean;
   onClick: () => void;
   ariaLabel?: string;
-  // 'urgent' (red) beats 'reminder' (yellow) — an overdue entry outranks a
-  // plain healing check-in, so only one dot ever shows.
-  badge?: 'urgent' | 'reminder' | null;
+  // Every outstanding kind shows, stacked — a new badge never fully hides an
+  // existing one. At most 2 render (urgent + reminder), offset so both stay
+  // visible instead of piling on the exact same spot.
+  badges?: ('urgent' | 'reminder')[];
 }) {
   return (
     <div
@@ -4368,27 +4585,29 @@ function NavItem({
     >
       <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         {children}
-        {badge && (
+        {badges?.map((kind, i) => (
           <span
+            key={kind}
             style={{
               position: 'absolute',
-              top: -3,
-              right: -1,
+              top: -3 - i * 7,
+              right: -1 - i * 7,
               minWidth: 13,
               height: 13,
               borderRadius: '50%',
-              background: badge === 'urgent' ? '#e0665a' : '#e0b84a',
+              background: kind === 'urgent' ? '#e0665a' : '#e0b84a',
               color: '#1a1410',
               fontSize: fs(9),
               fontWeight: 700,
               lineHeight: '13px',
               textAlign: 'center',
               boxShadow: '0 0 0 1.5px var(--bg)',
+              zIndex: badges.length - i,
             }}
           >
             !
           </span>
-        )}
+        ))}
       </div>
       <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15 }}>
         {label}
@@ -4767,12 +4986,15 @@ function OverdueReminderCard({
       {(flyOutThen) => (
         <div
           style={{
+            position: 'relative',
+            overflow: 'hidden',
             padding: '9px 10px',
             borderRadius: 2,
             border: '1px solid rgba(224,102,90,0.35)',
             background: 'rgba(224,102,90,0.06)',
           }}
         >
+          <GemCornerBR size={14} />
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div onClick={onOpenEntry} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
               <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -4849,6 +5071,7 @@ function OverdueReminderCard({
 function RemindersSection({
   overdue,
   healing,
+  soon,
   onMarkDone,
   onOpenEntry,
   onDismiss,
@@ -4857,13 +5080,15 @@ function RemindersSection({
 }: {
   overdue: OverdueItem[];
   healing: HealingItem[];
+  soon?: UpcomingSoonItem[];
   onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismiss: (key: string) => void;
   onSnooze: (key: string, preset: SnoozePreset) => void;
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
-  if (overdue.length === 0 && healing.length === 0) return null;
+  const soonList = soon ?? [];
+  if (overdue.length === 0 && healing.length === 0 && soonList.length === 0) return null;
   return (
     <div>
       <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
@@ -4918,23 +5143,58 @@ function RemindersSection({
             </SwipeDismissCard>
           );
         })}
+        {soonList.map((it) => {
+          const key = soonReminderKey(it);
+          return (
+            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)}>
+              {(flyOutThen) => (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  padding: '9px 10px',
+                  borderRadius: 2,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  background: 'rgba(var(--surface-rgb),0.018)',
+                }}
+              >
+                <div onClick={() => onOpenEntry(it.client.id, it.id, it.kind)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                  <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {it.client.name || '—'}
+                  </div>
+                  <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2 }}>
+                    Скоро: {it.kind === 'session' ? 'сессия' : 'консультация'} · {formatDate(it.date)}
+                    {it.time && ` · ${it.time}`}
+                  </div>
+                </div>
+                <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
+              </div>
+              )}
+            </SwipeDismissCard>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ===================== MASTER DASHBOARD =====================
-function MasterDashboardScreen({
+// ===================== ADMIN DASHBOARD =====================
+// The control panel: every reminder, the upcoming-sessions lookahead, the
+// client/session/consultation stats (minus «Частый стиль», which stays a
+// personal Мастер stat), scheduling, and backup — everything that's about
+// running the practice rather than the master's own profile.
+function AdminDashboardScreen({
   clients,
-  masterInfo,
-  onChangeMasterInfo,
   prefs,
   onChangePrefs,
   onOpenSession,
-  onOpenSettings,
   onImport,
+  onOpenSchedule,
   overdue,
   healing,
+  soon,
   onMarkDone,
   onOpenEntry,
   onDismissReminder,
@@ -4942,25 +5202,20 @@ function MasterDashboardScreen({
   onCancelEntry,
 }: {
   clients: Client[];
-  masterInfo: MasterInfo;
-  onChangeMasterInfo: (m: MasterInfo) => void;
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
-  onOpenSettings: () => void;
   onImport: (clients: Client[]) => void;
+  onOpenSchedule: () => void;
   overdue: OverdueItem[];
   healing: HealingItem[];
+  soon: UpcomingSoonItem[];
   onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
   onSnoozeReminder: (key: string, preset: SnoozePreset) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
-  const [name, setName] = useState(masterInfo.name);
-  useEffect(() => setName(masterInfo.name), [masterInfo.name]);
-
-  const style = mostUsedStyle(clients);
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
   const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
@@ -4986,10 +5241,6 @@ function MasterDashboardScreen({
     const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
     const json = JSON.stringify(payload, null, 2);
     const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
-
-    // On mobile / PWA, open the OS "Отправить по…" sheet with the backup file
-    // attached, so the master can send it straight to Telegram, mail, Files,
-    // etc. Falls back to a plain download where file-sharing isn't supported.
     const file = new File([json], filename, { type: 'application/json' });
     const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
     if (nav.canShare && nav.canShare({ files: [file] })) {
@@ -4997,9 +5248,7 @@ function MasterDashboardScreen({
         await nav.share({ files: [file], title: 'INKA — резервная копия' });
         return;
       } catch (err) {
-        // User dismissed the share sheet — don't also trigger a download.
         if ((err as DOMException)?.name === 'AbortError') return;
-        // Any other failure: fall through to the download fallback.
       }
     }
     downloadBackup(json, filename);
@@ -5042,6 +5291,264 @@ function MasterDashboardScreen({
     letterSpacing: '1.5px',
     textTransform: 'uppercase',
     marginBottom: 6,
+  };
+
+  return (
+    <div style={{ minHeight: '100%', background: COLORS.bg }}>
+      {/* Dot-grid texture overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
+          backgroundSize: '22px 22px',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+      <StarfieldBackground />
+      <CloudsBackground />
+      <AviationBackground />
+      <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        <div
+          style={{
+            fontFamily: DROP_CAP_FONT,
+            fontSize: fs(24),
+            color: COLORS.gold,
+            letterSpacing: '5px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Админка
+        </div>
+        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+          Управление и статистика
+        </div>
+        <StarDivider />
+      </div>
+
+      <div style={{ padding: '4px 20px 110px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Schedule a session/consultation straight from Админка — reuses the
+            same calendar-driven creation walk as the «Ближайшая» tag. */}
+        <div onClick={onOpenSchedule} role="button" aria-label="Запланировать" style={{ ...actionButtonStyle, padding: '12px 0' }}>
+          + Запланировать сессию / консультацию
+        </div>
+
+        <RemindersSection overdue={overdue} healing={healing} soon={soon} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
+
+        {/* Upcoming sessions, with a master-configurable lookahead window */}
+        <GoldFrame style={{ padding: '14px 16px' }}>
+          <div style={statLabelStyle}>Предстоящие сессии</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: 8 }}>
+            {UPCOMING_WINDOW_OPTIONS.map((d) => (
+              <div
+                key={d}
+                onClick={() => onChangePrefs({ ...prefs, upcomingWindowDays: d })}
+                style={{
+                  fontSize: fs(12),
+                  padding: '4px 10px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: prefs.upcomingWindowDays === d ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: prefs.upcomingWindowDays === d ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: prefs.upcomingWindowDays === d ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {d} дн.
+              </div>
+            ))}
+          </div>
+          {upcoming.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированных сессий и консультаций</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {upcoming.map((it) => (
+                <div
+                  key={it.id}
+                  onClick={() => onOpenSession(it.client.id, it.id, it.kind)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    border: '1px solid rgba(var(--gold-rgb),0.1)',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: fs(14), color: COLORS.textPrimary }}>{it.client.name || '—'}</div>
+                    {it.kind === 'consultation' && (
+                      <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Консультация</div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
+                    {formatDate(it.date)}
+                    {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </GoldFrame>
+
+        {/* Quick stats — clients (with срочно/важно in the lower half) beside
+            назначено сессий/консультаций. «Частый стиль» stays on Мастер. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+          {STATS_WINDOW_OPTIONS.map((o) => (
+            <div
+              key={o.days}
+              onClick={() => onChangePrefs({ ...prefs, statsWindowDays: o.days })}
+              style={{
+                fontSize: fs(12),
+                padding: '4px 10px',
+                borderRadius: 2,
+                cursor: 'pointer',
+                border: prefs.statsWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                background: prefs.statsWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                color: prefs.statsWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
+              }}
+            >
+              {o.label}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          {/* Клиентов: count on top, срочно/важно pulled up into the lower half. */}
+          <GoldFrame style={{ padding: '16px 10px 14px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ textAlign: 'center', marginBottom: 13 }}>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>Клиентов</div>
+              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(30), fontWeight: 600, lineHeight: 1.15, color: COLORS.gold }}>{clients.length}</div>
+            </div>
+            <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: '100%', height: 1, marginBottom: 13 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{urgent}</div>
+              </div>
+              <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: 1, height: 34, flexShrink: 0 }} />
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[1].emoji} {URGENCY[1].short}</div>
+                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{important}</div>
+              </div>
+            </div>
+          </GoldFrame>
+          {/* Назначено сессий и консультаций — в одном блоке. */}
+          <SplitStatBlock
+            direction="column"
+            a={{ label: 'Назначено сессий', value: plannedSessionsCount }}
+            b={{ label: 'Консультаций', value: plannedConsultationsCount }}
+          />
+        </div>
+
+        {/* Backup — export the whole client list to a JSON file, or restore
+            from one (replaces everything currently stored). */}
+        <GoldFrame style={{ padding: '14px 16px' }}>
+          <div style={statLabelStyle}>Резервная копия</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div onClick={handleExport} style={actionButtonStyle}>
+              Экспортировать
+            </div>
+            <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
+              Импортировать
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImportFile(file);
+              e.target.value = '';
+            }}
+          />
+          {importError && (
+            <div style={{ marginTop: 10, fontSize: fs(12), color: '#e0665a', fontStyle: 'italic' }}>{importError}</div>
+          )}
+        </GoldFrame>
+      </div>
+    </div>
+  );
+}
+
+// ===================== MASTER DASHBOARD =====================
+function MasterDashboardScreen({
+  clients,
+  masterInfo,
+  onChangeMasterInfo,
+  onOpenSettings,
+}: {
+  clients: Client[];
+  masterInfo: MasterInfo;
+  onChangeMasterInfo: (m: MasterInfo) => void;
+  onOpenSettings: () => void;
+}) {
+  const [name, setName] = useState(masterInfo.name);
+  useEffect(() => setName(masterInfo.name), [masterInfo.name]);
+
+  const style = mostUsedStyle(clients);
+
+  const addMasterLink = (label: string, value: string) => {
+    const link: MasterLink = { id: Date.now().toString(), label: label.trim(), value: value.trim() };
+    onChangeMasterInfo({ ...masterInfo, links: [...masterInfo.links, link] });
+  };
+  const removeMasterLink = (id: string) => {
+    onChangeMasterInfo({ ...masterInfo, links: masterInfo.links.filter((l) => l.id !== id) });
+  };
+  const setColorLabel = (color: string, label: string) => {
+    onChangeMasterInfo({ ...masterInfo, colorLabels: { ...masterInfo.colorLabels, [color]: label } });
+  };
+
+  // Tap-to-copy: a small "Скопировано ✓" chip fades in over the tapped card
+  // for a moment, confirming the clipboard write without a blocking dialog.
+  const [copiedTag, setCopiedTag] = useState<'contacts' | 'phone' | null>(null);
+  const copyToClipboard = (text: string, tag: 'contacts' | 'phone') => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopiedTag(tag);
+      setTimeout(() => setCopiedTag((t) => (t === tag ? null : t)), 1400);
+    }).catch(() => {});
+  };
+
+  const [editingContacts, setEditingContacts] = useState(false);
+  const hasContactData = masterInfo.links.length > 0 || !!masterInfo.bankDetails;
+  const contactsCopyText = () =>
+    [...masterInfo.links.map((l) => `${l.label}: ${l.value}`), ...(masterInfo.bankDetails ? [masterInfo.bankDetails] : [])].join('\n');
+
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState(masterInfo.phone);
+  useEffect(() => setPhoneDraft(masterInfo.phone), [masterInfo.phone]);
+
+  const [colorsOpen, setColorsOpen] = useState(false);
+
+  const statLabelStyle: React.CSSProperties = {
+    fontSize: fs(11),
+    color: COLORS.textGhost,
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  };
+  const editToggleStyle: React.CSSProperties = {
+    fontSize: fs(11),
+    color: COLORS.gold,
+    cursor: 'pointer',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    flexShrink: 0,
+  };
+  const copiedChipStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: 40,
+    right: 14,
+    fontSize: fs(11),
+    color: COLORS.gold,
+    background: 'rgba(var(--gold-rgb),0.14)',
+    border: '1px solid rgba(var(--gold-rgb),0.4)',
+    borderRadius: 2,
+    padding: '4px 9px',
+    zIndex: 1,
   };
 
   return (
@@ -5108,7 +5615,7 @@ function MasterDashboardScreen({
           Мастер
         </div>
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Обзор и напоминания
+          Профиль мастера
         </div>
         <StarDivider />
       </div>
@@ -5135,17 +5642,46 @@ function MasterDashboardScreen({
           />
         </GoldFrame>
 
-        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
+        {/* «Частый стиль» — the one stat that stays a personal Мастер metric;
+            the rest of the stats grid moved to Админка. */}
+        <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
 
-        {/* Contacts & requisites (edited in Настройки → Карточка мастера) */}
-        <GoldFrame style={{ padding: '14px 16px' }}>
-          <div style={statLabelStyle}>Контакты и оплата</div>
-          {masterInfo.links.length === 0 && !masterInfo.bankDetails ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
-              Заполните в Настройках → Карточка мастера
-            </div>
-          ) : (
+        {/* Контакты и оплата — links + bank details. Once there's data, the
+            card shows a read view that copies everything to the clipboard on
+            tap; the pencil toggle switches back to the edit form. */}
+        <GoldFrame style={{ padding: '14px 16px', position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasContactData && !editingContacts ? 8 : 14 }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Контакты и оплата</div>
+            <span onClick={() => setEditingContacts((v) => !v)} role="button" aria-label={editingContacts ? 'Готово' : 'Редактировать контакты'} style={editToggleStyle}>
+              {editingContacts ? 'Готово' : hasContactData ? 'Изменить' : 'Заполнить'}
+            </span>
+          </div>
+          {editingContacts || !hasContactData ? (
             <>
+              {masterInfo.links.map((link) => (
+                <div
+                  key={link.id}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)' }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px' }}>{link.label}</div>
+                    <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{link.value}</div>
+                  </div>
+                  <span onClick={() => removeMasterLink(link.id)} style={{ cursor: 'pointer', color: COLORS.textFaint, fontSize: fs(18), flexShrink: 0, lineHeight: 1 }}>
+                    ×
+                  </span>
+                </div>
+              ))}
+              <AddMasterLinkForm onAdd={addMasterLink} />
+              <textarea
+                value={masterInfo.bankDetails}
+                onChange={(e) => onChangeMasterInfo({ ...masterInfo, bankDetails: e.target.value })}
+                placeholder="Счёт, БИК, ИНН..."
+                style={{ ...INPUT_STYLE, resize: 'none', height: 80, marginTop: 10 }}
+              />
+            </>
+          ) : (
+            <div onClick={() => copyToClipboard(contactsCopyText(), 'contacts')} role="button" aria-label="Скопировать данные" style={{ cursor: 'pointer' }}>
               {masterInfo.links.map((l) => (
                 <div key={l.id} style={{ marginBottom: 6 }}>
                   <span style={{ fontSize: fs(12), color: COLORS.gold }}>{l.label}: </span>
@@ -5153,149 +5689,72 @@ function MasterDashboardScreen({
                 </div>
               ))}
               {masterInfo.bankDetails && (
-                <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', marginTop: 6 }}>
-                  {masterInfo.bankDetails}
-                </div>
+                <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', marginTop: 6 }}>{masterInfo.bankDetails}</div>
               )}
-            </>
+              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 8, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
+            </div>
           )}
+          {copiedTag === 'contacts' && <div style={copiedChipStyle}>Скопировано ✓</div>}
         </GoldFrame>
 
-        {/* Upcoming sessions, with a master-configurable lookahead window */}
-        <GoldFrame style={{ padding: '14px 16px' }}>
-          <div style={statLabelStyle}>Предстоящие сессии</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: 8 }}>
-            {UPCOMING_WINDOW_OPTIONS.map((d) => (
-              <div
-                key={d}
-                onClick={() => onChangePrefs({ ...prefs, upcomingWindowDays: d })}
-                style={{
-                  fontSize: fs(12),
-                  padding: '4px 10px',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  border: prefs.upcomingWindowDays === d ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: prefs.upcomingWindowDays === d ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: prefs.upcomingWindowDays === d ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {d} дн.
-              </div>
-            ))}
+        {/* Телефон мастера — its own block, same tap-to-copy behaviour. */}
+        <GoldFrame style={{ padding: '14px 16px', position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: masterInfo.phone && !editingPhone ? 8 : 14 }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Телефон мастера</div>
+            <span
+              onClick={() => {
+                if (editingPhone && phoneDraft.trim() !== masterInfo.phone) onChangeMasterInfo({ ...masterInfo, phone: phoneDraft.trim() });
+                setEditingPhone((v) => !v);
+              }}
+              role="button"
+              aria-label={editingPhone ? 'Готово' : 'Редактировать телефон'}
+              style={editToggleStyle}
+            >
+              {editingPhone ? 'Готово' : masterInfo.phone ? 'Изменить' : 'Заполнить'}
+            </span>
           </div>
-          {upcoming.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированных сессий и консультаций</div>
+          {editingPhone || !masterInfo.phone ? (
+            <input
+              value={phoneDraft}
+              onChange={(e) => setPhoneDraft(e.target.value)}
+              onBlur={() => phoneDraft.trim() !== masterInfo.phone && onChangeMasterInfo({ ...masterInfo, phone: phoneDraft.trim() })}
+              placeholder="+7 ..."
+              style={{ ...INPUT_STYLE }}
+            />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {upcoming.map((it) => (
-                <div
-                  key={it.id}
-                  onClick={() => onOpenSession(it.client.id, it.id, it.kind)}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 10px',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                    border: '1px solid rgba(var(--gold-rgb),0.1)',
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: fs(14), color: COLORS.textPrimary }}>{it.client.name || '—'}</div>
-                    {it.kind === 'consultation' && (
-                      <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Консультация</div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
-                    {formatDate(it.date)}
-                    {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
-                  </div>
+            <div onClick={() => copyToClipboard(masterInfo.phone, 'phone')} role="button" aria-label="Скопировать телефон" style={{ cursor: 'pointer' }}>
+              <div style={{ fontSize: fs(15), color: COLORS.textPrimary }}>{masterInfo.phone}</div>
+              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 6, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
+            </div>
+          )}
+          {copiedTag === 'phone' && <div style={copiedChipStyle}>Скопировано ✓</div>}
+        </GoldFrame>
+
+        {/* Обозначения цветов — collapsed by default, kept compact. */}
+        <GoldFrame style={{ padding: '14px 16px' }}>
+          <div
+            onClick={() => setColorsOpen((v) => !v)}
+            role="button"
+            aria-label="Обозначения цветов"
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          >
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Обозначения цветов</div>
+            <span style={{ color: COLORS.gold, fontSize: fs(12), transform: colorsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▾</span>
+          </div>
+          {colorsOpen && (
+            <div style={{ marginTop: 12 }}>
+              {MARKER_COLORS.map((c) => (
+                <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: c, flexShrink: 0 }} />
+                  <input
+                    value={masterInfo.colorLabels[c] || ''}
+                    onChange={(e) => setColorLabel(c, e.target.value)}
+                    placeholder="Например: Постоянные клиенты"
+                    style={{ ...INPUT_STYLE, flex: 1 }}
+                  />
                 </div>
               ))}
             </div>
-          )}
-        </GoldFrame>
-
-        {/* Quick stats — a "character sheet" grid: клиентов (with срочно/важно
-            pulled into its lower half) beside назначено сессий/консультаций,
-            then частый стиль full-width. The window chips above scope the
-            planned counts to the chosen lookahead. */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
-          {STATS_WINDOW_OPTIONS.map((o) => (
-            <div
-              key={o.days}
-              onClick={() => onChangePrefs({ ...prefs, statsWindowDays: o.days })}
-              style={{
-                fontSize: fs(12),
-                padding: '4px 10px',
-                borderRadius: 2,
-                cursor: 'pointer',
-                border: prefs.statsWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                background: prefs.statsWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                color: prefs.statsWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
-              }}
-            >
-              {o.label}
-            </div>
-          ))}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-          {/* Клиентов: count on top, срочно/важно pulled up into the lower half. */}
-          <GoldFrame style={{ padding: '16px 10px 14px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ textAlign: 'center', marginBottom: 13 }}>
-              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>Клиентов</div>
-              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(30), fontWeight: 600, lineHeight: 1.15, color: COLORS.gold }}>{clients.length}</div>
-            </div>
-            <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: '100%', height: 1, marginBottom: 13 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
-                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{urgent}</div>
-              </div>
-              <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: 1, height: 34, flexShrink: 0 }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[1].emoji} {URGENCY[1].short}</div>
-                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{important}</div>
-              </div>
-            </div>
-          </GoldFrame>
-          {/* Назначено сессий и консультаций — в одном блоке. */}
-          <SplitStatBlock
-            direction="column"
-            a={{ label: 'Назначено сессий', value: plannedSessionsCount }}
-            b={{ label: 'Консультаций', value: plannedConsultationsCount }}
-          />
-          <div style={{ gridColumn: '1 / -1' }}>
-            <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
-          </div>
-        </div>
-
-        {/* Backup — export the whole client list to a JSON file, or restore
-            from one (replaces everything currently stored). */}
-        <GoldFrame style={{ padding: '14px 16px' }}>
-          <div style={statLabelStyle}>Резервная копия</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div onClick={handleExport} style={actionButtonStyle}>
-              Экспортировать
-            </div>
-            <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
-              Импортировать
-            </div>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleImportFile(file);
-              e.target.value = '';
-            }}
-          />
-          {importError && (
-            <div style={{ marginTop: 10, fontSize: fs(12), color: '#e0665a', fontStyle: 'italic' }}>{importError}</div>
           )}
         </GoldFrame>
       </div>
@@ -5309,8 +5768,6 @@ function SettingsScreen({
   onToggleTheme,
   prefs,
   onChange,
-  masterInfo,
-  onChangeMasterInfo,
   calendarSync,
   onChangeCalendarSync,
   onBack,
@@ -5319,23 +5776,10 @@ function SettingsScreen({
   onToggleTheme: () => void;
   prefs: Prefs;
   onChange: (p: Prefs) => void;
-  masterInfo: MasterInfo;
-  onChangeMasterInfo: (m: MasterInfo) => void;
   calendarSync: CalendarSyncSettings;
   onChangeCalendarSync: (s: CalendarSyncSettings) => void;
   onBack: () => void;
 }) {
-  const addMasterLink = (label: string, value: string) => {
-    const link: MasterLink = { id: Date.now().toString(), label: label.trim(), value: value.trim() };
-    onChangeMasterInfo({ ...masterInfo, links: [...masterInfo.links, link] });
-  };
-  const removeMasterLink = (id: string) => {
-    onChangeMasterInfo({ ...masterInfo, links: masterInfo.links.filter((l) => l.id !== id) });
-  };
-  const setColorLabel = (color: string, label: string) => {
-    onChangeMasterInfo({ ...masterInfo, colorLabels: { ...masterInfo.colorLabels, [color]: label } });
-  };
-
   const rowStyle: React.CSSProperties = {
     background: 'rgba(var(--surface-rgb),0.018)',
     border: '1px solid rgba(var(--gold-rgb),0.1)',
@@ -5609,59 +6053,6 @@ function SettingsScreen({
         >
           Сбросить по умолчанию
         </div>
-
-        {/* Master's own card: flexible contact/payment rows + free-text bank
-            details, kept in one place instead of scattered notes. */}
-        <div style={rowStyle}>
-          <div style={labelStyle}>Карточка мастера · Контакты и оплата</div>
-          {masterInfo.links.map((link) => (
-            <div
-              key={link.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 10,
-                padding: '8px 0',
-                borderBottom: '1px solid rgba(var(--gold-rgb),0.08)',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px' }}>{link.label}</div>
-                <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{link.value}</div>
-              </div>
-              <span onClick={() => removeMasterLink(link.id)} style={{ cursor: 'pointer', color: COLORS.textFaint, fontSize: fs(18), flexShrink: 0, lineHeight: 1 }}>
-                ×
-              </span>
-            </div>
-          ))}
-          <AddMasterLinkForm onAdd={addMasterLink} />
-        </div>
-
-        <div style={rowStyle}>
-          <div style={labelStyle}>Банковские реквизиты</div>
-          <textarea
-            value={masterInfo.bankDetails}
-            onChange={(e) => onChangeMasterInfo({ ...masterInfo, bankDetails: e.target.value })}
-            placeholder="Счёт, БИК, ИНН..."
-            style={{ ...INPUT_STYLE, resize: 'none', height: 90 }}
-          />
-        </div>
-
-        <div style={rowStyle}>
-          <div style={labelStyle}>Обозначения цветов</div>
-          {MARKER_COLORS.map((c) => (
-            <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <div style={{ width: 24, height: 24, borderRadius: '50%', background: c, flexShrink: 0 }} />
-              <input
-                value={masterInfo.colorLabels[c] || ''}
-                onChange={(e) => setColorLabel(c, e.target.value)}
-                placeholder="Например: Постоянные клиенты"
-                style={{ ...INPUT_STYLE, flex: 1 }}
-              />
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -5678,15 +6069,7 @@ function SummaryScreen({
   onEditNote,
   onDeleteNote,
   onOpenClient,
-  onOpenConsultation,
-  onOpenSession,
-  overdue,
-  healing,
-  onMarkDone,
-  onOpenEntry,
-  onDismissReminder,
-  onSnoozeReminder,
-  onCancelEntry,
+  onOpenMoodBoard,
   onAddMasterNote,
   onToggleMasterDone,
   onEditMasterNote,
@@ -5698,15 +6081,9 @@ function SummaryScreen({
   onEditNote: (clientId: string, note: ClientNote) => void;
   onDeleteNote: (clientId: string, noteId: string) => void;
   onOpenClient: (id: string) => void;
-  onOpenConsultation: (clientId: string, consultationId: string) => void;
-  onOpenSession: (clientId: string, sessionId: string) => void;
-  overdue: OverdueItem[];
-  healing: HealingItem[];
-  onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
-  onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
-  onDismissReminder: (key: string) => void;
-  onSnoozeReminder: (key: string, preset: SnoozePreset) => void;
-  onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  // Tapping a творческий блокнот card opens the mood-board sheet (photos +
+  // quick creative fields), not the full read-only viewer.
+  onOpenMoodBoard: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
@@ -5714,22 +6091,23 @@ function SummaryScreen({
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   // The new-note composer is behind the header's «+», mirroring the home
   // screen's layout.
   const [showComposer, setShowComposer] = useState(false);
 
-  // Planned (not-done) sessions + consultations, across every client, soonest
-  // first — a compact card (client · type · date) that opens straight into the
-  // read-only viewer when tapped. Sessions need a real date to count as
-  // planned; consultations show whether dated or not (undated sort last).
+  // The «творческий блокнот» — planned sessions/consultations the master
+  // opted into (see Session/Consultation.inTasks and the «Отправить в
+  // задачи?» prompt shown right after creating a new one), soonest first. Tap
+  // opens the mood-board sheet rather than the full read-only viewer.
   type PlannedItem = { kind: 'session' | 'consultation'; client: Client; id: string; date: string; time: string; label: string };
   const plannedItems: PlannedItem[] = clients
     .flatMap((c): PlannedItem[] => [
       ...c.sessions
-        .filter((s) => !s.done && !s.cancelled && ISO_DATE_RE.test(s.date))
+        .filter((s) => !s.done && !s.cancelled && s.inTasks && ISO_DATE_RE.test(s.date))
         .map((s): PlannedItem => ({ kind: 'session', client: c, id: s.id, date: s.date, time: s.time, label: s.name || s.area })),
       ...c.consultations
-        .filter((cs) => !cs.done && !cs.cancelled)
+        .filter((cs) => !cs.done && !cs.cancelled && cs.inTasks)
         .map((cs): PlannedItem => ({ kind: 'consultation', client: c, id: cs.id, date: cs.date, time: cs.time, label: cs.area })),
     ])
     .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
@@ -5786,12 +6164,12 @@ function SummaryScreen({
           ties by DOM order. */}
       <div style={{ padding: '4px 20px 14px', position: 'relative', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* «Все» — reset chip, reuses the funnel glyph. */}
+          {/* Funnel toggle — chips stay hidden until tapped. */}
           <div
-            onClick={() => setFilter('all')}
+            onClick={() => setShowFilters((v) => !v)}
             role="button"
-            aria-label="Все"
-            title="Все"
+            aria-label={showFilters ? 'Скрыть фильтры' : 'Показать фильтры'}
+            title="Фильтры"
             style={{
               width: 30,
               height: 30,
@@ -5800,58 +6178,84 @@ function SummaryScreen({
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              border: filter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-              background: filter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+              flexShrink: 0,
+              border: showFilters ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              background: showFilters ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: filter === 'all' ? COLORS.gold : COLORS.textFaint }}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: showFilters ? COLORS.gold : COLORS.textFaint }}>
               <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
             </svg>
           </div>
-          {URGENCY.map((u) => (
-            <div
-              key={u.key}
-              onClick={() => setFilter(u.key)}
-              role="button"
-              aria-label={u.label}
-              title={u.label}
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                fontSize: fs(14),
-                border: filter === u.key ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                background: filter === u.key ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-              }}
-            >
-              {u.emoji}
-            </div>
-          ))}
-          {/* «Показывать закрытые» — its own icon toggle, no overflow menu. */}
-          <div
-            onClick={() => setShowClosed((v) => !v)}
-            role="button"
-            aria-label="Показывать закрытые"
-            title="Показывать закрытые"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              fontSize: fs(14),
-              border: showClosed ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-              background: showClosed ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-            }}
-          >
-            {DONE_EMOJI}
-          </div>
+          {showFilters && (
+            <>
+              <div
+                onClick={() => setFilter('all')}
+                role="button"
+                aria-label="Все"
+                title="Все"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: fs(10.5),
+                  textTransform: 'uppercase',
+                  color: filter === 'all' ? COLORS.gold : COLORS.textFaint,
+                  border: filter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: filter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                }}
+              >
+                Все
+              </div>
+              {URGENCY.map((u) => (
+                <div
+                  key={u.key}
+                  onClick={() => setFilter(u.key)}
+                  role="button"
+                  aria-label={u.label}
+                  title={u.label}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: fs(14),
+                    border: filter === u.key ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                    background: filter === u.key ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  }}
+                >
+                  {u.emoji}
+                </div>
+              ))}
+              <div
+                onClick={() => setShowClosed((v) => !v)}
+                role="button"
+                aria-label="Показывать закрытые"
+                title="Показывать закрытые"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: fs(14),
+                  border: showClosed ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: showClosed ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                }}
+              >
+                {DONE_EMOJI}
+              </div>
+            </>
+          )}
         </div>
 
         {/* «+» (new note) — sits opposite the filter icons on this same row,
@@ -5896,17 +6300,14 @@ function SummaryScreen({
         </div>
       )}
 
-      <div style={{ padding: '0 16px 12px', position: 'relative', zIndex: 1 }}>
-        <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
-      </div>
-
-      {/* Two columns, like the client list: planned sessions & consultations
-          on the left, the task list on the right. */}
+      {/* Two columns, like the client list: the творческий блокнот on the
+          left, the task list on the right. */}
       <div style={{ padding: '2px 16px 110px', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
-        {/* Column 1 — planned sessions & consultations */}
+        {/* Column 1 — творческий блокнот: sessions/consultations the master
+            opted into via «Отправить в задачи?». Tap opens the mood-board. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
-            Сессии и консультации
+            Творческий блокнот
           </div>
           {plannedItems.length === 0 ? (
             <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
@@ -5914,7 +6315,7 @@ function SummaryScreen({
             plannedItems.map((it) => (
               <div
                 key={`${it.kind}-${it.client.id}-${it.id}`}
-                onClick={() => (it.kind === 'session' ? onOpenSession(it.client.id, it.id) : onOpenConsultation(it.client.id, it.id))}
+                onClick={() => onOpenMoodBoard(it.client.id, it.id, it.kind)}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -8498,6 +8899,75 @@ function ViewField({ label, value }: { label: string; value: string }) {
       <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
       <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{value}</div>
     </div>
+  );
+}
+
+// «Мудборд» — what a творческий блокнот card opens into instead of the full
+// read-only TimelineViewSheet: just the reference photos (add/remove freely,
+// this IS the prep surface) plus a couple of at-a-glance creative fields. A
+// link through to the full card covers everything else.
+function MoodBoardSheet({
+  open,
+  session,
+  consultation,
+  onClose,
+  onChangePhotos,
+  onOpenFull,
+}: {
+  open: boolean;
+  session: Session | null;
+  consultation: Consultation | null;
+  onClose: () => void;
+  onChangePhotos: (photos: string[]) => void;
+  onOpenFull: () => void;
+}) {
+  const isConsult = !!consultation;
+  const item = isConsult ? consultation : session;
+  const dateLine = item ? [formatDate(item.date) || 'Дата не указана', item.time].filter(Boolean).join(' · ') : '';
+
+  return (
+    <BottomSheet open={open} heightPct={94}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ marginBottom: 5 }}>
+          <InkaLogo height={fs(15)} />
+        </div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Мудборд</div>
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 4, letterSpacing: '0.3px' }}>
+          {isConsult ? 'Консультация' : session?.name || 'Сессия'} · {dateLine}
+        </div>
+        <SheetStarDivider />
+      </div>
+
+      {item && (
+        <div style={{ padding: '4px 24px 60px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <SessionPhotos photos={item.photos} onChange={onChangePhotos} />
+          <ViewField label="Место" value={item.area} />
+          <ViewField label="Стиль" value={isConsult ? consultation!.style : session!.style} />
+          {isConsult && <ViewField label="Источники вдохновения" value={consultation!.inspirationSources} />}
+          {isConsult && <ViewField label="Креатив" value={consultation!.creative} />}
+          <div
+            className="inka-submit"
+            onClick={onOpenFull}
+            style={{
+              border: '1px solid rgba(var(--gold-rgb),0.35)',
+              borderRadius: 2,
+              padding: '12px 0',
+              textAlign: 'center',
+              cursor: 'pointer',
+              background: 'rgba(var(--gold-rgb),0.05)',
+              fontSize: fs(13),
+              color: COLORS.gold,
+              letterSpacing: '2px',
+              textTransform: 'uppercase',
+              marginTop: 6,
+            }}
+          >
+            Открыть карточку
+          </div>
+        </div>
+      )}
+    </BottomSheet>
   );
 }
 
