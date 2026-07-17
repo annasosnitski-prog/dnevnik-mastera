@@ -4296,6 +4296,10 @@ function BottomNav({
   // show, stacked, rather than one hiding the other. See NavItem.
   adminBadges?: ('urgent' | 'reminder')[];
 }) {
+  // Dark theme sits over the starfield/sky background, so the plate goes
+  // dimmer and more transparent there to let it show through — light theme's
+  // paper backdrop doesn't need the same restraint.
+  const isLight = useIsLightTheme();
   return (
     <div
       style={{
@@ -4331,7 +4335,9 @@ function BottomNav({
           (including the safe-area padding at the very bottom) so the bar
           reads as one solid continuous band rather than a floating tile —
           thin dividers instead of gaps, icon only, no caption underneath.
-          Half-opacity lets the dark app background tint through the gold.
+          Partial opacity lets the app background tint through the gold —
+          dimmer and more see-through on dark theme, so the starfield/sky
+          shows through instead of a bright gold slab.
           A soft warm glow drifts to sit behind whichever cell is active. */}
       <div
         style={{
@@ -4341,8 +4347,10 @@ function BottomNav({
           top: 0,
           bottom: 0,
           overflow: 'hidden',
-          background: 'linear-gradient(160deg, #E7BD68 0%, #CC9A3E 42%, #A87B27 75%, #8C6117 100%)',
-          opacity: 0.5,
+          background: isLight
+            ? 'linear-gradient(160deg, #E7BD68 0%, #CC9A3E 42%, #A87B27 75%, #8C6117 100%)'
+            : 'linear-gradient(160deg, #C9A15A 0%, #A87F38 42%, #86611F 75%, #6B4B10 100%)',
+          opacity: isLight ? 0.5 : 0.3,
           borderTop: '1px solid rgba(35,20,5,0.55)',
           boxShadow: 'inset 0 1px 0 rgba(255,248,214,0.55), inset 0 -2px 4px rgba(35,20,5,0.35)',
         }}
