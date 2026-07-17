@@ -4362,7 +4362,9 @@ function BottomNav({
     >
       {/* One brushed-gold plate spans all four buttons — same metal, thin
           dividers instead of gaps, so they read as one object with four
-          slots rather than four separate floating icons. A soft warm glow
+          slots rather than four separate floating icons. Tall enough to
+          hold the label under each icon too — the caption is engraved into
+          the plate, not printed on the page behind it. A soft warm glow
           drifts to sit behind whichever cell is active. */}
       <div
         style={{
@@ -4370,8 +4372,8 @@ function BottomNav({
           left: 8,
           right: 8,
           top: 2,
-          height: 26,
-          borderRadius: 7,
+          bottom: 2,
+          borderRadius: 8,
           overflow: 'hidden',
           background: 'linear-gradient(160deg, #E7BD68 0%, #CC9A3E 42%, #A87B27 75%, #8C6117 100%)',
           border: '1px solid rgba(35,20,5,0.55)',
@@ -4411,7 +4413,7 @@ function BottomNav({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
-          paddingTop: 2,
+          paddingTop: 5,
         }}
       >
         {/* Left-to-right by frequency of use: Клиенты — Блокнот — Админка —
@@ -4568,7 +4570,17 @@ function NavItem({
           </span>
         ))}
       </div>
-      <span style={{ fontSize: fs(10.5), color: lit ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15 }}>
+      <span
+        style={{
+          fontSize: fs(9.5),
+          color: lit ? 'rgba(38,22,6,0.88)' : 'rgba(38,22,6,0.5)',
+          fontWeight: lit ? 600 : 400,
+          letterSpacing: '0.6px',
+          textTransform: 'uppercase',
+          textAlign: 'center',
+          lineHeight: 1.1,
+        }}
+      >
         {label}
       </span>
     </div>
