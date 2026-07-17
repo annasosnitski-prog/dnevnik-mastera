@@ -4356,65 +4356,152 @@ function BottomNav({
         background: 'linear-gradient(rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1)), var(--bg)',
         borderTop: '1px solid rgba(var(--gold-rgb),0.35)',
         boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
-        display: 'flex',
-        // Equal-width columns, centered vertically in the bar.
-        justifyContent: 'space-between',
-        alignItems: 'center',
         paddingBottom: 'env(safe-area-inset-bottom)',
         zIndex: 50,
       }}
     >
-      {/* Left-to-right by frequency of use: Клиенты — Блокнот — Админка —
-          Мастер. Only page destinations live here now — create-client moved
-          to the «+» pinned by the logo on «Клиенты» (see its render site
-          above). «Клиенты» stays lit for Настройки too — reached from the
-          home area, not a separate section. */}
-      <NavItem label="Клиенты" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' || active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
-          <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-          <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
-        </svg>
-      </NavItem>
-      <NavItem label="Блокнот" active={active === 'summary'} onClick={() => onNavigate('summary')}>
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
-          <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-          <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-          <rect x="3" y="9" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <line x1="8" y1="10.5" x2="17" y2="10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-          <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-        </svg>
-      </NavItem>
-      <NavItem label="Админка" active={active === 'admin'} onClick={() => onNavigate('admin')} badges={adminBadges}>
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ color: active === 'admin' ? 'var(--gold)' : 'var(--text)' }}>
-          <rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="11" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-        </svg>
-      </NavItem>
-      <NavItem label="Мастер" active={active === 'master'} onClick={() => onNavigate('master')}>
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ color: active === 'master' ? 'var(--gold)' : 'var(--text)' }}>
-          <circle cx="10" cy="6.6" r="3.3" stroke="currentColor" strokeWidth="1.3" fill="currentColor" fillOpacity="0.12" />
-          <path
-            d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="currentColor"
-            fillOpacity="0.12"
+      {/* One brushed-gold plate spans all four buttons — same metal, thin
+          dividers instead of gaps, so they read as one object with four
+          slots rather than four separate floating icons. A soft warm glow
+          drifts to sit behind whichever cell is active. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 8,
+          right: 8,
+          top: 2,
+          height: 26,
+          borderRadius: 7,
+          overflow: 'hidden',
+          background: 'linear-gradient(160deg, #E7BD68 0%, #CC9A3E 42%, #A87B27 75%, #8C6117 100%)',
+          border: '1px solid rgba(35,20,5,0.55)',
+          boxShadow: 'inset 0 1px 0 rgba(255,248,214,0.55), inset 0 -2px 4px rgba(35,20,5,0.35), 0 2px 6px rgba(0,0,0,0.35)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: '-60%',
+            left: `${ACTIVE_NAV_INDEX[active] * 25}%`,
+            width: '25%',
+            height: '220%',
+            background: 'radial-gradient(circle, rgba(255,248,214,0.65) 0%, rgba(255,248,214,0) 68%)',
+            transition: 'left 0.3s cubic-bezier(0.25,0.46,0.45,0.94)',
+            pointerEvents: 'none',
+          }}
+        />
+        {[25, 50, 75].map((pct) => (
+          <div
+            key={pct}
+            style={{
+              position: 'absolute',
+              left: `${pct}%`,
+              top: 3,
+              bottom: 3,
+              width: 1,
+              background: 'rgba(35,20,5,0.4)',
+              boxShadow: '1px 0 0 rgba(255,248,214,0.3)',
+            }}
           />
-        </svg>
-      </NavItem>
+        ))}
+      </div>
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          paddingTop: 2,
+        }}
+      >
+        {/* Left-to-right by frequency of use: Клиенты — Блокнот — Админка —
+            Мастер. Only page destinations live here now — create-client
+            moved to the «+» pinned by the logo on «Клиенты» (see its render
+            site above). «Клиенты» stays lit for Настройки too — reached
+            from the home area, not a separate section. Icons are a single
+            dark bronze line etched into the gold plate above, with one
+            bright spark on the active tab's corner. */}
+        <NavItem label="Клиенты" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
+          {(() => {
+            const lit = active === 'list' || active === 'settings';
+            return (
+              <svg width="19" height="19" viewBox="0 0 20 20" fill="none">
+                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.5 : 1.3} strokeLinejoin="round">
+                  <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" />
+                  <rect x="13" y="2.3" width="1.8" height="4" fill="rgba(38,22,6,0.85)" stroke="none" />
+                </g>
+                {lit && <circle cx="10" cy="4" r="1" fill="#FFFCF0" />}
+              </svg>
+            );
+          })()}
+        </NavItem>
+        <NavItem label="Блокнот" active={active === 'summary'} onClick={() => onNavigate('summary')}>
+          {(() => {
+            const lit = active === 'summary';
+            return (
+              <svg width="19" height="19" viewBox="0 0 20 20" fill="none">
+                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.3 : 1.1} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="3" height="3" rx="0.5" />
+                  <path d="M3.6 5.5L4.3 6.2L5.6 4.7" />
+                  <line x1="8" y1="5.5" x2="17" y2="5.5" />
+                  <rect x="3" y="9" width="3" height="3" rx="0.5" />
+                  <line x1="8" y1="10.5" x2="17" y2="10.5" />
+                  <rect x="3" y="14" width="3" height="3" rx="0.5" />
+                  <line x1="8" y1="15.5" x2="14" y2="15.5" />
+                </g>
+                {lit && <circle cx="17" cy="5.5" r="0.9" fill="#FFFCF0" />}
+              </svg>
+            );
+          })()}
+        </NavItem>
+        <NavItem label="Админка" active={active === 'admin'} onClick={() => onNavigate('admin')} badges={adminBadges}>
+          {(() => {
+            const lit = active === 'admin';
+            return (
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.4 : 1.2}>
+                  <rect x="3" y="3" width="6" height="6" rx="1" />
+                  <rect x="11" y="3" width="6" height="6" rx="1" />
+                  <rect x="3" y="11" width="6" height="6" rx="1" />
+                  <rect x="11" y="11" width="6" height="6" rx="1" />
+                </g>
+                {lit && <circle cx="14" cy="3" r="1" fill="#FFFCF0" />}
+              </svg>
+            );
+          })()}
+        </NavItem>
+        <NavItem label="Мастер" active={active === 'master'} onClick={() => onNavigate('master')}>
+          {(() => {
+            const lit = active === 'master';
+            return (
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.5 : 1.3} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="10" cy="6.6" r="3.3" />
+                  <path d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17" />
+                </g>
+                {lit && <circle cx="12.4" cy="4.4" r="1" fill="#FFFCF0" />}
+              </svg>
+            );
+          })()}
+        </NavItem>
+      </div>
     </div>
   );
 }
 
-// One bottom-nav column: an equal square tile (gold-glint gradient face)
-// over a label, so every item lines up on the same baseline and scale, and
-// all four squares read as identical parts of one set.
+// Index (0-3) of the nav item lit up for a given screen — drives the warm
+// glow drifting behind the active cell on the shared gold plate.
+const ACTIVE_NAV_INDEX: Record<'list' | 'settings' | 'summary' | 'master' | 'admin', number> = {
+  list: 0,
+  settings: 0,
+  summary: 1,
+  admin: 2,
+  master: 3,
+};
+
+// One bottom-nav column: icon over a label, sized to match one quarter of
+// the shared gold plate drawn behind the row (see BottomNav) — this renders
+// no background of its own.
 function NavItem({
   children,
   label,
@@ -4450,37 +4537,20 @@ function NavItem({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 3,
+        gap: 1,
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.28 : 1,
       }}
     >
-      <div
-        className="inka-navsquare"
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 6,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          border: `1px solid rgba(var(--gold-rgb),${lit ? 0.5 : 0.25})`,
-          // Diagonal glint: a bright corner catching the light opposite a
-          // second, fainter one — a gold facet, not a flat tint.
-          background: lit
-            ? 'linear-gradient(135deg, rgba(255,250,222,0.5) 0%, rgba(var(--gold-rgb),0.32) 22%, rgba(var(--gold-rgb),0.12) 55%, rgba(var(--gold-rgb),0.26) 80%, rgba(255,240,180,0.4) 100%)'
-            : 'linear-gradient(135deg, rgba(255,250,222,0.22) 0%, rgba(var(--gold-rgb),0.16) 22%, rgba(var(--gold-rgb),0.05) 55%, rgba(var(--gold-rgb),0.12) 80%, rgba(255,240,180,0.16) 100%)',
-        }}
-      >
+      <div className="inka-navsquare" style={{ height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         {children}
         {badges?.map((kind, i) => (
           <span
             key={kind}
             style={{
               position: 'absolute',
-              top: -5 - i * 7,
-              right: -3 - i * 7,
+              top: -3 - i * 7,
+              right: -1 - i * 7,
               minWidth: 13,
               height: 13,
               borderRadius: '50%',
