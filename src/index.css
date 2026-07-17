@@ -113,6 +113,10 @@ html,
 body {
   background: var(--bg);
   overscroll-behavior-y: none;
+  /* The app scrolls internally (each screen owns its own overflow:auto
+     area) — the page itself must never scroll. See index.html for why this
+     matters even though the app-shell already clips itself. */
+  overflow: hidden;
 }
 
 body {
@@ -611,20 +615,24 @@ input[type='date'] {
    only a small slice of each cycle so passes stay rare. The long transparent
    tail of the cycle is the wait between meteors. Travel is set per-meteor via
    --mx / --my; direction (down-left vs down-right) via --rot so the streak
-   aligns with its motion. */
+   aligns with its motion. All meteors share one long duration (METEOR_CYCLE
+   in TattoDiary.tsx) so their evenly-slotted delays keep the same phase
+   relationship forever — the visible slice below (5% of the cycle) stays
+   short enough to leave a wide, jitter-proof gap between any two slots.
+   Bumping this window also requires re-checking the slot math there. */
 @keyframes inka-meteor {
   0% {
     transform: translate3d(0, 0, 0) rotate(var(--rot, 135deg)) scaleX(0.2);
     opacity: 0;
   }
-  3% {
+  1% {
     opacity: 1;
   }
-  10% {
+  3% {
     transform: translate3d(calc(var(--mx) * 0.6), calc(var(--my) * 0.6), 0) rotate(var(--rot, 135deg)) scaleX(1);
     opacity: 1;
   }
-  17% {
+  5% {
     transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
     opacity: 0;
   }
@@ -636,5 +644,37 @@ input[type='date'] {
 .inka-meteor {
   animation-name: inka-meteor;
   animation-timing-function: ease-in;
+  animation-iteration-count: infinite;
+}
+
+/* Comets — same idea as the meteor above (one continuous loop, travel set
+   via --mx/--my/--rot) but the visible slice is a much bigger share of the
+   cycle, so the comet glides slowly across instead of flashing past. Colour
+   comes entirely from the element's own background/box-shadow (see
+   COMET_COLORS in TattoDiary.tsx), so this keyframe stays colour-neutral. */
+@keyframes inka-comet {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(var(--rot, 135deg)) scaleX(0.3);
+    opacity: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+  8% {
+    transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
+    opacity: 1;
+  }
+  10% {
+    transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
+    opacity: 0;
+  }
+}
+.inka-comet {
+  animation-name: inka-comet;
+  animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
