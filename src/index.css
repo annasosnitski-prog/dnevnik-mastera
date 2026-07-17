@@ -131,11 +131,15 @@
   height: calc(var(--toolbar-content-height) + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   z-index: 50;
-  background: var(--toolbar-background);
+  /* Transparent backing — the icons (and their engraved/jewel glow effects)
+     sit directly over the app's own background instead of a solid plate, so
+     there's no visible seam between the toolbar and whatever sits below it
+     (including the safe-area strip on devices/browsers where that space
+     isn't perfectly accounted for). */
+  background: transparent;
   margin: 0;
   padding: 0;
   border-top: 1px solid var(--toolbar-border);
-  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.12), 0 -8px 24px rgba(0, 0, 0, 0.1);
 }
 
 .bottom-toolbar__content {
