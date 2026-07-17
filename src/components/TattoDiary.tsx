@@ -4400,8 +4400,8 @@ function BottomNav({
               top: 3,
               bottom: 3,
               width: 1,
-              background: 'rgba(35,20,5,0.4)',
-              boxShadow: '1px 0 0 rgba(255,248,214,0.3)',
+              background: 'rgba(255,246,220,0.9)',
+              boxShadow: '0 0 4px 1px rgba(255,214,140,0.85), 0 0 9px 2px rgba(255,190,110,0.4)',
             }}
           />
         ))}
@@ -4419,22 +4419,19 @@ function BottomNav({
             Мастер. Only page destinations live here now — create-client
             moved to the «+» pinned by the logo on «Клиенты» (see its render
             site above). «Клиенты» stays lit for Настройки too — reached
-            from the home area, not a separate section. Icons are a single
-            dark bronze line etched into the gold plate above, with one
-            bright spark on the active tab's corner. No captions — icon
-            only. */}
+            from the home area, not a separate section. Icons (and the
+            dividers above) read as cut-outs in the plate with a lamp behind
+            it — a warm glow bleeding through the slit, brighter on the
+            active tab, dimmer but never fully dark on the rest. */}
         <NavItem label="Клиенты" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
           {(() => {
             const lit = active === 'list' || active === 'settings';
             return (
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.4 : 1.2} strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="13.3" cy="6.9" r="2.4" />
-                  <path d="M9.6 16.3C9.6 13.4 11.2 12 13.3 12C15.5 12 17.1 13.4 17.1 16.3" />
-                  <circle cx="7" cy="7.1" r="2.9" />
-                  <path d="M2.6 16.3C2.6 12.9 4.4 11.2 7 11.2C9.6 11.2 11.4 12.9 11.4 16.3" />
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.6 : 1.3} strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="10" y1="1" x2="10" y2="19" />
+                  <path d="M14.2 4.2H8.1a2.9 2.9 0 0 0 0 5.8h3.8a2.9 2.9 0 0 1 0 5.8H5.1" />
                 </g>
-                {lit && <circle cx="7" cy="4.2" r="1" fill="#FFFCF0" />}
               </svg>
             );
           })()}
@@ -4443,8 +4440,8 @@ function BottomNav({
           {(() => {
             const lit = active === 'summary';
             return (
-              <svg width="19" height="19" viewBox="0 0 20 20" fill="none">
-                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.3 : 1.1} strokeLinecap="round" strokeLinejoin="round">
+              <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.4 : 1.1} strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="3" height="3" rx="0.5" />
                   <path d="M3.6 5.5L4.3 6.2L5.6 4.7" />
                   <line x1="8" y1="5.5" x2="17" y2="5.5" />
@@ -4453,7 +4450,6 @@ function BottomNav({
                   <rect x="3" y="14" width="3" height="3" rx="0.5" />
                   <line x1="8" y1="15.5" x2="14" y2="15.5" />
                 </g>
-                {lit && <circle cx="17" cy="5.5" r="0.9" fill="#FFFCF0" />}
               </svg>
             );
           })()}
@@ -4462,14 +4458,13 @@ function BottomNav({
           {(() => {
             const lit = active === 'admin';
             return (
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.4 : 1.2}>
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.5 : 1.2}>
                   <rect x="3" y="3" width="6" height="6" rx="1" />
                   <rect x="11" y="3" width="6" height="6" rx="1" />
                   <rect x="3" y="11" width="6" height="6" rx="1" />
                   <rect x="11" y="11" width="6" height="6" rx="1" />
                 </g>
-                {lit && <circle cx="14" cy="3" r="1" fill="#FFFCF0" />}
               </svg>
             );
           })()}
@@ -4478,12 +4473,11 @@ function BottomNav({
           {(() => {
             const lit = active === 'master';
             return (
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                <g stroke="rgba(38,22,6,0.85)" strokeWidth={lit ? 1.5 : 1.3} strokeLinecap="round" strokeLinejoin="round">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.6 : 1.3} strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="10" cy="6.6" r="3.3" />
                   <path d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17" />
                 </g>
-                {lit && <circle cx="12.4" cy="4.4" r="1" fill="#FFFCF0" />}
               </svg>
             );
           })()}
@@ -4502,6 +4496,16 @@ const ACTIVE_NAV_INDEX: Record<'list' | 'settings' | 'summary' | 'master' | 'adm
   admin: 2,
   master: 3,
 };
+
+// Nav icons read as cut-outs in the gold plate with a lamp behind it — the
+// glyph itself is a light, near-white line; this filter is the warm halo
+// bleeding through the slit around it. Brighter/wider on the active tab,
+// dimmer (never fully dark — the lamp doesn't switch off) on the rest.
+function NAV_GLOW_FILTER(lit: boolean): string {
+  return lit
+    ? 'drop-shadow(0 0 1.5px rgba(255,250,230,0.95)) drop-shadow(0 0 4px rgba(255,214,140,0.85)) drop-shadow(0 0 8px rgba(255,190,110,0.5))'
+    : 'drop-shadow(0 0 1px rgba(255,248,224,0.5)) drop-shadow(0 0 2.5px rgba(255,214,140,0.3))';
+}
 
 // One bottom-nav column: icon over a label, sized to match one quarter of
 // the shared gold plate drawn behind the row (see BottomNav) — this renders
