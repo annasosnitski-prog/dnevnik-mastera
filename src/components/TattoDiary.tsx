@@ -5461,8 +5461,7 @@ function SummaryScreen({
       <CloudsBackground />
       <AviationBackground />
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
-      {/* Header — same formatting as the home screen: INKA logo + subtitle on
-          the left, a circular «+» (new note) opposite it on the right. */}
+      {/* Header — same formatting as the home screen: INKA logo + subtitle. */}
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
@@ -5470,48 +5469,6 @@ function SummaryScreen({
         </div>
         <StarDivider />
       </div>
-      <div
-        onClick={() => setShowComposer((v) => !v)}
-        role="button"
-        aria-label={showComposer ? 'Скрыть новую заметку' : 'Новая заметка'}
-        style={{
-          position: 'absolute',
-          top: 'calc(env(safe-area-inset-top) + 31px)',
-          right: 20,
-          zIndex: 20,
-          width: 48,
-          height: 48,
-          flexShrink: 0,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.25)',
-          background: showComposer ? 'rgba(var(--gold-rgb),0.1)' : 'rgba(var(--gold-rgb),0.03)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-        }}
-      >
-        <svg width="19" height="19" viewBox="0 0 14 14" fill="none" style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 0.25s' }}>
-          <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </div>
-
-      {/* New general note (client-less, stored on the master) — collapsed
-          behind the header's «+». */}
-      {showComposer && (
-        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-            Новая общая заметка
-          </div>
-          <NoteComposer
-            onAdd={(text, urgency, photos) => {
-              onAddMasterNote(text, urgency, photos);
-              setShowComposer(false);
-            }}
-          />
-        </div>
-      )}
 
       {/* Filter bar: urgency symbols stay visible on the left; everything
           else (text labels, «Показывать закрытые») is tucked behind a «⋮» on
@@ -5588,7 +5545,48 @@ function SummaryScreen({
             {DONE_EMOJI}
           </div>
         </div>
+
+        {/* «+» (new note) — sits opposite the filter icons on this same row,
+            rather than floating up by the header. */}
+        <div
+          onClick={() => setShowComposer((v) => !v)}
+          role="button"
+          aria-label={showComposer ? 'Скрыть новую заметку' : 'Новая заметка'}
+          style={{
+            width: 34,
+            height: 34,
+            flexShrink: 0,
+            borderRadius: '50%',
+            border: '1px solid rgba(var(--gold-rgb),0.25)',
+            background: showComposer ? 'rgba(var(--gold-rgb),0.1)' : 'rgba(var(--gold-rgb),0.03)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none" style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 0.25s' }}>
+            <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
       </div>
+
+      {/* New general note (client-less, stored on the master) — collapsed
+          behind the «+» in the filter row above. */}
+      {showComposer && (
+        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+            Новая общая заметка
+          </div>
+          <NoteComposer
+            onAdd={(text, urgency, photos) => {
+              onAddMasterNote(text, urgency, photos);
+              setShowComposer(false);
+            }}
+          />
+        </div>
+      )}
 
       <div style={{ padding: '0 16px 12px', position: 'relative', zIndex: 1 }}>
         <RemindersSection overdue={overdue} healing={healing} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} />
