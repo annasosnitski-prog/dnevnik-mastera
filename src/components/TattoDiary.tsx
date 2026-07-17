@@ -4356,67 +4356,160 @@ function BottomNav({
         background: 'linear-gradient(rgba(var(--gold-rgb),0.1), rgba(var(--gold-rgb),0.1)), var(--bg)',
         borderTop: '1px solid rgba(var(--gold-rgb),0.35)',
         boxShadow: '0 -2px 14px rgba(var(--gold-rgb),0.12)',
-        display: 'flex',
-        // The three items are equal-width columns pinned to the top of the bar
-        // (the inset padding below is the home-indicator zone), so their icons
-        // and labels line up on one baseline regardless of the safe-area size.
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        paddingTop: 5,
         paddingBottom: 'env(safe-area-inset-bottom)',
         zIndex: 50,
       }}
     >
-      {/* Left-to-right by frequency of use: Клиенты — Блокнот — Админка —
-          Мастер. Only page destinations live here now — create-client moved
-          to the «+» pinned by the logo on «Клиенты» (see its render site
-          above). «Клиенты» stays lit for Настройки too — reached from the
-          home area, not a separate section. */}
-      <NavItem label="Клиенты" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
-        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'list' || active === 'settings' ? 'var(--gold)' : 'var(--text)' }}>
-          <path d="M3 10L10 4L17 10V17H12.5V12H7.5V17H3V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-          <rect x="13" y="2.3" width="1.8" height="4" fill="currentColor" />
-        </svg>
-      </NavItem>
-      <NavItem label="Блокнот" active={active === 'summary'} onClick={() => onNavigate('summary')}>
-        <svg width="23" height="23" viewBox="0 0 20 20" fill="none" style={{ color: active === 'summary' ? 'var(--gold)' : 'var(--text)' }}>
-          <rect x="3" y="4" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <path d="M3.6 5.5L4.3 6.2L5.6 4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-          <line x1="8" y1="5.5" x2="17" y2="5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-          <rect x="3" y="9" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <line x1="8" y1="10.5" x2="17" y2="10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-          <rect x="3" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.1" />
-          <line x1="8" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-        </svg>
-      </NavItem>
-      <NavItem label="Админка" active={active === 'admin'} onClick={() => onNavigate('admin')} badges={adminBadges}>
-        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style={{ color: active === 'admin' ? 'var(--gold)' : 'var(--text)' }}>
-          <rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="11" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
-        </svg>
-      </NavItem>
-      <NavItem label="Мастер" active={active === 'master'} onClick={() => onNavigate('master')}>
-        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style={{ color: active === 'master' ? 'var(--gold)' : 'var(--text)' }}>
-          <circle cx="10" cy="6.6" r="3.3" stroke="currentColor" strokeWidth="1.3" fill="currentColor" fillOpacity="0.12" />
-          <path
-            d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="currentColor"
-            fillOpacity="0.12"
+      {/* One brushed-gold plate spans all four buttons — same metal, thin
+          dividers instead of gaps, so they read as one object with four
+          slots rather than four separate floating icons — icon only, no
+          caption underneath. A soft warm glow drifts to sit behind
+          whichever cell is active. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 8,
+          right: 8,
+          top: 5,
+          bottom: 5,
+          borderRadius: 8,
+          overflow: 'hidden',
+          background: 'linear-gradient(160deg, #E7BD68 0%, #CC9A3E 42%, #A87B27 75%, #8C6117 100%)',
+          border: '1px solid rgba(35,20,5,0.55)',
+          boxShadow: 'inset 0 1px 0 rgba(255,248,214,0.55), inset 0 -2px 4px rgba(35,20,5,0.35), 0 2px 6px rgba(0,0,0,0.35)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: '-60%',
+            left: `${ACTIVE_NAV_INDEX[active] * 25}%`,
+            width: '25%',
+            height: '220%',
+            background: 'radial-gradient(circle, rgba(255,248,214,0.65) 0%, rgba(255,248,214,0) 68%)',
+            transition: 'left 0.3s cubic-bezier(0.25,0.46,0.45,0.94)',
+            pointerEvents: 'none',
+          }}
+        />
+        {[25, 50, 75].map((pct) => (
+          <div
+            key={pct}
+            style={{
+              position: 'absolute',
+              left: `${pct}%`,
+              top: 3,
+              bottom: 3,
+              width: 1,
+              background: 'rgba(255,246,220,0.9)',
+              boxShadow: '0 0 4px 1px rgba(255,214,140,0.85), 0 0 9px 2px rgba(255,190,110,0.4)',
+            }}
           />
-        </svg>
-      </NavItem>
+        ))}
+      </div>
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          height: 44,
+        }}
+      >
+        {/* Left-to-right by frequency of use: Клиенты — Блокнот — Админка —
+            Мастер. Only page destinations live here now — create-client
+            moved to the «+» pinned by the logo on «Клиенты» (see its render
+            site above). «Клиенты» stays lit for Настройки too — reached
+            from the home area, not a separate section. Icons (and the
+            dividers above) read as cut-outs in the plate with a lamp behind
+            it — a warm glow bleeding through the slit, brighter on the
+            active tab, dimmer but never fully dark on the rest. */}
+        <NavItem label="Клиенты" active={active === 'list' || active === 'settings'} onClick={() => onNavigate('list')}>
+          {(() => {
+            const lit = active === 'list' || active === 'settings';
+            return (
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.6 : 1.3} strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="10" y1="1" x2="10" y2="19" />
+                  <path d="M14.2 4.2H8.1a2.9 2.9 0 0 0 0 5.8h3.8a2.9 2.9 0 0 1 0 5.8H5.1" />
+                </g>
+              </svg>
+            );
+          })()}
+        </NavItem>
+        <NavItem label="Блокнот" active={active === 'summary'} onClick={() => onNavigate('summary')}>
+          {(() => {
+            const lit = active === 'summary';
+            return (
+              <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.4 : 1.1} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="3" height="3" rx="0.5" />
+                  <path d="M3.6 5.5L4.3 6.2L5.6 4.7" />
+                  <line x1="8" y1="5.5" x2="17" y2="5.5" />
+                  <rect x="3" y="9" width="3" height="3" rx="0.5" />
+                  <line x1="8" y1="10.5" x2="17" y2="10.5" />
+                  <rect x="3" y="14" width="3" height="3" rx="0.5" />
+                  <line x1="8" y1="15.5" x2="14" y2="15.5" />
+                </g>
+              </svg>
+            );
+          })()}
+        </NavItem>
+        <NavItem label="Админка" active={active === 'admin'} onClick={() => onNavigate('admin')} badges={adminBadges}>
+          {(() => {
+            const lit = active === 'admin';
+            return (
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.5 : 1.2}>
+                  <rect x="3" y="3" width="6" height="6" rx="1" />
+                  <rect x="11" y="3" width="6" height="6" rx="1" />
+                  <rect x="3" y="11" width="6" height="6" rx="1" />
+                  <rect x="11" y="11" width="6" height="6" rx="1" />
+                </g>
+              </svg>
+            );
+          })()}
+        </NavItem>
+        <NavItem label="Мастер" active={active === 'master'} onClick={() => onNavigate('master')}>
+          {(() => {
+            const lit = active === 'master';
+            return (
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ filter: NAV_GLOW_FILTER(lit) }}>
+                <g stroke={lit ? '#FFF9EC' : 'rgba(255,248,224,0.62)'} strokeWidth={lit ? 1.6 : 1.3} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="10" cy="6.6" r="3.3" />
+                  <path d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17" />
+                </g>
+              </svg>
+            );
+          })()}
+        </NavItem>
+      </div>
     </div>
   );
 }
 
-// One bottom-nav column: a fixed-height icon slot over a label, so every item
-// (including the ringed «+») lines up on the same baseline and scale.
+// Index (0-3) of the nav item lit up for a given screen — drives the warm
+// glow drifting behind the active cell on the shared gold plate.
+const ACTIVE_NAV_INDEX: Record<'list' | 'settings' | 'summary' | 'master' | 'admin', number> = {
+  list: 0,
+  settings: 0,
+  summary: 1,
+  admin: 2,
+  master: 3,
+};
+
+// Nav icons read as cut-outs in the gold plate with a lamp behind it — the
+// glyph itself is a light, near-white line; this filter is the warm halo
+// bleeding through the slit around it. Brighter/wider on the active tab,
+// dimmer (never fully dark — the lamp doesn't switch off) on the rest.
+function NAV_GLOW_FILTER(lit: boolean): string {
+  return lit
+    ? 'drop-shadow(0 0 1.5px rgba(255,250,230,0.95)) drop-shadow(0 0 4px rgba(255,214,140,0.85)) drop-shadow(0 0 8px rgba(255,190,110,0.5))'
+    : 'drop-shadow(0 0 1px rgba(255,248,224,0.5)) drop-shadow(0 0 2.5px rgba(255,214,140,0.3))';
+}
+
+// One bottom-nav column: icon over a label, sized to match one quarter of
+// the shared gold plate drawn behind the row (see BottomNav) — this renders
+// no background of its own.
 function NavItem({
   children,
   label,
@@ -4444,19 +4537,20 @@ function NavItem({
     <div
       onClick={disabled ? undefined : onClick}
       role="button"
+      aria-current={active || accent ? 'page' : undefined}
       aria-disabled={disabled || undefined}
       aria-label={ariaLabel ?? label}
       style={{
         flex: 1,
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        gap: 3,
+        justifyContent: 'center',
+        height: '100%',
         cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.28 : active || accent ? 1 : 0.45,
+        opacity: disabled ? 0.28 : 1,
       }}
     >
-      <div style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+      <div className="inka-navsquare" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         {children}
         {badges?.map((kind, i) => (
           <span
@@ -4482,9 +4576,6 @@ function NavItem({
           </span>
         ))}
       </div>
-      <span style={{ fontSize: fs(10.5), color: active || accent ? COLORS.gold : COLORS.textFaint, letterSpacing: '0.8px', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15 }}>
-        {label}
-      </span>
     </div>
   );
 }

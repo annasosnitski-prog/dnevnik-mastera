@@ -330,6 +330,16 @@ input[type='date'] {
   opacity: 1 !important;
 }
 
+/* Bottom-nav icon slot — sits over the shared gold plate drawn behind the
+   row (see BottomNav). Tapping recoils the icon briefly, like pressing an
+   engraved button. */
+.inka-navsquare {
+  transition: transform 0.13s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.inka-navsquare:active {
+  transform: scale(0.88);
+}
+
 /* ── Animations ── */
 @keyframes inka-star-twinkle {
   0%,
