@@ -319,6 +319,42 @@ function dateParts(value: string): { weekday: string; day: string; month: string
   return { weekday: WEEKDAYS_SHORT_RU[dt.getDay()], day: String(d), month: MONTHS_RU[mo - 1] };
 }
 
+// Tear-off calendar square — weekday/day/month, showing the soonest upcoming
+// session or consultation. Positioned by the caller (each screen places it
+// inside its own header), so it scrolls away with the rest of that header
+// instead of staying pinned on screen — unlike the Сортировка/Фильтры/Поиск
+// circles, which stay fixed regardless of scroll.
+function UpcomingDateBadge({ clients, onOpen }: { clients: Client[]; onOpen: () => void }) {
+  const next = upcomingItems(clients, 365)[0];
+  const parts = next ? dateParts(next.date) : null;
+  if (!next || !parts) return null;
+  return (
+    <div
+      onClick={onOpen}
+      role="button"
+      aria-label="Открыть календарь"
+      style={{
+        width: 42,
+        height: 42,
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        lineHeight: 1,
+        cursor: 'pointer',
+        borderRadius: 4,
+        border: '1px solid rgba(var(--gold-rgb),0.3)',
+        background: 'rgba(var(--gold-rgb),0.04)',
+      }}
+    >
+      <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.gold, marginBottom: 2 }}>{parts.weekday}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.textPrimary }}>{parts.day}</div>
+      <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.textGhost, marginTop: 2 }}>{parts.month}</div>
+    </div>
+  );
+}
+
 
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
@@ -2229,11 +2265,9 @@ export default function TattoDiary() {
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
 
-  // Calendar tag + (list-only) sort/filter/search circles are pinned overlays,
-  // sized to clear whichever screen's own header is tallest — Настройки carries
-  // an extra «вернуться» row above its title, so it needs more headroom than
-  // Главная/Блокнот/Админка share.
-  const pinnedRowTop = screen === 'settings' ? 'calc(env(safe-area-inset-top) + 152px)' : 'calc(env(safe-area-inset-top) + 122px)';
+  // Сортировка/Фильтры/Поиск (list-only) is a pinned overlay, offset to clear
+  // the Главная header (logo + subtitle + divider) below it.
+  const pinnedRowTop = 'calc(env(safe-area-inset-top) + 122px)';
 
   return (
     <div
@@ -2295,6 +2329,9 @@ export default function TattoDiary() {
             Дневник Мастера
           </div>
           <StarDivider />
+          <div style={{ position: 'absolute', top: 13, right: 20 }}>
+            <UpcomingDateBadge clients={clients} onOpen={() => setShowCalendar(true)} />
+          </div>
         </div>
 
         {/* Error banner */}
@@ -2438,59 +2475,21 @@ export default function TattoDiary() {
         />
       )}
 
-      {/* Upcoming-date tag + (list-only) Поиск/Фильтры/Сортировка — one pinned
-          column, sibling of the screens (never scrolls away). The circle row
-          stacks directly under the calendar tag via flex gap, so the two
-          never collide with each other or with the header above regardless
-          of whether the tag itself is showing. Create-client moved to the nav
-          FAB's contextual create action — see NavFab / onCreate below. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
+      {/* Сортировка/Фильтры/Поиск — a pinned row, sibling of the screens, so
+          it stays fixed on screen regardless of scroll (unlike the calendar
+          tag, which now lives inside the List header itself and scrolls
+          away with it). Create-client moved to the nav FAB's contextual
+          create action — see NavFab / onCreate below. */}
+      {screen === 'list' && !sheetOpen && (
         <div
           style={{
             position: 'absolute',
             top: pinnedRowTop,
             right: 20,
             zIndex: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: 10,
           }}
         >
-          {(() => {
-            const next = upcomingItems(clients, 365)[0];
-            const parts = next ? dateParts(next.date) : null;
-            if (!next || !parts) return null;
-            return (
-              // Tear-off calendar square — weekday/day/month, clean frame, no
-              // corner ornament (that read as clutter at this size).
-              <div
-                onClick={() => setShowCalendar(true)}
-                role="button"
-                aria-label="Открыть календарь"
-                style={{
-                  width: 42,
-                  height: 42,
-                  flexShrink: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  borderRadius: 4,
-                  border: '1px solid rgba(var(--gold-rgb),0.3)',
-                  background: 'rgba(var(--gold-rgb),0.04)',
-                }}
-              >
-                <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.gold, marginBottom: 2 }}>{parts.weekday}</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.textPrimary }}>{parts.day}</div>
-                <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.textGhost, marginTop: 2 }}>{parts.month}</div>
-              </div>
-            );
-          })()}
-
-          {screen === 'list' && (
+          {(
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {/* ── Поиск ── */}
               <div style={{ position: 'relative' }}>
@@ -2815,6 +2814,7 @@ export default function TattoDiary() {
             onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
             showComposer={showSummaryComposer}
             onShowComposerChange={setShowSummaryComposer}
+            onOpenCalendar={() => setShowCalendar(true)}
           />
         )}
       </div>
@@ -2862,6 +2862,7 @@ export default function TattoDiary() {
             onChangePrefs={setPrefs}
             onOpenSession={openEntryForEdit}
             onImport={replaceAllClients}
+            onOpenCalendar={() => setShowCalendar(true)}
             overdue={visibleOverdue}
             healing={visibleHealing}
             soon={visibleSoon}
@@ -2897,6 +2898,8 @@ export default function TattoDiary() {
             calendarSync={calendarSync}
             onChangeCalendarSync={setCalendarSync}
             onBack={() => setScreen('master')}
+            clients={clients}
+            onOpenCalendar={() => setShowCalendar(true)}
           />
         )}
       </div>
@@ -4688,6 +4691,7 @@ function AdminDashboardScreen({
   onChangePrefs,
   onOpenSession,
   onImport,
+  onOpenCalendar,
   overdue,
   healing,
   soon,
@@ -4700,6 +4704,7 @@ function AdminDashboardScreen({
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onImport: (clients: Client[]) => void;
+  onOpenCalendar: () => void;
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon: UpcomingSoonItem[];
@@ -4828,6 +4833,9 @@ function AdminDashboardScreen({
           Управление и статистика
         </div>
         <StarDivider />
+        <div style={{ position: 'absolute', top: 13, right: 20 }}>
+          <UpcomingDateBadge clients={clients} onOpen={onOpenCalendar} />
+        </div>
       </div>
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -5296,6 +5304,8 @@ function SettingsScreen({
   calendarSync,
   onChangeCalendarSync,
   onBack,
+  clients,
+  onOpenCalendar,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -5304,6 +5314,8 @@ function SettingsScreen({
   calendarSync: CalendarSyncSettings;
   onChangeCalendarSync: (s: CalendarSyncSettings) => void;
   onBack: () => void;
+  clients: Client[];
+  onOpenCalendar: () => void;
 }) {
   const rowStyle: React.CSSProperties = {
     background: 'rgba(var(--surface-rgb),0.018)',
@@ -5355,6 +5367,9 @@ function SettingsScreen({
           }}
         >
           Настройки
+        </div>
+        <div style={{ position: 'absolute', top: 39, right: 20 }}>
+          <UpcomingDateBadge clients={clients} onOpen={onOpenCalendar} />
         </div>
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Оформление
@@ -5602,6 +5617,7 @@ function SummaryScreen({
   onDeleteMasterNote,
   showComposer,
   onShowComposerChange,
+  onOpenCalendar,
 }: {
   clients: Client[];
   masterNotes: ClientNote[];
@@ -5619,6 +5635,7 @@ function SummaryScreen({
   // onCreate in the App shell.
   showComposer: boolean;
   onShowComposerChange: (open: boolean) => void;
+  onOpenCalendar: () => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
@@ -5682,6 +5699,9 @@ function SummaryScreen({
           Рабочие заметки
         </div>
         <StarDivider />
+        <div style={{ position: 'absolute', top: 13, right: 20 }}>
+          <UpcomingDateBadge clients={clients} onOpen={onOpenCalendar} />
+        </div>
       </div>
 
       {/* Filter bar: urgency symbols stay visible on the left; everything
