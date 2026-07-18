@@ -7,8 +7,10 @@ import {
   syncActive,
   diffAndSync,
   setConflictHandler,
+  fetchBotBookings,
   DEFAULT_ENDPOINT,
   type CalendarSyncSettings,
+  type BotBooking,
 } from '../lib/calendarSync';
 
 // ===================== DESIGN TOKENS =====================
@@ -2855,6 +2857,7 @@ export default function TattoDiary() {
             onChangePrefs={setPrefs}
             onOpenSession={openEntryForEdit}
             onImport={replaceAllClients}
+            calendarSync={calendarSync}
             overdue={visibleOverdue}
             healing={visibleHealing}
             soon={visibleSoon}
@@ -4687,6 +4690,7 @@ function AdminDashboardScreen({
   onOpenEntry,
   onDismissReminder,
   onCancelEntry,
+  calendarSync,
 }: {
   clients: Client[];
   prefs: Prefs;
@@ -4699,6 +4703,7 @@ function AdminDashboardScreen({
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  calendarSync: CalendarSyncSettings;
 }) {
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
@@ -4885,6 +4890,18 @@ function AdminDashboardScreen({
             </div>
           )}
         </GoldFrame>
+
+        {/* Обратный поток: ONLINE/WALKIN-брони из бота отдельным блоком.
+            Без карточек клиентов и привязки — только справочный список,
+            карточку мастер заводит в Дневнике сама (см. calendarSync.ts). */}
+        {syncActive(calendarSync) && (
+          <GoldFrame style={{ padding: '14px 16px' }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
+            <div style={{ marginTop: 8 }}>
+              <BotBookingsList settings={calendarSync} />
+            </div>
+          </GoldFrame>
+        )}
 
         <RemindersSection overdue={overdue} healing={healing} soon={soon} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
 
@@ -5276,6 +5293,141 @@ function MasterDashboardScreen({
           )}
         </GoldFrame>
       </div>
+    </div>
+  );
+}
+
+// ===================== БРОНИ ИЗ БОТА (ONLINE/WALKIN) =====================
+// Только чтение, только список — по просьбе Ани карточку клиента она
+// заводит в Дневнике сама, бот её не создаёт и ни к чему не привязывает.
+// Ручное обновление кнопкой: экран Настроек не размонтируется при уходе
+// (переключение через CSS-transform), поэтому автообновление по монтированию
+// сработало бы только один раз за всю сессию приложения.
+function tagLabel(tag: BotBooking['tag']): string {
+  return tag === '[ONLINE]' ? 'Online' : tag === '[WALKIN]' ? 'Walk-in' : '—';
+}
+
+function stripTagPrefix(summary: string, tag: BotBooking['tag']): string {
+  if (!tag) return summary;
+  return summary.startsWith(tag) ? summary.slice(tag.length).replace(/^\s+/, '') : summary;
+}
+
+function formatBookingTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString('ru-RU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jerusalem',
+  });
+}
+
+function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
+  const [bookings, setBookings] = useState<BotBooking[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = () => {
+    setLoading(true);
+    setError(null);
+    fetchBotBookings(settings)
+      .then((b) => setBookings(b.slice().sort((a, b2) => a.start.localeCompare(b2.start))))
+      .catch(() => setError('не получилось загрузить — проверь секрет/соединение.'))
+      .finally(() => setLoading(false));
+  };
+
+  const rowStyle: React.CSSProperties = {
+    background: 'rgba(var(--surface-rgb),0.018)',
+    border: '1px solid rgba(var(--gold-rgb),0.1)',
+    borderRadius: 3,
+    padding: '16px 16px 18px',
+    marginBottom: 12,
+  };
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "'Kelly Slab', 'Playfair Display', serif",
+    fontSize: fs(12),
+    color: 'var(--text-secondary)',
+    letterSpacing: '2.5px',
+    textTransform: 'uppercase',
+    marginBottom: 14,
+  };
+
+  return (
+    <div style={rowStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ ...labelStyle, marginBottom: 0 }}>Брони из бота (online/walkin)</div>
+        <div
+          onClick={loading ? undefined : refresh}
+          style={{
+            fontSize: fs(11),
+            color: COLORS.gold,
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: loading ? 'default' : 'pointer',
+            opacity: loading ? 0.5 : 1,
+          }}
+        >
+          {loading ? 'гружу…' : 'обновить'}
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ fontSize: fs(12), color: '#C99', fontStyle: 'italic', marginBottom: 8 }}>{error}</div>
+      )}
+
+      {bookings === null && !error && !loading && (
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+          нажми «обновить», чтобы загрузить список.
+        </div>
+      )}
+
+      {bookings !== null && bookings.length === 0 && (
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+          пока пусто — броней online/walkin не найдено.
+        </div>
+      )}
+
+      {bookings !== null && bookings.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {bookings.map((b) => (
+            <div
+              key={b.id}
+              style={{
+                padding: '8px 10px',
+                borderRadius: 2,
+                border: '1px solid rgba(var(--gold-rgb),0.1)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span
+                  style={{
+                    fontSize: fs(10),
+                    color: COLORS.gold,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    padding: '2px 8px',
+                    borderRadius: 2,
+                    background: 'rgba(var(--gold-rgb),0.1)',
+                  }}
+                >
+                  {tagLabel(b.tag)}
+                </span>
+                <span style={{ fontSize: fs(12), color: COLORS.gold, whiteSpace: 'nowrap', marginLeft: 10 }}>
+                  {formatBookingTime(b.start)}
+                </span>
+              </div>
+              {/* Сноска: те же данные, что бот пишет в название события в Google Calendar
+                  (маркер занятости + имя/телефон клиента), без ведущего тега — он уже показан бейджем выше. */}
+              <div style={{ marginTop: 6, fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                {stripTagPrefix(b.summary, b.tag)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
