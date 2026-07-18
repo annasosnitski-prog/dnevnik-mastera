@@ -2265,10 +2265,6 @@ export default function TattoDiary() {
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
 
-  // Сортировка/Фильтры/Поиск (list-only) is a pinned overlay, offset to clear
-  // the Главная header (logo + subtitle + divider) below it.
-  const pinnedRowTop = 'calc(env(safe-area-inset-top) + 122px)';
-
   return (
     <div
       className="app-shell"
@@ -2329,167 +2325,11 @@ export default function TattoDiary() {
             Дневник Мастера
           </div>
           <StarDivider />
-          <div style={{ position: 'absolute', top: 13, right: 20 }}>
-            <UpcomingDateBadge clients={clients} onOpen={() => setShowCalendar(true)} />
-          </div>
-        </div>
-
-        {/* Error banner */}
-        {dbError && (
-          <div
-            style={{
-              margin: '0 16px 12px',
-              padding: '10px 14px',
-              borderRadius: 3,
-              border: '1px solid rgba(138,48,64,0.5)',
-              background: 'rgba(138,48,64,0.12)',
-              display: 'flex',
-              gap: 10,
-              alignItems: 'flex-start',
-              position: 'relative',
-              zIndex: 10,
-            }}
-          >
-            <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
-            <button
-              onClick={() => setDbError(null)}
-              style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Пересечение в Инка-календаре — янтарное предупреждение (не ошибка:
-            запись сохранена, мастер сама решает, накладка это или намеренно). */}
-        {syncWarning && (
-          <div
-            style={{
-              margin: '0 16px 12px',
-              padding: '10px 14px',
-              borderRadius: 3,
-              border: '1px solid rgba(184,134,11,0.5)',
-              background: 'rgba(184,134,11,0.12)',
-              display: 'flex',
-              gap: 10,
-              alignItems: 'flex-start',
-              position: 'relative',
-              zIndex: 10,
-            }}
-          >
-            <span style={{ flex: 1, fontSize: fs(15), color: '#D4A94E', fontStyle: 'italic' }}>{syncWarning}</span>
-            <button
-              onClick={() => setSyncWarning(null)}
-              style={{ background: 'none', border: 'none', color: '#D4A94E', cursor: 'pointer', flexShrink: 0 }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Cards grid — 2 columns on phones, 3 from tablet width up (see .inka-client-grid). */}
-        <div
-          className="inka-client-grid"
-          style={{
-            padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)',
-            display: 'grid',
-            gap: 10,
-            position: 'relative',
-            zIndex: 5,
-            // Promote the whole grid to a single GPU layer so both columns move
-            // together during momentum scroll (prevents the columns from
-            // desyncing/"jumping" as the compositor re-tiles the scroll area).
-            transform: 'translateZ(0)',
-          }}
-        >
-          {filteredClients.map((client) => (
-            <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} />
-          ))}
-        </div>
-
-        {/* Empty state */}
-        {clients.length > 0 && filteredClients.length === 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 280,
-              left: 0,
-              right: 0,
-              textAlign: 'center',
-              fontSize: fs(15),
-              fontStyle: 'italic',
-              color: COLORS.textGhost,
-              pointerEvents: 'none',
-            }}
-          >
-            Ничего не найдено
-          </div>
-        )}
-
-        {/* First-run empty state — points at the pinned add button since the
-            grid no longer has its own add tile. Gated on clientsLoaded so it
-            doesn't flash before the real (non-empty) list has loaded. */}
-        {clientsLoaded && clients.length === 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 280,
-              left: 0,
-              right: 0,
-              textAlign: 'center',
-              fontSize: fs(15),
-              fontStyle: 'italic',
-              color: COLORS.textGhost,
-              pointerEvents: 'none',
-              padding: '0 40px',
-            }}
-          >
-            Пока нет клиентов — нажмите «+» внизу, чтобы добавить первого
-          </div>
-        )}
-      </div>
-
-      {/* Navigation — sibling of the screens so it pins to the shell bottom
-          (never scrolls). Shown on the list and settings screens, hidden
-          while a bottom sheet is open so it can't sit over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin') && !sheetOpen && (
-        <NavFab
-          active={screen}
-          onNavigate={(s) => setScreen(s)}
-          isLight={theme === 'light'}
-          adminBadges={[
-            ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
-            ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
-          ]}
-          // Contextual create — same action each screen's own «+» used to
-          // trigger, now all reachable from one place. Мастер has none.
-          onCreate={
-            screen === 'list' || screen === 'settings'
-              ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
-              : screen === 'summary'
-                ? () => setShowSummaryComposer(true)
-                : screen === 'admin'
-                  ? () => setShowCalendar(true)
-                  : undefined
-          }
-        />
-      )}
-
-      {/* Сортировка/Фильтры/Поиск — a pinned row, sibling of the screens, so
-          it stays fixed on screen regardless of scroll (unlike the calendar
-          tag, which now lives inside the List header itself and scrolls
-          away with it). Create-client moved to the nav FAB's contextual
-          create action — see NavFab / onCreate below. */}
-      {screen === 'list' && !sheetOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: pinnedRowTop,
-            right: 20,
-            zIndex: 20,
-          }}
-        >
-          {(
+          {/* Sits left of the pinned calendar tag (42px + gap) so the two
+              never overlap — this row scrolls away with the header, the
+              calendar tag stays fixed on screen (see the sibling-of-screens
+              render below). */}
+          <div style={{ position: 'absolute', top: 13, right: 70 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {/* ── Поиск ── */}
               <div style={{ position: 'relative' }}>
@@ -2753,9 +2593,163 @@ export default function TattoDiary() {
                 )}
               </div>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Error banner */}
+        {dbError && (
+          <div
+            style={{
+              margin: '0 16px 12px',
+              padding: '10px 14px',
+              borderRadius: 3,
+              border: '1px solid rgba(138,48,64,0.5)',
+              background: 'rgba(138,48,64,0.12)',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+              position: 'relative',
+              zIndex: 10,
+            }}
+          >
+            <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
+            <button
+              onClick={() => setDbError(null)}
+              style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Пересечение в Инка-календаре — янтарное предупреждение (не ошибка:
+            запись сохранена, мастер сама решает, накладка это или намеренно). */}
+        {syncWarning && (
+          <div
+            style={{
+              margin: '0 16px 12px',
+              padding: '10px 14px',
+              borderRadius: 3,
+              border: '1px solid rgba(184,134,11,0.5)',
+              background: 'rgba(184,134,11,0.12)',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+              position: 'relative',
+              zIndex: 10,
+            }}
+          >
+            <span style={{ flex: 1, fontSize: fs(15), color: '#D4A94E', fontStyle: 'italic' }}>{syncWarning}</span>
+            <button
+              onClick={() => setSyncWarning(null)}
+              style={{ background: 'none', border: 'none', color: '#D4A94E', cursor: 'pointer', flexShrink: 0 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Cards grid — 2 columns on phones, 3 from tablet width up (see .inka-client-grid). */}
+        <div
+          className="inka-client-grid"
+          style={{
+            padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)',
+            display: 'grid',
+            gap: 10,
+            position: 'relative',
+            zIndex: 5,
+            // Promote the whole grid to a single GPU layer so both columns move
+            // together during momentum scroll (prevents the columns from
+            // desyncing/"jumping" as the compositor re-tiles the scroll area).
+            transform: 'translateZ(0)',
+          }}
+        >
+          {filteredClients.map((client) => (
+            <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} />
+          ))}
+        </div>
+
+        {/* Empty state */}
+        {clients.length > 0 && filteredClients.length === 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 280,
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              fontSize: fs(15),
+              fontStyle: 'italic',
+              color: COLORS.textGhost,
+              pointerEvents: 'none',
+            }}
+          >
+            Ничего не найдено
+          </div>
+        )}
+
+        {/* First-run empty state — points at the pinned add button since the
+            grid no longer has its own add tile. Gated on clientsLoaded so it
+            doesn't flash before the real (non-empty) list has loaded. */}
+        {clientsLoaded && clients.length === 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 280,
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              fontSize: fs(15),
+              fontStyle: 'italic',
+              color: COLORS.textGhost,
+              pointerEvents: 'none',
+              padding: '0 40px',
+            }}
+          >
+            Пока нет клиентов — нажмите «+» внизу, чтобы добавить первого
+          </div>
+        )}
+      </div>
+
+      {/* Navigation — sibling of the screens so it pins to the shell bottom
+          (never scrolls). Shown on the list and settings screens, hidden
+          while a bottom sheet is open so it can't sit over the sheet's controls. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin') && !sheetOpen && (
+        <NavFab
+          active={screen}
+          onNavigate={(s) => setScreen(s)}
+          isLight={theme === 'light'}
+          adminBadges={[
+            ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
+            ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
+          ]}
+          // Contextual create — same action each screen's own «+» used to
+          // trigger, now all reachable from one place. Мастер has none.
+          onCreate={
+            screen === 'list' || screen === 'settings'
+              ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
+              : screen === 'summary'
+                ? () => setShowSummaryComposer(true)
+                : screen === 'admin'
+                  ? () => setShowCalendar(true)
+                  : undefined
+          }
+        />
+      )}
+
+      {/* Upcoming-date tag — pinned next to the logo (sibling of the screens,
+          so it never scrolls away with the client grid underneath). Shown on
+          every main screen except Мастер (the master's own profile has no
+          use for it). Create-client moved to the nav FAB's contextual create
+          action — see NavFab / onCreate below. Сортировка/Фильтры/Поиск, by
+          contrast, now live inside the List header itself and scroll away
+          with it — see the header render below. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
+        <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 31px)', right: 20, zIndex: 20 }}>
+          <UpcomingDateBadge clients={clients} onOpen={() => setShowCalendar(true)} />
         </div>
       )}
+
 
       {/* Shared backdrop — closes whichever of Поиск/Фильтры/Сортировка is
           open on an outside tap. */}
@@ -2814,7 +2808,6 @@ export default function TattoDiary() {
             onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
             showComposer={showSummaryComposer}
             onShowComposerChange={setShowSummaryComposer}
-            onOpenCalendar={() => setShowCalendar(true)}
           />
         )}
       </div>
@@ -2862,7 +2855,6 @@ export default function TattoDiary() {
             onChangePrefs={setPrefs}
             onOpenSession={openEntryForEdit}
             onImport={replaceAllClients}
-            onOpenCalendar={() => setShowCalendar(true)}
             overdue={visibleOverdue}
             healing={visibleHealing}
             soon={visibleSoon}
@@ -2898,8 +2890,6 @@ export default function TattoDiary() {
             calendarSync={calendarSync}
             onChangeCalendarSync={setCalendarSync}
             onBack={() => setScreen('master')}
-            clients={clients}
-            onOpenCalendar={() => setShowCalendar(true)}
           />
         )}
       </div>
@@ -4691,7 +4681,6 @@ function AdminDashboardScreen({
   onChangePrefs,
   onOpenSession,
   onImport,
-  onOpenCalendar,
   overdue,
   healing,
   soon,
@@ -4704,7 +4693,6 @@ function AdminDashboardScreen({
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onImport: (clients: Client[]) => void;
-  onOpenCalendar: () => void;
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon: UpcomingSoonItem[];
@@ -4833,9 +4821,6 @@ function AdminDashboardScreen({
           Управление и статистика
         </div>
         <StarDivider />
-        <div style={{ position: 'absolute', top: 13, right: 20 }}>
-          <UpcomingDateBadge clients={clients} onOpen={onOpenCalendar} />
-        </div>
       </div>
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -5304,8 +5289,6 @@ function SettingsScreen({
   calendarSync,
   onChangeCalendarSync,
   onBack,
-  clients,
-  onOpenCalendar,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -5314,8 +5297,6 @@ function SettingsScreen({
   calendarSync: CalendarSyncSettings;
   onChangeCalendarSync: (s: CalendarSyncSettings) => void;
   onBack: () => void;
-  clients: Client[];
-  onOpenCalendar: () => void;
 }) {
   const rowStyle: React.CSSProperties = {
     background: 'rgba(var(--surface-rgb),0.018)',
@@ -5367,9 +5348,6 @@ function SettingsScreen({
           }}
         >
           Настройки
-        </div>
-        <div style={{ position: 'absolute', top: 39, right: 20 }}>
-          <UpcomingDateBadge clients={clients} onOpen={onOpenCalendar} />
         </div>
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Оформление
@@ -5617,7 +5595,6 @@ function SummaryScreen({
   onDeleteMasterNote,
   showComposer,
   onShowComposerChange,
-  onOpenCalendar,
 }: {
   clients: Client[];
   masterNotes: ClientNote[];
@@ -5635,7 +5612,6 @@ function SummaryScreen({
   // onCreate in the App shell.
   showComposer: boolean;
   onShowComposerChange: (open: boolean) => void;
-  onOpenCalendar: () => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
@@ -5699,9 +5675,6 @@ function SummaryScreen({
           Рабочие заметки
         </div>
         <StarDivider />
-        <div style={{ position: 'absolute', top: 13, right: 20 }}>
-          <UpcomingDateBadge clients={clients} onOpen={onOpenCalendar} />
-        </div>
       </div>
 
       {/* Filter bar: urgency symbols stay visible on the left; everything
