@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
-import { BottomToolbar } from './navigation/BottomToolbar';
+import { NavFab } from './navigation/NavFab';
 import {
   readSyncSettings,
   writeSyncSettings,
@@ -602,41 +602,6 @@ function readInitialDismissedReminders(): string[] {
   return [];
 }
 
-// «Напомнить позже» on an overdue entry — snoozes the reminder card without
-// touching the underlying session/consultation at all (unlike «Отменить» or
-// «Выполнено»), so it just goes quiet until the chosen time.
-type SnoozePreset = 'hours3' | 'tomorrow' | 'week';
-function snoozeUntilFor(preset: SnoozePreset): number {
-  const now = new Date();
-  if (preset === 'hours3') return now.getTime() + 3 * 60 * 60 * 1000;
-  if (preset === 'week') return now.getTime() + 7 * 24 * 60 * 60 * 1000;
-  // 'tomorrow' — next day, 9am local (a sensible re-surface time rather than
-  // the exact minute 24h from now, which could land at 2am).
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(9, 0, 0, 0);
-  return tomorrow.getTime();
-}
-
-function readInitialSnoozedReminders(): Record<string, number> {
-  try {
-    const raw = localStorage.getItem('inka-reminders-snooze');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        const out: Record<string, number> = {};
-        for (const [k, v] of Object.entries(parsed)) {
-          if (typeof v === 'number') out[k] = v;
-        }
-        return out;
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return {};
-}
-
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
 function normalizeClient(raw: any, index: number): Client {
@@ -1066,7 +1031,7 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 // a long list/notes feed still reveals stars instead of running out.
 const STARFIELD_COUNT = 140;
 const STARFIELD_HEIGHT_VH = 300;
-const METEOR_COUNT = 4;
+const METEOR_COUNT = 2;
 // Fixed epoch every background animation delay is measured from, so a cloud /
 // star / craft is at the same phase in every screen regardless of when that
 // screen mounted — screen transitions no longer show the sky jump.
@@ -1090,8 +1055,9 @@ function buildStars() {
 // well inside each slot's margin — since every meteor shares the exact same
 // period, that phase relationship holds forever, so two meteors' visible
 // windows can never land at the same time (unlike independent random delays,
-// which drift in and out of overlap over a long enough session).
-const METEOR_CYCLE = 74;
+// which drift in and out of overlap over a long enough session). Tuned to
+// ~30/hour: METEOR_COUNT per METEOR_CYCLE seconds, i.e. COUNT * 3600 / CYCLE.
+const METEOR_CYCLE = 240;
 function buildMeteors() {
   const slot = METEOR_CYCLE / METEOR_COUNT;
   return Array.from({ length: METEOR_COUNT }, (_, i) => {
@@ -1123,46 +1089,11 @@ function getMeteors() {
   return sharedMeteors;
 }
 
-// Comets — one each in gold, blue, and red; much rarer than the meteors and
-// drift across slowly instead of flashing past. Same non-overlapping-slot
-// trick as buildMeteors, just with a far longer shared cycle.
-const COMET_CYCLE = 150;
-const COMET_COLORS = [
-  { head: 'rgba(240,208,140,0.98)', mid: 'rgba(228,190,110,0.4)', glow: 'rgba(230,196,120,0.75)' }, // gold
-  { head: 'rgba(158,205,255,0.95)', mid: 'rgba(120,172,230,0.38)', glow: 'rgba(130,182,240,0.7)' }, // blue
-  { head: 'rgba(240,142,124,0.95)', mid: 'rgba(220,112,96,0.38)', glow: 'rgba(225,122,102,0.7)' }, // red
-];
-function buildComets() {
-  const slot = COMET_CYCLE / COMET_COLORS.length;
-  return COMET_COLORS.map((color, i) => {
-    const goesLeft = Math.random() < 0.5;
-    const rotDeg = goesLeft ? 135 : 45;
-    const dist = 380 + Math.random() * 220;
-    const rad = (rotDeg * Math.PI) / 180;
-    return {
-      color,
-      left: goesLeft ? 40 + Math.random() * 45 : 15 + Math.random() * 45,
-      top: Math.random() * 50,
-      length: 110 + Math.random() * 60,
-      rot: rotDeg,
-      mx: Math.cos(rad) * dist,
-      my: Math.sin(rad) * dist,
-      duration: COMET_CYCLE,
-      baseDelay: i * slot + (Math.random() - 0.5) * slot * 0.2,
-    };
-  });
-}
-let sharedComets: ReturnType<typeof buildComets> | null = null;
-function getComets() {
-  if (!sharedComets) sharedComets = buildComets();
-  return sharedComets;
-}
-
-// Dark theme's sky: twinkling gold stars, an occasional «звездопад» (gold
-// meteors), and rarer still, three slow-drifting comets. The light theme's
-// counterpart is CloudsBackground — so this renders only in the dark theme.
-// Shares one layout across screens with delays anchored to SKY_EPOCH, so the
-// field holds still through screen transitions.
+// Dark theme's sky: twinkling gold stars and an occasional «звездопад» (gold
+// meteors, ~30/hour). The light theme's counterpart is CloudsBackground — so
+// this renders only in the dark theme. Shares one layout across screens with
+// delays anchored to SKY_EPOCH, so the field holds still through screen
+// transitions.
 function StarfieldBackground() {
   const isLight = useIsLightTheme();
   const [, setTick] = useState(0);
@@ -1179,7 +1110,6 @@ function StarfieldBackground() {
 
   const stars = getStars();
   const meteors = getMeteors();
-  const comets = getComets();
   const elapsed = (Date.now() - SKY_EPOCH) / 1000;
 
   return (
@@ -1245,30 +1175,6 @@ function StarfieldBackground() {
           } as React.CSSProperties}
         />
       ))}
-
-      {/* Comets — rarer and slower than the meteors above, one each in gold,
-          blue, and red. */}
-      {comets.map((c, i) => (
-        <div
-          key={`comet-${i}`}
-          className="inka-comet"
-          style={{
-            position: 'absolute',
-            left: `${c.left}%`,
-            top: `${c.top}%`,
-            width: c.length,
-            height: 2.6,
-            borderRadius: 2,
-            background: `linear-gradient(to right, transparent, ${c.color.mid} 50%, ${c.color.head})`,
-            boxShadow: `0 0 9px ${c.color.glow}`,
-            ['--mx' as string]: `${c.mx}px`,
-            ['--my' as string]: `${c.my}px`,
-            ['--rot' as string]: `${c.rot}deg`,
-            animationDuration: `${c.duration}s`,
-            animationDelay: `${-(elapsed + c.baseDelay)}s`,
-          } as React.CSSProperties}
-        />
-      ))}
     </div>
   );
 }
@@ -1311,9 +1217,12 @@ function buildCloudLayers() {
       // Loose bands (jitter wider than the band) keep clouds spread down the
       // whole scroll while still letting neighbours drift into each other.
       top: i * band + (Math.random() - 0.3) * band * 2,
-      width: (160 + Math.random() * 100) * layer.scale,
+      // Sized down a third and drifting well under half the old speed — the
+      // original pace read as jittery/seasick when several layers crossed
+      // at once, especially during screen-transition overlap.
+      width: (160 + Math.random() * 100) * layer.scale * (2 / 3),
       flip: Math.random() < 0.5,
-      driftDuration: (40 + Math.random() * 40) * layer.durationMul,
+      driftDuration: (40 + Math.random() * 40) * layer.durationMul * 2.5,
       // Base offsets (positive); the actual animation-delay is derived from the
       // global clock at render (see CloudsBackground) so it's identical on
       // every screen.
@@ -1418,10 +1327,12 @@ const CRAFT_OPACITY: Record<CraftType, number> = {
 
 // Per-type flight character. duration = seconds to cross the screen (airships
 // cruise, balloon barely moves); bobY = vertical float amplitude (balloon
-// floats highest); width in px; bob = seconds per float cycle.
+// floats highest); width in px; bob = seconds per float cycle. Durations
+// stretched 1.5x — each craft loops on its own duration, so a third longer
+// means a third fewer passes per hour.
 const CRAFT_MOTION: Record<CraftType, { width: [number, number]; duration: [number, number]; bobY: [number, number]; bob: [number, number] }> = {
-  airship: { width: [165, 215], duration: [78, 120], bobY: [8, 15], bob: [9, 13] },
-  balloon: { width: [78, 116], duration: [150, 230], bobY: [24, 40], bob: [7, 12] },
+  airship: { width: [165, 215], duration: [117, 180], bobY: [8, 15], bob: [9, 13] },
+  balloon: { width: [78, 116], duration: [225, 345], bobY: [24, 40], bob: [7, 12] },
 };
 
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
@@ -1777,21 +1688,6 @@ export default function TattoDiary() {
   }, [dismissedReminders]);
   const dismissReminder = (key: string) => setDismissedReminders((prev) => (prev.includes(key) ? prev : [...prev, key]));
 
-  // «Напомнить позже» on an overdue card — key -> timestamp (ms) it should
-  // stay quiet until. Unlike dismissedReminders this clears itself: once
-  // Date.now() passes the stored moment the entry is simply no longer
-  // filtered out (see visibleOverdue below), no separate cleanup needed.
-  const [snoozedReminders, setSnoozedReminders] = useState<Record<string, number>>(readInitialSnoozedReminders);
-  useEffect(() => {
-    try {
-      localStorage.setItem('inka-reminders-snooze', JSON.stringify(snoozedReminders));
-    } catch {
-      /* ignore */
-    }
-  }, [snoozedReminders]);
-  const snoozeReminder = (key: string, preset: SnoozePreset) =>
-    setSnoozedReminders((prev) => ({ ...prev, [key]: snoozeUntilFor(preset) }));
-
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('sessions');
@@ -1822,6 +1718,9 @@ export default function TattoDiary() {
   >(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
+  // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
+  // nav FAB's contextual create action can open it from outside.
+  const [showSummaryComposer, setShowSummaryComposer] = useState(false);
 
   // ── Calendar-driven creation: «Создать событие» on a picked day walks
   // through kind → client (existing/new) → the actual session/consultation
@@ -2163,19 +2062,10 @@ export default function TattoDiary() {
     });
   };
 
-  // clientId-scoped variants of the toggles above — for quick actions fired
-  // from the Задачи/Мастер screens' «Напоминания» section, which act on
-  // overdue entries across every client, not just whichever one happens to
-  // be open (selectedClient may well be null there).
-  const markEntryDone = (clientId: string, itemId: string, kind: 'session' | 'consultation') => {
-    const c = clients.find((x) => x.id === clientId);
-    if (!c) return;
-    if (kind === 'session') {
-      saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === itemId ? { ...s, done: true } : s)) });
-    } else {
-      saveClient({ ...c, consultations: c.consultations.map((cn) => (cn.id === itemId ? { ...cn, done: true } : cn)) });
-    }
-  };
+  // clientId-scoped variant of the toggle above — for the «Отменить» quick
+  // action fired from the Задачи/Мастер screens' «Напоминания» section,
+  // which acts on overdue entries across every client, not just whichever
+  // one happens to be open (selectedClient may well be null there).
   // Overdue reminder's «Отменить» — this planned entry won't happen and
   // won't be rescheduled, distinct from done. Drops out of upcoming/overdue
   // everywhere; stays visible in the timeline tagged «Отменена».
@@ -2328,12 +2218,7 @@ export default function TattoDiary() {
 
   // Reminders (see RemindersSection), minus whatever the master has closed —
   // computed once and shared by the toolbar badge, «Задачи», and «Мастер».
-  const visibleOverdue = overdueEntries(clients).filter((it) => {
-    const key = overdueReminderKey(it);
-    if (dismissedReminders.includes(key)) return false;
-    const until = snoozedReminders[key];
-    return !(until && until > Date.now());
-  });
+  const visibleOverdue = overdueEntries(clients).filter((it) => !dismissedReminders.includes(overdueReminderKey(it)));
   const visibleHealing = healingReminders(clients).filter((it) => !dismissedReminders.includes(healingReminderKey(it)));
   const visibleSoon = upcomingSoonReminders(clients).filter((it) => !dismissedReminders.includes(soonReminderKey(it)));
 
@@ -2697,7 +2582,7 @@ export default function TattoDiary() {
         <div
           className="inka-client-grid"
           style={{
-            padding: '2px 16px calc(var(--toolbar-total-height) + 20px)',
+            padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)',
             display: 'grid',
             gap: 10,
             position: 'relative',
@@ -2755,11 +2640,11 @@ export default function TattoDiary() {
         )}
       </div>
 
-      {/* Bottom navigation — sibling of the screens so it pins to the shell
-          bottom (never scrolls). Shown on the list and settings screens, hidden
+      {/* Navigation — sibling of the screens so it pins to the shell bottom
+          (never scrolls). Shown on the list and settings screens, hidden
           while a bottom sheet is open so it can't sit over the sheet's controls. */}
       {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin') && !sheetOpen && (
-        <BottomToolbar
+        <NavFab
           active={screen}
           onNavigate={(s) => setScreen(s)}
           isLight={theme === 'light'}
@@ -2767,16 +2652,26 @@ export default function TattoDiary() {
             ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
             ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
           ]}
+          // Contextual create — same action each screen's own «+» used to
+          // trigger, now all reachable from one place. Мастер has none.
+          onCreate={
+            screen === 'list' || screen === 'settings'
+              ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
+              : screen === 'summary'
+                ? () => setShowSummaryComposer(true)
+                : screen === 'admin'
+                  ? () => setShowCalendar(true)
+                  : undefined
+          }
         />
       )}
 
-      {/* Create-client «+» — pinned next to the logo (sibling of the screens,
-          so it never scrolls away with the client grid underneath). Мастер
-          is now a full bottom-nav page, so this spot (which used to hold its
-          shortcut) took over the add-client action instead — the bottom nav
-          holds only page destinations now. Next to the «+», a small tag
-          previews the nearest upcoming session's date. */}
-      {screen === 'list' && !sheetOpen && (
+      {/* Upcoming-date tag — pinned next to the logo (sibling of the screens,
+          so it never scrolls away with the client grid underneath). Shown on
+          every main screen except Мастер (the master's own profile has no
+          use for it). Create-client moved to the nav FAB's contextual create
+          action — see NavFab / onCreate below. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
         <div
           style={{
             position: 'absolute',
@@ -2820,30 +2715,6 @@ export default function TattoDiary() {
               </div>
             );
           })()}
-          {/* Create-client — moved here from the bottom nav (which now holds
-              only page destinations); same gated flow as before. */}
-          <div
-            onClick={() => runGated(clients.length === 0, () => setShowNewClientForm(true))}
-            role="button"
-            aria-label="Добавить клиента"
-            style={{
-              width: 42,
-              height: 42,
-              flexShrink: 0,
-              borderRadius: '50%',
-              border: '1px solid rgba(var(--gold-rgb),0.55)',
-              background: 'rgba(var(--gold-rgb),0.03)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <svg width="17" height="17" viewBox="0 0 14 14" fill="none">
-              <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-              <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </div>
         </div>
       )}
 
@@ -2889,6 +2760,8 @@ export default function TattoDiary() {
             onToggleMasterDone={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
             onEditMasterNote={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
             onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
+            showComposer={showSummaryComposer}
+            onShowComposerChange={setShowSummaryComposer}
           />
         )}
       </div>
@@ -2940,10 +2813,8 @@ export default function TattoDiary() {
             overdue={visibleOverdue}
             healing={visibleHealing}
             soon={visibleSoon}
-            onMarkDone={markEntryDone}
             onOpenEntry={openEntryForEdit}
             onDismissReminder={dismissReminder}
-            onSnoozeReminder={snoozeReminder}
             onCancelEntry={markEntryCancelled}
           />
         )}
@@ -4037,49 +3908,6 @@ function GoldGemCorner({ size = 24 }: { size?: number }) {
 // Gold reads through the theme's --gold-rgb custom property (so it tracks
 // light/dark theme changes); any other accent is a literal hex, tinted via
 // hexToRgba instead. Shared by GemCornerBL/BR below.
-function cornerPalette(color: string): { solid: string; mid: string; faint: string } {
-  if (color === COLORS.gold) {
-    return { solid: 'var(--gold)', mid: 'rgba(var(--gold-rgb),0.6)', faint: 'rgba(var(--gold-rgb),0.45)' };
-  }
-  return { solid: color, mid: hexToRgba(color, 0.6), faint: hexToRgba(color, 0.45) };
-}
-// Bottom-right mirror of the old GemCornerBL — used to give the overdue reminder
-// card a corner accent without colliding with its «×» (top-right) or its
-// «Напомнить» preset menu (which opens below the button, left-anchored).
-function GemCornerBR({ color = COLORS.gold, size = 20 }: { color?: string; size?: number }) {
-  const { solid, mid, faint } = cornerPalette(color);
-  return (
-    <>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: -6,
-          right: -6,
-          width: size + 20,
-          height: size + 20,
-          background: `radial-gradient(circle at bottom right, ${faint}, transparent 66%)`,
-          filter: 'blur(5px)',
-          zIndex: 2,
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          right: 0,
-          width: size,
-          height: size,
-          clipPath: 'polygon(100% 100%, 100% 0, 0 100%)',
-          background: `linear-gradient(145deg, ${solid} 0%, ${mid} 52%, ${hexToRgba(color, 0.12)} 100%)`,
-          boxShadow: `inset 2px 2px 3px ${faint}`,
-          zIndex: 3,
-          pointerEvents: 'none',
-        }}
-      />
-    </>
-  );
-}
 // Wraps a box in the same stripe+gem-corner+inset-ring frame as a client
 // card, all gold. Used throughout the master dashboard.
 function GoldFrame({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -4606,26 +4434,27 @@ function SwipeDismissCard({
   );
 }
 
-// One overdue reminder card: name/date up top with the close «×», the three
-// quick actions (Выполнено / Напомнить ▾ / Отменить) in their own full-width
-// row below — replaces the old single-line layout, which had no room left
-// for a third action once «Напомнить» grew its own preset menu.
+// One overdue reminder card: name/date up top with the close «×», three
+// quick actions (Отменить / Закрыть / Перенести) in their own full-width
+// row below. No swipe and no tap-to-open on the card body — the only way
+// to open the underlying session/consultation is the explicit «Перенести»
+// action, so a stray tap on the card can't accidentally navigate away.
 function OverdueReminderCard({
   item,
-  onMarkDone,
-  onOpenEntry,
+  onReschedule,
   onDismiss,
-  onSnooze,
   onCancel,
 }: {
   item: OverdueItem;
-  onMarkDone: () => void;
-  onOpenEntry: () => void;
+  onReschedule: () => void;
   onDismiss: () => void;
-  onSnooze: (preset: SnoozePreset) => void;
   onCancel: () => void;
 }) {
-  const [showSnooze, setShowSnooze] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
+  const flyOutThen = (action: () => void) => {
+    setDismissing(true);
+    setTimeout(action, 200);
+  };
   const chipStyle: React.CSSProperties = {
     fontSize: fs(11),
     color: COLORS.textFaint,
@@ -4639,118 +4468,62 @@ function OverdueReminderCard({
     flex: '1 1 auto',
     textAlign: 'center',
   };
-  const snoozeRowStyle: React.CSSProperties = {
-    padding: '8px 10px',
-    fontSize: fs(12.5),
-    color: COLORS.textPrimary,
-    cursor: 'pointer',
-    borderRadius: 2,
-    whiteSpace: 'nowrap',
-  };
   return (
-    <SwipeDismissCard onSwipeComplete={onMarkDone} revealLabel="Выполнено" raised={showSnooze}>
-      {(flyOutThen) => (
-        <div
-          style={{
-            position: 'relative',
-            overflow: 'hidden',
-            padding: '9px 10px',
-            borderRadius: 2,
-            border: '1px solid rgba(224,102,90,0.35)',
-            background: 'rgba(224,102,90,0.06)',
-          }}
-        >
-          <GemCornerBR size={14} />
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <div onClick={onOpenEntry} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {item.client.name || '—'}
-              </div>
-              <div style={{ fontSize: fs(11), color: '#e0665a', marginTop: 2 }}>
-                {item.kind === 'session' ? 'Сессия' : 'Консультация'} просрочена · {formatDate(item.date)}
-              </div>
-            </div>
-            <ReminderCloseButton onClick={() => flyOutThen(onDismiss)} />
+    <div
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        padding: '9px 10px',
+        borderRadius: 2,
+        border: '1px solid rgba(224,102,90,0.35)',
+        background: 'rgba(224,102,90,0.06)',
+        opacity: dismissing ? 0 : 1,
+        transition: 'opacity 0.2s ease',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {item.client.name || '—'}
           </div>
-          <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 6, marginTop: 9 }}>
-            <div
-              onClick={onMarkDone}
-              role="button"
-              aria-label="Отметить выполненной"
-              style={{ ...chipStyle, color: COLORS.gold, border: '1px solid rgba(var(--gold-rgb),0.4)' }}
-            >
-              Выполнено
-            </div>
-            <div style={{ position: 'relative', flex: '1 1 auto' }}>
-              <div onClick={() => setShowSnooze((v) => !v)} role="button" aria-label="Напомнить позже" style={chipStyle}>
-                Напомнить ▾
-              </div>
-              {showSnooze && (
-                <>
-                  <div onClick={() => setShowSnooze(false)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 4px)',
-                      left: 0,
-                      minWidth: 150,
-                      background: COLORS.sheet,
-                      border: '1px solid rgba(var(--gold-rgb),0.2)',
-                      borderRadius: 4,
-                      padding: 4,
-                      boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-                      zIndex: 21,
-                    }}
-                  >
-                    {(
-                      [
-                        ['hours3', 'Через 3 часа'],
-                        ['tomorrow', 'Завтра'],
-                        ['week', 'Через неделю'],
-                      ] as [SnoozePreset, string][]
-                    ).map(([preset, label]) => (
-                      <div
-                        key={preset}
-                        onClick={() => {
-                          onSnooze(preset);
-                          setShowSnooze(false);
-                        }}
-                        style={snoozeRowStyle}
-                      >
-                        {label}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            <div onClick={onCancel} role="button" aria-label="Отменить" style={chipStyle}>
-              Отменить
-            </div>
+          <div style={{ fontSize: fs(11), color: '#e0665a', marginTop: 2 }}>
+            {item.kind === 'session' ? 'Сессия' : 'Консультация'} просрочена · {formatDate(item.date)}
           </div>
         </div>
-      )}
-    </SwipeDismissCard>
+        <ReminderCloseButton onClick={() => flyOutThen(onDismiss)} />
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+        <div onClick={onCancel} role="button" aria-label="Отменить" style={chipStyle}>
+          Отменить
+        </div>
+        <div onClick={() => flyOutThen(onDismiss)} role="button" aria-label="Закрыть" style={chipStyle}>
+          Закрыть
+        </div>
+        <div
+          onClick={onReschedule}
+          role="button"
+          aria-label="Перенести"
+          style={{ ...chipStyle, color: COLORS.gold, border: '1px solid rgba(var(--gold-rgb),0.4)' }}
+        >
+          Перенести
+        </div>
+      </div>
+    </div>
   );
 }
-
 function RemindersSection({
   overdue,
   healing,
   soon,
-  onMarkDone,
   onOpenEntry,
   onDismiss,
-  onSnooze,
   onCancel,
 }: {
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon?: UpcomingSoonItem[];
-  onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismiss: (key: string) => void;
-  onSnooze: (key: string, preset: SnoozePreset) => void;
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const soonList = soon ?? [];
@@ -4767,10 +4540,8 @@ function RemindersSection({
             <OverdueReminderCard
               key={key}
               item={it}
-              onMarkDone={() => onMarkDone(it.client.id, it.id, it.kind)}
-              onOpenEntry={() => onOpenEntry(it.client.id, it.id, it.kind)}
+              onReschedule={() => onOpenEntry(it.client.id, it.id, it.kind)}
               onDismiss={() => onDismiss(key)}
-              onSnooze={(preset) => onSnooze(key, preset)}
               onCancel={() => onCancel(it.client.id, it.id, it.kind)}
             />
           );
@@ -4861,10 +4632,8 @@ function AdminDashboardScreen({
   overdue,
   healing,
   soon,
-  onMarkDone,
   onOpenEntry,
   onDismissReminder,
-  onSnoozeReminder,
   onCancelEntry,
 }: {
   clients: Client[];
@@ -4876,10 +4645,8 @@ function AdminDashboardScreen({
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon: UpcomingSoonItem[];
-  onMarkDone: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
-  onSnoozeReminder: (key: string, preset: SnoozePreset) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
@@ -4994,12 +4761,10 @@ function AdminDashboardScreen({
         <StarDivider />
       </div>
 
-      <div style={{ padding: '4px 20px calc(var(--toolbar-total-height) + 42px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Schedule a session/consultation straight from Админка — reuses the
-            same calendar-driven creation walk as the «Ближайшая» tag. */}
-        <div onClick={onOpenSchedule} role="button" aria-label="Запланировать" style={{ ...actionButtonStyle, padding: '12px 0' }}>
-          + Запланировать сессию / консультацию
-        </div>
+      <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* «Запланировать» now lives only behind the nav FAB's contextual
+            create button (same calendar-driven creation walk) — this screen
+            no longer duplicates it as its own standalone button. */}
 
         {/* Upcoming sessions, with a master-configurable lookahead window — the
             calendar glyph opens the same full month view as «Запланировать». */}
@@ -5073,7 +4838,7 @@ function AdminDashboardScreen({
           )}
         </GoldFrame>
 
-        <RemindersSection overdue={overdue} healing={healing} soon={soon} onMarkDone={onMarkDone} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
+        <RemindersSection overdue={overdue} healing={healing} soon={soon} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
 
         {/* Quick stats — clients (with срочно/важно in the lower half) beside
             назначено сессий/консультаций. «Частый стиль» stays on Мастер. */}
@@ -5302,7 +5067,7 @@ function MasterDashboardScreen({
         <StarDivider />
       </div>
 
-      <div style={{ padding: '4px 20px calc(var(--toolbar-total-height) + 42px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Master's own name */}
         <GoldFrame style={{ padding: '14px 16px' }}>
           <div style={{ ...statLabelStyle, textAlign: 'center' }}>Имя мастера</div>
@@ -5520,7 +5285,7 @@ function SettingsScreen({
         <StarDivider />
       </div>
 
-      <div style={{ padding: '4px 20px calc(var(--toolbar-total-height) + 42px)', position: 'relative', zIndex: 1 }}>
+      <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1 }}>
         {/* Theme */}
         <div style={rowStyle}>
           <div style={labelStyle}>Тема</div>
@@ -5758,6 +5523,8 @@ function SummaryScreen({
   onToggleMasterDone,
   onEditMasterNote,
   onDeleteMasterNote,
+  showComposer,
+  onShowComposerChange,
 }: {
   clients: Client[];
   masterNotes: ClientNote[];
@@ -5771,13 +5538,14 @@ function SummaryScreen({
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
   onDeleteMasterNote: (noteId: string) => void;
+  // Lifted so the nav FAB's contextual create action can open it too — see
+  // onCreate in the App shell.
+  showComposer: boolean;
+  onShowComposerChange: (open: boolean) => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  // The new-note composer is behind the header's «+», mirroring the home
-  // screen's layout.
-  const [showComposer, setShowComposer] = useState(false);
 
   // Planned (not-done) sessions + consultations, across every client, soonest
   // first — a compact card (client · type · date) that opens straight into the
@@ -5944,7 +5712,7 @@ function SummaryScreen({
         {/* «+» (new note) — sits opposite the filter icons on this same row,
             rather than floating up by the header. */}
         <div
-          onClick={() => setShowComposer((v) => !v)}
+          onClick={() => onShowComposerChange(!showComposer)}
           role="button"
           aria-label={showComposer ? 'Скрыть новую заметку' : 'Новая заметка'}
           style={{
@@ -5977,7 +5745,7 @@ function SummaryScreen({
           <NoteComposer
             onAdd={(text, urgency, photos) => {
               onAddMasterNote(text, urgency, photos);
-              setShowComposer(false);
+              onShowComposerChange(false);
             }}
           />
         </div>
@@ -5985,7 +5753,7 @@ function SummaryScreen({
 
       {/* Two columns, like the client list: the task list on the left,
           planned sessions & consultations on the right. */}
-      <div style={{ padding: '2px 16px calc(var(--toolbar-total-height) + 42px)', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+      <div style={{ padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
         {/* Column 1 — the task list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>

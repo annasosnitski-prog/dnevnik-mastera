@@ -60,12 +60,9 @@
   /* Frame drawn as a smooth inset ring (covered by the stripes on top/right). */
   --card-rest-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.2);
 
-  /* Bottom toolbar — jewelry (gold-engraved) look over the starfield. */
-  --toolbar-background: linear-gradient(180deg, #2b2417 0%, #17130d 52%, #0d0b08 100%);
+  /* Nav FAB icons — muted gold against the starfield directly (no plate). */
   --toolbar-icon: #a77a31;
   --toolbar-icon-active: #e2b85e;
-  --toolbar-divider: rgba(184, 137, 53, 0.32);
-  --toolbar-border: rgba(194, 148, 61, 0.55);
 }
 
 /* ── Light (warm parchment / "Casa di Vetro") ── */
@@ -100,131 +97,90 @@
   --card-rest-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.2), 0 1px 2px rgba(80, 60, 20, 0.06),
     0 6px 18px rgba(80, 60, 20, 0.07);
 
-  /* Bottom toolbar — naturalist (engraved-paper) look over the parchment/sky. */
-  --toolbar-background: linear-gradient(180deg, #d8bb7d 0%, #caa55c 50%, #b88c3b 100%);
-  --toolbar-icon: rgba(255, 255, 255, 0.82);
-  --toolbar-icon-active: #ffffff;
-  --toolbar-divider: rgba(255, 255, 255, 0.46);
-  --toolbar-border: rgba(126, 88, 24, 0.38);
+  /* Nav FAB icons — dark sepia so they read against the light parchment/sky
+     background directly (no plate behind them to contrast with instead). */
+  --toolbar-icon: rgba(156, 111, 34, 0.75);
+  --toolbar-icon-active: #7E5818;
 }
 
-/* Bottom toolbar geometry, shared by both themes — see BottomToolbar.tsx. */
-:root {
-  --toolbar-content-height: 72px;
-  --toolbar-safe-height: env(safe-area-inset-bottom, 0px);
-  --toolbar-total-height: calc(var(--toolbar-content-height) + var(--toolbar-safe-height));
-}
-
-.bottom-toolbar {
-  /* Anchored to .app-shell (position: relative), not the true viewport —
-     position: fixed computes against the device viewport directly, which
-     has a longstanding WebKit quirk in standalone (Add to Home Screen) PWAs
-     on iOS: fixed elements can end up offset from the real bottom edge by
-     more than the reported safe-area-inset-bottom, leaving a blank gap.
-     Every other bottom-pinned element in this app anchors to .app-shell
-     instead, which is sized with 100dvh and has proven reliable. */
+/* Navigation FAB — a single circle, bottom-right, replacing the full-width
+   bottom bar entirely (see NavFab.tsx). Closed, it shows the current
+   screen's icon; tapping it fans the other three destinations out above it. */
+.nav-fab {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: calc(var(--toolbar-content-height) + env(safe-area-inset-bottom, 0px));
-  box-sizing: border-box;
-  z-index: 50;
-  /* Transparent backing — the icons (and their engraved/jewel glow effects)
-     sit directly over the app's own background instead of a solid plate, so
-     there's no visible seam between the toolbar and whatever sits below it
-     (including the safe-area strip on devices/browsers where that space
-     isn't perfectly accounted for). */
-  background: transparent;
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--toolbar-border);
+  right: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 56;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 
-.bottom-toolbar__content {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  width: 100%;
-  height: var(--toolbar-content-height);
-  box-sizing: border-box;
-}
-
-.bottom-toolbar__safe-area {
-  width: 100%;
-  height: env(safe-area-inset-bottom, 0px);
-  background: inherit;
-  pointer-events: none;
-}
-
-.bottom-toolbar__button {
+/* Transparent circles — no solid plate, just a thin ring and a soft gold
+   halo, so the button reads as glowing rather than as a plaque. */
+.nav-fab__main,
+.nav-fab__item {
   appearance: none;
-  border: 0;
-  margin: 0;
   padding: 0;
-  min-width: 44px;
-  min-height: 44px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid rgba(var(--gold-rgb), 0.45);
+  color: var(--toolbar-icon-active);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  color: var(--toolbar-icon);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   position: relative;
-  border-right: 1px solid var(--toolbar-divider);
-  transition: color 140ms ease, background-color 140ms ease, transform 100ms ease;
+  transition: transform 0.15s ease;
 }
 
-.bottom-toolbar__button:last-child {
-  border-right: 0;
+.nav-fab__main {
+  width: 56px;
+  height: 56px;
+  box-shadow: 0 0 3px rgba(var(--gold-rgb), 0.5), 0 0 18px rgba(var(--gold-rgb), 0.35);
 }
 
-.bottom-toolbar__button:active {
-  transform: translateY(1px);
+.nav-fab__main:active {
+  transform: scale(0.92);
 }
 
-.bottom-toolbar__button[aria-current='page'] {
-  color: var(--toolbar-icon-active);
+.nav-fab__item {
+  width: 44px;
+  height: 44px;
+  color: var(--toolbar-icon);
+  box-shadow: 0 0 3px rgba(var(--gold-rgb), 0.4), 0 0 14px rgba(var(--gold-rgb), 0.28);
+  animation: nav-fab-in 0.18s ease both;
+  animation-delay: calc(var(--i, 0) * 40ms);
 }
 
-/* A halo behind the active icon — with no plate behind the row anymore,
-   this is the only thing marking which page you're on, so it needs to read
-   clearly at a glance, not just as a faint tint. */
-.bottom-toolbar__button[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 221, 144, 0.4) 0%, rgba(255, 221, 144, 0) 70%);
-  pointer-events: none;
+.nav-fab__item:active {
+  transform: scale(0.92);
 }
 
-:root[data-theme='dark'] .bottom-toolbar__button[aria-current='page'] {
-  filter: drop-shadow(0 0 6px rgba(218, 167, 72, 0.65)) drop-shadow(0 0 12px rgba(218, 167, 72, 0.3));
-}
-
-:root[data-theme='light'] .bottom-toolbar__button[aria-current='page'] {
-  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.7)) drop-shadow(0 0 10px rgba(156, 111, 34, 0.35));
-}
-
-.bottom-toolbar__icon {
-  width: 30px;
-  height: 30px;
-  display: block;
-  flex: 0 0 auto;
-}
-
-@media (hover: hover) {
-  .bottom-toolbar__button:hover {
-    color: var(--toolbar-icon-active);
+@keyframes nav-fab-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
+.nav-fab__badge {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--bg);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .bottom-toolbar__button {
-    transition: none;
+  .nav-fab__item {
+    animation: none;
   }
 }
 
@@ -782,37 +738,5 @@ input[type='date'] {
 .inka-meteor {
   animation-name: inka-meteor;
   animation-timing-function: ease-in;
-  animation-iteration-count: infinite;
-}
-
-/* Comets — same idea as the meteor above (one continuous loop, travel set
-   via --mx/--my/--rot) but the visible slice is a much bigger share of the
-   cycle, so the comet glides slowly across instead of flashing past. Colour
-   comes entirely from the element's own background/box-shadow (see
-   COMET_COLORS in TattoDiary.tsx), so this keyframe stays colour-neutral. */
-@keyframes inka-comet {
-  0% {
-    transform: translate3d(0, 0, 0) rotate(var(--rot, 135deg)) scaleX(0.3);
-    opacity: 0;
-  }
-  1% {
-    opacity: 1;
-  }
-  8% {
-    transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
-    opacity: 1;
-  }
-  10% {
-    transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
-    opacity: 0;
-  }
-  100% {
-    transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
-    opacity: 0;
-  }
-}
-.inka-comet {
-  animation-name: inka-comet;
-  animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
