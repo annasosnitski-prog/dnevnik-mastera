@@ -175,11 +175,16 @@
 }
 
 /* «Создать» reads differently from the plain nav destinations — a solid
-   gold fill, since it's an action rather than a place to go. */
+   gold fill (it's an action, not a place to go) and the single biggest
+   circle in the stack, since it sits above the whole group as the one
+   thing reached for constantly. */
 .nav-fab__item--create {
+  width: 76px;
+  height: 76px;
   background: var(--gold);
   border-color: var(--gold);
   color: var(--bg);
+  box-shadow: 0 0 4px rgba(var(--gold-rgb), 0.6), 0 0 22px rgba(var(--gold-rgb), 0.4), 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 /* The plus glyph is a raw inline <svg> (not routed through ToolbarIcon), so
