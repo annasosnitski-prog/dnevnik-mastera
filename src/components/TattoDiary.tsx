@@ -5288,6 +5288,15 @@ function MasterDashboardScreen({
 // Ручное обновление кнопкой: экран Настроек не размонтируется при уходе
 // (переключение через CSS-transform), поэтому автообновление по монтированию
 // сработало бы только один раз за всю сессию приложения.
+function tagLabel(tag: BotBooking['tag']): string {
+  return tag === '[ONLINE]' ? 'Online' : tag === '[WALKIN]' ? 'Walk-in' : '—';
+}
+
+function stripTagPrefix(summary: string, tag: BotBooking['tag']): string {
+  if (!tag) return summary;
+  return summary.startsWith(tag) ? summary.slice(tag.length).replace(/^\s+/, '') : summary;
+}
+
 function formatBookingTime(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
@@ -5366,23 +5375,44 @@ function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
         </div>
       )}
 
-      {bookings !== null &&
-        bookings.map((b) => (
-          <div
-            key={b.id}
-            style={{
-              padding: '8px 0',
-              borderTop: '1px solid rgba(var(--gold-rgb),0.08)',
-              fontSize: fs(13),
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <div style={{ color: COLORS.gold, fontSize: fs(11), letterSpacing: '0.5px' }}>
-              {formatBookingTime(b.start)}
+      {bookings !== null && bookings.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {bookings.map((b) => (
+            <div
+              key={b.id}
+              style={{
+                padding: '8px 10px',
+                borderRadius: 2,
+                border: '1px solid rgba(var(--gold-rgb),0.1)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span
+                  style={{
+                    fontSize: fs(10),
+                    color: COLORS.gold,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    padding: '2px 8px',
+                    borderRadius: 2,
+                    background: 'rgba(var(--gold-rgb),0.1)',
+                  }}
+                >
+                  {tagLabel(b.tag)}
+                </span>
+                <span style={{ fontSize: fs(12), color: COLORS.gold, whiteSpace: 'nowrap', marginLeft: 10 }}>
+                  {formatBookingTime(b.start)}
+                </span>
+              </div>
+              {/* Сноска: те же данные, что бот пишет в название события в Google Calendar
+                  (маркер занятости + имя/телефон клиента), без ведущего тега — он уже показан бейджем выше. */}
+              <div style={{ marginTop: 6, fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                {stripTagPrefix(b.summary, b.tag)}
+              </div>
             </div>
-            <div>{b.summary}</div>
-          </div>
-        ))}
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -298,6 +298,7 @@ export function diffAndSync(
 
 export interface BotBooking {
   id: string;
+  tag: '[ONLINE]' | '[WALKIN]' | null;
   summary: string;
   start: string;
   end: string;
