@@ -76,6 +76,10 @@ const SKIN_TONES = [
   '#925C38', '#6B5D42', '#8F4632', '#7E4C2E', '#6A3C24', '#54301C', '#3E2416',
   '#2C1810',
 ];
+// Before anything's picked, showing all 22 swatches at once is a lot — pin
+// every 3rd one (still spans the full light→dark range) and hide the rest
+// behind "Ещё тона", same disclosure pattern as StyleChips below.
+const SKIN_TONES_PINNED_STEP = 3;
 
 const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч', '7 ч', '8 ч'];
 // Full palette of tattoo style directions (Russian tattoo-slang naming). Only
@@ -4486,7 +4490,7 @@ function OverdueReminderCard({
           <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {item.client.name || '—'}
           </div>
-          <div style={{ fontSize: fs(11), color: '#e0665a', marginTop: 2 }}>
+          <div style={{ fontSize: fs(11), color: 'var(--urgent)', marginTop: 2 }}>
             {item.kind === 'session' ? 'Сессия' : 'Консультация'} просрочена · {formatDate(item.date)}
           </div>
         </div>
@@ -4657,6 +4661,10 @@ function AdminDashboardScreen({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  // Parsed and normalized, waiting on the inline «Да/Нет» confirm below —
+  // replaces window.confirm() so the prompt matches the app's own dialogs.
+  const [pendingImport, setPendingImport] = useState<Client[] | null>(null);
 
   // Downloads the backup as a file — the fallback path when the device has no
   // native share sheet (most desktop browsers).
@@ -4694,14 +4702,21 @@ function AdminDashboardScreen({
         const parsed = JSON.parse(String(reader.result));
         const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
         if (!rawClients) throw new Error('bad shape');
-        if (!window.confirm(`Импортировать ${rawClients.length} клиент(ов)? Текущие данные будут заменены.`)) return;
-        onImport(rawClients.map((c: any, i: number) => normalizeClient(c, i)));
         setImportError(null);
+        setImportSuccess(null);
+        setPendingImport(rawClients.map((c: any, i: number) => normalizeClient(c, i)));
       } catch {
         setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
       }
     };
     reader.readAsText(file);
+  };
+
+  const confirmImport = () => {
+    if (!pendingImport) return;
+    onImport(pendingImport);
+    setImportSuccess(`Импортировано ${pendingImport.length} клиент(ов).`);
+    setPendingImport(null);
   };
 
   const actionButtonStyle: React.CSSProperties = {
@@ -4893,14 +4908,31 @@ function AdminDashboardScreen({
             from one (replaces everything currently stored). */}
         <GoldFrame style={{ padding: '14px 16px' }}>
           <div style={statLabelStyle}>Резервная копия</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div onClick={handleExport} style={actionButtonStyle}>
-              Экспортировать
+          {pendingImport ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', flex: 1, minWidth: 160 }}>
+                Импортировать {pendingImport.length} клиент(ов)? Текущие данные будут заменены.
+              </span>
+              <span onClick={confirmImport} style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
+                Да
+              </span>
+              <span
+                onClick={() => setPendingImport(null)}
+                style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
+              >
+                Нет
+              </span>
             </div>
-            <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
-              Импортировать
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div onClick={handleExport} style={actionButtonStyle}>
+                Экспортировать
+              </div>
+              <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
+                Импортировать
+              </div>
             </div>
-          </div>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -4913,7 +4945,10 @@ function AdminDashboardScreen({
             }}
           />
           {importError && (
-            <div style={{ marginTop: 10, fontSize: fs(12), color: '#e0665a', fontStyle: 'italic' }}>{importError}</div>
+            <div style={{ marginTop: 10, fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic' }}>{importError}</div>
+          )}
+          {importSuccess && (
+            <div style={{ marginTop: 10, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>{importSuccess}</div>
           )}
         </GoldFrame>
       </div>
@@ -5708,35 +5743,10 @@ function SummaryScreen({
             </>
           )}
         </div>
-
-        {/* «+» (new note) — sits opposite the filter icons on this same row,
-            rather than floating up by the header. */}
-        <div
-          onClick={() => onShowComposerChange(!showComposer)}
-          role="button"
-          aria-label={showComposer ? 'Скрыть новую заметку' : 'Новая заметка'}
-          style={{
-            width: 34,
-            height: 34,
-            flexShrink: 0,
-            borderRadius: '50%',
-            border: '1px solid rgba(var(--gold-rgb),0.25)',
-            background: showComposer ? 'rgba(var(--gold-rgb),0.1)' : 'rgba(var(--gold-rgb),0.03)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="15" height="15" viewBox="0 0 14 14" fill="none" style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 0.25s' }}>
-            <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-            <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </div>
       </div>
 
-      {/* New general note (client-less, stored on the master) — collapsed
-          behind the «+» in the filter row above. */}
+      {/* New general note (client-less, stored on the master) — opened via
+          the nav FAB's contextual «Создать» action. */}
       {showComposer && (
         <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 1 }}>
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
@@ -6510,13 +6520,17 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 // ── Reusable pickers (skin tone / marker colour / styles) ──
 function SkinTonePalette({ value, onPick }: { value: string; onPick: (hex: string) => void }) {
+  const [expanded, setExpanded] = useState(false);
   const selected = value ? value.toLowerCase() : '';
   const hasSel = !!selected;
   // Once a tone is picked the rest collapse away and the chosen swatch grows for
   // readability; picking again (or «изменить») expands the full palette back.
+  const pinned = SKIN_TONES.filter((_, i) => i % SKIN_TONES_PINNED_STEP === 0);
+  const visible = hasSel || expanded ? SKIN_TONES : pinned;
+  const hiddenCount = SKIN_TONES.length - visible.length;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-      {SKIN_TONES.map((t) => {
+      {visible.map((t) => {
         const sel = selected === t.toLowerCase();
         const hidden = hasSel && !sel;
         const size = sel ? 46 : 26;
@@ -6542,6 +6556,14 @@ function SkinTonePalette({ value, onPick }: { value: string; onPick: (hex: strin
           />
         );
       })}
+      {!hasSel && hiddenCount > 0 && (
+        <span
+          onClick={() => setExpanded(true)}
+          style={{ margin: 4, fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}
+        >
+          Ещё тона ({hiddenCount}) ▾
+        </span>
+      )}
       {hasSel && (
         <span
           onClick={() => onPick(value)}
