@@ -2325,12 +2325,12 @@ export default function TattoDiary() {
             Дневник Мастера
           </div>
           <StarDivider />
-          {/* Sits left of the pinned calendar tag (42px + gap) so the two
-              never overlap — this row scrolls away with the header, the
-              calendar tag stays fixed on screen (see the sibling-of-screens
-              render below). */}
-          <div style={{ position: 'absolute', top: 13, right: 70 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Below the divider, right-aligned under the pinned calendar tag
+              (which floats above, at the logo's height) — this row scrolls
+              away with the header; the calendar tag stays fixed on screen
+              (see the sibling-of-screens render below). */}
+          <div style={{ marginTop: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
               {/* ── Поиск ── */}
               <div style={{ position: 'relative' }}>
                 <div
