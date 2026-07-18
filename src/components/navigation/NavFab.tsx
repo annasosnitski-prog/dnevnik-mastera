@@ -11,6 +11,10 @@ interface NavFabProps {
   // once — every outstanding kind shows, stacked, rather than one hiding
   // the other.
   adminBadges?: ("urgent" | "reminder")[];
+  // Contextual «create» action (new client / new note / schedule…) — its
+  // meaning depends on which screen is current, decided by the caller.
+  // Omit to hide the create button entirely (Мастер has no create action).
+  onCreate?: () => void;
 }
 
 const NAV_ITEMS: {
@@ -31,7 +35,7 @@ const NAV_ITEMS: {
 // Closed, it shows the icon for whatever screen is currently open (so you
 // always know where you are without expanding it); tapping it fans the
 // other three destinations out above it.
-export function NavFab({ active, onNavigate, isLight, adminBadges }: NavFabProps) {
+export function NavFab({ active, onNavigate, isLight, adminBadges, onCreate }: NavFabProps) {
   const [open, setOpen] = useState(false);
   const variant = isLight ? "naturalist" : "jewelry";
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
@@ -45,6 +49,23 @@ export function NavFab({ active, onNavigate, isLight, adminBadges }: NavFabProps
     <>
       {open && <div onClick={() => setOpen(false)} aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 55 }} />}
       <div className="nav-fab">
+        {open && onCreate && (
+          <button
+            type="button"
+            className="nav-fab__item"
+            style={{ ["--i" as string]: others.length }}
+            aria-label="Создать"
+            onClick={() => {
+              onCreate();
+              setOpen(false);
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <line x1="10" y1="3" x2="10" y2="17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
         {open &&
           others.map((item, i) => {
             const badges = item.screen === "admin" ? adminBadges : undefined;

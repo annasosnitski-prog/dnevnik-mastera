@@ -1718,6 +1718,9 @@ export default function TattoDiary() {
   >(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
+  // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
+  // nav FAB's contextual create action can open it from outside.
+  const [showSummaryComposer, setShowSummaryComposer] = useState(false);
 
   // ── Calendar-driven creation: «Создать событие» on a picked day walks
   // through kind → client (existing/new) → the actual session/consultation
@@ -2649,16 +2652,26 @@ export default function TattoDiary() {
             ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
             ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
           ]}
+          // Contextual create — same action each screen's own «+» used to
+          // trigger, now all reachable from one place. Мастер has none.
+          onCreate={
+            screen === 'list' || screen === 'settings'
+              ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
+              : screen === 'summary'
+                ? () => setShowSummaryComposer(true)
+                : screen === 'admin'
+                  ? () => setShowCalendar(true)
+                  : undefined
+          }
         />
       )}
 
-      {/* Create-client «+» — pinned next to the logo (sibling of the screens,
-          so it never scrolls away with the client grid underneath). Мастер
-          is now a full bottom-nav page, so this spot (which used to hold its
-          shortcut) took over the add-client action instead — the bottom nav
-          holds only page destinations now. Next to the «+», a small tag
-          previews the nearest upcoming session's date. */}
-      {screen === 'list' && !sheetOpen && (
+      {/* Upcoming-date tag — pinned next to the logo (sibling of the screens,
+          so it never scrolls away with the client grid underneath). Shown on
+          every main screen except Мастер (the master's own profile has no
+          use for it). Create-client moved to the nav FAB's contextual create
+          action — see NavFab / onCreate below. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
         <div
           style={{
             position: 'absolute',
@@ -2702,30 +2715,6 @@ export default function TattoDiary() {
               </div>
             );
           })()}
-          {/* Create-client — moved here from the bottom nav (which now holds
-              only page destinations); same gated flow as before. */}
-          <div
-            onClick={() => runGated(clients.length === 0, () => setShowNewClientForm(true))}
-            role="button"
-            aria-label="Добавить клиента"
-            style={{
-              width: 42,
-              height: 42,
-              flexShrink: 0,
-              borderRadius: '50%',
-              border: '1px solid rgba(var(--gold-rgb),0.55)',
-              background: 'rgba(var(--gold-rgb),0.03)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <svg width="17" height="17" viewBox="0 0 14 14" fill="none">
-              <line x1="7" y1="2" x2="7" y2="12" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-              <line x1="2" y1="7" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </div>
         </div>
       )}
 
@@ -2771,6 +2760,8 @@ export default function TattoDiary() {
             onToggleMasterDone={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
             onEditMasterNote={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
             onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
+            showComposer={showSummaryComposer}
+            onShowComposerChange={setShowSummaryComposer}
           />
         )}
       </div>
@@ -3917,49 +3908,6 @@ function GoldGemCorner({ size = 24 }: { size?: number }) {
 // Gold reads through the theme's --gold-rgb custom property (so it tracks
 // light/dark theme changes); any other accent is a literal hex, tinted via
 // hexToRgba instead. Shared by GemCornerBL/BR below.
-function cornerPalette(color: string): { solid: string; mid: string; faint: string } {
-  if (color === COLORS.gold) {
-    return { solid: 'var(--gold)', mid: 'rgba(var(--gold-rgb),0.6)', faint: 'rgba(var(--gold-rgb),0.45)' };
-  }
-  return { solid: color, mid: hexToRgba(color, 0.6), faint: hexToRgba(color, 0.45) };
-}
-// Bottom-right mirror of the old GemCornerBL — used to give the overdue reminder
-// card a corner accent without colliding with its «×» (top-right) or its
-// «Напомнить» preset menu (which opens below the button, left-anchored).
-function GemCornerBR({ color = COLORS.gold, size = 20 }: { color?: string; size?: number }) {
-  const { solid, mid, faint } = cornerPalette(color);
-  return (
-    <>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: -6,
-          right: -6,
-          width: size + 20,
-          height: size + 20,
-          background: `radial-gradient(circle at bottom right, ${faint}, transparent 66%)`,
-          filter: 'blur(5px)',
-          zIndex: 2,
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          right: 0,
-          width: size,
-          height: size,
-          clipPath: 'polygon(100% 100%, 100% 0, 0 100%)',
-          background: `linear-gradient(145deg, ${solid} 0%, ${mid} 52%, ${hexToRgba(color, 0.12)} 100%)`,
-          boxShadow: `inset 2px 2px 3px ${faint}`,
-          zIndex: 3,
-          pointerEvents: 'none',
-        }}
-      />
-    </>
-  );
-}
 // Wraps a box in the same stripe+gem-corner+inset-ring frame as a client
 // card, all gold. Used throughout the master dashboard.
 function GoldFrame({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -4533,7 +4481,6 @@ function OverdueReminderCard({
         transition: 'opacity 0.2s ease',
       }}
     >
-      <GemCornerBR size={14} />
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -5578,6 +5525,8 @@ function SummaryScreen({
   onToggleMasterDone,
   onEditMasterNote,
   onDeleteMasterNote,
+  showComposer,
+  onShowComposerChange,
 }: {
   clients: Client[];
   masterNotes: ClientNote[];
@@ -5591,13 +5540,14 @@ function SummaryScreen({
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
   onDeleteMasterNote: (noteId: string) => void;
+  // Lifted so the nav FAB's contextual create action can open it too — see
+  // onCreate in the App shell.
+  showComposer: boolean;
+  onShowComposerChange: (open: boolean) => void;
 }) {
   const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  // The new-note composer is behind the header's «+», mirroring the home
-  // screen's layout.
-  const [showComposer, setShowComposer] = useState(false);
 
   // Planned (not-done) sessions + consultations, across every client, soonest
   // first — a compact card (client · type · date) that opens straight into the
@@ -5764,7 +5714,7 @@ function SummaryScreen({
         {/* «+» (new note) — sits opposite the filter icons on this same row,
             rather than floating up by the header. */}
         <div
-          onClick={() => setShowComposer((v) => !v)}
+          onClick={() => onShowComposerChange(!showComposer)}
           role="button"
           aria-label={showComposer ? 'Скрыть новую заметку' : 'Новая заметка'}
           style={{
@@ -5797,7 +5747,7 @@ function SummaryScreen({
           <NoteComposer
             onAdd={(text, urgency, photos) => {
               onAddMasterNote(text, urgency, photos);
-              setShowComposer(false);
+              onShowComposerChange(false);
             }}
           />
         </div>
