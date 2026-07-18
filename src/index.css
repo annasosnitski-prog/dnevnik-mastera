@@ -54,6 +54,10 @@
   --ink-faint: #38342E;
   --text-trace: #322F2A;
 
+  /* Urgent/overdue accent — a single token so dark and light can each hit
+     AA contrast without the red losing its warning read. */
+  --urgent: #e0665a;
+
   --placeholder: rgba(80, 70, 60, 0.65);
   --card-hover-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.5), 0 10px 36px rgba(var(--gold-rgb), 0.16),
     0 3px 10px rgba(0, 0, 0, 0.6);
@@ -84,11 +88,18 @@
   --text-soft: #6F5D46;
   --text-soft2: #7C6A52;
   --text-muted: #8A7860;
-  --text-faint: #9E8C72;
+  /* Darkened from the original #9E8C72/#A18E70 — those measured 2.49:1 and
+     2.43:1 against the cream background, well under WCAG AA's 4.5:1 for
+     normal text. These read the same warm sepia, just dark enough to pass. */
+  --text-faint: #6F6250;
   --surname: #8A7860;
-  --text-ghost: #A18E70;
+  --text-ghost: #6F624D;
   --ink-faint: #B4A284;
   --text-trace: #C2B196;
+
+  /* Original #e0665a measured 2.58:1 here — far under AA for the "urgent"
+     semantic color. Darkened toward brick so it still reads as red-alert. */
+  --urgent: #A14941;
 
   --placeholder: rgba(120, 100, 70, 0.55);
   --card-hover-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.5), 0 10px 30px rgba(var(--gold-rgb), 0.18),
@@ -117,8 +128,9 @@
   gap: 12px;
 }
 
-/* Transparent circles — no solid plate, just a thin ring and a soft gold
-   halo, so the button reads as glowing rather than as a plaque. */
+/* Secondary items stay transparent rings with a soft gold halo — a light
+   presence when idle. The main button (below) is the one exception: it's
+   always on screen, so it gets a solid, theme-matching plate instead. */
 .nav-fab__main,
 .nav-fab__item {
   appearance: none;
@@ -137,9 +149,11 @@
 }
 
 .nav-fab__main {
-  width: 56px;
-  height: 56px;
-  box-shadow: 0 0 3px rgba(var(--gold-rgb), 0.5), 0 0 18px rgba(var(--gold-rgb), 0.35);
+  width: 68px;
+  height: 68px;
+  background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
+  border: 1px solid rgba(var(--gold-rgb), 0.55);
+  box-shadow: 0 0 3px rgba(var(--gold-rgb), 0.5), 0 0 18px rgba(var(--gold-rgb), 0.35), 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 .nav-fab__main:active {
@@ -157,6 +171,14 @@
 
 .nav-fab__item:active {
   transform: scale(0.92);
+}
+
+/* «Создать» reads differently from the plain nav destinations — a solid
+   gold fill, since it's an action rather than a place to go. */
+.nav-fab__item--create {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--bg);
 }
 
 @keyframes nav-fab-in {
@@ -181,6 +203,19 @@
 @media (prefers-reduced-motion: reduce) {
   .nav-fab__item {
     animation: none;
+  }
+
+  /* Screen-swipe transitions and the cloud/star/meteor drift are all set via
+     inline styles (durations computed in JS), so a stylesheet !important is
+     the one place that can reach every one of them at once: transitions
+     snap instead of sliding, and looping background animations freeze in
+     place instead of continuing to drift. */
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation-play-state: paused !important;
+    scroll-behavior: auto !important;
   }
 }
 

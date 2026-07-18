@@ -52,7 +52,7 @@ export function NavFab({ active, onNavigate, isLight, adminBadges, onCreate }: N
         {open && onCreate && (
           <button
             type="button"
-            className="nav-fab__item"
+            className="nav-fab__item nav-fab__item--create"
             style={{ ["--i" as string]: others.length }}
             aria-label="Создать"
             onClick={() => {
@@ -86,7 +86,7 @@ export function NavFab({ active, onNavigate, isLight, adminBadges, onCreate }: N
                   <span
                     key={kind}
                     className="nav-fab__badge"
-                    style={{ top: -2 - bi * 7, right: -2 - bi * 7, background: kind === "urgent" ? "#e0665a" : "#e0b84a" }}
+                    style={{ top: -2 - bi * 7, right: -2 - bi * 7, background: kind === "urgent" ? "var(--urgent)" : "#e0b84a" }}
                   />
                 ))}
               </button>
@@ -101,7 +101,7 @@ export function NavFab({ active, onNavigate, isLight, adminBadges, onCreate }: N
         >
           <ToolbarIcon name={current.id} variant={variant} size={28} />
           {mainBadgeKind && (
-            <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "#e0665a" : "#e0b84a" }} />
+            <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
         </button>
       </div>
