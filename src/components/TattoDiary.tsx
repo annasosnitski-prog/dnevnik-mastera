@@ -2229,6 +2229,12 @@ export default function TattoDiary() {
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
 
+  // Calendar tag + (list-only) sort/filter/search circles are pinned overlays,
+  // sized to clear whichever screen's own header is tallest — Настройки carries
+  // an extra «вернуться» row above its title, so it needs more headroom than
+  // Главная/Блокнот/Админка share.
+  const pinnedRowTop = screen === 'settings' ? 'calc(env(safe-area-inset-top) + 152px)' : 'calc(env(safe-area-inset-top) + 122px)';
+
   return (
     <div
       className="app-shell"
@@ -2432,21 +2438,23 @@ export default function TattoDiary() {
         />
       )}
 
-      {/* Upcoming-date tag — pinned next to the logo (sibling of the screens,
-          so it never scrolls away with the client grid underneath). Shown on
-          every main screen except Мастер (the master's own profile has no
-          use for it). Create-client moved to the nav FAB's contextual create
-          action — see NavFab / onCreate below. */}
+      {/* Upcoming-date tag + (list-only) Поиск/Фильтры/Сортировка — one pinned
+          column, sibling of the screens (never scrolls away). The circle row
+          stacks directly under the calendar tag via flex gap, so the two
+          never collide with each other or with the header above regardless
+          of whether the tag itself is showing. Create-client moved to the nav
+          FAB's contextual create action — see NavFab / onCreate below. */}
       {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
         <div
           style={{
             position: 'absolute',
-            top: 'calc(env(safe-area-inset-top) + 31px)',
+            top: pinnedRowTop,
             right: 20,
             zIndex: 20,
             display: 'flex',
-            alignItems: 'center',
-            gap: 8,
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 10,
           }}
         >
           {(() => {
@@ -2481,12 +2489,277 @@ export default function TattoDiary() {
               </div>
             );
           })()}
+
+          {screen === 'list' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* ── Поиск ── */}
+              <div style={{ position: 'relative' }}>
+                <div
+                  onClick={() => {
+                    setSearchOpen((v) => !v);
+                    setSortOpen(false);
+                    setFiltersOpen(false);
+                  }}
+                  role="button"
+                  aria-label={searchOpen ? 'Скрыть поиск' : 'Поиск'}
+                  title="Поиск"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    border: searchOpen || searchQuery ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                    background: searchOpen || searchQuery ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 13 13" fill="none" style={{ color: searchOpen || searchQuery ? COLORS.gold : COLORS.textFaint }}>
+                    <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
+                    <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  </svg>
+                </div>
+                {searchOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      right: 0,
+                      width: 220,
+                      maxWidth: 'calc(100vw - 40px)',
+                      background: COLORS.sheet,
+                      border: '1px solid rgba(var(--gold-rgb),0.2)',
+                      borderRadius: 4,
+                      padding: '8px 12px',
+                      boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                      zIndex: 17,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0, color: 'var(--ink-faint)' }}>
+                      <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
+                      <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                    </svg>
+                    <input
+                      autoFocus
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Найти клиента..."
+                      style={{
+                        flex: 1,
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        fontFamily: "'Inter', sans-serif",
+                        color: COLORS.textPrimary,
+                        fontStyle: searchQuery ? 'normal' : 'italic',
+                        letterSpacing: '0.3px',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ── Фильтры (цвет-маркер + тип клиента) ── */}
+              <div style={{ position: 'relative' }}>
+                <div
+                  onClick={() => {
+                    setFiltersOpen((v) => !v);
+                    setSortOpen(false);
+                    setSearchOpen(false);
+                  }}
+                  role="button"
+                  aria-label={filtersOpen ? 'Скрыть фильтры' : 'Фильтры'}
+                  title="Фильтры"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    border: filtersActive || filtersOpen ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                    background: filtersActive || filtersOpen ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: filtersActive || filtersOpen ? COLORS.gold : COLORS.textFaint }}>
+                    <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                {filtersOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      right: 0,
+                      width: 250,
+                      maxWidth: 'calc(100vw - 40px)',
+                      background: COLORS.sheet,
+                      border: '1px solid rgba(var(--gold-rgb),0.2)',
+                      borderRadius: 4,
+                      padding: 12,
+                      boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                      zIndex: 17,
+                    }}
+                  >
+                    <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Цвет-маркер
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 14 }}>
+                      <div
+                        onClick={() => setColorFilter('all')}
+                        style={{
+                          fontSize: fs(11),
+                          padding: '4px 9px',
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          border: colorFilter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                          background: colorFilter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                          color: colorFilter === 'all' ? COLORS.gold : COLORS.textFaint,
+                          letterSpacing: '0.4px',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        Все
+                      </div>
+                      {MARKER_COLORS.map((c) => {
+                        const sel = colorFilter.toLowerCase() === c.toLowerCase();
+                        return (
+                          <div
+                            key={c}
+                            onClick={() => setColorFilter(sel ? 'all' : c)}
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: '50%',
+                              background: c,
+                              cursor: 'pointer',
+                              border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
+                              boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Тип
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {(['all', ...CLIENT_TYPES.map((t) => t.value)] as ('all' | ClientType)[]).map((v) => {
+                        const label = v === 'all' ? 'Все' : CLIENT_TYPES.find((t) => t.value === v)?.label;
+                        const active = typeFilter === v;
+                        return (
+                          <div
+                            key={v}
+                            onClick={() => setTypeFilter(v)}
+                            style={{
+                              fontSize: fs(11),
+                              padding: '4px 9px',
+                              borderRadius: 2,
+                              cursor: 'pointer',
+                              border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                              background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                              color: active ? COLORS.gold : COLORS.textFaint,
+                              letterSpacing: '0.4px',
+                              textTransform: 'uppercase',
+                            }}
+                          >
+                            {label}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Сортировка ── */}
+              <div style={{ position: 'relative' }}>
+                <div
+                  onClick={() => {
+                    setSortOpen((v) => !v);
+                    setFiltersOpen(false);
+                    setSearchOpen(false);
+                  }}
+                  role="button"
+                  aria-label={sortOpen ? 'Скрыть сортировку' : 'Сортировка'}
+                  title="Сортировка"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    border: sortOpen ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                    background: sortOpen ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: sortOpen ? COLORS.gold : COLORS.textFaint }}>
+                    <line x1="2.5" y1="4" x2="11" y2="4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    <line x1="2.5" y1="8" x2="8.5" y2="8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    <line x1="2.5" y1="12" x2="6" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                  </svg>
+                </div>
+                {sortOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      right: 0,
+                      minWidth: 150,
+                      background: COLORS.sheet,
+                      border: '1px solid rgba(var(--gold-rgb),0.2)',
+                      borderRadius: 4,
+                      padding: 6,
+                      boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                      zIndex: 17,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                    }}
+                  >
+                    {SORT_MODES.map((m) => {
+                      const active = sortMode === m.key;
+                      return (
+                        <div
+                          key={m.key}
+                          onClick={() => {
+                            setSortMode(m.key);
+                            setSortOpen(false);
+                          }}
+                          style={{
+                            fontSize: fs(12),
+                            padding: '8px 10px',
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            background: active ? 'rgba(var(--gold-rgb),0.1)' : 'transparent',
+                            color: active ? COLORS.gold : COLORS.textFaint,
+                            letterSpacing: '0.5px',
+                            textTransform: 'uppercase',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {active ? '• ' : ''}
+                          {m.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Сортировка / Фильтры / Поиск — collapsed into a row of circles under
-          the calendar tag (list screen only), same treatment as that tag and
-          the Блокнот filter circle, instead of a wide row of text chips. */}
+      {/* Shared backdrop — closes whichever of Поиск/Фильтры/Сортировка is
+          open on an outside tap. */}
       {(sortOpen || filtersOpen || searchOpen) && (
         <div
           onClick={() => {
@@ -2496,281 +2769,6 @@ export default function TattoDiary() {
           }}
           style={{ position: 'fixed', inset: 0, zIndex: 15 }}
         />
-      )}
-      {screen === 'list' && !sheetOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(env(safe-area-inset-top) + 81px)',
-            right: 20,
-            zIndex: 20,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          {/* ── Сортировка ── */}
-          <div style={{ position: 'relative' }}>
-            <div
-              onClick={() => {
-                setSortOpen((v) => !v);
-                setFiltersOpen(false);
-                setSearchOpen(false);
-              }}
-              role="button"
-              aria-label={sortOpen ? 'Скрыть сортировку' : 'Сортировка'}
-              title="Сортировка"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                border: sortOpen ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                background: sortOpen ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: sortOpen ? COLORS.gold : COLORS.textFaint }}>
-                <line x1="2.5" y1="4" x2="11" y2="4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                <line x1="2.5" y1="8" x2="8.5" y2="8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                <line x1="2.5" y1="12" x2="6" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
-            </div>
-            {sortOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  right: 0,
-                  minWidth: 150,
-                  background: COLORS.sheet,
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  borderRadius: 4,
-                  padding: 6,
-                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-                  zIndex: 17,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                }}
-              >
-                {SORT_MODES.map((m) => {
-                  const active = sortMode === m.key;
-                  return (
-                    <div
-                      key={m.key}
-                      onClick={() => {
-                        setSortMode(m.key);
-                        setSortOpen(false);
-                      }}
-                      style={{
-                        fontSize: fs(12),
-                        padding: '8px 10px',
-                        borderRadius: 2,
-                        cursor: 'pointer',
-                        background: active ? 'rgba(var(--gold-rgb),0.1)' : 'transparent',
-                        color: active ? COLORS.gold : COLORS.textFaint,
-                        letterSpacing: '0.5px',
-                        textTransform: 'uppercase',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {active ? '• ' : ''}
-                      {m.label}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ── Фильтры (цвет-маркер + тип клиента) ── */}
-          <div style={{ position: 'relative' }}>
-            <div
-              onClick={() => {
-                setFiltersOpen((v) => !v);
-                setSortOpen(false);
-                setSearchOpen(false);
-              }}
-              role="button"
-              aria-label={filtersOpen ? 'Скрыть фильтры' : 'Фильтры'}
-              title="Фильтры"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                border: filtersActive || filtersOpen ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                background: filtersActive || filtersOpen ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: filtersActive || filtersOpen ? COLORS.gold : COLORS.textFaint }}>
-                <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-              </svg>
-            </div>
-            {filtersOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  right: 0,
-                  width: 250,
-                  maxWidth: 'calc(100vw - 40px)',
-                  background: COLORS.sheet,
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  borderRadius: 4,
-                  padding: 12,
-                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-                  zIndex: 17,
-                }}
-              >
-                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Цвет-маркер
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 14 }}>
-                  <div
-                    onClick={() => setColorFilter('all')}
-                    style={{
-                      fontSize: fs(11),
-                      padding: '4px 9px',
-                      borderRadius: 2,
-                      cursor: 'pointer',
-                      border: colorFilter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                      background: colorFilter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                      color: colorFilter === 'all' ? COLORS.gold : COLORS.textFaint,
-                      letterSpacing: '0.4px',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    Все
-                  </div>
-                  {MARKER_COLORS.map((c) => {
-                    const sel = colorFilter.toLowerCase() === c.toLowerCase();
-                    return (
-                      <div
-                        key={c}
-                        onClick={() => setColorFilter(sel ? 'all' : c)}
-                        style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: '50%',
-                          background: c,
-                          cursor: 'pointer',
-                          border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
-                          boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Тип
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {(['all', ...CLIENT_TYPES.map((t) => t.value)] as ('all' | ClientType)[]).map((v) => {
-                    const label = v === 'all' ? 'Все' : CLIENT_TYPES.find((t) => t.value === v)?.label;
-                    const active = typeFilter === v;
-                    return (
-                      <div
-                        key={v}
-                        onClick={() => setTypeFilter(v)}
-                        style={{
-                          fontSize: fs(11),
-                          padding: '4px 9px',
-                          borderRadius: 2,
-                          cursor: 'pointer',
-                          border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                          background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                          color: active ? COLORS.gold : COLORS.textFaint,
-                          letterSpacing: '0.4px',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {label}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── Поиск ── */}
-          <div style={{ position: 'relative' }}>
-            <div
-              onClick={() => {
-                setSearchOpen((v) => !v);
-                setSortOpen(false);
-                setFiltersOpen(false);
-              }}
-              role="button"
-              aria-label={searchOpen ? 'Скрыть поиск' : 'Поиск'}
-              title="Поиск"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                border: searchOpen || searchQuery ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                background: searchOpen || searchQuery ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 13 13" fill="none" style={{ color: searchOpen || searchQuery ? COLORS.gold : COLORS.textFaint }}>
-                <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
-                <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-            </div>
-            {searchOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  right: 0,
-                  width: 220,
-                  maxWidth: 'calc(100vw - 40px)',
-                  background: COLORS.sheet,
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  borderRadius: 4,
-                  padding: '8px 12px',
-                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-                  zIndex: 17,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0, color: 'var(--ink-faint)' }}>
-                  <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
-                  <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                </svg>
-                <input
-                  autoFocus
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Найти клиента..."
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    fontFamily: "'Inter', sans-serif",
-                    color: COLORS.textPrimary,
-                    fontStyle: searchQuery ? 'normal' : 'italic',
-                    letterSpacing: '0.3px',
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        </div>
       )}
 
       {/* ═══════════ SUMMARY SCREEN ═══════════ */}
@@ -5793,8 +5791,11 @@ function SummaryScreen({
           the nav FAB's contextual «Создать» action. */}
       {showComposer && (
         <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-            Новая общая заметка
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+              Новая общая заметка
+            </div>
+            <ReminderCloseButton onClick={() => onShowComposerChange(false)} />
           </div>
           <NoteComposer
             onAdd={(text, urgency, photos) => {
