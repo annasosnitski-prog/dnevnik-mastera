@@ -65,7 +65,7 @@ export function NavFab({ active, onNavigate, isLight, adminBadges, onCreate }: N
               setOpen(false);
             }}
           >
-            <svg width="30" height="30" viewBox="0 0 20 20" fill="none">
+            <svg width="26" height="26" viewBox="0 0 20 20" fill="none">
               <line x1="10" y1="3" x2="10" y2="17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
               <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
