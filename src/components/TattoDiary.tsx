@@ -3913,13 +3913,19 @@ function GoldGemCorner({ size = 24 }: { size?: number }) {
 // light/dark theme changes); any other accent is a literal hex, tinted via
 // hexToRgba instead. Shared by GemCornerBL/BR below.
 // Wraps a box in the same stripe+gem-corner+inset-ring frame as a client
-// card, all gold. Used throughout the master dashboard.
-function GoldFrame({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+// card, all gold. Used throughout the master dashboard — pass `plain` to
+// keep just the card surface, no stripes/corner (the Мастер tab's own cards
+// go plain; Админка keeps the full frame).
+function GoldFrame({ children, style, plain = false }: { children: React.ReactNode; style?: React.CSSProperties; plain?: boolean }) {
   return (
-    <div className="inka-static" style={{ position: 'relative', borderRadius: 3, overflow: 'hidden', background: 'rgba(var(--surface-rgb),0.018)', ...style }}>
-      <GoldTopStripe />
-      <GoldRightStripe />
-      <GoldGemCorner />
+    <div className="inka-static" style={{ position: 'relative', borderRadius: 3, overflow: 'hidden', background: 'rgba(var(--surface-rgb),0.018)', ...(plain ? { boxShadow: 'var(--card-rest-shadow)' } : {}), ...style }}>
+      {!plain && (
+        <>
+          <GoldTopStripe />
+          <GoldRightStripe />
+          <GoldGemCorner />
+        </>
+      )}
       <div style={{ position: 'relative', zIndex: 2 }}>{children}</div>
     </div>
   );
@@ -4117,9 +4123,9 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
 // A single "ability score" style tile for the master dashboard's stat grid —
 // bracketed corners and a big centered number, like a tabletop character
 // sheet's stat block, but in the app's own gold/dark palette.
-function StatBlock({ label, value, big = true }: { label: string; value: string | number; big?: boolean }) {
+function StatBlock({ label, value, big = true, plain = false }: { label: string; value: string | number; big?: boolean; plain?: boolean }) {
   return (
-    <GoldFrame style={{ textAlign: 'center', padding: '18px 10px 16px' }}>
+    <GoldFrame plain={plain} style={{ textAlign: 'center', padding: '18px 10px 16px' }}>
       <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
       <div
         style={{
@@ -5104,7 +5110,7 @@ function MasterDashboardScreen({
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Master's own name */}
-        <GoldFrame style={{ padding: '14px 16px' }}>
+        <GoldFrame plain style={{ padding: '14px 16px' }}>
           <div style={{ ...statLabelStyle, textAlign: 'center' }}>Имя мастера</div>
           <input
             value={name}
@@ -5127,12 +5133,12 @@ function MasterDashboardScreen({
 
         {/* «Частый стиль» — the one stat that stays a personal Мастер metric;
             the rest of the stats grid moved to Админка. */}
-        <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} />
+        <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} plain />
 
         {/* Контакты и оплата — links + bank details. Once there's data, the
             card shows a read view that copies everything to the clipboard on
             tap; the pencil toggle switches back to the edit form. */}
-        <GoldFrame style={{ padding: '14px 16px', position: 'relative' }}>
+        <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasContactData && !editingContacts ? 8 : 14 }}>
             <div style={{ ...statLabelStyle, marginBottom: 0 }}>Контакты и оплата</div>
             <span onClick={() => setEditingContacts((v) => !v)} role="button" aria-label={editingContacts ? 'Готово' : 'Редактировать контакты'} style={editToggleStyle}>
@@ -5181,7 +5187,7 @@ function MasterDashboardScreen({
         </GoldFrame>
 
         {/* Телефон мастера — its own block, same tap-to-copy behaviour. */}
-        <GoldFrame style={{ padding: '14px 16px', position: 'relative' }}>
+        <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: masterInfo.phone && !editingPhone ? 8 : 14 }}>
             <div style={{ ...statLabelStyle, marginBottom: 0 }}>Телефон мастера</div>
             <span
@@ -5214,7 +5220,7 @@ function MasterDashboardScreen({
         </GoldFrame>
 
         {/* Обозначения цветов — collapsed by default, kept compact. */}
-        <GoldFrame style={{ padding: '14px 16px' }}>
+        <GoldFrame plain style={{ padding: '14px 16px' }}>
           <div
             onClick={() => setColorsOpen((v) => !v)}
             role="button"
