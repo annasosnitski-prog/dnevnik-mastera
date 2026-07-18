@@ -319,6 +319,42 @@ function dateParts(value: string): { weekday: string; day: string; month: string
   return { weekday: WEEKDAYS_SHORT_RU[dt.getDay()], day: String(d), month: MONTHS_RU[mo - 1] };
 }
 
+// Tear-off calendar square — weekday/day/month, showing the soonest upcoming
+// session or consultation. Positioned by the caller (each screen places it
+// inside its own header), so it scrolls away with the rest of that header
+// instead of staying pinned on screen — unlike the Сортировка/Фильтры/Поиск
+// circles, which stay fixed regardless of scroll.
+function UpcomingDateBadge({ clients, onOpen }: { clients: Client[]; onOpen: () => void }) {
+  const next = upcomingItems(clients, 365)[0];
+  const parts = next ? dateParts(next.date) : null;
+  if (!next || !parts) return null;
+  return (
+    <div
+      onClick={onOpen}
+      role="button"
+      aria-label="Открыть календарь"
+      style={{
+        width: 42,
+        height: 42,
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        lineHeight: 1,
+        cursor: 'pointer',
+        borderRadius: 4,
+        border: '1px solid rgba(var(--gold-rgb),0.3)',
+        background: 'rgba(var(--gold-rgb),0.04)',
+      }}
+    >
+      <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.gold, marginBottom: 2 }}>{parts.weekday}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.textPrimary }}>{parts.day}</div>
+      <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.textGhost, marginTop: 2 }}>{parts.month}</div>
+    </div>
+  );
+}
+
 
 // Converts a #rrggbb hex to an rgba() string at the given alpha.
 function hexToRgba(hex: string, alpha: number): string {
@@ -2229,12 +2265,6 @@ export default function TattoDiary() {
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
 
-  // Calendar tag + (list-only) sort/filter/search circles are pinned overlays,
-  // sized to clear whichever screen's own header is tallest — Настройки carries
-  // an extra «вернуться» row above its title, so it needs more headroom than
-  // Главная/Блокнот/Админка share.
-  const pinnedRowTop = screen === 'settings' ? 'calc(env(safe-area-inset-top) + 152px)' : 'calc(env(safe-area-inset-top) + 122px)';
-
   return (
     <div
       className="app-shell"
@@ -2295,203 +2325,12 @@ export default function TattoDiary() {
             Дневник Мастера
           </div>
           <StarDivider />
-        </div>
-
-        {/* Error banner */}
-        {dbError && (
-          <div
-            style={{
-              margin: '0 16px 12px',
-              padding: '10px 14px',
-              borderRadius: 3,
-              border: '1px solid rgba(138,48,64,0.5)',
-              background: 'rgba(138,48,64,0.12)',
-              display: 'flex',
-              gap: 10,
-              alignItems: 'flex-start',
-              position: 'relative',
-              zIndex: 10,
-            }}
-          >
-            <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
-            <button
-              onClick={() => setDbError(null)}
-              style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Пересечение в Инка-календаре — янтарное предупреждение (не ошибка:
-            запись сохранена, мастер сама решает, накладка это или намеренно). */}
-        {syncWarning && (
-          <div
-            style={{
-              margin: '0 16px 12px',
-              padding: '10px 14px',
-              borderRadius: 3,
-              border: '1px solid rgba(184,134,11,0.5)',
-              background: 'rgba(184,134,11,0.12)',
-              display: 'flex',
-              gap: 10,
-              alignItems: 'flex-start',
-              position: 'relative',
-              zIndex: 10,
-            }}
-          >
-            <span style={{ flex: 1, fontSize: fs(15), color: '#D4A94E', fontStyle: 'italic' }}>{syncWarning}</span>
-            <button
-              onClick={() => setSyncWarning(null)}
-              style={{ background: 'none', border: 'none', color: '#D4A94E', cursor: 'pointer', flexShrink: 0 }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Cards grid — 2 columns on phones, 3 from tablet width up (see .inka-client-grid). */}
-        <div
-          className="inka-client-grid"
-          style={{
-            padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)',
-            display: 'grid',
-            gap: 10,
-            position: 'relative',
-            zIndex: 5,
-            // Promote the whole grid to a single GPU layer so both columns move
-            // together during momentum scroll (prevents the columns from
-            // desyncing/"jumping" as the compositor re-tiles the scroll area).
-            transform: 'translateZ(0)',
-          }}
-        >
-          {filteredClients.map((client) => (
-            <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} />
-          ))}
-        </div>
-
-        {/* Empty state */}
-        {clients.length > 0 && filteredClients.length === 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 280,
-              left: 0,
-              right: 0,
-              textAlign: 'center',
-              fontSize: fs(15),
-              fontStyle: 'italic',
-              color: COLORS.textGhost,
-              pointerEvents: 'none',
-            }}
-          >
-            Ничего не найдено
-          </div>
-        )}
-
-        {/* First-run empty state — points at the pinned add button since the
-            grid no longer has its own add tile. Gated on clientsLoaded so it
-            doesn't flash before the real (non-empty) list has loaded. */}
-        {clientsLoaded && clients.length === 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 280,
-              left: 0,
-              right: 0,
-              textAlign: 'center',
-              fontSize: fs(15),
-              fontStyle: 'italic',
-              color: COLORS.textGhost,
-              pointerEvents: 'none',
-              padding: '0 40px',
-            }}
-          >
-            Пока нет клиентов — нажмите «+» внизу, чтобы добавить первого
-          </div>
-        )}
-      </div>
-
-      {/* Navigation — sibling of the screens so it pins to the shell bottom
-          (never scrolls). Shown on the list and settings screens, hidden
-          while a bottom sheet is open so it can't sit over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin') && !sheetOpen && (
-        <NavFab
-          active={screen}
-          onNavigate={(s) => setScreen(s)}
-          isLight={theme === 'light'}
-          adminBadges={[
-            ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
-            ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
-          ]}
-          // Contextual create — same action each screen's own «+» used to
-          // trigger, now all reachable from one place. Мастер has none.
-          onCreate={
-            screen === 'list' || screen === 'settings'
-              ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
-              : screen === 'summary'
-                ? () => setShowSummaryComposer(true)
-                : screen === 'admin'
-                  ? () => setShowCalendar(true)
-                  : undefined
-          }
-        />
-      )}
-
-      {/* Upcoming-date tag + (list-only) Поиск/Фильтры/Сортировка — one pinned
-          column, sibling of the screens (never scrolls away). The circle row
-          stacks directly under the calendar tag via flex gap, so the two
-          never collide with each other or with the header above regardless
-          of whether the tag itself is showing. Create-client moved to the nav
-          FAB's contextual create action — see NavFab / onCreate below. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: pinnedRowTop,
-            right: 20,
-            zIndex: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: 10,
-          }}
-        >
-          {(() => {
-            const next = upcomingItems(clients, 365)[0];
-            const parts = next ? dateParts(next.date) : null;
-            if (!next || !parts) return null;
-            return (
-              // Tear-off calendar square — weekday/day/month, clean frame, no
-              // corner ornament (that read as clutter at this size).
-              <div
-                onClick={() => setShowCalendar(true)}
-                role="button"
-                aria-label="Открыть календарь"
-                style={{
-                  width: 42,
-                  height: 42,
-                  flexShrink: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  borderRadius: 4,
-                  border: '1px solid rgba(var(--gold-rgb),0.3)',
-                  background: 'rgba(var(--gold-rgb),0.04)',
-                }}
-              >
-                <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.gold, marginBottom: 2 }}>{parts.weekday}</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.textPrimary }}>{parts.day}</div>
-                <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.textGhost, marginTop: 2 }}>{parts.month}</div>
-              </div>
-            );
-          })()}
-
-          {screen === 'list' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Below the divider, right-aligned under the pinned calendar tag
+              (which floats above, at the logo's height) — this row scrolls
+              away with the header; the calendar tag stays fixed on screen
+              (see the sibling-of-screens render below). */}
+          <div style={{ marginTop: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
               {/* ── Поиск ── */}
               <div style={{ position: 'relative' }}>
                 <div
@@ -2754,9 +2593,163 @@ export default function TattoDiary() {
                 )}
               </div>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Error banner */}
+        {dbError && (
+          <div
+            style={{
+              margin: '0 16px 12px',
+              padding: '10px 14px',
+              borderRadius: 3,
+              border: '1px solid rgba(138,48,64,0.5)',
+              background: 'rgba(138,48,64,0.12)',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+              position: 'relative',
+              zIndex: 10,
+            }}
+          >
+            <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
+            <button
+              onClick={() => setDbError(null)}
+              style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Пересечение в Инка-календаре — янтарное предупреждение (не ошибка:
+            запись сохранена, мастер сама решает, накладка это или намеренно). */}
+        {syncWarning && (
+          <div
+            style={{
+              margin: '0 16px 12px',
+              padding: '10px 14px',
+              borderRadius: 3,
+              border: '1px solid rgba(184,134,11,0.5)',
+              background: 'rgba(184,134,11,0.12)',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+              position: 'relative',
+              zIndex: 10,
+            }}
+          >
+            <span style={{ flex: 1, fontSize: fs(15), color: '#D4A94E', fontStyle: 'italic' }}>{syncWarning}</span>
+            <button
+              onClick={() => setSyncWarning(null)}
+              style={{ background: 'none', border: 'none', color: '#D4A94E', cursor: 'pointer', flexShrink: 0 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Cards grid — 2 columns on phones, 3 from tablet width up (see .inka-client-grid). */}
+        <div
+          className="inka-client-grid"
+          style={{
+            padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)',
+            display: 'grid',
+            gap: 10,
+            position: 'relative',
+            zIndex: 5,
+            // Promote the whole grid to a single GPU layer so both columns move
+            // together during momentum scroll (prevents the columns from
+            // desyncing/"jumping" as the compositor re-tiles the scroll area).
+            transform: 'translateZ(0)',
+          }}
+        >
+          {filteredClients.map((client) => (
+            <ClientGridCard key={client.id} client={client} onClick={() => openClient(client)} />
+          ))}
+        </div>
+
+        {/* Empty state */}
+        {clients.length > 0 && filteredClients.length === 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 280,
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              fontSize: fs(15),
+              fontStyle: 'italic',
+              color: COLORS.textGhost,
+              pointerEvents: 'none',
+            }}
+          >
+            Ничего не найдено
+          </div>
+        )}
+
+        {/* First-run empty state — points at the pinned add button since the
+            grid no longer has its own add tile. Gated on clientsLoaded so it
+            doesn't flash before the real (non-empty) list has loaded. */}
+        {clientsLoaded && clients.length === 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 280,
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              fontSize: fs(15),
+              fontStyle: 'italic',
+              color: COLORS.textGhost,
+              pointerEvents: 'none',
+              padding: '0 40px',
+            }}
+          >
+            Пока нет клиентов — нажмите «+» внизу, чтобы добавить первого
+          </div>
+        )}
+      </div>
+
+      {/* Navigation — sibling of the screens so it pins to the shell bottom
+          (never scrolls). Shown on the list and settings screens, hidden
+          while a bottom sheet is open so it can't sit over the sheet's controls. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin') && !sheetOpen && (
+        <NavFab
+          active={screen}
+          onNavigate={(s) => setScreen(s)}
+          isLight={theme === 'light'}
+          adminBadges={[
+            ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
+            ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
+          ]}
+          // Contextual create — same action each screen's own «+» used to
+          // trigger, now all reachable from one place. Мастер has none.
+          onCreate={
+            screen === 'list' || screen === 'settings'
+              ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
+              : screen === 'summary'
+                ? () => setShowSummaryComposer(true)
+                : screen === 'admin'
+                  ? () => setShowCalendar(true)
+                  : undefined
+          }
+        />
+      )}
+
+      {/* Upcoming-date tag — pinned next to the logo (sibling of the screens,
+          so it never scrolls away with the client grid underneath). Shown on
+          every main screen except Мастер (the master's own profile has no
+          use for it). Create-client moved to the nav FAB's contextual create
+          action — see NavFab / onCreate below. Сортировка/Фильтры/Поиск, by
+          contrast, now live inside the List header itself and scroll away
+          with it — see the header render below. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
+        <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 31px)', right: 20, zIndex: 20 }}>
+          <UpcomingDateBadge clients={clients} onOpen={() => setShowCalendar(true)} />
         </div>
       )}
+
 
       {/* Shared backdrop — closes whichever of Поиск/Фильтры/Сортировка is
           open on an outside tap. */}
