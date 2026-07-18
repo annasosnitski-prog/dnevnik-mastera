@@ -287,3 +287,41 @@ export function diffAndSync(
     send(settings, { action: 'delete', diaryId: diaryId(clientId, 'c', id) });
   }
 }
+
+// ----------------------------------------------------------
+// ОБРАТНЫЙ ПОТОК (Календарь → Дневник, только чтение).
+// По просьбе Ани — узко: ONLINE/WALKIN-брони простым списком, БЕЗ
+// карточек клиентов и привязки — карточку она заводит в Дневнике сама.
+// Использует ТОТ ЖЕ секрет, что и запись (DIARY_SYNC_SECRET) — отдельный
+// заводить не нужно, Дневник его уже хранит.
+// ----------------------------------------------------------
+
+export interface BotBooking {
+  id: string;
+  summary: string;
+  start: string;
+  end: string;
+}
+
+// /api/diary-sync -> /api/bot-bookings (тот же хост, соседний путь).
+function deriveBotBookingsEndpoint(diarySyncEndpoint: string): string {
+  if (/\/api\/diary-sync\/?$/.test(diarySyncEndpoint)) {
+    return diarySyncEndpoint.replace(/\/api\/diary-sync\/?$/, '/api/bot-bookings');
+  }
+  // Нестандартный адрес (мастер поменяла вручную) — пробуем как есть,
+  // просто заменив последний сегмент пути.
+  return diarySyncEndpoint.replace(/\/[^/]*$/, '/bot-bookings');
+}
+
+export async function fetchBotBookings(settings: CalendarSyncSettings): Promise<BotBooking[]> {
+  if (!settings.secret.trim()) return [];
+  const url = deriveBotBookingsEndpoint(settings.endpoint);
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${settings.secret}` },
+  });
+  if (!res.ok) {
+    throw new Error(`bot-bookings fetch failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data?.bookings) ? data.bookings : [];
+}

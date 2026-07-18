@@ -7,8 +7,10 @@ import {
   syncActive,
   diffAndSync,
   setConflictHandler,
+  fetchBotBookings,
   DEFAULT_ENDPOINT,
   type CalendarSyncSettings,
+  type BotBooking,
 } from '../lib/calendarSync';
 
 // ===================== DESIGN TOKENS =====================
@@ -5280,6 +5282,111 @@ function MasterDashboardScreen({
   );
 }
 
+// ===================== БРОНИ ИЗ БОТА (ONLINE/WALKIN) =====================
+// Только чтение, только список — по просьбе Ани карточку клиента она
+// заводит в Дневнике сама, бот её не создаёт и ни к чему не привязывает.
+// Ручное обновление кнопкой: экран Настроек не размонтируется при уходе
+// (переключение через CSS-transform), поэтому автообновление по монтированию
+// сработало бы только один раз за всю сессию приложения.
+function formatBookingTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString('ru-RU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jerusalem',
+  });
+}
+
+function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
+  const [bookings, setBookings] = useState<BotBooking[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = () => {
+    setLoading(true);
+    setError(null);
+    fetchBotBookings(settings)
+      .then((b) => setBookings(b.slice().sort((a, b2) => a.start.localeCompare(b2.start))))
+      .catch(() => setError('не получилось загрузить — проверь секрет/соединение.'))
+      .finally(() => setLoading(false));
+  };
+
+  const rowStyle: React.CSSProperties = {
+    background: 'rgba(var(--surface-rgb),0.018)',
+    border: '1px solid rgba(var(--gold-rgb),0.1)',
+    borderRadius: 3,
+    padding: '16px 16px 18px',
+    marginBottom: 12,
+  };
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "'Kelly Slab', 'Playfair Display', serif",
+    fontSize: fs(12),
+    color: 'var(--text-secondary)',
+    letterSpacing: '2.5px',
+    textTransform: 'uppercase',
+    marginBottom: 14,
+  };
+
+  return (
+    <div style={rowStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ ...labelStyle, marginBottom: 0 }}>Брони из бота (online/walkin)</div>
+        <div
+          onClick={loading ? undefined : refresh}
+          style={{
+            fontSize: fs(11),
+            color: COLORS.gold,
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: loading ? 'default' : 'pointer',
+            opacity: loading ? 0.5 : 1,
+          }}
+        >
+          {loading ? 'гружу…' : 'обновить'}
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ fontSize: fs(12), color: '#C99', fontStyle: 'italic', marginBottom: 8 }}>{error}</div>
+      )}
+
+      {bookings === null && !error && !loading && (
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+          нажми «обновить», чтобы загрузить список.
+        </div>
+      )}
+
+      {bookings !== null && bookings.length === 0 && (
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+          пока пусто — броней online/walkin не найдено.
+        </div>
+      )}
+
+      {bookings !== null &&
+        bookings.map((b) => (
+          <div
+            key={b.id}
+            style={{
+              padding: '8px 0',
+              borderTop: '1px solid rgba(var(--gold-rgb),0.08)',
+              fontSize: fs(13),
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <div style={{ color: COLORS.gold, fontSize: fs(11), letterSpacing: '0.5px' }}>
+              {formatBookingTime(b.start)}
+            </div>
+            <div>{b.summary}</div>
+          </div>
+        ))}
+    </div>
+  );
+}
+
 // ===================== SETTINGS SCREEN =====================
 function SettingsScreen({
   theme,
@@ -5553,6 +5660,11 @@ function SettingsScreen({
               : 'выключена: записи остаются только в дневнике.'}
           </div>
         </div>
+
+        {/* Обратный поток: ONLINE/WALKIN-брони из бота простым списком.
+            Без карточек клиентов и привязки — только справочный список,
+            карточку мастер заводит в Дневнике сама (см. calendarSync.ts). */}
+        {syncActive(calendarSync) && <BotBookingsList settings={calendarSync} />}
 
         {/* Reset */}
         <div
