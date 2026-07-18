@@ -2857,6 +2857,7 @@ export default function TattoDiary() {
             onChangePrefs={setPrefs}
             onOpenSession={openEntryForEdit}
             onImport={replaceAllClients}
+            calendarSync={calendarSync}
             overdue={visibleOverdue}
             healing={visibleHealing}
             soon={visibleSoon}
@@ -4689,6 +4690,7 @@ function AdminDashboardScreen({
   onOpenEntry,
   onDismissReminder,
   onCancelEntry,
+  calendarSync,
 }: {
   clients: Client[];
   prefs: Prefs;
@@ -4701,6 +4703,7 @@ function AdminDashboardScreen({
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  calendarSync: CalendarSyncSettings;
 }) {
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
@@ -4887,6 +4890,18 @@ function AdminDashboardScreen({
             </div>
           )}
         </GoldFrame>
+
+        {/* Обратный поток: ONLINE/WALKIN-брони из бота отдельным блоком.
+            Без карточек клиентов и привязки — только справочный список,
+            карточку мастер заводит в Дневнике сама (см. calendarSync.ts). */}
+        {syncActive(calendarSync) && (
+          <GoldFrame style={{ padding: '14px 16px' }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
+            <div style={{ marginTop: 8 }}>
+              <BotBookingsList settings={calendarSync} />
+            </div>
+          </GoldFrame>
+        )}
 
         <RemindersSection overdue={overdue} healing={healing} soon={soon} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
 
@@ -5690,11 +5705,6 @@ function SettingsScreen({
               : 'выключена: записи остаются только в дневнике.'}
           </div>
         </div>
-
-        {/* Обратный поток: ONLINE/WALKIN-брони из бота простым списком.
-            Без карточек клиентов и привязки — только справочный список,
-            карточку мастер заводит в Дневнике сама (см. calendarSync.ts). */}
-        {syncActive(calendarSync) && <BotBookingsList settings={calendarSync} />}
 
         {/* Reset */}
         <div
