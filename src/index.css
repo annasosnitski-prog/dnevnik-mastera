@@ -114,12 +114,13 @@
   --toolbar-icon-active: #7E5818;
 }
 
-/* Navigation FAB — a single circle, bottom-right, replacing the full-width
+/* Navigation FAB — a single circle, bottom-centre, replacing the full-width
    bottom bar entirely (see NavFab.tsx). Closed, it shows the current
    screen's icon; tapping it fans the other three destinations out above it. */
 .nav-fab {
   position: absolute;
-  right: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   z-index: 56;
   display: flex;
@@ -161,8 +162,8 @@
 }
 
 .nav-fab__item {
-  width: 44px;
-  height: 44px;
+  width: 62px;
+  height: 62px;
   color: var(--toolbar-icon);
   box-shadow: 0 0 3px rgba(var(--gold-rgb), 0.4), 0 0 14px rgba(var(--gold-rgb), 0.28);
   animation: nav-fab-in 0.18s ease both;
@@ -179,6 +180,13 @@
   background: var(--gold);
   border-color: var(--gold);
   color: var(--bg);
+}
+
+/* The plus glyph is a raw inline <svg> (not routed through ToolbarIcon), so
+   it isn't shielded from the global `svg { color: var(--gold) }` default
+   below — without this it paints gold-on-gold and disappears. */
+.nav-fab__item--create svg {
+  color: inherit;
 }
 
 @keyframes nav-fab-in {

@@ -1539,13 +1539,12 @@ interface Prefs {
   statsWindowDays: number; // how many days ahead the dashboard's stat-grid counters (sessions/consultations) look
   gameMode: boolean; // rock-paper-scissors gate before creating a client/session/note
 }
-const UPCOMING_WINDOW_OPTIONS = [3, 5, 7, 10, 14];
-// Master-facing labels read "3 дня / Неделя / 2 недели / Месяц" — plain day
-// counts underneath so the same upcomingItems() window logic applies.
-const STATS_WINDOW_OPTIONS: { days: number; label: string }[] = [
+// Shared by both of Админка's period pickers («Предстоящие сессии» and the
+// stats grid) so the two read as one control, not two different ones.
+const DASHBOARD_WINDOW_OPTIONS: { days: number; label: string }[] = [
   { days: 3, label: '3 дня' },
-  { days: 7, label: 'Неделя' },
-  { days: 14, label: '2 недели' },
+  { days: 7, label: '7 дней' },
+  { days: 14, label: '14 дней' },
   { days: 30, label: 'Месяц' },
 ];
 const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7, statsWindowDays: 30, gameMode: true };
@@ -1560,8 +1559,8 @@ function readInitialPrefs(): Prefs {
         // Clamp to the new floor (1.0): older values below it are lifted.
         textScale: typeof p.textScale === 'number' ? Math.max(1, p.textScale) : 1,
         textBright: p.textBright === 'high' || p.textBright === 'max' ? p.textBright : 'normal',
-        upcomingWindowDays: UPCOMING_WINDOW_OPTIONS.includes(p.upcomingWindowDays) ? p.upcomingWindowDays : 7,
-        statsWindowDays: STATS_WINDOW_OPTIONS.some((o) => o.days === p.statsWindowDays) ? p.statsWindowDays : 30,
+        upcomingWindowDays: DASHBOARD_WINDOW_OPTIONS.some((o) => o.days === p.upcomingWindowDays) ? p.upcomingWindowDays : 7,
+        statsWindowDays: DASHBOARD_WINDOW_OPTIONS.some((o) => o.days === p.statsWindowDays) ? p.statsWindowDays : 30,
         gameMode: typeof p.gameMode === 'boolean' ? p.gameMode : true,
       };
     }
@@ -1701,6 +1700,7 @@ export default function TattoDiary() {
   const [typeFilter, setTypeFilter] = useState<'all' | ClientType>('all');
   const [sortMode, setSortMode] = useState<SortMode>('name');
   const [sortOpen, setSortOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [showNewSessionForm, setShowNewSessionForm] = useState(false);
@@ -2291,244 +2291,6 @@ export default function TattoDiary() {
           <StarDivider />
         </div>
 
-        {/* Search bar */}
-        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 10 }}>
-          <div
-            style={{
-              background: 'rgba(var(--surface-rgb),0.022)',
-              border: '1px solid rgba(var(--gold-rgb),0.11)',
-              borderRadius: 3,
-              padding: '8px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 9,
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0, color: 'var(--ink-faint)' }}>
-              <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
-              <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Найти клиента..."
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                fontFamily: "'Inter', sans-serif",
-                color: COLORS.textPrimary,
-                fontStyle: searchQuery ? 'normal' : 'italic',
-                letterSpacing: '0.3px',
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Sort + filter — two icon-triggered dropdown menus sitting side by
-            side. A shared invisible backdrop closes whichever is open on an
-            outside tap. */}
-        {(sortOpen || filtersOpen) && (
-          <div
-            onClick={() => {
-              setSortOpen(false);
-              setFiltersOpen(false);
-            }}
-            style={{ position: 'fixed', inset: 0, zIndex: 15 }}
-          />
-        )}
-        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 16, display: 'flex', gap: 10 }}>
-          {/* ── Сортировка ── */}
-          <div style={{ position: 'relative' }}>
-            <div
-              onClick={() => {
-                setSortOpen((v) => !v);
-                setFiltersOpen(false);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                cursor: 'pointer',
-                fontSize: fs(12),
-                color: COLORS.textFaint,
-                letterSpacing: '1.5px',
-                textTransform: 'uppercase',
-                padding: '6px 11px',
-                border: '1px solid rgba(var(--gold-rgb),0.15)',
-                borderRadius: 2,
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-                <line x1="2.5" y1="4" x2="11" y2="4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                <line x1="2.5" y1="8" x2="8.5" y2="8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                <line x1="2.5" y1="12" x2="6" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
-              Сортировка {sortOpen ? '▴' : '▾'}
-            </div>
-            {sortOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  left: 0,
-                  minWidth: 150,
-                  background: COLORS.sheet,
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  borderRadius: 4,
-                  padding: 6,
-                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-                  zIndex: 17,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                }}
-              >
-                {SORT_MODES.map((m) => {
-                  const active = sortMode === m.key;
-                  return (
-                    <div
-                      key={m.key}
-                      onClick={() => {
-                        setSortMode(m.key);
-                        setSortOpen(false);
-                      }}
-                      style={{
-                        fontSize: fs(12),
-                        padding: '8px 10px',
-                        borderRadius: 2,
-                        cursor: 'pointer',
-                        background: active ? 'rgba(var(--gold-rgb),0.1)' : 'transparent',
-                        color: active ? COLORS.gold : COLORS.textFaint,
-                        letterSpacing: '0.5px',
-                        textTransform: 'uppercase',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {active ? '• ' : ''}
-                      {m.label}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ── Фильтры (цвет-маркер + тип клиента) ── */}
-          <div style={{ position: 'relative' }}>
-            <div
-              onClick={() => {
-                setFiltersOpen((v) => !v);
-                setSortOpen(false);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                cursor: 'pointer',
-                fontSize: fs(12),
-                color: filtersActive ? COLORS.gold : COLORS.textFaint,
-                letterSpacing: '1.5px',
-                textTransform: 'uppercase',
-                padding: '6px 11px',
-                border: filtersActive ? '1px solid rgba(var(--gold-rgb),0.5)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                borderRadius: 2,
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-                <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-              </svg>
-              Фильтры{filtersActive ? ' •' : ''} {filtersOpen ? '▴' : '▾'}
-            </div>
-            {filtersOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  right: 0,
-                  width: 250,
-                  maxWidth: 'calc(100vw - 40px)',
-                  background: COLORS.sheet,
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  borderRadius: 4,
-                  padding: 12,
-                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-                  zIndex: 17,
-                }}
-              >
-                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Цвет-маркер
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 14 }}>
-                  <div
-                    onClick={() => setColorFilter('all')}
-                    style={{
-                      fontSize: fs(11),
-                      padding: '4px 9px',
-                      borderRadius: 2,
-                      cursor: 'pointer',
-                      border: colorFilter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                      background: colorFilter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                      color: colorFilter === 'all' ? COLORS.gold : COLORS.textFaint,
-                      letterSpacing: '0.4px',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    Все
-                  </div>
-                  {MARKER_COLORS.map((c) => {
-                    const sel = colorFilter.toLowerCase() === c.toLowerCase();
-                    return (
-                      <div
-                        key={c}
-                        onClick={() => setColorFilter(sel ? 'all' : c)}
-                        style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: '50%',
-                          background: c,
-                          cursor: 'pointer',
-                          border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
-                          boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Тип
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {(['all', ...CLIENT_TYPES.map((t) => t.value)] as ('all' | ClientType)[]).map((v) => {
-                    const label = v === 'all' ? 'Все' : CLIENT_TYPES.find((t) => t.value === v)?.label;
-                    const active = typeFilter === v;
-                    return (
-                      <div
-                        key={v}
-                        onClick={() => setTypeFilter(v)}
-                        style={{
-                          fontSize: fs(11),
-                          padding: '4px 9px',
-                          borderRadius: 2,
-                          cursor: 'pointer',
-                          border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                          background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                          color: active ? COLORS.gold : COLORS.textFaint,
-                          letterSpacing: '0.4px',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {label}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Error banner */}
         {dbError && (
           <div
@@ -2722,6 +2484,295 @@ export default function TattoDiary() {
         </div>
       )}
 
+      {/* Сортировка / Фильтры / Поиск — collapsed into a row of circles under
+          the calendar tag (list screen only), same treatment as that tag and
+          the Блокнот filter circle, instead of a wide row of text chips. */}
+      {(sortOpen || filtersOpen || searchOpen) && (
+        <div
+          onClick={() => {
+            setSortOpen(false);
+            setFiltersOpen(false);
+            setSearchOpen(false);
+          }}
+          style={{ position: 'fixed', inset: 0, zIndex: 15 }}
+        />
+      )}
+      {screen === 'list' && !sheetOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top) + 81px)',
+            right: 20,
+            zIndex: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          {/* ── Сортировка ── */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => {
+                setSortOpen((v) => !v);
+                setFiltersOpen(false);
+                setSearchOpen(false);
+              }}
+              role="button"
+              aria-label={sortOpen ? 'Скрыть сортировку' : 'Сортировка'}
+              title="Сортировка"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                border: sortOpen ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                background: sortOpen ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: sortOpen ? COLORS.gold : COLORS.textFaint }}>
+                <line x1="2.5" y1="4" x2="11" y2="4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <line x1="2.5" y1="8" x2="8.5" y2="8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <line x1="2.5" y1="12" x2="6" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            </div>
+            {sortOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  minWidth: 150,
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: 6,
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+              >
+                {SORT_MODES.map((m) => {
+                  const active = sortMode === m.key;
+                  return (
+                    <div
+                      key={m.key}
+                      onClick={() => {
+                        setSortMode(m.key);
+                        setSortOpen(false);
+                      }}
+                      style={{
+                        fontSize: fs(12),
+                        padding: '8px 10px',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        background: active ? 'rgba(var(--gold-rgb),0.1)' : 'transparent',
+                        color: active ? COLORS.gold : COLORS.textFaint,
+                        letterSpacing: '0.5px',
+                        textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {active ? '• ' : ''}
+                      {m.label}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── Фильтры (цвет-маркер + тип клиента) ── */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => {
+                setFiltersOpen((v) => !v);
+                setSortOpen(false);
+                setSearchOpen(false);
+              }}
+              role="button"
+              aria-label={filtersOpen ? 'Скрыть фильтры' : 'Фильтры'}
+              title="Фильтры"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                border: filtersActive || filtersOpen ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                background: filtersActive || filtersOpen ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: filtersActive || filtersOpen ? COLORS.gold : COLORS.textFaint }}>
+                <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </div>
+            {filtersOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: 250,
+                  maxWidth: 'calc(100vw - 40px)',
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: 12,
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
+                }}
+              >
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Цвет-маркер
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 14 }}>
+                  <div
+                    onClick={() => setColorFilter('all')}
+                    style={{
+                      fontSize: fs(11),
+                      padding: '4px 9px',
+                      borderRadius: 2,
+                      cursor: 'pointer',
+                      border: colorFilter === 'all' ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                      background: colorFilter === 'all' ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                      color: colorFilter === 'all' ? COLORS.gold : COLORS.textFaint,
+                      letterSpacing: '0.4px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Все
+                  </div>
+                  {MARKER_COLORS.map((c) => {
+                    const sel = colorFilter.toLowerCase() === c.toLowerCase();
+                    return (
+                      <div
+                        key={c}
+                        onClick={() => setColorFilter(sel ? 'all' : c)}
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          background: c,
+                          cursor: 'pointer',
+                          border: sel ? '2px solid var(--text)' : '1px solid rgba(var(--gold-rgb),0.25)',
+                          boxShadow: sel ? `0 0 0 2px ${c}` : undefined,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Тип
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {(['all', ...CLIENT_TYPES.map((t) => t.value)] as ('all' | ClientType)[]).map((v) => {
+                    const label = v === 'all' ? 'Все' : CLIENT_TYPES.find((t) => t.value === v)?.label;
+                    const active = typeFilter === v;
+                    return (
+                      <div
+                        key={v}
+                        onClick={() => setTypeFilter(v)}
+                        style={{
+                          fontSize: fs(11),
+                          padding: '4px 9px',
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                          background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                          color: active ? COLORS.gold : COLORS.textFaint,
+                          letterSpacing: '0.4px',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Поиск ── */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => {
+                setSearchOpen((v) => !v);
+                setSortOpen(false);
+                setFiltersOpen(false);
+              }}
+              role="button"
+              aria-label={searchOpen ? 'Скрыть поиск' : 'Поиск'}
+              title="Поиск"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                border: searchOpen || searchQuery ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                background: searchOpen || searchQuery ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 13 13" fill="none" style={{ color: searchOpen || searchQuery ? COLORS.gold : COLORS.textFaint }}>
+                <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
+                <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </div>
+            {searchOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: 220,
+                  maxWidth: 'calc(100vw - 40px)',
+                  background: COLORS.sheet,
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 4,
+                  padding: '8px 12px',
+                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                  zIndex: 17,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0, color: 'var(--ink-faint)' }}>
+                  <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.2" />
+                  <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+                <input
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Найти клиента..."
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    fontFamily: "'Inter', sans-serif",
+                    color: COLORS.textPrimary,
+                    fontStyle: searchQuery ? 'normal' : 'italic',
+                    letterSpacing: '0.3px',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ═══════════ SUMMARY SCREEN ═══════════ */}
       <div
         style={{
@@ -2813,7 +2864,6 @@ export default function TattoDiary() {
             onChangePrefs={setPrefs}
             onOpenSession={openEntryForEdit}
             onImport={replaceAllClients}
-            onOpenSchedule={() => setShowCalendar(true)}
             overdue={visibleOverdue}
             healing={visibleHealing}
             soon={visibleSoon}
@@ -3838,27 +3888,29 @@ function GemCorner({ color, size = 28 }: { color: string; size?: number }) {
 
 // Gold versions of the client card's foil stripes + gem corner — same recipe
 // (gradient stripe with a bright sheen, glass corner with a soft reflection),
-// just always gold instead of the per-client marker colour. Used to frame
-// boxes on the master dashboard so they read as one family with the cards.
-function GoldTopStripe() {
+// just always gold instead of the per-client marker colour, and mirrored to
+// the bottom-left (rather than the client card's top-right) so Админка's
+// frames read as their own thing. Used to frame boxes on the master
+// dashboard so they read as one family with the cards.
+function GoldBottomStripe() {
   return (
     <div
       className="inka-stripe"
       style={{
         position: 'absolute',
-        top: 0,
+        bottom: 0,
         left: 0,
         right: 0,
         height: 3,
         zIndex: 6,
         pointerEvents: 'none',
         background: 'linear-gradient(90deg, var(--gold) 0%, #f6e8c4 48%, var(--gold) 100%)',
-        boxShadow: '0 1px 2px rgba(var(--gold-rgb),0.4)',
+        boxShadow: '0 -1px 2px rgba(var(--gold-rgb),0.4)',
       }}
     />
   );
 }
-function GoldRightStripe() {
+function GoldLeftStripe() {
   return (
     <div
       className="inka-stripe-right"
@@ -3866,12 +3918,12 @@ function GoldRightStripe() {
         position: 'absolute',
         top: 0,
         bottom: 0,
-        right: 0,
+        left: 0,
         width: 3,
         zIndex: 6,
         pointerEvents: 'none',
         background: 'linear-gradient(180deg, var(--gold) 0%, #f6e8c4 48%, var(--gold) 100%)',
-        boxShadow: '-1px 0 2px rgba(var(--gold-rgb),0.4)',
+        boxShadow: '1px 0 2px rgba(var(--gold-rgb),0.4)',
       }}
     />
   );
@@ -3882,11 +3934,11 @@ function GoldGemCorner({ size = 24 }: { size?: number }) {
       <div
         style={{
           position: 'absolute',
-          top: -6,
-          right: -6,
+          bottom: -6,
+          left: -6,
           width: size + 20,
           height: size + 20,
-          background: 'radial-gradient(circle at top right, rgba(var(--gold-rgb),0.45), transparent 66%)',
+          background: 'radial-gradient(circle at bottom left, rgba(var(--gold-rgb),0.45), transparent 66%)',
           filter: 'blur(5px)',
           zIndex: 2,
           pointerEvents: 'none',
@@ -3895,13 +3947,13 @@ function GoldGemCorner({ size = 24 }: { size?: number }) {
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          right: 0,
+          bottom: 0,
+          left: 0,
           width: size,
           height: size,
-          clipPath: 'polygon(100% 0, 0 0, 100% 100%)',
-          background: 'linear-gradient(215deg, var(--gold) 0%, rgba(var(--gold-rgb),0.6) 52%, rgba(var(--gold-rgb),0.12) 100%)',
-          boxShadow: 'inset 2px -2px 3px rgba(var(--gold-rgb),0.5)',
+          clipPath: 'polygon(0 100%, 100% 100%, 0 0)',
+          background: 'linear-gradient(35deg, var(--gold) 0%, rgba(var(--gold-rgb),0.6) 52%, rgba(var(--gold-rgb),0.12) 100%)',
+          boxShadow: 'inset -2px 2px 3px rgba(var(--gold-rgb),0.5)',
           zIndex: 3,
           pointerEvents: 'none',
         }}
@@ -3921,8 +3973,8 @@ function GoldFrame({ children, style, plain = false }: { children: React.ReactNo
     <div className="inka-static" style={{ position: 'relative', borderRadius: 3, overflow: 'hidden', background: 'rgba(var(--surface-rgb),0.018)', ...(plain ? { boxShadow: 'var(--card-rest-shadow)' } : {}), ...style }}>
       {!plain && (
         <>
-          <GoldTopStripe />
-          <GoldRightStripe />
+          <GoldBottomStripe />
+          <GoldLeftStripe />
           <GoldGemCorner />
         </>
       )}
@@ -4638,7 +4690,6 @@ function AdminDashboardScreen({
   onChangePrefs,
   onOpenSession,
   onImport,
-  onOpenSchedule,
   overdue,
   healing,
   soon,
@@ -4651,7 +4702,6 @@ function AdminDashboardScreen({
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onImport: (clients: Client[]) => void;
-  onOpenSchedule: () => void;
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon: UpcomingSoonItem[];
@@ -4787,41 +4837,27 @@ function AdminDashboardScreen({
             create button (same calendar-driven creation walk) — this screen
             no longer duplicates it as its own standalone button. */}
 
-        {/* Upcoming sessions, with a master-configurable lookahead window — the
-            calendar glyph opens the same full month view as «Запланировать». */}
+        {/* Upcoming sessions, with a master-configurable lookahead window —
+            same period picker as the stats grid below, so the two controls
+            read as one shared concept rather than two different ones. */}
         <GoldFrame style={{ padding: '14px 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Предстоящие сессии</div>
-            <div
-              onClick={onOpenSchedule}
-              role="button"
-              aria-label="Открыть календарь"
-              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 2, opacity: 0.75 }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="var(--gold)" strokeWidth="1.2" />
-                <line x1="2" y1="6.5" x2="14" y2="6.5" stroke="var(--gold)" strokeWidth="1.2" />
-                <line x1="5.5" y1="1.5" x2="5.5" y2="4" stroke="var(--gold)" strokeWidth="1.2" strokeLinecap="round" />
-                <line x1="10.5" y1="1.5" x2="10.5" y2="4" stroke="var(--gold)" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-            </div>
-          </div>
+          <div style={{ ...statLabelStyle, marginBottom: 0 }}>Предстоящие сессии</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: 8 }}>
-            {UPCOMING_WINDOW_OPTIONS.map((d) => (
+            {DASHBOARD_WINDOW_OPTIONS.map((o) => (
               <div
-                key={d}
-                onClick={() => onChangePrefs({ ...prefs, upcomingWindowDays: d })}
+                key={o.days}
+                onClick={() => onChangePrefs({ ...prefs, upcomingWindowDays: o.days })}
                 style={{
                   fontSize: fs(12),
                   padding: '4px 10px',
                   borderRadius: 2,
                   cursor: 'pointer',
-                  border: prefs.upcomingWindowDays === d ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: prefs.upcomingWindowDays === d ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: prefs.upcomingWindowDays === d ? COLORS.gold : COLORS.textFaint,
+                  border: prefs.upcomingWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: prefs.upcomingWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: prefs.upcomingWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
                 }}
               >
-                {d} дн.
+                {o.label}
               </div>
             ))}
           </div>
@@ -4864,7 +4900,7 @@ function AdminDashboardScreen({
         {/* Quick stats — clients (with срочно/важно in the lower half) beside
             назначено сессий/консультаций. «Частый стиль» stays on Мастер. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
-          {STATS_WINDOW_OPTIONS.map((o) => (
+          {DASHBOARD_WINDOW_OPTIONS.map((o) => (
             <div
               key={o.days}
               onClick={() => onChangePrefs({ ...prefs, statsWindowDays: o.days })}
@@ -5079,16 +5115,17 @@ function MasterDashboardScreen({
           }}
         >
           <svg width="21" height="21" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
-            <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.3" />
-            <circle cx="10" cy="10" r="1.5" stroke="currentColor" strokeWidth="1.1" />
-            <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" />
-            <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" />
-            <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(45 10 10)" />
-            <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(45 10 10)" />
-            <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(90 10 10)" />
-            <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(90 10 10)" />
-            <rect x="8.9" y="1.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(135 10 10)" />
-            <rect x="8.9" y="16.3" width="2.2" height="2.4" rx="0.5" fill="currentColor" transform="rotate(135 10 10)" />
+            <path
+              d="M10 6.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4Z"
+              stroke="currentColor"
+              strokeWidth="1.3"
+            />
+            <path
+              d="M10 2.4v1.9M10 15.7v1.9M17.6 10h-1.9M4.3 10H2.4M15.2 4.8l-1.34 1.34M6.14 13.86 4.8 15.2M15.2 15.2l-1.34-1.34M6.14 6.14 4.8 4.8"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
           </svg>
         </div>
         <div
@@ -5124,9 +5161,10 @@ function MasterDashboardScreen({
               outline: 'none',
               padding: 0,
               textAlign: 'center',
-              fontFamily: "'Inter', sans-serif",
-              fontSize: fs(18),
-              color: COLORS.textPrimary,
+              fontFamily: DROP_CAP_FONT,
+              fontSize: fs(24),
+              fontWeight: 600,
+              color: COLORS.gold,
             }}
           />
         </GoldFrame>
@@ -5654,7 +5692,7 @@ function SummaryScreen({
           — and the dropdown inside it — sits above the two-column section
           below, which is a later sibling and would otherwise win z-index
           ties by DOM order. */}
-      <div style={{ padding: '4px 20px 14px', position: 'relative', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '4px 20px 14px', position: 'relative', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Funnel toggle — chips stay hidden until tapped. */}
           <div
@@ -5811,7 +5849,7 @@ function SummaryScreen({
         {/* Column 2 — planned sessions & consultations */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
-            Сессии и консультации
+            Записи
           </div>
           {plannedItems.length === 0 ? (
             <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
