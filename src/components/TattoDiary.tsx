@@ -4762,11 +4762,9 @@ function AdminDashboardScreen({
       </div>
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Schedule a session/consultation straight from Админка — reuses the
-            same calendar-driven creation walk as the «Ближайшая» tag. */}
-        <div onClick={onOpenSchedule} role="button" aria-label="Запланировать" style={{ ...actionButtonStyle, padding: '12px 0' }}>
-          + Запланировать сессию / консультацию
-        </div>
+        {/* «Запланировать» now lives only behind the nav FAB's contextual
+            create button (same calendar-driven creation walk) — this screen
+            no longer duplicates it as its own standalone button. */}
 
         {/* Upcoming sessions, with a master-configurable lookahead window — the
             calendar glyph opens the same full month view as «Запланировать». */}
