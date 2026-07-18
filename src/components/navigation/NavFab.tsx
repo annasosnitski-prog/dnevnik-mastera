@@ -17,16 +17,21 @@ interface NavFabProps {
   onCreate?: () => void;
 }
 
+// Ordered by how often a master actually reaches for each one: Блокнот
+// (logged the most), Клиенты (the core roster), Админка (checked daily/
+// weekly, not constantly), Мастер (settings — reached for least). «Создать»
+// sits above all of these (see the render below) as the one action, not a
+// destination.
 const NAV_ITEMS: {
   id: ToolbarIconName;
   label: string;
   screen: AppScreen;
   isActive: (active: AppScreen) => boolean;
 }[] = [
+  { id: "sketchbook", label: "Блокнот", screen: "summary", isActive: (a) => a === "summary" },
   // «Клиенты» stays lit for Настройки too — reached from the home area, not
   // a separate section.
   { id: "tasks", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" },
-  { id: "sketchbook", label: "Блокнот", screen: "summary", isActive: (a) => a === "summary" },
   { id: "dashboard", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
   { id: "profile", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
 ];
@@ -60,7 +65,7 @@ export function NavFab({ active, onNavigate, isLight, adminBadges, onCreate }: N
               setOpen(false);
             }}
           >
-            <svg width="26" height="26" viewBox="0 0 20 20" fill="none">
+            <svg width="30" height="30" viewBox="0 0 20 20" fill="none">
               <line x1="10" y1="3" x2="10" y2="17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
               <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>

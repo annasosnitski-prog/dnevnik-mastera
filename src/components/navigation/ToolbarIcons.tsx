@@ -97,13 +97,6 @@ function JewelryProfileIcon(
         strokeWidth="1.55"
         d="M7.5 27c.6-5 3.6-7.5 8.5-7.5s7.9 2.5 8.5 7.5"
       />
-      <path strokeWidth="1.3" d="M25.5 7.5v-3M24 6h3" />
-      <circle
-        cx="25.5"
-        cy="6"
-        r="3.25"
-        strokeWidth="1.2"
-      />
     </svg>
   );
 }
