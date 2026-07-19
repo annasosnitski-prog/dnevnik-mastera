@@ -1633,17 +1633,6 @@ interface MasterLink {
   label: string; // e.g. "Instagram", "СБП Тинькофф", "Карта Сбербанк"
   value: string; // free text — link, phone, card number...
 }
-// Quick-open icons for the master's own public profiles — their own block
-// (unlike `chatLinks`, which are copy-to-clipboard contact channels, these
-// open the profile directly, like a client's would).
-interface MasterSocials {
-  instagram: string;
-  tiktok: string;
-  pinterest: string;
-  facebook: string;
-}
-const DEFAULT_MASTER_SOCIALS: MasterSocials = { instagram: '', tiktok: '', pinterest: '', facebook: '' };
-
 interface MasterInfo {
   name: string; // the master's own name, shown on the dashboard
   links: MasterLink[];
@@ -1651,7 +1640,6 @@ interface MasterInfo {
   phone: string; // the master's own phone — its own tap-to-copy block, separate from `links`
   telegramBotLink: string; // link to the booking bot in Telegram — its own block, kept apart from `chatLinks`
   chatLinks: ChatLink[]; // master's own site/WhatsApp/Telegram/Instagram/etc — same picker as a client's contacts
-  socials: MasterSocials;
   colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
   notes: ClientNote[]; // the master's own notes (not tied to any client), shown in «Задачи»
 }
@@ -1662,7 +1650,6 @@ const DEFAULT_MASTER_INFO: MasterInfo = {
   phone: '',
   telegramBotLink: '',
   chatLinks: [],
-  socials: { ...DEFAULT_MASTER_SOCIALS },
   colorLabels: {},
   notes: [],
 };
@@ -1693,12 +1680,6 @@ function readInitialMasterInfo(): MasterInfo {
         phone: typeof p.phone === 'string' ? p.phone : '',
         telegramBotLink: typeof p.telegramBotLink === 'string' ? p.telegramBotLink : '',
         chatLinks,
-        socials: {
-          instagram: typeof p.socials?.instagram === 'string' ? p.socials.instagram : '',
-          tiktok: typeof p.socials?.tiktok === 'string' ? p.socials.tiktok : '',
-          pinterest: typeof p.socials?.pinterest === 'string' ? p.socials.pinterest : '',
-          facebook: typeof p.socials?.facebook === 'string' ? p.socials.facebook : '',
-        },
         colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
         notes: Array.isArray(p.notes)
           ? p.notes.map((n: any, i: number): ClientNote => ({
@@ -5067,25 +5048,6 @@ function AdminDashboardScreen({
   );
 }
 
-// Builds a profile-view link (not a chat/DM link — this is for people to
-// look at the master's page, unlike buildChatLink's messaging-focused URLs).
-function buildSocialProfileUrl(platform: keyof MasterSocials, raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return '';
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  const handle = trimmed.replace(/^@/, '');
-  switch (platform) {
-    case 'instagram':
-      return `https://instagram.com/${handle}`;
-    case 'tiktok':
-      return `https://tiktok.com/@${handle}`;
-    case 'pinterest':
-      return `https://pinterest.com/${handle}`;
-    case 'facebook':
-      return `https://facebook.com/${handle}`;
-  }
-}
-
 function InstagramIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" {...props}>
@@ -5171,17 +5133,10 @@ function MasterDashboardScreen({
   const paymentCopyText = () =>
     [...masterInfo.links.map((l) => `${l.label}: ${l.value}`), ...(masterInfo.bankDetails ? [masterInfo.bankDetails] : [])].join('\n');
 
-  // Соцсети — its own block, same edit-toggle pattern as the rest of this screen.
-  const [editingSocials, setEditingSocials] = useState(false);
-  const hasSocialsData = Object.values(masterInfo.socials).some((v) => v.trim());
-  const [socialsDraft, setSocialsDraft] = useState(masterInfo.socials);
-  useEffect(() => setSocialsDraft(masterInfo.socials), [masterInfo.socials]);
-  const saveSocialsDraft = () => {
-    if (JSON.stringify(socialsDraft) !== JSON.stringify(masterInfo.socials)) {
-      onChangeMasterInfo({ ...masterInfo, socials: socialsDraft });
-    }
-  };
-  const SOCIAL_PLATFORMS: { key: keyof MasterSocials; label: string; Icon: (props: SVGProps<SVGSVGElement>) => JSX.Element }[] = [
+  // Соцсети — read-only icon row, derived from whichever of these platforms
+  // already have a link in «Контакты» below (no separate fields to fill in
+  // twice); empty platforms show a dim placeholder.
+  const SOCIAL_PLATFORMS: { key: ChatPlatform; label: string; Icon: (props: SVGProps<SVGSVGElement>) => JSX.Element }[] = [
     { key: 'instagram', label: 'Instagram', Icon: InstagramIcon },
     { key: 'tiktok', label: 'TikTok', Icon: TikTokIcon },
     { key: 'pinterest', label: 'Pinterest', Icon: PinterestIcon },
@@ -5401,85 +5356,47 @@ function MasterDashboardScreen({
           {copiedTag === 'payment' && <div style={copiedChipStyle}>Скопировано ✓</div>}
         </GoldFrame>
 
-        {/* Соцсети — quick-open icons for the master's own public profiles
-            (tap opens the profile, unlike most blocks on this screen, which
-            copy). Its own block, separate from «Оплата». */}
-        <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasSocialsData && !editingSocials ? 8 : 14 }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Соцсети</div>
-            <span
-              onClick={() => {
-                if (editingSocials) saveSocialsDraft();
-                setEditingSocials((v) => !v);
-              }}
-              role="button"
-              aria-label={editingSocials ? 'Готово' : 'Редактировать соцсети'}
-              style={editToggleStyle}
-            >
-              {editingSocials ? 'Готово' : hasSocialsData ? 'Изменить' : 'Заполнить'}
-            </span>
-          </div>
-          {editingSocials || !hasSocialsData ? (
-            <>
-              {SOCIAL_PLATFORMS.map(({ key, label, Icon }) => (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: '50%',
-                      border: '1px solid rgba(var(--gold-rgb),0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: COLORS.gold,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Icon width={14} height={14} />
-                  </div>
-                  <input
-                    value={socialsDraft[key]}
-                    onChange={(e) => setSocialsDraft({ ...socialsDraft, [key]: e.target.value })}
-                    placeholder={`${label} (ник или ссылка на аккаунт)`}
-                    style={{ ...INPUT_STYLE, flex: 1 }}
-                  />
-                </div>
-              ))}
-            </>
-          ) : (
-            <div style={{ display: 'flex', gap: 10 }}>
-              {SOCIAL_PLATFORMS.map(({ key, label, Icon }) => {
-                const url = buildSocialProfileUrl(key, masterInfo.socials[key]);
-                const iconStyle: React.CSSProperties = {
-                  width: 40,
-                  height: 40,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textDecoration: 'none',
-                };
-                if (!url) {
-                  return (
-                    <div key={key} aria-label={label} style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textGhost, opacity: 0.4 }}>
-                      <Icon width={18} height={18} />
-                    </div>
-                  );
-                }
+        {/* Соцсети — read-only icon row pulled straight from «Контакты»
+            below (no separate fields — a link only needs to be entered
+            once). Tap opens the profile, unlike «Контакты», which copies. */}
+        <GoldFrame plain style={{ padding: '14px 16px' }}>
+          <div style={{ ...statLabelStyle, marginBottom: 10 }}>Соцсети</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {SOCIAL_PLATFORMS.map(({ key, label, Icon }) => {
+              const link = masterInfo.chatLinks.find((l) => l.platform === key);
+              const iconStyle: React.CSSProperties = {
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textDecoration: 'none',
+              };
+              if (!link) {
                 return (
-                  <a
-                    key={key}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Открыть ${label}`}
-                    style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.3)', background: 'rgba(var(--gold-rgb),0.04)', color: COLORS.gold }}
-                  >
+                  <div key={key} aria-label={label} style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textGhost, opacity: 0.4 }}>
                     <Icon width={18} height={18} />
-                  </a>
+                  </div>
                 );
-              })}
+              }
+              return (
+                <a
+                  key={key}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Открыть ${label}`}
+                  style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.3)', background: 'rgba(var(--gold-rgb),0.04)', color: COLORS.gold }}
+                >
+                  <Icon width={18} height={18} />
+                </a>
+              );
+            })}
+          </div>
+          {SOCIAL_PLATFORMS.some(({ key }) => !masterInfo.chatLinks.some((l) => l.platform === key)) && (
+            <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 10, fontStyle: 'italic' }}>
+              Добавьте ссылку в «Контакты» ниже, чтобы иконка открылась
             </div>
           )}
         </GoldFrame>
