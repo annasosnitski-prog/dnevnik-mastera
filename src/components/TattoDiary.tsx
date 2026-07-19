@@ -2833,6 +2833,8 @@ export default function TattoDiary() {
             masterInfo={masterInfo}
             onChangeMasterInfo={setMasterInfo}
             onOpenSettings={() => setScreen('settings')}
+            calendarSync={calendarSync}
+            onChangeCalendarSync={setCalendarSync}
           />
         )}
       </div>
@@ -2890,8 +2892,6 @@ export default function TattoDiary() {
             onToggleTheme={toggleTheme}
             prefs={prefs}
             onChange={setPrefs}
-            calendarSync={calendarSync}
-            onChangeCalendarSync={setCalendarSync}
             onBack={() => setScreen('master')}
           />
         )}
@@ -5012,11 +5012,15 @@ function MasterDashboardScreen({
   masterInfo,
   onChangeMasterInfo,
   onOpenSettings,
+  calendarSync,
+  onChangeCalendarSync,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
   onChangeMasterInfo: (m: MasterInfo) => void;
   onOpenSettings: () => void;
+  calendarSync: CalendarSyncSettings;
+  onChangeCalendarSync: (s: CalendarSyncSettings) => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -5054,6 +5058,7 @@ function MasterDashboardScreen({
   useEffect(() => setPhoneDraft(masterInfo.phone), [masterInfo.phone]);
 
   const [colorsOpen, setColorsOpen] = useState(false);
+  const [showSyncSecret, setShowSyncSecret] = useState(false);
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -5292,6 +5297,115 @@ function MasterDashboardScreen({
             </div>
           )}
         </GoldFrame>
+
+        {/* Инка-календарь: зеркалит сессии/консультации в Google Calendar
+            мастера через «дверцу» бота. Настоящий выключатель — СЕКРЕТ:
+            без него переключатель ничего не делает (бот ответит 401),
+            поэтому другие пользователи приложения, не знающие секрета,
+            писать в чужой календарь не могут. Секрет живёт только в
+            localStorage этого устройства и НЕ попадает в резервную копию. */}
+        <GoldFrame plain style={{ padding: '14px 16px' }}>
+          <div style={{ ...statLabelStyle, marginBottom: 10 }}>Инка-календарь · Синхронизация</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {([
+              { v: true, label: 'Включена' },
+              { v: false, label: 'Выключена' },
+            ] as { v: boolean; label: string }[]).map((o) => (
+              <div
+                key={String(o.v)}
+                onClick={() => onChangeCalendarSync({ ...calendarSync, enabled: o.v })}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: fs(13),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  border: calendarSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: calendarSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: calendarSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <input
+              type={showSyncSecret ? 'text' : 'password'}
+              value={calendarSync.secret}
+              onChange={(e) => onChangeCalendarSync({ ...calendarSync, secret: e.target.value })}
+              placeholder="Секретный код синхронизации"
+              autoComplete="off"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '10px 40px 10px 12px',
+                borderRadius: 2,
+                border: '1px solid rgba(var(--gold-rgb),0.2)',
+                background: 'rgba(var(--surface-rgb),0.03)',
+                color: 'var(--text-secondary)',
+                fontSize: fs(13),
+                outline: 'none',
+              }}
+            />
+            <span
+              onClick={() => setShowSyncSecret((v) => !v)}
+              role="button"
+              aria-label={showSyncSecret ? 'Скрыть код' : 'Показать код'}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                right: 10,
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                color: COLORS.textGhost,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {showSyncSecret ? (
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              )}
+            </span>
+          </div>
+          <input
+            type="text"
+            value={calendarSync.endpoint}
+            onChange={(e) => onChangeCalendarSync({ ...calendarSync, endpoint: e.target.value || DEFAULT_ENDPOINT })}
+            placeholder={DEFAULT_ENDPOINT}
+            autoComplete="off"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px',
+              borderRadius: 2,
+              border: '1px solid rgba(var(--gold-rgb),0.2)',
+              background: 'rgba(var(--surface-rgb),0.03)',
+              color: 'var(--text-secondary)',
+              fontSize: fs(12),
+              outline: 'none',
+            }}
+          />
+          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
+            {syncActive(calendarSync)
+              ? 'записи и консультации улетают в календарь Инки при сохранении.'
+              : calendarSync.enabled
+              ? 'нужен секретный код — без него синхронизация не работает.'
+              : 'выключена: записи остаются только в дневнике.'}
+          </div>
+        </GoldFrame>
       </div>
     </div>
   );
@@ -5438,16 +5552,12 @@ function SettingsScreen({
   onToggleTheme,
   prefs,
   onChange,
-  calendarSync,
-  onChangeCalendarSync,
   onBack,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
   prefs: Prefs;
   onChange: (p: Prefs) => void;
-  calendarSync: CalendarSyncSettings;
-  onChangeCalendarSync: (s: CalendarSyncSettings) => void;
   onBack: () => void;
 }) {
   const rowStyle: React.CSSProperties = {
@@ -5623,86 +5733,6 @@ function SettingsScreen({
                 {o.label}
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Инка-календарь: зеркалит сессии/консультации в Google Calendar
-            мастера через «дверцу» бота. Настоящий выключатель — СЕКРЕТ:
-            без него переключатель ничего не делает (бот ответит 401),
-            поэтому другие пользователи приложения, не знающие секрета,
-            писать в чужой календарь не могут. Секрет живёт только в
-            localStorage этого устройства и НЕ попадает в резервную копию. */}
-        <div style={rowStyle}>
-          <div style={labelStyle}>Инка-календарь · Синхронизация</div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {([
-              { v: true, label: 'Включена' },
-              { v: false, label: 'Выключена' },
-            ] as { v: boolean; label: string }[]).map((o) => (
-              <div
-                key={String(o.v)}
-                onClick={() => onChangeCalendarSync({ ...calendarSync, enabled: o.v })}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontSize: fs(13),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  border: calendarSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: calendarSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: calendarSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
-          </div>
-          <input
-            type="password"
-            value={calendarSync.secret}
-            onChange={(e) => onChangeCalendarSync({ ...calendarSync, secret: e.target.value })}
-            placeholder="Секретный код синхронизации"
-            autoComplete="off"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '10px 12px',
-              marginBottom: 8,
-              borderRadius: 2,
-              border: '1px solid rgba(var(--gold-rgb),0.2)',
-              background: 'rgba(var(--surface-rgb),0.03)',
-              color: 'var(--text-secondary)',
-              fontSize: fs(13),
-              outline: 'none',
-            }}
-          />
-          <input
-            type="text"
-            value={calendarSync.endpoint}
-            onChange={(e) => onChangeCalendarSync({ ...calendarSync, endpoint: e.target.value || DEFAULT_ENDPOINT })}
-            placeholder={DEFAULT_ENDPOINT}
-            autoComplete="off"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '10px 12px',
-              borderRadius: 2,
-              border: '1px solid rgba(var(--gold-rgb),0.2)',
-              background: 'rgba(var(--surface-rgb),0.03)',
-              color: 'var(--text-secondary)',
-              fontSize: fs(12),
-              outline: 'none',
-            }}
-          />
-          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
-            {syncActive(calendarSync)
-              ? 'записи и консультации улетают в календарь Инки при сохранении.'
-              : calendarSync.enabled
-              ? 'нужен секретный код — без него синхронизация не работает.'
-              : 'выключена: записи остаются только в дневнике.'}
           </div>
         </div>
 

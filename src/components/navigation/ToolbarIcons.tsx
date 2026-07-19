@@ -28,18 +28,13 @@ function JewelryDashboardIcon(
 ) {
   return (
     <svg viewBox="0 0 32 32" {...sharedProps} {...props}>
-      <path strokeWidth="1.55" d="M5 26.5h22" />
-      <path strokeWidth="1.65" d="M7.5 24V16.5h4V24" />
-      <path strokeWidth="1.65" d="M14 24V11h4v13" />
-      <path strokeWidth="1.65" d="M20.5 24V7.5h4V24" />
-      <path
-        strokeWidth="1.45"
-        d="M7.5 12.5l6-4.5 5 1.5 6-5"
-      />
+      <rect x="5" y="8" width="22" height="19" rx="1.6" strokeWidth="1.55" />
+      <path strokeWidth="1.55" d="M5 13.5h22" />
+      <path strokeWidth="1.5" d="M11 5.5v5M21 5.5v5" />
       <circle
-        cx="24.5"
-        cy="4.5"
-        r="1.35"
+        cx="21.5"
+        cy="19.5"
+        r="1.4"
         fill="currentColor"
         stroke="none"
       />
@@ -106,23 +101,10 @@ function NaturalistDashboardIcon(
 ) {
   return (
     <svg viewBox="0 0 32 32" {...sharedProps} {...props}>
-      <circle
-        cx="16"
-        cy="16"
-        r="10.5"
-        strokeWidth="1.25"
-      />
-      <circle
-        cx="16"
-        cy="16"
-        r="3.1"
-        strokeWidth="1.15"
-      />
-      <path
-        strokeWidth="1.25"
-        d="M16 3.5l2.2 10.3L28.5 16l-10.3 2.2L16 28.5l-2.2-10.3L3.5 16l10.3-2.2z"
-      />
-      <path strokeWidth="1" d="M8.6 8.6l4.9 4.9M23.4 8.6l-4.9 4.9M8.6 23.4l4.9-4.9M23.4 23.4l-4.9-4.9" />
+      <rect x="5" y="8" width="22" height="19" rx="2.5" strokeWidth="1.25" />
+      <path strokeWidth="1.25" d="M5 13.5h22" />
+      <path strokeWidth="1.15" d="M11 5.5v5M21 5.5v5" />
+      <path strokeWidth=".95" d="M14.5 19.5h3M14.5 22.5h3" />
     </svg>
   );
 }
