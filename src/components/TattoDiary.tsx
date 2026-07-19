@@ -3090,6 +3090,7 @@ export default function TattoDiary() {
         onClose={() => setShowCalendar(false)}
         clients={clients}
         initialDate={upcomingItems(clients, 365)[0]?.date ?? todayISO()}
+        calendarSync={calendarSync}
         onOpenEntry={(kind, clientId, id) => {
           setShowCalendar(false);
           setViewEntry({ kind, clientId, id });
@@ -4933,9 +4934,11 @@ function AdminDashboardScreen({
           )}
         </GoldFrame>
 
-        {/* Обратный поток: ONLINE/WALKIN-брони из бота отдельным блоком.
-            Без карточек клиентов и привязки — только справочный список,
-            карточку мастер заводит в Дневнике сама (см. calendarSync.ts). */}
+        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
+            бот мог оформить бронь и на [ТАТУ]/[КОНС]-слот, не только
+            [ONLINE]/[WALKIN]). Без карточек клиентов и привязки — только
+            справочный список, карточку мастер заводит в Дневнике сама
+            (см. calendarSync.ts). */}
         {syncActive(calendarSync) && (
           <GoldFrame style={{ padding: '14px 16px' }}>
             <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
@@ -5650,14 +5653,27 @@ function MasterDashboardScreen({
   );
 }
 
-// ===================== БРОНИ ИЗ БОТА (ONLINE/WALKIN) =====================
+// ===================== БРОНИ ОТ БОТА =====================
 // Только чтение, только список — по просьбе Ани карточку клиента она
 // заводит в Дневнике сама, бот её не создаёт и ни к чему не привязывает.
+// Любой из четырёх тегов: бот может оформить бронь и на [ТАТУ]/[КОНС]
+// слот, не только на [ONLINE]/[WALKIN] (см. isBotBooking на стороне бота).
 // Ручное обновление кнопкой: экран Настроек не размонтируется при уходе
 // (переключение через CSS-transform), поэтому автообновление по монтированию
 // сработало бы только один раз за всю сессию приложения.
 function tagLabel(tag: BotBooking['tag']): string {
-  return tag === '[ONLINE]' ? 'Online' : tag === '[WALKIN]' ? 'Walk-in' : '—';
+  switch (tag) {
+    case '[ONLINE]':
+      return 'Online';
+    case '[WALKIN]':
+      return 'Walk-in';
+    case '[ТАТУ]':
+      return 'Тату';
+    case '[КОНС]':
+      return 'Конс';
+    default:
+      return '—';
+  }
 }
 
 function stripTagPrefix(summary: string, tag: BotBooking['tag']): string {
@@ -5692,26 +5708,9 @@ function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
       .finally(() => setLoading(false));
   };
 
-  const rowStyle: React.CSSProperties = {
-    background: 'rgba(var(--surface-rgb),0.018)',
-    border: '1px solid rgba(var(--gold-rgb),0.1)',
-    borderRadius: 3,
-    padding: '16px 16px 18px',
-    marginBottom: 12,
-  };
-  const labelStyle: React.CSSProperties = {
-    fontFamily: "'Kelly Slab', 'Playfair Display', serif",
-    fontSize: fs(12),
-    color: 'var(--text-secondary)',
-    letterSpacing: '2.5px',
-    textTransform: 'uppercase',
-    marginBottom: 14,
-  };
-
   return (
-    <div style={rowStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ ...labelStyle, marginBottom: 0 }}>Брони из бота (online/walkin)</div>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12, marginTop: -2 }}>
         <div
           onClick={loading ? undefined : refresh}
           style={{
@@ -5727,58 +5726,71 @@ function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
         </div>
       </div>
 
-      {error && (
-        <div style={{ fontSize: fs(12), color: '#C99', fontStyle: 'italic', marginBottom: 8 }}>{error}</div>
-      )}
+      {error && <div style={{ fontSize: fs(12), color: '#C99', fontStyle: 'italic' }}>{error}</div>}
 
       {bookings === null && !error && !loading && (
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
           нажми «обновить», чтобы загрузить список.
         </div>
       )}
 
       {bookings !== null && bookings.length === 0 && (
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
-          пока пусто — броней online/walkin не найдено.
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+          пока пусто — броней от бота не найдено.
         </div>
       )}
 
       {bookings !== null && bookings.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {bookings.map((b) => (
-            <div
-              key={b.id}
-              style={{
-                padding: '8px 10px',
-                borderRadius: 2,
-                border: '1px solid rgba(var(--gold-rgb),0.1)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span
-                  style={{
-                    fontSize: fs(10),
-                    color: COLORS.gold,
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                    padding: '2px 8px',
-                    borderRadius: 2,
-                    background: 'rgba(var(--gold-rgb),0.1)',
-                  }}
-                >
-                  {tagLabel(b.tag)}
-                </span>
-                <span style={{ fontSize: fs(12), color: COLORS.gold, whiteSpace: 'nowrap', marginLeft: 10 }}>
-                  {formatBookingTime(b.start)}
-                </span>
+          {bookings.map((b) => {
+            const isMasterBlock = b.kind === 'master_block';
+            const isOpenSlot = b.kind === 'open_slot';
+            const badgeColor = isOpenSlot ? OPEN_SLOT_MARK : isMasterBlock ? COLORS.textFaint : COLORS.gold;
+            return (
+              <div
+                key={b.id}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 2,
+                  border: isMasterBlock
+                    ? '1px dashed rgba(var(--gold-rgb),0.25)'
+                    : isOpenSlot
+                    ? `1px solid ${OPEN_SLOT_MARK}66`
+                    : '1px solid rgba(var(--gold-rgb),0.1)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span
+                    style={{
+                      fontSize: fs(10),
+                      color: badgeColor,
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      padding: '2px 8px',
+                      borderRadius: 2,
+                      background: isOpenSlot ? `${OPEN_SLOT_MARK}1F` : isMasterBlock ? 'rgba(var(--surface-rgb),0.06)' : 'rgba(var(--gold-rgb),0.1)',
+                    }}
+                  >
+                    {tagLabel(b.tag)}
+                    {isMasterBlock ? ' · без данных' : ''}
+                    {isOpenSlot ? ' · свободно' : ''}
+                  </span>
+                  <span style={{ fontSize: fs(12), color: COLORS.gold, whiteSpace: 'nowrap', marginLeft: 10 }}>
+                    {formatBookingTime(b.start)}
+                  </span>
+                </div>
+                {/* Сноска: те же данные, что бот пишет в название события в Google Calendar
+                    (маркер занятости + имя/телефон клиента, или пометка мастера про /закрой),
+                    без ведущего тега — он уже показан бейджем выше. Для открытого слота там
+                    обычно уже пусто — событие ещё не забронировано, показывать нечего. */}
+                {!isOpenSlot && (
+                  <div style={{ marginTop: 6, fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                    {stripTagPrefix(b.summary, b.tag)}
+                  </div>
+                )}
               </div>
-              {/* Сноска: те же данные, что бот пишет в название события в Google Calendar
-                  (маркер занятости + имя/телефон клиента), без ведущего тега — он уже показан бейджем выше. */}
-              <div style={{ marginTop: 6, fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
-                {stripTagPrefix(b.summary, b.tag)}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -8979,6 +8991,9 @@ function SheetCloseButton({ onClose }: { onClose: () => void }) {
 const WEEKDAYS_RU = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const MONTHS_RU_FULL = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const CONSULT_MARK = '#B0413E';
+// Открытые (ещё не забронированные) WALKIN/ONLINE-слоты от бота — тот же
+// приглушённый шалфейный тон, что уже есть в палитре маркеров клиента.
+const OPEN_SLOT_MARK = '#5E8C4A';
 
 interface CalendarEvent {
   date: string;
@@ -9012,11 +9027,21 @@ function collectCalendarEvents(clients: Client[]): Map<string, CalendarEvent[]> 
   return map;
 }
 
+// День по календарю Asia/Jerusalem для ISO-времени бота — тот же приём,
+// что и на стороне бота (jerusalemDayKey в lib/calendar.ts), только тут
+// на чистом Intl, без сервера.
+function botSlotDayKey(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+}
+
 function CalendarSheet({
   open,
   onClose,
   clients,
   initialDate,
+  calendarSync,
   onOpenEntry,
   onCreateEvent,
 }: {
@@ -9024,11 +9049,40 @@ function CalendarSheet({
   onClose: () => void;
   clients: Client[];
   initialDate: string;
+  calendarSync: CalendarSyncSettings;
   onOpenEntry: (kind: 'session' | 'consultation', clientId: string, id: string) => void;
   // Starts the record-a-session-or-consultation walk for the selected day.
   onCreateEvent: (date: string) => void;
 }) {
   const events = useMemo(() => collectCalendarEvents(clients), [clients]);
+
+  // Открытые (ещё не забронированные) WALKIN/ONLINE-слоты от бота — только
+  // для отображения (точка в сетке + строка в списке дня), read-only,
+  // никак не привязаны к клиентам. Тянем заново при каждом открытии листа,
+  // а не один раз при монтировании — лист не размонтируется между
+  // открытиями (см. BottomSheet), данные могли устареть.
+  const [openSlots, setOpenSlots] = useState<BotBooking[]>([]);
+  useEffect(() => {
+    if (!open || !syncActive(calendarSync)) return;
+    fetchBotBookings(calendarSync)
+      .then((all) => setOpenSlots(all.filter((b) => b.kind === 'open_slot')))
+      .catch(() => {
+        /* тихо — календарь и без этого полезен, свои записи он показывает всегда */
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const openSlotsByDay = useMemo(() => {
+    const map = new Map<string, BotBooking[]>();
+    for (const s of openSlots) {
+      const key = botSlotDayKey(s.start);
+      const arr = map.get(key) ?? [];
+      arr.push(s);
+      map.set(key, arr);
+    }
+    for (const arr of map.values()) arr.sort((a, b) => a.start.localeCompare(b.start));
+    return map;
+  }, [openSlots]);
   const parseISO = (iso: string) => {
     const [y, mo, d] = iso.split('-').map(Number);
     return { y, m: mo - 1, d };
@@ -9074,6 +9128,7 @@ function CalendarSheet({
     });
 
   const selectedEvents = selected ? events.get(selected) ?? [] : [];
+  const selectedOpenSlots = selected ? openSlotsByDay.get(selected) ?? [] : [];
 
   const navArrowStyle: React.CSSProperties = {
     width: 40,
@@ -9135,6 +9190,8 @@ function CalendarSheet({
             const dayEvents = events.get(iso) ?? [];
             const hasSession = dayEvents.some((e) => e.kind === 'session');
             const hasConsult = dayEvents.some((e) => e.kind === 'consultation');
+            const dayOpenSlots = openSlotsByDay.get(iso) ?? [];
+            const hasOpenSlot = dayOpenSlots.length > 0;
             const isToday = iso === today;
             const isSelected = iso === selected;
             const dayNum = Number(iso.split('-')[2]);
@@ -9159,12 +9216,13 @@ function CalendarSheet({
                   background: isSelected ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
                 }}
               >
-                <div style={{ fontSize: fs(13.5), color: dayEvents.length ? COLORS.textPrimary : COLORS.textFaint, fontWeight: isToday ? 700 : 400 }}>
+                <div style={{ fontSize: fs(13.5), color: dayEvents.length || hasOpenSlot ? COLORS.textPrimary : COLORS.textFaint, fontWeight: isToday ? 700 : 400 }}>
                   {dayNum}
                 </div>
                 <div style={{ display: 'flex', gap: 2, height: 5, marginTop: 2 }}>
                   {hasSession && <span style={{ width: 4, height: 4, borderRadius: '50%', background: COLORS.gold }} />}
                   {hasConsult && <span style={{ width: 4, height: 4, borderRadius: '50%', background: CONSULT_MARK }} />}
+                  {hasOpenSlot && <span style={{ width: 4, height: 4, borderRadius: '50%', background: OPEN_SLOT_MARK }} />}
                 </div>
               </div>
             );
@@ -9172,13 +9230,18 @@ function CalendarSheet({
         </div>
 
         {/* Legend */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, margin: '18px 0 6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, margin: '18px 0 6px', flexWrap: 'wrap' }}>
           <span style={legendStyle}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: COLORS.gold, display: 'inline-block' }} /> сессия
           </span>
           <span style={legendStyle}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: CONSULT_MARK, display: 'inline-block' }} /> консультация
           </span>
+          {syncActive(calendarSync) && (
+            <span style={legendStyle}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: OPEN_SLOT_MARK, display: 'inline-block' }} /> свободный слот бота
+            </span>
+          )}
         </div>
 
         <div style={{ height: 1, background: 'rgba(var(--gold-rgb),0.12)', margin: '14px 0 16px' }} />
@@ -9215,37 +9278,66 @@ function CalendarSheet({
                 Создать
               </div>
             </div>
-            {selectedEvents.length === 0 ? (
+            {selectedEvents.length === 0 && selectedOpenSlots.length === 0 ? (
               <div style={{ fontStyle: 'italic', color: COLORS.textFaint, fontSize: fs(13) }}>Нет записей на этот день</div>
             ) : (
-              selectedEvents.map((e) => (
-                <div
-                  key={e.kind + e.id}
-                  onClick={() => onOpenEntry(e.kind, e.clientId, e.id)}
-                  className="inka-dashed"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '11px 13px',
-                    marginBottom: 8,
-                    borderRadius: 3,
-                    cursor: 'pointer',
-                    border: '1px solid rgba(var(--gold-rgb),0.15)',
-                    opacity: e.done ? 0.55 : 1,
-                  }}
-                >
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: e.kind === 'session' ? COLORS.gold : CONSULT_MARK, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: fs(14.5), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.clientName}</div>
-                    <div style={{ fontSize: fs(10.5), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      {e.kind === 'session' ? 'Сессия' : 'Консультация'}
-                      {e.done ? ' · выполнено' : ''}
+              <>
+                {selectedEvents.map((e) => (
+                  <div
+                    key={e.kind + e.id}
+                    onClick={() => onOpenEntry(e.kind, e.clientId, e.id)}
+                    className="inka-dashed"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '11px 13px',
+                      marginBottom: 8,
+                      borderRadius: 3,
+                      cursor: 'pointer',
+                      border: '1px solid rgba(var(--gold-rgb),0.15)',
+                      opacity: e.done ? 0.55 : 1,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: e.kind === 'session' ? COLORS.gold : CONSULT_MARK, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: fs(14.5), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.clientName}</div>
+                      <div style={{ fontSize: fs(10.5), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {e.kind === 'session' ? 'Сессия' : 'Консультация'}
+                        {e.done ? ' · выполнено' : ''}
+                      </div>
+                    </div>
+                    {e.time && <div style={{ fontSize: fs(13.5), color: COLORS.gold, fontVariantNumeric: 'tabular-nums' }}>{e.time}</div>}
+                  </div>
+                ))}
+                {/* Открытые слоты бота — read-only справка, клиента тут нет,
+                    поэтому не кликабельны и не смешаны со списком выше. */}
+                {selectedOpenSlots.map((s) => (
+                  <div
+                    key={s.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '11px 13px',
+                      marginBottom: 8,
+                      borderRadius: 3,
+                      border: `1px dashed ${OPEN_SLOT_MARK}66`,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: OPEN_SLOT_MARK, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: fs(14.5), color: COLORS.textPrimary }}>{tagLabel(s.tag)}</div>
+                      <div style={{ fontSize: fs(10.5), color: OPEN_SLOT_MARK, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        свободный слот бота
+                      </div>
+                    </div>
+                    <div style={{ fontSize: fs(13.5), color: COLORS.gold, fontVariantNumeric: 'tabular-nums' }}>
+                      {new Date(s.start).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
                     </div>
                   </div>
-                  {e.time && <div style={{ fontSize: fs(13.5), color: COLORS.gold, fontVariantNumeric: 'tabular-nums' }}>{e.time}</div>}
-                </div>
-              ))
+                ))}
+              </>
             )}
           </>
         ) : (
