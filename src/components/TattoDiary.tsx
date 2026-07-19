@@ -5421,7 +5421,19 @@ function MasterDashboardScreen({
             </>
           ) : (
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div onClick={() => copyToClipboard(paymentCopyText(), 'payment')} role="button" aria-label="Скопировать данные" style={{ cursor: 'pointer', flex: 1, minWidth: 0 }}>
+              <div
+                onClick={() => copyToClipboard(paymentCopyText(), 'payment')}
+                role="button"
+                aria-label="Скопировать данные"
+                style={{
+                  cursor: 'pointer',
+                  flex: 1,
+                  minWidth: 0,
+                  border: '1px solid rgba(var(--gold-rgb),0.12)',
+                  borderRadius: 3,
+                  padding: '10px 12px',
+                }}
+              >
                 {masterInfo.links.map((l) => (
                   <div key={l.id} style={{ marginBottom: 6 }}>
                     <span style={{ fontSize: fs(12), color: COLORS.gold }}>{l.label}: </span>
@@ -5437,7 +5449,17 @@ function MasterDashboardScreen({
               {/* Соцсети — quick-open icons for the master's own public
                   profiles (tap opens the profile, unlike the rest of this
                   card, which copies). Empty ones stay dim placeholders. */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, flexShrink: 0 }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 8,
+                  flexShrink: 0,
+                  border: '1px solid rgba(var(--gold-rgb),0.12)',
+                  borderRadius: 3,
+                  padding: 10,
+                }}
+              >
                 {SOCIAL_PLATFORMS.map(({ key, label, Icon }) => {
                   const url = buildSocialProfileUrl(key, masterInfo.socials[key]);
                   const iconStyle: React.CSSProperties = {
