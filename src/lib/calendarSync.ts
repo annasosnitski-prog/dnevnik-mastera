@@ -311,9 +311,12 @@ export interface BotBooking {
   summary: string;
   start: string;
   end: string;
-  // 'master_block' — мастер закрыла день/окно через бот-команду /закрой,
-  // без реального клиента за этим; 'booking' — настоящая бронь с клиентом.
-  kind: 'booking' | 'master_block';
+  // 'booking' — настоящая бронь с клиентом.
+  // 'master_block' — мастер закрыла день/окно через /закрой, без клиента.
+  // 'open_slot' — ещё НЕ забронированный WALKIN/ONLINE слот (/добавить) —
+  //   для планирования важно видеть, что вообще выставлено, не только
+  //   что уже забронировано.
+  kind: 'booking' | 'master_block' | 'open_slot';
 }
 
 // /api/diary-sync -> /api/bot-bookings (тот же хост, соседний путь).
