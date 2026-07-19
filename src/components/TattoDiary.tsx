@@ -5707,26 +5707,9 @@ function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
       .finally(() => setLoading(false));
   };
 
-  const rowStyle: React.CSSProperties = {
-    background: 'rgba(var(--surface-rgb),0.018)',
-    border: '1px solid rgba(var(--gold-rgb),0.1)',
-    borderRadius: 3,
-    padding: '16px 16px 18px',
-    marginBottom: 12,
-  };
-  const labelStyle: React.CSSProperties = {
-    fontFamily: "'Kelly Slab', 'Playfair Display', serif",
-    fontSize: fs(12),
-    color: 'var(--text-secondary)',
-    letterSpacing: '2.5px',
-    textTransform: 'uppercase',
-    marginBottom: 14,
-  };
-
   return (
-    <div style={rowStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ ...labelStyle, marginBottom: 0 }}>Брони из бота (online/walkin)</div>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12, marginTop: -2 }}>
         <div
           onClick={loading ? undefined : refresh}
           style={{
@@ -5742,58 +5725,61 @@ function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
         </div>
       </div>
 
-      {error && (
-        <div style={{ fontSize: fs(12), color: '#C99', fontStyle: 'italic', marginBottom: 8 }}>{error}</div>
-      )}
+      {error && <div style={{ fontSize: fs(12), color: '#C99', fontStyle: 'italic' }}>{error}</div>}
 
       {bookings === null && !error && !loading && (
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
           нажми «обновить», чтобы загрузить список.
         </div>
       )}
 
       {bookings !== null && bookings.length === 0 && (
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
-          пока пусто — броней online/walkin не найдено.
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+          пока пусто — броней от бота не найдено.
         </div>
       )}
 
       {bookings !== null && bookings.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {bookings.map((b) => (
-            <div
-              key={b.id}
-              style={{
-                padding: '8px 10px',
-                borderRadius: 2,
-                border: '1px solid rgba(var(--gold-rgb),0.1)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span
-                  style={{
-                    fontSize: fs(10),
-                    color: COLORS.gold,
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                    padding: '2px 8px',
-                    borderRadius: 2,
-                    background: 'rgba(var(--gold-rgb),0.1)',
-                  }}
-                >
-                  {tagLabel(b.tag)}
-                </span>
-                <span style={{ fontSize: fs(12), color: COLORS.gold, whiteSpace: 'nowrap', marginLeft: 10 }}>
-                  {formatBookingTime(b.start)}
-                </span>
+          {bookings.map((b) => {
+            const isMasterBlock = b.kind === 'master_block';
+            return (
+              <div
+                key={b.id}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 2,
+                  border: isMasterBlock ? '1px dashed rgba(var(--gold-rgb),0.25)' : '1px solid rgba(var(--gold-rgb),0.1)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span
+                    style={{
+                      fontSize: fs(10),
+                      color: isMasterBlock ? COLORS.textFaint : COLORS.gold,
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      padding: '2px 8px',
+                      borderRadius: 2,
+                      background: isMasterBlock ? 'rgba(var(--surface-rgb),0.06)' : 'rgba(var(--gold-rgb),0.1)',
+                    }}
+                  >
+                    {tagLabel(b.tag)}
+                    {isMasterBlock ? ' · без данных' : ''}
+                  </span>
+                  <span style={{ fontSize: fs(12), color: COLORS.gold, whiteSpace: 'nowrap', marginLeft: 10 }}>
+                    {formatBookingTime(b.start)}
+                  </span>
+                </div>
+                {/* Сноска: те же данные, что бот пишет в название события в Google Calendar
+                    (маркер занятости + имя/телефон клиента, или пометка мастера про /закрой),
+                    без ведущего тега — он уже показан бейджем выше. */}
+                <div style={{ marginTop: 6, fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                  {stripTagPrefix(b.summary, b.tag)}
+                </div>
               </div>
-              {/* Сноска: те же данные, что бот пишет в название события в Google Calendar
-                  (маркер занятости + имя/телефон клиента), без ведущего тега — он уже показан бейджем выше. */}
-              <div style={{ marginTop: 6, fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
-                {stripTagPrefix(b.summary, b.tag)}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

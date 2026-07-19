@@ -311,6 +311,9 @@ export interface BotBooking {
   summary: string;
   start: string;
   end: string;
+  // 'master_block' — мастер закрыла день/окно через бот-команду /закрой,
+  // без реального клиента за этим; 'booking' — настоящая бронь с клиентом.
+  kind: 'booking' | 'master_block';
 }
 
 // /api/diary-sync -> /api/bot-bookings (тот же хост, соседний путь).
