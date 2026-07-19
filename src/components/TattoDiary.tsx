@@ -4933,9 +4933,11 @@ function AdminDashboardScreen({
           )}
         </GoldFrame>
 
-        {/* Обратный поток: ONLINE/WALKIN-брони из бота отдельным блоком.
-            Без карточек клиентов и привязки — только справочный список,
-            карточку мастер заводит в Дневнике сама (см. calendarSync.ts). */}
+        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
+            бот мог оформить бронь и на [ТАТУ]/[КОНС]-слот, не только
+            [ONLINE]/[WALKIN]). Без карточек клиентов и привязки — только
+            справочный список, карточку мастер заводит в Дневнике сама
+            (см. calendarSync.ts). */}
         {syncActive(calendarSync) && (
           <GoldFrame style={{ padding: '14px 16px' }}>
             <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
@@ -5650,14 +5652,27 @@ function MasterDashboardScreen({
   );
 }
 
-// ===================== БРОНИ ИЗ БОТА (ONLINE/WALKIN) =====================
+// ===================== БРОНИ ОТ БОТА =====================
 // Только чтение, только список — по просьбе Ани карточку клиента она
 // заводит в Дневнике сама, бот её не создаёт и ни к чему не привязывает.
+// Любой из четырёх тегов: бот может оформить бронь и на [ТАТУ]/[КОНС]
+// слот, не только на [ONLINE]/[WALKIN] (см. isBotBooking на стороне бота).
 // Ручное обновление кнопкой: экран Настроек не размонтируется при уходе
 // (переключение через CSS-transform), поэтому автообновление по монтированию
 // сработало бы только один раз за всю сессию приложения.
 function tagLabel(tag: BotBooking['tag']): string {
-  return tag === '[ONLINE]' ? 'Online' : tag === '[WALKIN]' ? 'Walk-in' : '—';
+  switch (tag) {
+    case '[ONLINE]':
+      return 'Online';
+    case '[WALKIN]':
+      return 'Walk-in';
+    case '[ТАТУ]':
+      return 'Тату';
+    case '[КОНС]':
+      return 'Конс';
+    default:
+      return '—';
+  }
 }
 
 function stripTagPrefix(summary: string, tag: BotBooking['tag']): string {
