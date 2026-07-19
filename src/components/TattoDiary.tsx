@@ -181,7 +181,7 @@ interface ClientNote {
   photos: string[];
 }
 
-type ChatPlatform = 'whatsapp' | 'telegram' | 'instagram' | 'facebook' | 'messenger' | 'tiktok' | 'other';
+type ChatPlatform = 'whatsapp' | 'telegram' | 'instagram' | 'facebook' | 'messenger' | 'tiktok' | 'pinterest' | 'website' | 'other';
 
 interface ChatLink {
   id: string;
@@ -196,10 +196,12 @@ const PLATFORM_LABELS: Record<ChatPlatform, string> = {
   facebook: 'Facebook',
   messenger: 'Messenger',
   tiktok: 'TikTok',
+  pinterest: 'Pinterest',
+  website: 'Сайт',
   other: 'Ссылка',
 };
 
-// Turns a raw input (phone, @handle or full URL) into an openable chat link.
+// Turns a raw input (phone, @handle, domain or full URL) into an openable link.
 function buildChatLink(platform: ChatPlatform, raw: string): string {
   const trimmed = raw.trim();
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
@@ -219,6 +221,10 @@ function buildChatLink(platform: ChatPlatform, raw: string): string {
       return handle ? `https://m.me/${handle}` : trimmed;
     case 'tiktok':
       return handle ? `https://tiktok.com/@${handle}` : trimmed;
+    case 'pinterest':
+      return handle ? `https://pinterest.com/${handle}` : trimmed;
+    case 'website':
+      return trimmed ? `https://${trimmed}` : trimmed;
     default:
       return trimmed;
   }
@@ -1633,8 +1639,7 @@ interface MasterInfo {
   bankDetails: string;
   phone: string; // the master's own phone — its own tap-to-copy block, separate from `links`
   telegramBotLink: string; // link to the booking bot in Telegram — its own block, kept apart from `chatLinks`
-  website: string; // master's own site
-  chatLinks: ChatLink[]; // master's own WhatsApp/Telegram/Instagram/etc — same picker as a client's contacts
+  chatLinks: ChatLink[]; // master's own site/WhatsApp/Telegram/Instagram/etc — same picker as a client's contacts
   colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
   notes: ClientNote[]; // the master's own notes (not tied to any client), shown in «Задачи»
 }
@@ -1644,7 +1649,6 @@ const DEFAULT_MASTER_INFO: MasterInfo = {
   bankDetails: '',
   phone: '',
   telegramBotLink: '',
-  website: '',
   chatLinks: [],
   colorLabels: {},
   notes: [],
@@ -1655,6 +1659,18 @@ function readInitialMasterInfo(): MasterInfo {
     const raw = localStorage.getItem('inka-master-info');
     if (raw) {
       const p = JSON.parse(raw);
+      const chatLinks = Array.isArray(p.chatLinks)
+        ? p.chatLinks.map((l: any, i: number) => ({
+            id: String(l?.id ?? i),
+            platform: (PLATFORM_LABELS as Record<string, string>)[l?.platform] ? l.platform : 'other',
+            url: l?.url ?? '',
+          }))
+        : [];
+      // Legacy standalone `website` field (briefly its own block) folds into
+      // chatLinks as a «Сайт» entry, so an already-filled-in value isn't lost.
+      if (typeof p.website === 'string' && p.website.trim()) {
+        chatLinks.push({ id: `legacy-website-${Date.now()}`, platform: 'website', url: buildChatLink('website', p.website) });
+      }
       return {
         name: typeof p.name === 'string' ? p.name : '',
         links: Array.isArray(p.links)
@@ -1663,14 +1679,7 @@ function readInitialMasterInfo(): MasterInfo {
         bankDetails: typeof p.bankDetails === 'string' ? p.bankDetails : '',
         phone: typeof p.phone === 'string' ? p.phone : '',
         telegramBotLink: typeof p.telegramBotLink === 'string' ? p.telegramBotLink : '',
-        website: typeof p.website === 'string' ? p.website : '',
-        chatLinks: Array.isArray(p.chatLinks)
-          ? p.chatLinks.map((l: any, i: number) => ({
-              id: String(l?.id ?? i),
-              platform: (PLATFORM_LABELS as Record<string, string>)[l?.platform] ? l.platform : 'other',
-              url: l?.url ?? '',
-            }))
-          : [],
+        chatLinks,
         colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
         notes: Array.isArray(p.notes)
           ? p.notes.map((n: any, i: number): ClientNote => ({
@@ -5073,37 +5082,32 @@ function MasterDashboardScreen({
 
   // Tap-to-copy: a small "Скопировано ✓" chip fades in over the tapped card
   // for a moment, confirming the clipboard write without a blocking dialog.
-  const [copiedTag, setCopiedTag] = useState<'contacts' | 'phone' | 'telegramBot' | 'website' | null>(null);
-  const copyToClipboard = (text: string, tag: 'contacts' | 'phone' | 'telegramBot' | 'website') => {
+  const [copiedTag, setCopiedTag] = useState<'payment' | 'phone' | 'telegramBot' | null>(null);
+  const copyToClipboard = (text: string, tag: 'payment' | 'phone' | 'telegramBot') => {
     navigator.clipboard?.writeText(text).then(() => {
       setCopiedTag(tag);
       setTimeout(() => setCopiedTag((t) => (t === tag ? null : t)), 1400);
     }).catch(() => {});
   };
 
-  const [editingContacts, setEditingContacts] = useState(false);
-  const hasContactData = masterInfo.links.length > 0 || !!masterInfo.bankDetails;
-  const contactsCopyText = () =>
+  const [editingPayment, setEditingPayment] = useState(false);
+  const hasPaymentData = masterInfo.links.length > 0 || !!masterInfo.bankDetails;
+  const paymentCopyText = () =>
     [...masterInfo.links.map((l) => `${l.label}: ${l.value}`), ...(masterInfo.bankDetails ? [masterInfo.bankDetails] : [])].join('\n');
 
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneDraft, setPhoneDraft] = useState(masterInfo.phone);
   useEffect(() => setPhoneDraft(masterInfo.phone), [masterInfo.phone]);
 
-  // Бот в Telegram — свой отдельный блок (не смешан с личными ссылками
-  // мастера ниже): master копирует ссылку и отправляет клиенту для брони.
+  // Бот в Telegram — своя ссылка внутри блока «Автоматизация»: master
+  // копирует и отправляет клиенту для брони.
   const [editingTelegramBot, setEditingTelegramBot] = useState(false);
   const [telegramBotDraft, setTelegramBotDraft] = useState(masterInfo.telegramBotLink);
   useEffect(() => setTelegramBotDraft(masterInfo.telegramBotLink), [masterInfo.telegramBotLink]);
 
-  // Сайт — редактируется и копируется тем же паттерном, что телефон/бот.
-  const [editingWebsite, setEditingWebsite] = useState(false);
-  const [websiteDraft, setWebsiteDraft] = useState(masterInfo.website);
-  useEffect(() => setWebsiteDraft(masterInfo.website), [masterInfo.website]);
-
-  // Личные ссылки мастера — тот же пикер платформ, что у контактов клиента,
-  // но тап по строке копирует ссылку в буфer (а не открывает её), как и
-  // остальные блоки на этом экране.
+  // Личные ссылки мастера (сайт/соцсети/мессенджеры) — тот же пикер
+  // платформ, что у контактов клиента, но тап по строке копирует ссылку в
+  // буфер (а не открывает её), как и остальные блоки на этом экране.
   const addChatLink = (platform: ChatPlatform, raw: string) => {
     const link: ChatLink = { id: Date.now().toString(), platform, url: buildChatLink(platform, raw) };
     onChangeMasterInfo({ ...masterInfo, chatLinks: [...masterInfo.chatLinks, link] });
@@ -5221,44 +5225,49 @@ function MasterDashboardScreen({
       </div>
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Master's own name */}
-        <GoldFrame plain style={{ padding: '14px 16px' }}>
-          <div style={{ ...statLabelStyle, textAlign: 'center' }}>Имя мастера</div>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() => name.trim() !== masterInfo.name && onChangeMasterInfo({ ...masterInfo, name: name.trim() })}
-            placeholder="Ваше имя"
-            style={{
-              width: '100%',
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              padding: 0,
-              textAlign: 'center',
-              fontFamily: DROP_CAP_FONT,
-              fontSize: fs(24),
-              fontWeight: 600,
-              color: COLORS.gold,
-            }}
-          />
-        </GoldFrame>
+        {/* Имя + «Частый стиль» share one row — two columns, since both are
+            short, glanceable facts rather than editable forms. */}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <GoldFrame plain style={{ padding: '14px 16px', flex: 1, minWidth: 0 }}>
+            <div style={{ ...statLabelStyle, textAlign: 'center' }}>Имя мастера</div>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => name.trim() !== masterInfo.name && onChangeMasterInfo({ ...masterInfo, name: name.trim() })}
+              placeholder="Ваше имя"
+              style={{
+                width: '100%',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                padding: 0,
+                textAlign: 'center',
+                fontFamily: DROP_CAP_FONT,
+                fontSize: fs(19),
+                fontWeight: 600,
+                color: COLORS.gold,
+              }}
+            />
+          </GoldFrame>
 
-        {/* «Частый стиль» — the one stat that stays a personal Мастер metric;
-            the rest of the stats grid moved to Админка. */}
-        <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} plain />
+          {/* «Частый стиль» — the one stat that stays a personal Мастер
+              metric; the rest of the stats grid moved to Админка. */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <StatBlock label="Частый стиль" value={style || 'Пока нет данных'} big={false} plain />
+          </div>
+        </div>
 
-        {/* Контакты и оплата — links + bank details. Once there's data, the
-            card shows a read view that copies everything to the clipboard on
-            tap; the pencil toggle switches back to the edit form. */}
+        {/* Оплата — master's own payment links + bank details. Once there's
+            data, the card shows a read view that copies everything to the
+            clipboard on tap; the pencil toggle switches back to the edit form. */}
         <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasContactData && !editingContacts ? 8 : 14 }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Контакты и оплата</div>
-            <span onClick={() => setEditingContacts((v) => !v)} role="button" aria-label={editingContacts ? 'Готово' : 'Редактировать контакты'} style={editToggleStyle}>
-              {editingContacts ? 'Готово' : hasContactData ? 'Изменить' : 'Заполнить'}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasPaymentData && !editingPayment ? 8 : 14 }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Оплата</div>
+            <span onClick={() => setEditingPayment((v) => !v)} role="button" aria-label={editingPayment ? 'Готово' : 'Редактировать оплату'} style={editToggleStyle}>
+              {editingPayment ? 'Готово' : hasPaymentData ? 'Изменить' : 'Заполнить'}
             </span>
           </div>
-          {editingContacts || !hasContactData ? (
+          {editingPayment || !hasPaymentData ? (
             <>
               {masterInfo.links.map((link) => (
                 <div
@@ -5283,7 +5292,7 @@ function MasterDashboardScreen({
               />
             </>
           ) : (
-            <div onClick={() => copyToClipboard(contactsCopyText(), 'contacts')} role="button" aria-label="Скопировать данные" style={{ cursor: 'pointer' }}>
+            <div onClick={() => copyToClipboard(paymentCopyText(), 'payment')} role="button" aria-label="Скопировать данные" style={{ cursor: 'pointer' }}>
               {masterInfo.links.map((l) => (
                 <div key={l.id} style={{ marginBottom: 6 }}>
                   <span style={{ fontSize: fs(12), color: COLORS.gold }}>{l.label}: </span>
@@ -5296,13 +5305,16 @@ function MasterDashboardScreen({
               <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 8, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
             </div>
           )}
-          {copiedTag === 'contacts' && <div style={copiedChipStyle}>Скопировано ✓</div>}
+          {copiedTag === 'payment' && <div style={copiedChipStyle}>Скопировано ✓</div>}
         </GoldFrame>
 
-        {/* Телефон мастера — its own block, same tap-to-copy behaviour. */}
+        {/* Контакты — телефон мастера + личные ссылки (сайт/соцсети/
+            мессенджеры), тот же пикер платформ, что у контактов клиента.
+            Тап по строке копирует, а не открывает (в отличие от карточки
+            клиента) — остальные блоки на этом экране ведут себя так же. */}
         <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: masterInfo.phone && !editingPhone ? 8 : 14 }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Телефон мастера</div>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Контакты</div>
             <span
               onClick={() => {
                 if (editingPhone && phoneDraft.trim() !== masterInfo.phone) onChangeMasterInfo({ ...masterInfo, phone: phoneDraft.trim() });
@@ -5312,7 +5324,7 @@ function MasterDashboardScreen({
               aria-label={editingPhone ? 'Готово' : 'Редактировать телефон'}
               style={editToggleStyle}
             >
-              {editingPhone ? 'Готово' : masterInfo.phone ? 'Изменить' : 'Заполнить'}
+              {editingPhone ? 'Готово' : masterInfo.phone ? 'Изменить телефон' : 'Заполнить телефон'}
             </span>
           </div>
           {editingPhone || !masterInfo.phone ? (
@@ -5321,22 +5333,66 @@ function MasterDashboardScreen({
               onChange={(e) => setPhoneDraft(e.target.value)}
               onBlur={() => phoneDraft.trim() !== masterInfo.phone && onChangeMasterInfo({ ...masterInfo, phone: phoneDraft.trim() })}
               placeholder="+7 ..."
-              style={{ ...INPUT_STYLE }}
+              style={{ ...INPUT_STYLE, marginBottom: 14 }}
             />
           ) : (
-            <div onClick={() => copyToClipboard(masterInfo.phone, 'phone')} role="button" aria-label="Скопировать телефон" style={{ cursor: 'pointer' }}>
+            <div onClick={() => copyToClipboard(masterInfo.phone, 'phone')} role="button" aria-label="Скопировать телефон" style={{ cursor: 'pointer', marginBottom: 14 }}>
               <div style={{ fontSize: fs(15), color: COLORS.textPrimary }}>{masterInfo.phone}</div>
               <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 6, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
             </div>
           )}
           {copiedTag === 'phone' && <div style={copiedChipStyle}>Скопировано ✓</div>}
+
+          {masterInfo.chatLinks.map((link) => (
+            <div
+              key={link.id}
+              onClick={() => copyChatLink(link)}
+              role="button"
+              aria-label={`Скопировать ${PLATFORM_LABELS[link.platform]}`}
+              style={{
+                background: 'rgba(var(--surface-rgb),0.018)',
+                border: '1px solid rgba(var(--gold-rgb),0.1)',
+                borderRadius: 2,
+                padding: '11px 13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 11,
+                marginBottom: 8,
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: COLORS.gold, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: fs(13), color: COLORS.gold, letterSpacing: '0.3px' }}>
+                  {copiedLinkId === link.id ? 'Скопировано ✓' : PLATFORM_LABELS[link.platform]}
+                </div>
+                <div style={{ fontSize: fs(12), color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {link.url.replace(/^https?:\/\//, '')}
+                </div>
+              </div>
+              <span
+                onClick={(e) => { e.stopPropagation(); removeChatLink(link.id); }}
+                style={{ color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15), lineHeight: 1 }}
+              >
+                ×
+              </span>
+            </div>
+          ))}
+          <AddChatLinkForm onAdd={addChatLink} />
         </GoldFrame>
 
-        {/* Бот в Telegram — своя отдельная ссылка для брони: мастер
-            копирует и отправляет клиенту, отдельно от личных ссылок ниже. */}
+        {/* Автоматизация — бот в Telegram (ссылка, которую мастер копирует
+            и отправляет клиенту для брони) + синхронизация с Инка-
+            календарём. Настоящий выключатель синхронизации — СЕКРЕТ: без
+            него переключатель ничего не делает (бот ответит 401), поэтому
+            другие пользователи приложения, не знающие секрета, писать в
+            чужой календарь не могут. Секрет живёт только в localStorage
+            этого устройства и НЕ попадает в резервную копию. */}
         <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: masterInfo.telegramBotLink && !editingTelegramBot ? 8 : 14 }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Бот в Telegram</div>
+          <div style={{ ...statLabelStyle, marginBottom: 10 }}>Автоматизация</div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px' }}>Бот в Telegram</div>
             <span
               onClick={() => {
                 if (editingTelegramBot && telegramBotDraft.trim() !== masterInfo.telegramBotLink) onChangeMasterInfo({ ...masterInfo, telegramBotLink: telegramBotDraft.trim() });
@@ -5355,128 +5411,19 @@ function MasterDashboardScreen({
               onChange={(e) => setTelegramBotDraft(e.target.value)}
               onBlur={() => telegramBotDraft.trim() !== masterInfo.telegramBotLink && onChangeMasterInfo({ ...masterInfo, telegramBotLink: telegramBotDraft.trim() })}
               placeholder="https://t.me/..."
-              style={{ ...INPUT_STYLE }}
+              style={{ ...INPUT_STYLE, marginBottom: 14 }}
             />
           ) : (
-            <div onClick={() => copyToClipboard(masterInfo.telegramBotLink, 'telegramBot')} role="button" aria-label="Скопировать ссылку на бота" style={{ cursor: 'pointer' }}>
+            <div onClick={() => copyToClipboard(masterInfo.telegramBotLink, 'telegramBot')} role="button" aria-label="Скопировать ссылку на бота" style={{ cursor: 'pointer', marginBottom: 14 }}>
               <div style={{ fontSize: fs(15), color: COLORS.textPrimary, wordBreak: 'break-all' }}>{masterInfo.telegramBotLink}</div>
               <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 6, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
             </div>
           )}
           {copiedTag === 'telegramBot' && <div style={copiedChipStyle}>Скопировано ✓</div>}
-        </GoldFrame>
 
-        {/* Ссылки мастера — сайт + личные соцсети/мессенджеры. Тап по
-            строке копирует, как и остальные блоки на этом экране (в отличие
-            от карточки клиента, где такая же ссылка открывается). */}
-        <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: masterInfo.website && !editingWebsite ? 8 : 14 }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Сайт</div>
-            <span
-              onClick={() => {
-                if (editingWebsite && websiteDraft.trim() !== masterInfo.website) onChangeMasterInfo({ ...masterInfo, website: websiteDraft.trim() });
-                setEditingWebsite((v) => !v);
-              }}
-              role="button"
-              aria-label={editingWebsite ? 'Готово' : 'Редактировать сайт'}
-              style={editToggleStyle}
-            >
-              {editingWebsite ? 'Готово' : masterInfo.website ? 'Изменить' : 'Заполнить'}
-            </span>
-          </div>
-          {editingWebsite || !masterInfo.website ? (
-            <input
-              value={websiteDraft}
-              onChange={(e) => setWebsiteDraft(e.target.value)}
-              onBlur={() => websiteDraft.trim() !== masterInfo.website && onChangeMasterInfo({ ...masterInfo, website: websiteDraft.trim() })}
-              placeholder="https://..."
-              style={{ ...INPUT_STYLE, marginBottom: 14 }}
-            />
-          ) : (
-            <div onClick={() => copyToClipboard(masterInfo.website, 'website')} role="button" aria-label="Скопировать сайт" style={{ cursor: 'pointer', marginBottom: 14 }}>
-              <div style={{ fontSize: fs(15), color: COLORS.textPrimary, wordBreak: 'break-all' }}>{masterInfo.website}</div>
-              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 6, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
-            </div>
-          )}
-          {copiedTag === 'website' && <div style={copiedChipStyle}>Скопировано ✓</div>}
+          <div style={{ height: 1, background: 'rgba(var(--gold-rgb),0.1)', margin: '4px 0 14px' }} />
 
-          <div style={{ ...statLabelStyle, marginBottom: 0 }}>Ссылки</div>
-          <div style={{ marginTop: 8 }}>
-            {masterInfo.chatLinks.map((link) => (
-              <div
-                key={link.id}
-                onClick={() => copyChatLink(link)}
-                role="button"
-                aria-label={`Скопировать ${PLATFORM_LABELS[link.platform]}`}
-                style={{
-                  background: 'rgba(var(--surface-rgb),0.018)',
-                  border: '1px solid rgba(var(--gold-rgb),0.1)',
-                  borderRadius: 2,
-                  padding: '11px 13px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 11,
-                  marginBottom: 8,
-                  cursor: 'pointer',
-                }}
-              >
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: COLORS.gold, flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: fs(13), color: COLORS.gold, letterSpacing: '0.3px' }}>
-                    {copiedLinkId === link.id ? 'Скопировано ✓' : PLATFORM_LABELS[link.platform]}
-                  </div>
-                  <div style={{ fontSize: fs(12), color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {link.url.replace(/^https?:\/\//, '')}
-                  </div>
-                </div>
-                <span
-                  onClick={(e) => { e.stopPropagation(); removeChatLink(link.id); }}
-                  style={{ color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15), lineHeight: 1 }}
-                >
-                  ×
-                </span>
-              </div>
-            ))}
-            <AddChatLinkForm onAdd={addChatLink} />
-          </div>
-        </GoldFrame>
-
-        {/* Обозначения цветов — collapsed by default, kept compact. */}
-        <GoldFrame plain style={{ padding: '14px 16px' }}>
-          <div
-            onClick={() => setColorsOpen((v) => !v)}
-            role="button"
-            aria-label="Обозначения цветов"
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-          >
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Обозначения цветов</div>
-            <span style={{ color: COLORS.gold, fontSize: fs(12), transform: colorsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▾</span>
-          </div>
-          {colorsOpen && (
-            <div style={{ marginTop: 12 }}>
-              {MARKER_COLORS.map((c) => (
-                <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: c, flexShrink: 0 }} />
-                  <input
-                    value={masterInfo.colorLabels[c] || ''}
-                    onChange={(e) => setColorLabel(c, e.target.value)}
-                    placeholder="Например: Постоянные клиенты"
-                    style={{ ...INPUT_STYLE, flex: 1 }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </GoldFrame>
-
-        {/* Инка-календарь: зеркалит сессии/консультации в Google Calendar
-            мастера через «дверцу» бота. Настоящий выключатель — СЕКРЕТ:
-            без него переключатель ничего не делает (бот ответит 401),
-            поэтому другие пользователи приложения, не знающие секрета,
-            писать в чужой календарь не могут. Секрет живёт только в
-            localStorage этого устройства и НЕ попадает в резервную копию. */}
-        <GoldFrame plain style={{ padding: '14px 16px' }}>
-          <div style={{ ...statLabelStyle, marginBottom: 10 }}>Инка-календарь · Синхронизация</div>
+          <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 8 }}>Инка-календарь · Синхронизация</div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             {([
               { v: true, label: 'Включена' },
@@ -5576,6 +5523,34 @@ function MasterDashboardScreen({
               ? 'нужен секретный код — без него синхронизация не работает.'
               : 'выключена: записи остаются только в дневнике.'}
           </div>
+        </GoldFrame>
+
+        {/* Обозначения цветов — collapsed by default, kept compact. */}
+        <GoldFrame plain style={{ padding: '14px 16px' }}>
+          <div
+            onClick={() => setColorsOpen((v) => !v)}
+            role="button"
+            aria-label="Обозначения цветов"
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          >
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Обозначения цветов</div>
+            <span style={{ color: COLORS.gold, fontSize: fs(12), transform: colorsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▾</span>
+          </div>
+          {colorsOpen && (
+            <div style={{ marginTop: 12 }}>
+              {MARKER_COLORS.map((c) => (
+                <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: c, flexShrink: 0 }} />
+                  <input
+                    value={masterInfo.colorLabels[c] || ''}
+                    onChange={(e) => setColorLabel(c, e.target.value)}
+                    placeholder="Например: Постоянные клиенты"
+                    style={{ ...INPUT_STYLE, flex: 1 }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </GoldFrame>
       </div>
     </div>
