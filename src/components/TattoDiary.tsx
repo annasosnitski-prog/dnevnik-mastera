@@ -631,6 +631,13 @@ function soonReminderKey(it: UpcomingSoonItem): string {
   return `soon:${it.kind}:${it.id}`;
 }
 
+// Auto-message for the 36–48h heads-up — master copies it to nudge the
+// client about the upcoming booking, same pattern as HEALING_REMINDER_MESSAGE.
+function soonReminderMessage(it: UpcomingSoonItem): string {
+  const what = it.kind === 'session' ? 'сеансе' : 'консультации';
+  return `Здравствуйте! Напоминаю о ${what} ${formatDate(it.date)}${it.time ? ` в ${it.time}` : ''}. Ждём вас!`;
+}
+
 function readInitialDismissedReminders(): string[] {
   try {
     const raw = localStorage.getItem('inka-dismissed-reminders');
@@ -1623,10 +1630,23 @@ interface MasterInfo {
   links: MasterLink[];
   bankDetails: string;
   phone: string; // the master's own phone — its own tap-to-copy block, separate from `links`
+  telegramBotLink: string; // link to the booking bot in Telegram — its own block, kept apart from `chatLinks`
+  website: string; // master's own site
+  chatLinks: ChatLink[]; // master's own WhatsApp/Telegram/Instagram/etc — same picker as a client's contacts
   colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
   notes: ClientNote[]; // the master's own notes (not tied to any client), shown in «Задачи»
 }
-const DEFAULT_MASTER_INFO: MasterInfo = { name: '', links: [], bankDetails: '', phone: '', colorLabels: {}, notes: [] };
+const DEFAULT_MASTER_INFO: MasterInfo = {
+  name: '',
+  links: [],
+  bankDetails: '',
+  phone: '',
+  telegramBotLink: '',
+  website: '',
+  chatLinks: [],
+  colorLabels: {},
+  notes: [],
+};
 
 function readInitialMasterInfo(): MasterInfo {
   try {
@@ -1640,6 +1660,15 @@ function readInitialMasterInfo(): MasterInfo {
           : [],
         bankDetails: typeof p.bankDetails === 'string' ? p.bankDetails : '',
         phone: typeof p.phone === 'string' ? p.phone : '',
+        telegramBotLink: typeof p.telegramBotLink === 'string' ? p.telegramBotLink : '',
+        website: typeof p.website === 'string' ? p.website : '',
+        chatLinks: Array.isArray(p.chatLinks)
+          ? p.chatLinks.map((l: any, i: number) => ({
+              id: String(l?.id ?? i),
+              platform: (PLATFORM_LABELS as Record<string, string>)[l?.platform] ? l.platform : 'other',
+              url: l?.url ?? '',
+            }))
+          : [],
         colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
         notes: Array.isArray(p.notes)
           ? p.notes.map((n: any, i: number): ClientNote => ({
@@ -2720,7 +2749,6 @@ export default function TattoDiary() {
         <NavFab
           active={screen}
           onNavigate={(s) => setScreen(s)}
-          isLight={theme === 'light'}
           adminBadges={[
             ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
             ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
@@ -2833,6 +2861,8 @@ export default function TattoDiary() {
             masterInfo={masterInfo}
             onChangeMasterInfo={setMasterInfo}
             onOpenSettings={() => setScreen('settings')}
+            calendarSync={calendarSync}
+            onChangeCalendarSync={setCalendarSync}
           />
         )}
       </div>
@@ -2890,8 +2920,6 @@ export default function TattoDiary() {
             onToggleTheme={toggleTheme}
             prefs={prefs}
             onChange={setPrefs}
-            calendarSync={calendarSync}
-            onChangeCalendarSync={setCalendarSync}
             onBack={() => setScreen('master')}
           />
         )}
@@ -4662,7 +4690,10 @@ function RemindersSection({
                     {it.time && ` · ${it.time}`}
                   </div>
                 </div>
-                <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <CopyMessageButton text={soonReminderMessage(it)} />
+                  <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
+                </div>
               </div>
               )}
             </SwipeDismissCard>
@@ -5012,11 +5043,15 @@ function MasterDashboardScreen({
   masterInfo,
   onChangeMasterInfo,
   onOpenSettings,
+  calendarSync,
+  onChangeCalendarSync,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
   onChangeMasterInfo: (m: MasterInfo) => void;
   onOpenSettings: () => void;
+  calendarSync: CalendarSyncSettings;
+  onChangeCalendarSync: (s: CalendarSyncSettings) => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -5036,8 +5071,8 @@ function MasterDashboardScreen({
 
   // Tap-to-copy: a small "Скопировано ✓" chip fades in over the tapped card
   // for a moment, confirming the clipboard write without a blocking dialog.
-  const [copiedTag, setCopiedTag] = useState<'contacts' | 'phone' | null>(null);
-  const copyToClipboard = (text: string, tag: 'contacts' | 'phone') => {
+  const [copiedTag, setCopiedTag] = useState<'contacts' | 'phone' | 'telegramBot' | 'website' | null>(null);
+  const copyToClipboard = (text: string, tag: 'contacts' | 'phone' | 'telegramBot' | 'website') => {
     navigator.clipboard?.writeText(text).then(() => {
       setCopiedTag(tag);
       setTimeout(() => setCopiedTag((t) => (t === tag ? null : t)), 1400);
@@ -5053,7 +5088,37 @@ function MasterDashboardScreen({
   const [phoneDraft, setPhoneDraft] = useState(masterInfo.phone);
   useEffect(() => setPhoneDraft(masterInfo.phone), [masterInfo.phone]);
 
+  // Бот в Telegram — свой отдельный блок (не смешан с личными ссылками
+  // мастера ниже): master копирует ссылку и отправляет клиенту для брони.
+  const [editingTelegramBot, setEditingTelegramBot] = useState(false);
+  const [telegramBotDraft, setTelegramBotDraft] = useState(masterInfo.telegramBotLink);
+  useEffect(() => setTelegramBotDraft(masterInfo.telegramBotLink), [masterInfo.telegramBotLink]);
+
+  // Сайт — редактируется и копируется тем же паттерном, что телефон/бот.
+  const [editingWebsite, setEditingWebsite] = useState(false);
+  const [websiteDraft, setWebsiteDraft] = useState(masterInfo.website);
+  useEffect(() => setWebsiteDraft(masterInfo.website), [masterInfo.website]);
+
+  // Личные ссылки мастера — тот же пикер платформ, что у контактов клиента,
+  // но тап по строке копирует ссылку в буфer (а не открывает её), как и
+  // остальные блоки на этом экране.
+  const addChatLink = (platform: ChatPlatform, raw: string) => {
+    const link: ChatLink = { id: Date.now().toString(), platform, url: buildChatLink(platform, raw) };
+    onChangeMasterInfo({ ...masterInfo, chatLinks: [...masterInfo.chatLinks, link] });
+  };
+  const removeChatLink = (id: string) => {
+    onChangeMasterInfo({ ...masterInfo, chatLinks: masterInfo.chatLinks.filter((l) => l.id !== id) });
+  };
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+  const copyChatLink = (link: ChatLink) => {
+    navigator.clipboard?.writeText(link.url).then(() => {
+      setCopiedLinkId(link.id);
+      setTimeout(() => setCopiedLinkId((id) => (id === link.id ? null : id)), 1400);
+    }).catch(() => {});
+  };
+
   const [colorsOpen, setColorsOpen] = useState(false);
+  const [showSyncSecret, setShowSyncSecret] = useState(false);
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -5265,6 +5330,115 @@ function MasterDashboardScreen({
           {copiedTag === 'phone' && <div style={copiedChipStyle}>Скопировано ✓</div>}
         </GoldFrame>
 
+        {/* Бот в Telegram — своя отдельная ссылка для брони: мастер
+            копирует и отправляет клиенту, отдельно от личных ссылок ниже. */}
+        <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: masterInfo.telegramBotLink && !editingTelegramBot ? 8 : 14 }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Бот в Telegram</div>
+            <span
+              onClick={() => {
+                if (editingTelegramBot && telegramBotDraft.trim() !== masterInfo.telegramBotLink) onChangeMasterInfo({ ...masterInfo, telegramBotLink: telegramBotDraft.trim() });
+                setEditingTelegramBot((v) => !v);
+              }}
+              role="button"
+              aria-label={editingTelegramBot ? 'Готово' : 'Редактировать ссылку на бота'}
+              style={editToggleStyle}
+            >
+              {editingTelegramBot ? 'Готово' : masterInfo.telegramBotLink ? 'Изменить' : 'Заполнить'}
+            </span>
+          </div>
+          {editingTelegramBot || !masterInfo.telegramBotLink ? (
+            <input
+              value={telegramBotDraft}
+              onChange={(e) => setTelegramBotDraft(e.target.value)}
+              onBlur={() => telegramBotDraft.trim() !== masterInfo.telegramBotLink && onChangeMasterInfo({ ...masterInfo, telegramBotLink: telegramBotDraft.trim() })}
+              placeholder="https://t.me/..."
+              style={{ ...INPUT_STYLE }}
+            />
+          ) : (
+            <div onClick={() => copyToClipboard(masterInfo.telegramBotLink, 'telegramBot')} role="button" aria-label="Скопировать ссылку на бота" style={{ cursor: 'pointer' }}>
+              <div style={{ fontSize: fs(15), color: COLORS.textPrimary, wordBreak: 'break-all' }}>{masterInfo.telegramBotLink}</div>
+              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 6, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
+            </div>
+          )}
+          {copiedTag === 'telegramBot' && <div style={copiedChipStyle}>Скопировано ✓</div>}
+        </GoldFrame>
+
+        {/* Ссылки мастера — сайт + личные соцсети/мессенджеры. Тап по
+            строке копирует, как и остальные блоки на этом экране (в отличие
+            от карточки клиента, где такая же ссылка открывается). */}
+        <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: masterInfo.website && !editingWebsite ? 8 : 14 }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Сайт</div>
+            <span
+              onClick={() => {
+                if (editingWebsite && websiteDraft.trim() !== masterInfo.website) onChangeMasterInfo({ ...masterInfo, website: websiteDraft.trim() });
+                setEditingWebsite((v) => !v);
+              }}
+              role="button"
+              aria-label={editingWebsite ? 'Готово' : 'Редактировать сайт'}
+              style={editToggleStyle}
+            >
+              {editingWebsite ? 'Готово' : masterInfo.website ? 'Изменить' : 'Заполнить'}
+            </span>
+          </div>
+          {editingWebsite || !masterInfo.website ? (
+            <input
+              value={websiteDraft}
+              onChange={(e) => setWebsiteDraft(e.target.value)}
+              onBlur={() => websiteDraft.trim() !== masterInfo.website && onChangeMasterInfo({ ...masterInfo, website: websiteDraft.trim() })}
+              placeholder="https://..."
+              style={{ ...INPUT_STYLE, marginBottom: 14 }}
+            />
+          ) : (
+            <div onClick={() => copyToClipboard(masterInfo.website, 'website')} role="button" aria-label="Скопировать сайт" style={{ cursor: 'pointer', marginBottom: 14 }}>
+              <div style={{ fontSize: fs(15), color: COLORS.textPrimary, wordBreak: 'break-all' }}>{masterInfo.website}</div>
+              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 6, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
+            </div>
+          )}
+          {copiedTag === 'website' && <div style={copiedChipStyle}>Скопировано ✓</div>}
+
+          <div style={{ ...statLabelStyle, marginBottom: 0 }}>Ссылки</div>
+          <div style={{ marginTop: 8 }}>
+            {masterInfo.chatLinks.map((link) => (
+              <div
+                key={link.id}
+                onClick={() => copyChatLink(link)}
+                role="button"
+                aria-label={`Скопировать ${PLATFORM_LABELS[link.platform]}`}
+                style={{
+                  background: 'rgba(var(--surface-rgb),0.018)',
+                  border: '1px solid rgba(var(--gold-rgb),0.1)',
+                  borderRadius: 2,
+                  padding: '11px 13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 11,
+                  marginBottom: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: COLORS.gold, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: fs(13), color: COLORS.gold, letterSpacing: '0.3px' }}>
+                    {copiedLinkId === link.id ? 'Скопировано ✓' : PLATFORM_LABELS[link.platform]}
+                  </div>
+                  <div style={{ fontSize: fs(12), color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {link.url.replace(/^https?:\/\//, '')}
+                  </div>
+                </div>
+                <span
+                  onClick={(e) => { e.stopPropagation(); removeChatLink(link.id); }}
+                  style={{ color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15), lineHeight: 1 }}
+                >
+                  ×
+                </span>
+              </div>
+            ))}
+            <AddChatLinkForm onAdd={addChatLink} />
+          </div>
+        </GoldFrame>
+
         {/* Обозначения цветов — collapsed by default, kept compact. */}
         <GoldFrame plain style={{ padding: '14px 16px' }}>
           <div
@@ -5291,6 +5465,115 @@ function MasterDashboardScreen({
               ))}
             </div>
           )}
+        </GoldFrame>
+
+        {/* Инка-календарь: зеркалит сессии/консультации в Google Calendar
+            мастера через «дверцу» бота. Настоящий выключатель — СЕКРЕТ:
+            без него переключатель ничего не делает (бот ответит 401),
+            поэтому другие пользователи приложения, не знающие секрета,
+            писать в чужой календарь не могут. Секрет живёт только в
+            localStorage этого устройства и НЕ попадает в резервную копию. */}
+        <GoldFrame plain style={{ padding: '14px 16px' }}>
+          <div style={{ ...statLabelStyle, marginBottom: 10 }}>Инка-календарь · Синхронизация</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {([
+              { v: true, label: 'Включена' },
+              { v: false, label: 'Выключена' },
+            ] as { v: boolean; label: string }[]).map((o) => (
+              <div
+                key={String(o.v)}
+                onClick={() => onChangeCalendarSync({ ...calendarSync, enabled: o.v })}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: fs(13),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  border: calendarSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: calendarSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: calendarSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <input
+              type={showSyncSecret ? 'text' : 'password'}
+              value={calendarSync.secret}
+              onChange={(e) => onChangeCalendarSync({ ...calendarSync, secret: e.target.value })}
+              placeholder="Секретный код синхронизации"
+              autoComplete="off"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '10px 40px 10px 12px',
+                borderRadius: 2,
+                border: '1px solid rgba(var(--gold-rgb),0.2)',
+                background: 'rgba(var(--surface-rgb),0.03)',
+                color: 'var(--text-secondary)',
+                fontSize: fs(13),
+                outline: 'none',
+              }}
+            />
+            <span
+              onClick={() => setShowSyncSecret((v) => !v)}
+              role="button"
+              aria-label={showSyncSecret ? 'Скрыть код' : 'Показать код'}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                right: 10,
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                color: COLORS.textGhost,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {showSyncSecret ? (
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              )}
+            </span>
+          </div>
+          <input
+            type="text"
+            value={calendarSync.endpoint}
+            onChange={(e) => onChangeCalendarSync({ ...calendarSync, endpoint: e.target.value || DEFAULT_ENDPOINT })}
+            placeholder={DEFAULT_ENDPOINT}
+            autoComplete="off"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px',
+              borderRadius: 2,
+              border: '1px solid rgba(var(--gold-rgb),0.2)',
+              background: 'rgba(var(--surface-rgb),0.03)',
+              color: 'var(--text-secondary)',
+              fontSize: fs(12),
+              outline: 'none',
+            }}
+          />
+          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
+            {syncActive(calendarSync)
+              ? 'записи и консультации улетают в календарь Инки при сохранении.'
+              : calendarSync.enabled
+              ? 'нужен секретный код — без него синхронизация не работает.'
+              : 'выключена: записи остаются только в дневнике.'}
+          </div>
         </GoldFrame>
       </div>
     </div>
@@ -5438,16 +5721,12 @@ function SettingsScreen({
   onToggleTheme,
   prefs,
   onChange,
-  calendarSync,
-  onChangeCalendarSync,
   onBack,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
   prefs: Prefs;
   onChange: (p: Prefs) => void;
-  calendarSync: CalendarSyncSettings;
-  onChangeCalendarSync: (s: CalendarSyncSettings) => void;
   onBack: () => void;
 }) {
   const rowStyle: React.CSSProperties = {
@@ -5623,86 +5902,6 @@ function SettingsScreen({
                 {o.label}
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Инка-календарь: зеркалит сессии/консультации в Google Calendar
-            мастера через «дверцу» бота. Настоящий выключатель — СЕКРЕТ:
-            без него переключатель ничего не делает (бот ответит 401),
-            поэтому другие пользователи приложения, не знающие секрета,
-            писать в чужой календарь не могут. Секрет живёт только в
-            localStorage этого устройства и НЕ попадает в резервную копию. */}
-        <div style={rowStyle}>
-          <div style={labelStyle}>Инка-календарь · Синхронизация</div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {([
-              { v: true, label: 'Включена' },
-              { v: false, label: 'Выключена' },
-            ] as { v: boolean; label: string }[]).map((o) => (
-              <div
-                key={String(o.v)}
-                onClick={() => onChangeCalendarSync({ ...calendarSync, enabled: o.v })}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontSize: fs(13),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  border: calendarSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: calendarSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: calendarSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
-          </div>
-          <input
-            type="password"
-            value={calendarSync.secret}
-            onChange={(e) => onChangeCalendarSync({ ...calendarSync, secret: e.target.value })}
-            placeholder="Секретный код синхронизации"
-            autoComplete="off"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '10px 12px',
-              marginBottom: 8,
-              borderRadius: 2,
-              border: '1px solid rgba(var(--gold-rgb),0.2)',
-              background: 'rgba(var(--surface-rgb),0.03)',
-              color: 'var(--text-secondary)',
-              fontSize: fs(13),
-              outline: 'none',
-            }}
-          />
-          <input
-            type="text"
-            value={calendarSync.endpoint}
-            onChange={(e) => onChangeCalendarSync({ ...calendarSync, endpoint: e.target.value || DEFAULT_ENDPOINT })}
-            placeholder={DEFAULT_ENDPOINT}
-            autoComplete="off"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '10px 12px',
-              borderRadius: 2,
-              border: '1px solid rgba(var(--gold-rgb),0.2)',
-              background: 'rgba(var(--surface-rgb),0.03)',
-              color: 'var(--text-secondary)',
-              fontSize: fs(12),
-              outline: 'none',
-            }}
-          />
-          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
-            {syncActive(calendarSync)
-              ? 'записи и консультации улетают в календарь Инки при сохранении.'
-              : calendarSync.enabled
-              ? 'нужен секретный код — без него синхронизация не работает.'
-              : 'выключена: записи остаются только в дневнике.'}
           </div>
         </div>
 
