@@ -1080,7 +1080,7 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 // a long list/notes feed still reveals stars instead of running out.
 const STARFIELD_COUNT = 140;
 const STARFIELD_HEIGHT_VH = 300;
-const METEOR_COUNT = 2;
+const METEOR_COUNT = 4;
 // Fixed epoch every background animation delay is measured from, so a cloud /
 // star / craft is at the same phase in every screen regardless of when that
 // screen mounted — screen transitions no longer show the sky jump.
@@ -1105,8 +1105,10 @@ function buildStars() {
 // period, that phase relationship holds forever, so two meteors' visible
 // windows can never land at the same time (unlike independent random delays,
 // which drift in and out of overlap over a long enough session). Tuned to
-// ~30/hour: METEOR_COUNT per METEOR_CYCLE seconds, i.e. COUNT * 3600 / CYCLE.
-const METEOR_CYCLE = 240;
+// ~195/hour (the 30/hour throttle was for the now-removed comets, not this
+// plain gold shower): METEOR_COUNT per METEOR_CYCLE seconds, i.e.
+// COUNT * 3600 / CYCLE.
+const METEOR_CYCLE = 74;
 function buildMeteors() {
   const slot = METEOR_CYCLE / METEOR_COUNT;
   return Array.from({ length: METEOR_COUNT }, (_, i) => {
