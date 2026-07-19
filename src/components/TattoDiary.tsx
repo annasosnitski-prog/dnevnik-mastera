@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type SVGProps } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
 import {
@@ -1633,6 +1633,17 @@ interface MasterLink {
   label: string; // e.g. "Instagram", "СБП Тинькофф", "Карта Сбербанк"
   value: string; // free text — link, phone, card number...
 }
+// Quick-open icons for the master's own public profiles — shown as a small
+// icon grid beside «Оплата» (unlike `chatLinks`, which are copy-to-clipboard
+// contact channels, these open the profile directly, like a client's would).
+interface MasterSocials {
+  instagram: string;
+  tiktok: string;
+  pinterest: string;
+  facebook: string;
+}
+const DEFAULT_MASTER_SOCIALS: MasterSocials = { instagram: '', tiktok: '', pinterest: '', facebook: '' };
+
 interface MasterInfo {
   name: string; // the master's own name, shown on the dashboard
   links: MasterLink[];
@@ -1640,6 +1651,7 @@ interface MasterInfo {
   phone: string; // the master's own phone — its own tap-to-copy block, separate from `links`
   telegramBotLink: string; // link to the booking bot in Telegram — its own block, kept apart from `chatLinks`
   chatLinks: ChatLink[]; // master's own site/WhatsApp/Telegram/Instagram/etc — same picker as a client's contacts
+  socials: MasterSocials;
   colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
   notes: ClientNote[]; // the master's own notes (not tied to any client), shown in «Задачи»
 }
@@ -1650,6 +1662,7 @@ const DEFAULT_MASTER_INFO: MasterInfo = {
   phone: '',
   telegramBotLink: '',
   chatLinks: [],
+  socials: { ...DEFAULT_MASTER_SOCIALS },
   colorLabels: {},
   notes: [],
 };
@@ -1680,6 +1693,12 @@ function readInitialMasterInfo(): MasterInfo {
         phone: typeof p.phone === 'string' ? p.phone : '',
         telegramBotLink: typeof p.telegramBotLink === 'string' ? p.telegramBotLink : '',
         chatLinks,
+        socials: {
+          instagram: typeof p.socials?.instagram === 'string' ? p.socials.instagram : '',
+          tiktok: typeof p.socials?.tiktok === 'string' ? p.socials.tiktok : '',
+          pinterest: typeof p.socials?.pinterest === 'string' ? p.socials.pinterest : '',
+          facebook: typeof p.socials?.facebook === 'string' ? p.socials.facebook : '',
+        },
         colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
         notes: Array.isArray(p.notes)
           ? p.notes.map((n: any, i: number): ClientNote => ({
@@ -5048,6 +5067,63 @@ function AdminDashboardScreen({
   );
 }
 
+// Builds a profile-view link (not a chat/DM link — this is for people to
+// look at the master's page, unlike buildChatLink's messaging-focused URLs).
+function buildSocialProfileUrl(platform: keyof MasterSocials, raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const handle = trimmed.replace(/^@/, '');
+  switch (platform) {
+    case 'instagram':
+      return `https://instagram.com/${handle}`;
+    case 'tiktok':
+      return `https://tiktok.com/@${handle}`;
+    case 'pinterest':
+      return `https://pinterest.com/${handle}`;
+    case 'facebook':
+      return `https://facebook.com/${handle}`;
+  }
+}
+
+function InstagramIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" {...props}>
+      <rect x="2.5" y="2.5" width="15" height="15" rx="4.5" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="14.3" cy="5.7" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+function TikTokIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" {...props}>
+      <path d="M11.3 2.8v9.4a3.15 3.15 0 1 1-2.25-3.02" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11.3 2.8c.3 2.05 1.9 3.6 4 3.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function PinterestIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" {...props}>
+      <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8.2 14.5 10 6.8m0 0c1.9 0 3 1 3 2.6 0 1.9-1.1 3.2-2.7 3.2-.6 0-1-.2-1.2-.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function FacebookIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" {...props}>
+      <path
+        d="M12.3 3.5h-1.6c-1.5 0-2.5 1-2.5 2.6V8H6.2v2.4h1.9V17h2.6v-6.6h1.9l.3-2.4h-2.2V6.4c0-.5.3-.8.8-.8h1.7z"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 // ===================== MASTER DASHBOARD =====================
 function MasterDashboardScreen({
   clients,
@@ -5094,6 +5170,22 @@ function MasterDashboardScreen({
   const hasPaymentData = masterInfo.links.length > 0 || !!masterInfo.bankDetails;
   const paymentCopyText = () =>
     [...masterInfo.links.map((l) => `${l.label}: ${l.value}`), ...(masterInfo.bankDetails ? [masterInfo.bankDetails] : [])].join('\n');
+
+  // Соцсети — quick-open icons beside «Оплата», edited in the same form as
+  // the rest of that card (see editingPayment above).
+  const [socialsDraft, setSocialsDraft] = useState(masterInfo.socials);
+  useEffect(() => setSocialsDraft(masterInfo.socials), [masterInfo.socials]);
+  const saveSocialsDraft = () => {
+    if (JSON.stringify(socialsDraft) !== JSON.stringify(masterInfo.socials)) {
+      onChangeMasterInfo({ ...masterInfo, socials: socialsDraft });
+    }
+  };
+  const SOCIAL_PLATFORMS: { key: keyof MasterSocials; label: string; Icon: (props: SVGProps<SVGSVGElement>) => JSX.Element }[] = [
+    { key: 'instagram', label: 'Instagram', Icon: InstagramIcon },
+    { key: 'tiktok', label: 'TikTok', Icon: TikTokIcon },
+    { key: 'pinterest', label: 'Pinterest', Icon: PinterestIcon },
+    { key: 'facebook', label: 'Facebook', Icon: FacebookIcon },
+  ];
 
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneDraft, setPhoneDraft] = useState(masterInfo.phone);
@@ -5263,7 +5355,15 @@ function MasterDashboardScreen({
         <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasPaymentData && !editingPayment ? 8 : 14 }}>
             <div style={{ ...statLabelStyle, marginBottom: 0 }}>Оплата</div>
-            <span onClick={() => setEditingPayment((v) => !v)} role="button" aria-label={editingPayment ? 'Готово' : 'Редактировать оплату'} style={editToggleStyle}>
+            <span
+              onClick={() => {
+                if (editingPayment) saveSocialsDraft();
+                setEditingPayment((v) => !v);
+              }}
+              role="button"
+              aria-label={editingPayment ? 'Готово' : 'Редактировать оплату'}
+              style={editToggleStyle}
+            >
               {editingPayment ? 'Готово' : hasPaymentData ? 'Изменить' : 'Заполнить'}
             </span>
           </div>
@@ -5290,19 +5390,108 @@ function MasterDashboardScreen({
                 placeholder="Счёт, БИК, ИНН..."
                 style={{ ...INPUT_STYLE, resize: 'none', height: 80, marginTop: 10 }}
               />
-            </>
-          ) : (
-            <div onClick={() => copyToClipboard(paymentCopyText(), 'payment')} role="button" aria-label="Скопировать данные" style={{ cursor: 'pointer' }}>
-              {masterInfo.links.map((l) => (
-                <div key={l.id} style={{ marginBottom: 6 }}>
-                  <span style={{ fontSize: fs(12), color: COLORS.gold }}>{l.label}: </span>
-                  <span style={{ fontSize: fs(13), color: 'var(--text-secondary)' }}>{l.value}</span>
+
+              <div style={{ height: 1, background: 'rgba(var(--gold-rgb),0.1)', margin: '14px 0 10px' }} />
+              <div style={{ fontSize: fs(11), color: COLORS.gold, letterSpacing: '0.5px', marginBottom: 8 }}>Соцсети (ник или ссылка на аккаунт)</div>
+              {SOCIAL_PLATFORMS.map(({ key, label, Icon }) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      border: '1px solid rgba(var(--gold-rgb),0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: COLORS.gold,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon width={14} height={14} />
+                  </div>
+                  <input
+                    value={socialsDraft[key]}
+                    onChange={(e) => setSocialsDraft({ ...socialsDraft, [key]: e.target.value })}
+                    placeholder={label}
+                    style={{ ...INPUT_STYLE, flex: 1 }}
+                  />
                 </div>
               ))}
-              {masterInfo.bankDetails && (
-                <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', marginTop: 6 }}>{masterInfo.bankDetails}</div>
-              )}
-              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 8, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
+            </>
+          ) : (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div
+                onClick={() => copyToClipboard(paymentCopyText(), 'payment')}
+                role="button"
+                aria-label="Скопировать данные"
+                style={{
+                  cursor: 'pointer',
+                  flex: 1,
+                  minWidth: 0,
+                  border: '1px solid rgba(var(--gold-rgb),0.12)',
+                  borderRadius: 3,
+                  padding: '10px 12px',
+                }}
+              >
+                {masterInfo.links.map((l) => (
+                  <div key={l.id} style={{ marginBottom: 6 }}>
+                    <span style={{ fontSize: fs(12), color: COLORS.gold }}>{l.label}: </span>
+                    <span style={{ fontSize: fs(13), color: 'var(--text-secondary)' }}>{l.value}</span>
+                  </div>
+                ))}
+                {masterInfo.bankDetails && (
+                  <div style={{ fontSize: fs(13), color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', marginTop: 6 }}>{masterInfo.bankDetails}</div>
+                )}
+                <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 8, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
+              </div>
+
+              {/* Соцсети — quick-open icons for the master's own public
+                  profiles (tap opens the profile, unlike the rest of this
+                  card, which copies). Empty ones stay dim placeholders. */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 8,
+                  flexShrink: 0,
+                  border: '1px solid rgba(var(--gold-rgb),0.12)',
+                  borderRadius: 3,
+                  padding: 10,
+                }}
+              >
+                {SOCIAL_PLATFORMS.map(({ key, label, Icon }) => {
+                  const url = buildSocialProfileUrl(key, masterInfo.socials[key]);
+                  const iconStyle: React.CSSProperties = {
+                    width: 34,
+                    height: 34,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textDecoration: 'none',
+                  };
+                  if (!url) {
+                    return (
+                      <div key={key} aria-label={label} style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textGhost, opacity: 0.4 }}>
+                        <Icon width={16} height={16} />
+                      </div>
+                    );
+                  }
+                  return (
+                    <a
+                      key={key}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Открыть ${label}`}
+                      style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.3)', background: 'rgba(var(--gold-rgb),0.04)', color: COLORS.gold }}
+                    >
+                      <Icon width={16} height={16} />
+                    </a>
+                  );
+                })}
+              </div>
             </div>
           )}
           {copiedTag === 'payment' && <div style={copiedChipStyle}>Скопировано ✓</div>}

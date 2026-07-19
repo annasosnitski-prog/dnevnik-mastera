@@ -120,11 +120,16 @@ function clientLabel(c: SyncClient): string {
   return [c.name, c.surname].filter(Boolean).join(' ').trim() || 'клиент';
 }
 
+// Tagged the same way the bot tags its own bookings ([ONLINE]/[WALKIN], see
+// BotBooking in TattoDiary.tsx) — so a tattoo/consultation created from the
+// diary reads as such at a glance in the shared calendar.
 function sessionDescriptor(s: SyncSession): string {
-  return [s.area, s.style].filter((x) => x && x.trim()).join(' · ');
+  const rest = [s.area, s.style].filter((x) => x && x.trim()).join(' · ');
+  return rest ? `[ТАТУ] ${rest}` : '[ТАТУ]';
 }
 function consultationDescriptor(c: SyncConsultation): string {
-  return [c.area, c.style].filter((x) => x && x.trim()).join(' · ');
+  const rest = [c.area, c.style].filter((x) => x && x.trim()).join(' · ');
+  return rest ? `[КОНС] ${rest}` : '[КОНС]';
 }
 
 // Стабильный id записи для бота — по нему бот детерминированно строит
