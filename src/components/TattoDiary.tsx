@@ -5305,6 +5305,51 @@ function MasterDashboardScreen({
           </div>
         </div>
 
+        {/* Соцсети — read-only icon row pulled straight from «Контакты»
+            below (no separate fields — a link only needs to be entered
+            once). Tap opens the profile, unlike «Контакты», which copies. */}
+        <GoldFrame plain style={{ padding: '14px 16px' }}>
+          <div style={{ ...statLabelStyle, marginBottom: 10 }}>Соцсети</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {SOCIAL_PLATFORMS.map(({ key, label, Icon }) => {
+              const link = masterInfo.chatLinks.find((l) => l.platform === key);
+              const iconStyle: React.CSSProperties = {
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textDecoration: 'none',
+              };
+              if (!link) {
+                return (
+                  <div key={key} aria-label={label} style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textGhost, opacity: 0.4 }}>
+                    <Icon width={22} height={22} />
+                  </div>
+                );
+              }
+              return (
+                <a
+                  key={key}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Открыть ${label}`}
+                  style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.3)', background: 'rgba(var(--gold-rgb),0.04)', color: COLORS.gold }}
+                >
+                  <Icon width={22} height={22} />
+                </a>
+              );
+            })}
+          </div>
+          {SOCIAL_PLATFORMS.some(({ key }) => !masterInfo.chatLinks.some((l) => l.platform === key)) && (
+            <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 10, fontStyle: 'italic' }}>
+              Добавьте ссылку в «Контакты» ниже, чтобы иконка открылась
+            </div>
+          )}
+        </GoldFrame>
+
         {/* Оплата — master's own payment links + bank details. Once there's
             data, the card shows a read view that copies everything to the
             clipboard on tap; the pencil toggle switches back to the edit form. */}
@@ -5354,51 +5399,6 @@ function MasterDashboardScreen({
             </div>
           )}
           {copiedTag === 'payment' && <div style={copiedChipStyle}>Скопировано ✓</div>}
-        </GoldFrame>
-
-        {/* Соцсети — read-only icon row pulled straight from «Контакты»
-            below (no separate fields — a link only needs to be entered
-            once). Tap opens the profile, unlike «Контакты», which copies. */}
-        <GoldFrame plain style={{ padding: '14px 16px' }}>
-          <div style={{ ...statLabelStyle, marginBottom: 10 }}>Соцсети</div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {SOCIAL_PLATFORMS.map(({ key, label, Icon }) => {
-              const link = masterInfo.chatLinks.find((l) => l.platform === key);
-              const iconStyle: React.CSSProperties = {
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textDecoration: 'none',
-              };
-              if (!link) {
-                return (
-                  <div key={key} aria-label={label} style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textGhost, opacity: 0.4 }}>
-                    <Icon width={18} height={18} />
-                  </div>
-                );
-              }
-              return (
-                <a
-                  key={key}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`Открыть ${label}`}
-                  style={{ ...iconStyle, border: '1px solid rgba(var(--gold-rgb),0.3)', background: 'rgba(var(--gold-rgb),0.04)', color: COLORS.gold }}
-                >
-                  <Icon width={18} height={18} />
-                </a>
-              );
-            })}
-          </div>
-          {SOCIAL_PLATFORMS.some(({ key }) => !masterInfo.chatLinks.some((l) => l.platform === key)) && (
-            <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 10, fontStyle: 'italic' }}>
-              Добавьте ссылку в «Контакты» ниже, чтобы иконка открылась
-            </div>
-          )}
         </GoldFrame>
 
         {/* Контакты — телефон мастера + личные ссылки (сайт/соцсети/
