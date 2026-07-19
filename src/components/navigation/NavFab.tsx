@@ -6,7 +6,6 @@ type AppScreen = "list" | "settings" | "summary" | "master" | "admin";
 interface NavFabProps {
   active: AppScreen;
   onNavigate: (screen: AppScreen) => void;
-  isLight: boolean;
   // «Админка» can carry an urgent reminder, a healing check-in, or both at
   // once — every outstanding kind shows, stacked, rather than one hiding
   // the other.
@@ -40,9 +39,8 @@ const NAV_ITEMS: {
 // Closed, it shows the icon for whatever screen is currently open (so you
 // always know where you are without expanding it); tapping it fans the
 // other three destinations out above it.
-export function NavFab({ active, onNavigate, isLight, adminBadges, onCreate }: NavFabProps) {
+export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProps) {
   const [open, setOpen] = useState(false);
-  const variant = isLight ? "naturalist" : "jewelry";
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
   const others = NAV_ITEMS.filter((item) => item !== current);
   // «Админка» badges surface on its own circle when the menu is open; when
@@ -86,7 +84,7 @@ export function NavFab({ active, onNavigate, isLight, adminBadges, onCreate }: N
                   setOpen(false);
                 }}
               >
-                <ToolbarIcon name={item.id} variant={variant} size={28} />
+                <ToolbarIcon name={item.id} size={28} />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
@@ -104,7 +102,7 @@ export function NavFab({ active, onNavigate, isLight, adminBadges, onCreate }: N
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          <ToolbarIcon name={current.id} variant={variant} size={28} />
+          <ToolbarIcon name={current.id} size={28} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
