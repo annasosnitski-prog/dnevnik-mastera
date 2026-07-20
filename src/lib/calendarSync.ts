@@ -120,7 +120,7 @@ function clientLabel(c: SyncClient): string {
   return [c.name, c.surname].filter(Boolean).join(' ').trim() || 'клиент';
 }
 
-// Tagged the same way the bot tags its own bookings ([ONLINE]/[WALKIN], see
+// Tagged the same way the bot tags its own bookings ([ВИДЕО]/[ОКНО], see
 // BotBooking in TattoDiary.tsx) — so a tattoo/consultation created from the
 // diary reads as such at a glance in the shared calendar.
 function sessionDescriptor(s: SyncSession): string {
@@ -129,7 +129,7 @@ function sessionDescriptor(s: SyncSession): string {
 }
 function consultationDescriptor(c: SyncConsultation): string {
   const rest = [c.area, c.style].filter((x) => x && x.trim()).join(' · ');
-  return rest ? `[КОНС] ${rest}` : '[КОНС]';
+  return rest ? `[ПРИЁМ] ${rest}` : '[ПРИЁМ]';
 }
 
 // Стабильный id записи для бота — по нему бот детерминированно строит
@@ -298,22 +298,25 @@ export function diffAndSync(
 // По просьбе Ани — узко: реальные брони, оформленные БОТОМ, простым
 // списком, БЕЗ карточек клиентов и привязки — карточку она заводит в
 // Дневнике сама. Тег может быть любым из четырёх — бот теперь может
-// оформить бронь и на [ТАТУ]/[КОНС]-слот (например открытый через
-// /добавить), не только на [ONLINE]/[WALKIN]; свои же события из
+// оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот (например открытый через
+// /добавить), не только на [ВИДЕО]/[ОКНО]; свои же события из
 // Дневника сюда не попадают (см. isBotBooking на стороне бота).
+// Теги переименованы под голосовой ввод на стороне бота (были
+// [КОНС]/[ONLINE]/[WALKIN]) — старых событий с прежними тегами в
+// календаре нет, обратная совместимость не нужна.
 // Использует ТОТ ЖЕ секрет, что и запись (DIARY_SYNC_SECRET) — отдельный
 // заводить не нужно, Дневник его уже хранит.
 // ----------------------------------------------------------
 
 export interface BotBooking {
   id: string;
-  tag: '[ТАТУ]' | '[КОНС]' | '[ONLINE]' | '[WALKIN]' | null;
+  tag: '[ТАТУ]' | '[ПРИЁМ]' | '[ВИДЕО]' | '[ОКНО]' | null;
   summary: string;
   start: string;
   end: string;
   // 'booking' — настоящая бронь с клиентом.
   // 'master_block' — мастер закрыла день/окно через /закрой, без клиента.
-  // 'open_slot' — ещё НЕ забронированный WALKIN/ONLINE слот (/добавить) —
+  // 'open_slot' — ещё НЕ забронированный ОКНО/ВИДЕО слот (/добавить) —
   //   для планирования важно видеть, что вообще выставлено, не только
   //   что уже забронировано.
   kind: 'booking' | 'master_block' | 'open_slot';
