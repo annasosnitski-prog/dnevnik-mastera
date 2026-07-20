@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type SVGProps } from 'react';
+import { useState, useEffect, useRef, useMemo, memo, type SVGProps } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
 import {
@@ -1148,7 +1148,12 @@ function getMeteors() {
 // this renders only in the dark theme. Shares one layout across screens with
 // delays anchored to SKY_EPOCH, so the field holds still through screen
 // transitions.
-function StarfieldBackground() {
+// Memoized because it takes no props: without this, every state change
+// anywhere in the (huge, single) app component would re-render and
+// reconcile this whole star/meteor subtree for nothing on every keystroke,
+// client edit, etc. React.memo skips that — it only re-renders on its own
+// internal state changes (theme flip, visibility change).
+const StarfieldBackground = memo(function StarfieldBackground() {
   const isLight = useIsLightTheme();
   const [, setTick] = useState(0);
 
@@ -1231,7 +1236,7 @@ function StarfieldBackground() {
       ))}
     </div>
   );
-}
+});
 
 // Reads data-theme off the root element and stays in sync with it — lets a
 // component gate its rendering on the theme without threading a prop through
@@ -1308,7 +1313,9 @@ function getCloudLayers() {
 // each cloud then depends only on wall-clock time — not on when a given screen
 // mounted — the sky looks the same across every screen, so sliding from one
 // screen to another shows the clouds holding still instead of jumping/popping.
-function CloudsBackground() {
+// Memoized like StarfieldBackground — no props, so this opts the whole
+// cloud subtree out of every unrelated re-render in the app.
+const CloudsBackground = memo(function CloudsBackground() {
   const isLight = useIsLightTheme();
   const [, setTick] = useState(0);
 
@@ -1366,7 +1373,7 @@ function CloudsBackground() {
       )}
     </div>
   );
-}
+});
 
 // Muted per-type tints, all desaturated to sit quietly inside the warm light
 // palette (never bright): airships a soft burnt-amber, the balloon a pale,
@@ -1430,7 +1437,10 @@ function getCraft() {
 // the sky in front of the clouds, each with motion suited to its kind. Shares
 // one layout across all screens, with delays anchored to SKY_EPOCH, so it holds
 // still through screen transitions (same reasoning as CloudsBackground).
-function AviationBackground() {
+//
+// Memoized like the other two sky layers — no props, so it opts out of
+// every unrelated re-render in the app.
+const AviationBackground = memo(function AviationBackground() {
   const isLight = useIsLightTheme();
   const [, setTick] = useState(0);
 
@@ -1481,7 +1491,7 @@ function AviationBackground() {
       ))}
     </div>
   );
-}
+});
 
 // Small reward for winning the "opened the app" trial game — a gold star
 // shower filling the whole screen (reuses the milestone show's physics, just
