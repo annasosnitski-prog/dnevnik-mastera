@@ -1077,15 +1077,12 @@ function starSvgMarkup(size: number, color: string, outline?: string): string {
 // so it's cheap even sitting behind every screen). Positions/timings are
 // randomised once per mount via useState's lazy initializer.
 //
-// Each screen's wrapper is both the transformed (slide-nav) element AND the
-// scroll container, so a plain inset:0 layer sitting inside it scrolls away
-// with the content after one screenful — there's no clean way to pin it to
-// the viewport without restructuring every screen's scroll container. The
-// pragmatic fix: give the star field a tall virtual canvas (covers several
-// screens' worth of scrolling) with proportionally more stars, so scrolling
-// a long list/notes feed still reveals stars instead of running out.
-const STARFIELD_COUNT = 140;
-const STARFIELD_HEIGHT_VH = 300;
+// Rendered once, fixed behind all screens (not inside any scroll container),
+// so the canvas only needs to cover one viewport — anything taller than that
+// would sit permanently clipped by .app-shell's overflow:hidden, animating
+// off-screen for no visual benefit. Count is sized for this exact height.
+const STARFIELD_COUNT = 47;
+const STARFIELD_HEIGHT_VH = 100;
 const METEOR_COUNT = 4;
 // Fixed epoch every background animation delay is measured from, so a cloud /
 // star / craft is at the same phase in every screen regardless of when that
@@ -1254,12 +1251,14 @@ function useIsLightTheme(): boolean {
 // and drift faster (parallax); farther layers are paler, smaller, slower. They
 // render in this order, so nearer (darker) layers overlap the distant paler
 // ones — the closest-to-the-viewer clouds read darkest.
+// Counts sized for one viewport-tall canvas (see STARFIELD_HEIGHT_VH above —
+// this layer shares the same fixed, non-scrolling canvas as the starfield).
 const CLOUD_LAYERS = [
-  { color: '#D0C29B', scale: 0.56, durationMul: 1.85, opacity: 0.38, count: 35 }, // far / lightest
-  { color: '#B6A06E', scale: 0.73, durationMul: 1.45, opacity: 0.45, count: 35 },
-  { color: '#957842', scale: 0.92, durationMul: 1.15, opacity: 0.5, count: 30 },
-  { color: '#6D5220', scale: 1.13, durationMul: 0.92, opacity: 0.55, count: 30 },
-  { color: '#493611', scale: 1.38, durationMul: 0.72, opacity: 0.6, count: 30 }, // near / darkest
+  { color: '#D0C29B', scale: 0.56, durationMul: 1.85, opacity: 0.38, count: 12 }, // far / lightest
+  { color: '#B6A06E', scale: 0.73, durationMul: 1.45, opacity: 0.45, count: 12 },
+  { color: '#957842', scale: 0.92, durationMul: 1.15, opacity: 0.5, count: 10 },
+  { color: '#6D5220', scale: 1.13, durationMul: 0.92, opacity: 0.55, count: 10 },
+  { color: '#493611', scale: 1.38, durationMul: 0.72, opacity: 0.6, count: 10 }, // near / darkest
 ];
 
 // Width is capped well under what the drift keyframes' off-screen margin
@@ -1271,8 +1270,8 @@ function buildCloudLayers() {
     const offset = Math.floor(Math.random() * CLOUD_SOURCES.length);
     const clouds = Array.from({ length: layer.count }, (_, i) => ({
       src: CLOUD_SOURCES[(i + offset) % CLOUD_SOURCES.length],
-      // Loose bands (jitter wider than the band) keep clouds spread down the
-      // whole scroll while still letting neighbours drift into each other.
+      // Loose bands (jitter wider than the band) keep clouds spread evenly
+      // down the canvas while still letting neighbours drift into each other.
       top: i * band + (Math.random() - 0.3) * band * 2,
       // Sized down a third and drifting well under half the old speed — the
       // original pace read as jittery/seasick when several layers crossed
@@ -1301,8 +1300,8 @@ function getCloudLayers() {
 
 // Light theme's sky — hand-drawn engraving clouds in five depth layers,
 // drifting past at their own speed with a gentle bob. The dark theme's
-// counterpart is StarfieldBackground above. Spans the same tall virtual area
-// as the starfield so clouds keep appearing down the whole scroll.
+// counterpart is StarfieldBackground above. Shares the same viewport-tall
+// canvas as the starfield.
 //
 // Every screen renders this, and they all use the SAME shared layout with
 // animation delays anchored to a global epoch (SKY_EPOCH). Because the phase of
