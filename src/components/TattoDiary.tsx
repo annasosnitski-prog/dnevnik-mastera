@@ -4876,6 +4876,25 @@ function AdminDashboardScreen({
             create button (same calendar-driven creation walk) — this screen
             no longer duplicates it as its own standalone button. */}
 
+        {/* Уведомления и напоминания идут наверх, над блоком предстоящих
+            сессий — это то, что требует внимания мастера в первую очередь. */}
+
+        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
+            бот мог оформить бронь и на [ТАТУ]/[КОНС]-слот, не только
+            [ONLINE]/[WALKIN]). Без карточек клиентов и привязки — только
+            справочный список, карточку мастер заводит в Дневнике сама
+            (см. calendarSync.ts). */}
+        {syncActive(calendarSync) && (
+          <GoldFrame style={{ padding: '14px 16px' }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
+            <div style={{ marginTop: 8 }}>
+              <BotBookingsList settings={calendarSync} />
+            </div>
+          </GoldFrame>
+        )}
+
+        <RemindersSection overdue={overdue} healing={healing} soon={soon} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
+
         {/* Upcoming sessions, with a master-configurable lookahead window —
             same period picker as the stats grid below, so the two controls
             read as one shared concept rather than two different ones. */}
@@ -4933,22 +4952,6 @@ function AdminDashboardScreen({
             </div>
           )}
         </GoldFrame>
-
-        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
-            бот мог оформить бронь и на [ТАТУ]/[КОНС]-слот, не только
-            [ONLINE]/[WALKIN]). Без карточек клиентов и привязки — только
-            справочный список, карточку мастер заводит в Дневнике сама
-            (см. calendarSync.ts). */}
-        {syncActive(calendarSync) && (
-          <GoldFrame style={{ padding: '14px 16px' }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
-            <div style={{ marginTop: 8 }}>
-              <BotBookingsList settings={calendarSync} />
-            </div>
-          </GoldFrame>
-        )}
-
-        <RemindersSection overdue={overdue} healing={healing} soon={soon} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
 
         {/* Quick stats — clients (with срочно/важно in the lower half) beside
             назначено сессий/консультаций. «Частый стиль» stays on Мастер. */}
