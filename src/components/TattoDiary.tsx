@@ -2320,6 +2320,30 @@ export default function TattoDiary() {
         filter: prefs.brightness !== 1 ? `brightness(${prefs.brightness})` : undefined,
       }}
     >
+      {/* Shared sky — one instance behind every screen instead of a copy per
+          screen. Screens used to each mount their own StarfieldBackground/
+          CloudsBackground/AviationBackground (plus this dot-grid), which
+          meant up to two full sets animating at once (List's, which is
+          never unmounted, plus whichever other screen was open) — real GPU
+          load and battery/heat cost on a phone for a purely decorative
+          layer. A single fixed copy behind the sliding screens looks
+          identical (the content was never screen-specific) at half the
+          animation cost. */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, background: COLORS.bg }}>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
+            backgroundSize: '22px 22px',
+            pointerEvents: 'none',
+          }}
+        />
+        <StarfieldBackground />
+        <CloudsBackground />
+        <AviationBackground />
+      </div>
+
       {/* ═══════════ LIST SCREEN ═══════════ */}
       <div
         style={{
@@ -2330,23 +2354,8 @@ export default function TattoDiary() {
           overflowY: 'auto',
           overflowX: 'hidden',
           zIndex: 1,
-          background: COLORS.bg,
         }}
       >
-        {/* Dot-grid texture overlay */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
-            backgroundSize: '22px 22px',
-            pointerEvents: 'none',
-            zIndex: 0,
-          }}
-        />
-        <StarfieldBackground />
-        <CloudsBackground />
-        <AviationBackground />
 
         {/* Safe-area / status spacer */}
         <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)', flexShrink: 0 }} />
@@ -2815,7 +2824,6 @@ export default function TattoDiary() {
           overflowY: 'auto',
           overflowX: 'hidden',
           zIndex: 3,
-          background: COLORS.bg,
         }}
       >
         {screen === 'summary' && (
@@ -2863,7 +2871,6 @@ export default function TattoDiary() {
           overflowY: 'auto',
           overflowX: 'hidden',
           zIndex: 3,
-          background: COLORS.bg,
         }}
       >
         {screen === 'master' && (
@@ -2888,7 +2895,6 @@ export default function TattoDiary() {
           overflowY: 'auto',
           overflowX: 'hidden',
           zIndex: 3,
-          background: COLORS.bg,
         }}
       >
         {screen === 'admin' && (
@@ -2919,12 +2925,8 @@ export default function TattoDiary() {
           overflowY: 'auto',
           overflowX: 'hidden',
           zIndex: 3,
-          background: COLORS.bg,
         }}
       >
-        {/* Gated like the summary/master screens so its (now much denser) sky
-            layer only mounts while Settings is open, not permanently behind the
-            list. */}
         {screen === 'settings' && (
           <SettingsScreen
             theme={theme}
@@ -2945,7 +2947,6 @@ export default function TattoDiary() {
           transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
           overflow: 'hidden',
           zIndex: 3,
-          background: COLORS.bg,
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -4837,21 +4838,7 @@ function AdminDashboardScreen({
   };
 
   return (
-    <div style={{ minHeight: '100%', background: COLORS.bg }}>
-      {/* Dot-grid texture overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
-          backgroundSize: '22px 22px',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-      <StarfieldBackground />
-      <CloudsBackground />
-      <AviationBackground />
+    <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div
@@ -5209,21 +5196,7 @@ function MasterDashboardScreen({
   };
 
   return (
-    <div style={{ minHeight: '100%', background: COLORS.bg }}>
-      {/* Dot-grid texture overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
-          backgroundSize: '22px 22px',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-      <StarfieldBackground />
-      <CloudsBackground />
-      <AviationBackground />
+    <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         {/* Settings now lives here rather than as its own top-level nav
@@ -5834,21 +5807,7 @@ function SettingsScreen({
   };
 
   return (
-    <div style={{ minHeight: '100%', background: COLORS.bg }}>
-      {/* Dot-grid texture overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
-          backgroundSize: '22px 22px',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-      <StarfieldBackground />
-      <CloudsBackground />
-      <AviationBackground />
+    <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginBottom: 10 }}>
@@ -6091,21 +6050,7 @@ function SummaryScreen({
   const hasAnyNote = masterNotes.length > 0 || clients.some((c) => c.notes.length);
 
   return (
-    <div style={{ minHeight: '100%', background: COLORS.bg }}>
-      {/* Dot-grid texture overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
-          backgroundSize: '22px 22px',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-      <StarfieldBackground />
-      <CloudsBackground />
-      <AviationBackground />
+    <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       {/* Header — same formatting as the home screen: INKA logo + subtitle. */}
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
@@ -6698,10 +6643,7 @@ function DetailScreen({
       )}
 
       {/* Tab content */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px', background: COLORS.bg }}>
-        <StarfieldBackground />
-        <CloudsBackground />
-        <AviationBackground />
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px' }}>
         {activeTab === 'sessions' && (
           <SessionsTab
             client={client}
