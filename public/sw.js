@@ -1,4 +1,4 @@
-const CACHE_NAME = 'inka-v1';
+const CACHE_NAME = 'inka-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -31,12 +31,45 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event - network first, fall back to cache
+// Vite's JS/CSS bundle filenames are content-hashed (a change in content always
+// produces a new URL), and the decorative sky images never change in place —
+// so unlike navigations, these never need a network round trip to check for
+// something newer at the same URL. Serving them straight from cache skips
+// waking the radio for a request that will return the exact same bytes.
+function isImmutableAsset(url) {
+  return (
+    url.pathname.startsWith('/assets/') ||
+    url.hostname === 'fonts.googleapis.com' ||
+    url.hostname === 'fonts.gstatic.com'
+  );
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') {
     return;
   }
 
+  const url = new URL(event.request.url);
+
+  if (isImmutableAsset(url)) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Navigation and app-shell requests (index.html, manifest.json) still need
+  // network-first: this is what picks up a new deploy's reference to the
+  // next set of hashed asset filenames.
   event.respondWith(
     fetch(event.request)
       .then((response) => {
