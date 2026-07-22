@@ -237,6 +237,15 @@ const CLIENT_TYPES: { value: ClientType; label: string }[] = [
   { value: 'other', label: 'Другое' },
 ];
 
+// Language the client's auto-generated messages (reminders etc.) get
+// written in — set per-client in the Инфо tab, defaults to Russian.
+type ClientLanguage = 'ru' | 'en' | 'he';
+const CLIENT_LANGUAGES: { value: ClientLanguage; label: string }[] = [
+  { value: 'ru', label: 'Русский' },
+  { value: 'en', label: 'English' },
+  { value: 'he', label: 'עברית' },
+];
+
 interface Client {
   id: string;
   name: string; // first name, e.g. "Александра"
@@ -245,6 +254,7 @@ interface Client {
   style: string; // joined styles, kept for search / back-compat
   color: string; // marker colour (master-chosen at creation)
   clientType: ClientType; // model / client / other — filterable on the list screen
+  language: ClientLanguage; // auto-generated messages (reminders etc.) are written in this language
   note: string; // notes about the client ("Заметки о клиенте")
   masterNote: string; // master's own notes, written inline from the info tab
   phone: string; // contact phone number
@@ -555,9 +565,49 @@ function daysSinceISO(date: string): number {
 }
 
 const HEALING_REMINDER_DAYS = 30;
+
+// Every client-facing auto-message (healing check-in, upcoming-booking
+// reminder, and whatever gets added next) is written in the client's own
+// language (see Client.language, set from the Инфо tab) — keep new templates
+// here rather than adding a new bare Russian string elsewhere.
+const CLIENT_LOCALE: Record<ClientLanguage, string> = { ru: 'ru-RU', en: 'en-US', he: 'he-IL' };
+
+const REMINDER_TEXTS: Record<ClientLanguage, { healing: string; soon: (when: string) => string }> = {
+  ru: {
+    healing: 'Привет, как дела? Пишу узнать как зажила татуировка',
+    soon: (when) => `Привет! Как дела? Напоминаю о нашей встрече «${when}»`,
+  },
+  en: {
+    healing: 'Hi, how are you? Just checking in on how the tattoo is healing',
+    soon: (when) => `Hi! How are you? Just a reminder about our appointment: ${when}`,
+  },
+  he: {
+    healing: 'היי, מה שלומך? רק בודקת איך הקעקוע מחלים',
+    soon: (when) => `היי! מה שלומך? רק תזכורת לפגישה שלנו: ${when}`,
+  },
+};
+
 // The message offered for copying on a healing check-in — deliberately not
 // personalised with the client's name (master's preference).
-const HEALING_REMINDER_MESSAGE = 'Привет, как дела? Пишу узнать как зажила татуировка';
+function healingReminderMessage(client: Client): string {
+  return REMINDER_TEXTS[client.language].healing;
+}
+
+// "<weekday>, <day> <month>[, <time>]" in the client's own language/locale —
+// e.g. ru: «четверг, 23 июля, 16:27», en: "Thursday, July 23, 4:27 PM". Built
+// from y/m/d components (not `new Date(iso)`) for the same reason as
+// dateParts below — avoids a UTC-parse day-shift in western timezones.
+function localizedWhen(dateIso: string, time: string, language: ClientLanguage): string {
+  const m = ISO_DATE_RE.exec(dateIso);
+  if (!m) return dateIso;
+  const [y, mo, d] = dateIso.split('-').map(Number);
+  const locale = CLIENT_LOCALE[language];
+  const dateStr = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(y, mo - 1, d));
+  if (!time) return dateStr;
+  const [hh, mi] = time.split(':').map(Number);
+  const timeStr = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(new Date(y, mo - 1, d, hh, mi));
+  return `${dateStr}, ${timeStr}`;
+}
 
 // Sessions AND consultations whose date has passed while still marked
 // not-done — the master either ticks them done (it happened, wasn't logged)
@@ -638,10 +688,10 @@ function soonReminderKey(it: UpcomingSoonItem): string {
 }
 
 // Auto-message for the 36–48h heads-up — master copies it to nudge the
-// client about the upcoming booking, same pattern as HEALING_REMINDER_MESSAGE.
+// client about the upcoming booking, same pattern as healingReminderMessage.
 function soonReminderMessage(it: UpcomingSoonItem): string {
-  const what = it.kind === 'session' ? 'сеансе' : 'консультации';
-  return `Здравствуйте! Напоминаю о ${what} ${formatDate(it.date)}${it.time ? ` в ${it.time}` : ''}. Ждём вас!`;
+  const { language } = it.client;
+  return REMINDER_TEXTS[language].soon(localizedWhen(it.date, it.time, language));
 }
 
 function readInitialDismissedReminders(): string[] {
@@ -697,6 +747,7 @@ function normalizeClient(raw: any, index: number): Client {
     style: styles.join(' · '),
     color: raw?.color ?? ACCENT_COLORS[index % ACCENT_COLORS.length],
     clientType: CLIENT_TYPES.some((t) => t.value === raw?.clientType) ? raw.clientType : 'client',
+    language: CLIENT_LANGUAGES.some((l) => l.value === raw?.language) ? raw.language : 'ru',
     note: raw?.note ?? raw?.chatHistory ?? '',
     masterNote: raw?.masterNote ?? '',
     phone: raw?.phone ?? '',
@@ -2039,6 +2090,7 @@ export default function TattoDiary() {
       style: '',
       color: data.color || ACCENT_COLORS[clients.length % ACCENT_COLORS.length],
       clientType: 'client',
+      language: 'ru',
       note: '',
       masterNote: '',
       phone: data.phone.trim(),
@@ -2213,6 +2265,7 @@ export default function TattoDiary() {
       style: data.styles.join(' · '),
       color: data.color || ACCENT_COLORS[clients.length % ACCENT_COLORS.length],
       clientType: data.clientType,
+      language: 'ru',
       note: data.note.trim(),
       masterNote: '',
       phone: data.phone.trim(),
@@ -4678,7 +4731,7 @@ function RemindersSection({
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <CopyMessageButton text={HEALING_REMINDER_MESSAGE} />
+                  <CopyMessageButton text={healingReminderMessage(it.client)} />
                   <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
                 </div>
               </div>
@@ -4874,21 +4927,6 @@ function AdminDashboardScreen({
 
         {/* Уведомления и напоминания идут наверх, над блоком предстоящих
             сессий — это то, что требует внимания мастера в первую очередь. */}
-
-        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
-            бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
-            [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
-            справочный список, карточку мастер заводит в Дневнике сама
-            (см. calendarSync.ts). */}
-        {syncActive(calendarSync) && (
-          <GoldFrame style={{ padding: '14px 16px' }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
-            <div style={{ marginTop: 8 }}>
-              <BotBookingsList settings={calendarSync} />
-            </div>
-          </GoldFrame>
-        )}
-
         <RemindersSection overdue={overdue} healing={healing} soon={soon} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
 
         {/* Upcoming sessions, with a master-configurable lookahead window —
@@ -4948,6 +4986,21 @@ function AdminDashboardScreen({
             </div>
           )}
         </GoldFrame>
+
+        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
+            бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
+            [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
+            справочный список, карточку мастер заводит в Дневнике сама
+            (см. calendarSync.ts). Сгруппирован с «Предстоящие сессии» —
+            оба про то, что запланировано впереди. */}
+        {syncActive(calendarSync) && (
+          <GoldFrame style={{ padding: '14px 16px' }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
+            <div style={{ marginTop: 8 }}>
+              <BotBookingsList settings={calendarSync} />
+            </div>
+          </GoldFrame>
+        )}
 
         {/* Quick stats — clients (with срочно/важно in the lower half) beside
             назначено сессий/консультаций. «Частый стиль» stays on Мастер. */}
@@ -6738,6 +6791,10 @@ function InfoTab({
         </div>
       </div>
 
+      {/* Language auto-generated messages (reminders etc.) get written in —
+          see REMINDER_TEXTS/localizedWhen above. */}
+      <ClientLanguageSection client={client} onSave={onSave} />
+
       {/* Skin: type + tone + notes */}
       <SkinSection client={client} onSave={onSave} />
 
@@ -6746,6 +6803,39 @@ function InfoTab({
 
       {/* Attachments — documents / photos / any file for this client */}
       <AttachmentsSection client={client} onAddDocument={onAddDocument} onRemoveDocument={onRemoveDocument} />
+    </div>
+  );
+}
+
+// ── Client language — which language auto-generated messages (reminders
+// etc., see REMINDER_TEXTS) get written in for this client. ──
+function ClientLanguageSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
+  return (
+    <div style={{ marginTop: 22 }}>
+      <SectionDivider />
+      <SectionHeader>Язык клиента</SectionHeader>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        {CLIENT_LANGUAGES.map((o) => (
+          <div
+            key={o.value}
+            onClick={() => onSave({ ...client, language: o.value })}
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              padding: '10px 0',
+              borderRadius: 2,
+              cursor: 'pointer',
+              fontSize: fs(13),
+              letterSpacing: '0.5px',
+              border: client.language === o.value ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              background: client.language === o.value ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+              color: client.language === o.value ? COLORS.gold : COLORS.textFaint,
+            }}
+          >
+            {o.label}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
