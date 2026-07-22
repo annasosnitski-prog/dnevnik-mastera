@@ -130,6 +130,44 @@
   height: 0;
 }
 
+/* Thin gold spokes from the hub out to each open item — same idea as the
+   reference's hub-and-spoke fan, just gold instead of rainbow. Positioned
+   absolutely (see NavFab.tsx for rayExtent) so its origin (0,0 in the
+   viewBox) sits exactly on the hub point; pointer-events stay off so the
+   rays never intercept taps meant for the buttons above them. Each ray is
+   two stacked lines — a soft blurred one for the glow, a crisp one on top
+   for the line itself — rather than a single stroke with a CSS box-shadow,
+   since box-shadow doesn't apply to SVG line geometry. */
+.nav-fab__rays {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.nav-fab__ray-glow,
+.nav-fab__ray {
+  stroke: var(--gold);
+  stroke-linecap: round;
+  animation: nav-fab-ray-in 0.2s ease both;
+}
+
+.nav-fab__ray-glow {
+  stroke-width: 3;
+  opacity: 0.35;
+  filter: blur(2px);
+}
+
+.nav-fab__ray {
+  stroke-width: 1;
+  opacity: 0.8;
+}
+
+@keyframes nav-fab-ray-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* Secondary items stay transparent rings with a soft gold halo — a light
    presence when idle. The main button (below) is the one exception: it's
    always on screen, so it gets a solid, theme-matching plate instead. Both
@@ -223,7 +261,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav-fab__item {
+  .nav-fab__item,
+  .nav-fab__ray-glow,
+  .nav-fab__ray {
     animation: none;
   }
 

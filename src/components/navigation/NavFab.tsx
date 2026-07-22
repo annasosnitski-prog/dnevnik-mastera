@@ -100,16 +100,37 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   // main button instead, so an outstanding reminder is never invisible.
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
 
+  // Computed once so the connecting rays (drawn first, underneath) and the
+  // buttons themselves (drawn on top) agree on exactly the same points.
+  const positions = fanEntries.map((entry, i) => {
+    const angleDeg = fanEntries.length <= 1 ? 90 : 90 + ARC_SPAN_DEG / 2 - i * (ARC_SPAN_DEG / (fanEntries.length - 1));
+    return arcOffset(angleDeg, RADIUS[entry.kind === "create" ? "create" : entry.item.id]);
+  });
+  const rayExtent = CREATE_RADIUS + 40;
+
   return (
     <>
       {open && <div onClick={() => setOpen(false)} aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 55 }} />}
       <div className="nav-fab">
+        {open && (
+          <svg
+            className="nav-fab__rays"
+            aria-hidden="true"
+            style={{ left: -rayExtent, top: -rayExtent, width: rayExtent * 2, height: rayExtent * 2 }}
+            viewBox={`${-rayExtent} ${-rayExtent} ${rayExtent * 2} ${rayExtent * 2}`}
+          >
+            {positions.map(({ dx, dy }, i) => (
+              <line key={i} className="nav-fab__ray-glow" x1={0} y1={0} x2={dx} y2={dy} />
+            ))}
+            {positions.map(({ dx, dy }, i) => (
+              <line key={i} className="nav-fab__ray" x1={0} y1={0} x2={dx} y2={dy} />
+            ))}
+          </svg>
+        )}
         {open &&
           fanEntries.map((entry, i) => {
             const isCreate = entry.kind === "create";
-            const angleDeg =
-              fanEntries.length <= 1 ? 90 : 90 + ARC_SPAN_DEG / 2 - i * (ARC_SPAN_DEG / (fanEntries.length - 1));
-            const { dx, dy } = arcOffset(angleDeg, RADIUS[isCreate ? "create" : entry.item.id]);
+            const { dx, dy } = positions[i];
             const style = { ["--i" as string]: i, ["--dx" as string]: `${dx}px`, ["--dy" as string]: `${dy}px` };
 
             if (isCreate) {
