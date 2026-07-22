@@ -162,6 +162,23 @@
   opacity: 0.8;
 }
 
+/* A blurred glow reads as light escaping into the dark in the dark theme,
+   but the same gold blurred into a pale parchment background just looks
+   soft, not lit — there's no dark to escape into. Light theme inverts the
+   metaphor instead: the line itself stays gold (legible against the light
+   ground), but its halo turns into a dark, ink-like blur, so it still
+   reads as "this line has depth", just via shadow rather than glow. */
+:root[data-theme="light"] .nav-fab__ray-glow {
+  stroke: #4a3010;
+  opacity: 0.2;
+}
+
+.nav-fab__ray-dot {
+  fill: var(--gold);
+  filter: drop-shadow(0 0 3px var(--gold));
+  animation: nav-fab-ray-in 0.2s ease both;
+}
+
 @keyframes nav-fab-ray-in {
   from {
     opacity: 0;
@@ -263,7 +280,8 @@
 @media (prefers-reduced-motion: reduce) {
   .nav-fab__item,
   .nav-fab__ray-glow,
-  .nav-fab__ray {
+  .nav-fab__ray,
+  .nav-fab__ray-dot {
     animation: none;
   }
 

@@ -76,6 +76,13 @@ function arcOffset(angleDeg: number, radius: number): { dx: number; dy: number }
   return { dx: radius * Math.cos(angleRad), dy: -radius * Math.sin(angleRad) };
 }
 
+// Half the main button's / a fan item's own width — a ray is drawn only
+// between the two circles' edges, not centre-to-centre, so it reads as
+// deliberately meeting each button's outline rather than just being hidden
+// underneath it.
+const HUB_HALF = 41;
+const ITEM_HALF = 31;
+
 // Single circular button, bottom-centre — replaces the full-width bottom bar.
 // Closed, it shows the icon for whatever screen is currently open (so you
 // always know where you are without expanding it); tapping it fans the
@@ -119,12 +126,28 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             style={{ left: -rayExtent, top: -rayExtent, width: rayExtent * 2, height: rayExtent * 2 }}
             viewBox={`${-rayExtent} ${-rayExtent} ${rayExtent * 2} ${rayExtent * 2}`}
           >
-            {positions.map(({ dx, dy }, i) => (
-              <line key={i} className="nav-fab__ray-glow" x1={0} y1={0} x2={dx} y2={dy} />
-            ))}
-            {positions.map(({ dx, dy }, i) => (
-              <line key={i} className="nav-fab__ray" x1={0} y1={0} x2={dx} y2={dy} />
-            ))}
+            {/* Each ray runs edge-to-edge (hub outline to button outline),
+                not centre-to-centre — trimming both ends by their circle's
+                own radius along the same direction vector. */}
+            {positions.map(({ dx, dy }, i) => {
+              const len = Math.hypot(dx, dy);
+              const ux = dx / len;
+              const uy = dy / len;
+              const x1 = ux * HUB_HALF;
+              const y1 = uy * HUB_HALF;
+              const x2 = dx - ux * ITEM_HALF;
+              const y2 = dy - uy * ITEM_HALF;
+              return (
+                <g key={i}>
+                  <line className="nav-fab__ray-glow" x1={x1} y1={y1} x2={x2} y2={y2} />
+                  <line className="nav-fab__ray" x1={x1} y1={y1} x2={x2} y2={y2} />
+                  {/* Junction points — where the beam leaves the hub and where
+                      it lands on the button, like a laser's source and impact. */}
+                  <circle className="nav-fab__ray-dot" cx={x1} cy={y1} r={2.4} />
+                  <circle className="nav-fab__ray-dot" cx={x2} cy={y2} r={2.4} />
+                </g>
+              );
+            })}
           </svg>
         )}
         {open &&
