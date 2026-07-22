@@ -35,25 +35,34 @@ const NAV_ITEMS: {
   { id: "gear", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
 ];
 
-// Fixed per-destination spot on the arc — each one always fans out to the
-// same place whenever it's visible, rather than being recomputed from
-// however many others happen to be showing (which is how a screen that
-// hides one destination would otherwise reshuffle the rest). «Создать»
-// owns dead centre-top, the one unambiguous "most important" spot, and the
-// farthest radius so it reads as the standout action rather than a fifth
-// destination. The other four are ordered and spaced per NAV_ITEMS' own
-// frequency ranking (Блокнот > Клиенты > Админка > Мастер): closer and
-// higher = reached for more often, farther and lower = reached for less —
-// giving each its own height rather than one uniform arc.
-const FAN_POSITIONS: Record<ToolbarIconName | "create", { angleDeg: number; radius: number }> = {
-  create: { angleDeg: 90, radius: 122 },
-  sketchbook: { angleDeg: 150, radius: 84 },
-  tasks: { angleDeg: 40, radius: 92 },
-  profile: { angleDeg: 200, radius: 102 },
-  gear: { angleDeg: -8, radius: 110 },
+// Angle: split evenly across however many items happen to be open right
+// now, so every sector between two neighbouring buttons is the same size
+// no matter which destination the current screen hides — a fixed per-item
+// angle can't guarantee that (removing one item from a static grid leaves
+// a gap twice as wide right next to it). «Создать» is placed in the middle
+// of the sequence below, so on every screen it lands at or next to the
+// true centre of whatever arc results.
+const ARC_SPAN_DEG = 150;
+
+// Radius: fixed per destination — this is where each one's own importance
+// shows up instead. Per Fitts's law, a target that's reached for constantly
+// should need less travel to hit than one opened rarely, so radius follows
+// NAV_ITEMS' own frequency ranking (Блокнот > Клиенты > Админка > Мастер):
+// closer for the ones used all the time, farther for the rare ones — each
+// item keeps its own height rather than sitting on one uniform arc.
+// «Создать» gets the longest radius of all: it's a different KIND of
+// control (the one action, not a place to go), so it stands apart by
+// distance as well as by its solid gold fill, the same way its size and
+// colour already set it apart from the plain destinations.
+const RADIUS: Record<ToolbarIconName | "create", number> = {
+  create: 122,
+  sketchbook: 84,
+  tasks: 92,
+  profile: 104,
+  gear: 112,
 };
 
-function arcOffset({ angleDeg, radius }: { angleDeg: number; radius: number }): { dx: number; dy: number } {
+function arcOffset(angleDeg: number, radius: number): { dx: number; dy: number } {
   const angleRad = (angleDeg * Math.PI) / 180;
   return { dx: radius * Math.cos(angleRad), dy: -radius * Math.sin(angleRad) };
 }
@@ -66,12 +75,17 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   const [open, setOpen] = useState(false);
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
   const others = NAV_ITEMS.filter((item) => item !== current);
-  // «Создать», when present, is first in this sequence — see arcOffset/
-  // CREATE_RADIUS above for how that translates into its arc position.
-  const fanEntries: ({ kind: "create" } | { kind: "nav"; item: (typeof NAV_ITEMS)[number] })[] = [
-    ...(onCreate ? [{ kind: "create" as const }] : []),
-    ...others.map((item) => ({ kind: "nav" as const, item })),
-  ];
+  type FanEntry = { kind: "create" } | { kind: "nav"; item: (typeof NAV_ITEMS)[number] };
+  // «Создать» is spliced into the middle of the (frequency-ordered) others,
+  // not just appended — see ARC_SPAN_DEG above for why that keeps it near
+  // the centre of the arc regardless of which destination is missing.
+  const fanEntries: FanEntry[] = onCreate
+    ? [
+        ...others.slice(0, Math.ceil(others.length / 2)).map((item) => ({ kind: "nav" as const, item })),
+        { kind: "create" as const },
+        ...others.slice(Math.ceil(others.length / 2)).map((item) => ({ kind: "nav" as const, item })),
+      ]
+    : others.map((item) => ({ kind: "nav" as const, item }));
   // «Админка» badges surface on its own circle when the menu is open; when
   // it's closed and Админка isn't the current page, the dot moves to the
   // main button instead, so an outstanding reminder is never invisible.
@@ -84,7 +98,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         {open &&
           fanEntries.map((entry, i) => {
             const isCreate = entry.kind === "create";
-            const { dx, dy } = arcOffset(FAN_POSITIONS[isCreate ? "create" : entry.item.id]);
+            const angleDeg =
+              fanEntries.length <= 1 ? 90 : 90 + ARC_SPAN_DEG / 2 - i * (ARC_SPAN_DEG / (fanEntries.length - 1));
+            const { dx, dy } = arcOffset(angleDeg, RADIUS[isCreate ? "create" : entry.item.id]);
             const style = { ["--i" as string]: i, ["--dx" as string]: `${dx}px`, ["--dy" as string]: `${dy}px` };
 
             if (isCreate) {
