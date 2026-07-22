@@ -2828,9 +2828,10 @@ export default function TattoDiary() {
       </div>
 
       {/* Navigation — sibling of the screens so it pins to the shell bottom
-          (never scrolls). Shown on the list and settings screens, hidden
-          while a bottom sheet is open so it can't sit over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin') && !sheetOpen && (
+          (never scrolls). Shown on every main screen, including the client
+          Detail screen, hidden while a bottom sheet is open so it can't sit
+          over the sheet's controls. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail') && !sheetOpen && (
         <NavFab
           active={screen}
           onNavigate={(s) => setScreen(s)}
@@ -2847,7 +2848,9 @@ export default function TattoDiary() {
                 ? () => setShowSummaryComposer(true)
                 : screen === 'admin'
                   ? () => setShowCalendar(true)
-                  : undefined
+                  : screen === 'detail' && selectedClient
+                    ? () => setShowAddChoice(true)
+                    : undefined
           }
         />
       )}
@@ -3024,7 +3027,6 @@ export default function TattoDiary() {
             onBack={goBack}
             onSave={saveClient}
             onEditClient={() => setShowEditClientForm(true)}
-            onAddSession={() => setShowAddChoice(true)}
             onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
             onDeleteSession={deleteSession}
             onUpdateSessionPhotos={updateSessionPhotos}
@@ -3089,8 +3091,8 @@ export default function TattoDiary() {
       />
 
       {/* ═══════════ NEW / EDIT SESSION SHEET ═══════════ */}
-      {/* The game for a new session already ran when "Добавить сессию" was
-          tapped — see onAddSession above — so submitting here just saves it. */}
+      {/* The game for a new session already ran when the choice was made in
+          AddChoiceSheet below — so submitting here just saves it. */}
       <NewSessionSheet
         open={showNewSessionForm}
         clientName={selectedClient?.name || ''}
@@ -6591,7 +6593,6 @@ function DetailScreen({
   onBack,
   onSave,
   onEditClient,
-  onAddSession,
   onEditSession,
   onDeleteSession,
   onUpdateSessionPhotos,
@@ -6612,7 +6613,6 @@ function DetailScreen({
   onBack: () => void;
   onSave: (client: Client) => void;
   onEditClient: () => void;
-  onAddSession: () => void;
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
@@ -6764,16 +6764,12 @@ function DetailScreen({
       </div>
 
       {/* "История работы" sub-header — pinned below the tab bar (never
-          scrolls), shown only on the Сессии tab. The add-session "+" sits on
-          the right, styled like NavFab's solid-gold «Создать» action since
-          it's the same kind of action (create), not a place to go; tap runs
-          the RPS game first, then opens the sheet. */}
+          scrolls), shown only on the Сессии tab. Adding a session is now
+          only reachable from the nav FAB's contextual «Создать» (shown on
+          this screen too) — no local add button duplicating it here. */}
       {activeTab === 'sessions' && (
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
             padding: '14px 24px',
             background: COLORS.bg,
             flexShrink: 0,
@@ -6789,33 +6785,6 @@ function DetailScreen({
             }}
           >
             История работы
-          </div>
-          <div
-            onClick={onAddSession}
-            role="button"
-            aria-label="Добавить сессию"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
-              background: 'var(--gold)',
-              border: '1px solid var(--gold)',
-              color: COLORS.bg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            {/* A global `svg { color: var(--gold) }` default (see NavFab's
-                --create button for the same workaround) would otherwise
-                paint this gold-on-gold and make it disappear — override
-                back to the button's own (dark) color inline. */}
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style={{ color: 'inherit' }}>
-              <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
           </div>
         </div>
       )}

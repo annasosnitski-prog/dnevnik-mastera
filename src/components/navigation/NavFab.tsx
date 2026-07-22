@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ToolbarIcon, type ToolbarIconName } from "./ToolbarIcons";
 
-type AppScreen = "list" | "settings" | "summary" | "master" | "admin";
+type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail";
 
 interface NavFabProps {
   active: AppScreen;
@@ -28,9 +28,9 @@ const NAV_ITEMS: {
   isActive: (active: AppScreen) => boolean;
 }[] = [
   { id: "sketchbook", label: "Блокнот", screen: "summary", isActive: (a) => a === "summary" },
-  // «Клиенты» stays lit for Настройки too — reached from the home area, not
-  // a separate section.
-  { id: "tasks", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" },
+  // «Клиенты» stays lit for Настройки and a client's Detail screen too —
+  // both are reached from the roster, not a separate section.
+  { id: "tasks", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail" },
   { id: "dashboard", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
   { id: "profile", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
 ];
