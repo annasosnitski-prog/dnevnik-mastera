@@ -299,9 +299,10 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          {/* 37px on an 82px button matches the fan items' own icon-to-button
-              ratio (28px on 62px) — proportionate, not just "big enough". */}
-          <ToolbarIcon name={current.id} size={37} />
+          {/* 2/3 of the button's own height (HUB_HALF * 2), so every icon —
+              regardless of its own natural proportions — reads as the same
+              size on the hub. */}
+          <ToolbarIcon name={current.id} size={Math.round((HUB_HALF * 2 * 2) / 3)} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
