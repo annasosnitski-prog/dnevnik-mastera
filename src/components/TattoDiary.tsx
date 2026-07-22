@@ -6604,7 +6604,9 @@ function DetailScreen({
 
       {/* "История работы" sub-header — pinned below the tab bar (never
           scrolls), shown only on the Сессии tab. The add-session "+" sits on
-          the left; tap runs the RPS game first, then opens the sheet. */}
+          the right, styled like NavFab's solid-gold «Создать» action since
+          it's the same kind of action (create), not a place to go; tap runs
+          the RPS game first, then opens the sheet. */}
       {activeTab === 'sessions' && (
         <div
           style={{
@@ -6617,27 +6619,6 @@ function DetailScreen({
           }}
         >
           <div
-            onClick={onAddSession}
-            role="button"
-            aria-label="Добавить сессию"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
-              border: '1px solid rgba(var(--gold-rgb),0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-              <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" />
-              <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
-          </div>
-          <div
             style={{
               fontFamily: "'Kelly Slab', 'Playfair Display', serif",
               fontSize: fs(11),
@@ -6647,6 +6628,33 @@ function DetailScreen({
             }}
           >
             История работы
+          </div>
+          <div
+            onClick={onAddSession}
+            role="button"
+            aria-label="Добавить сессию"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              background: 'var(--gold)',
+              border: '1px solid var(--gold)',
+              color: COLORS.bg,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            {/* A global `svg { color: var(--gold) }` default (see NavFab's
+                --create button for the same workaround) would otherwise
+                paint this gold-on-gold and make it disappear — override
+                back to the button's own (dark) color inline. */}
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style={{ color: 'inherit' }}>
+              <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
           </div>
         </div>
       )}
