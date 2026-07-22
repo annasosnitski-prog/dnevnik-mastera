@@ -45,21 +45,30 @@ const NAV_ITEMS: {
 const ARC_SPAN_DEG = 150;
 
 // Radius: fixed per destination — this is where each one's own importance
-// shows up instead. Per Fitts's law, a target that's reached for constantly
-// should need less travel to hit than one opened rarely, so radius follows
-// NAV_ITEMS' own frequency ranking (Блокнот > Клиенты > Админка > Мастер):
-// closer for the ones used all the time, farther for the rare ones — each
-// item keeps its own height rather than sitting on one uniform arc.
-// «Создать» gets the longest radius of all: it's a different KIND of
-// control (the one action, not a place to go), so it stands apart by
-// distance as well as by its solid gold fill, the same way its size and
-// colour already set it apart from the plain destinations.
+// shows up. Per Fitts's law, a target reached for constantly should need
+// less travel to hit than one opened rarely, so radius follows NAV_ITEMS'
+// own frequency ranking (Блокнот > Клиенты > Админка > Мастер): closer for
+// the ones used all the time, farther for the rare ones.
+//
+// DEST_MIN is the shortest ray — Блокнот, right at the edge of a comfortable
+// reach from the main button. The other three destinations step outward in
+// equal thirds of the way to DEST_MAX (a rule-of-thirds progression reads
+// as more deliberately graduated than either bunching them up or spacing
+// them by equal absolute amounts). «Создать» then breaks past DEST_MAX by a
+// wide, deliberate margin — it's the one CTA, not a fourth destination, so
+// it needs to read as a different tier at a glance, not just one more step
+// in the same sequence.
+const DEST_MIN = 82;
+const DEST_MAX = 142;
+const DEST_STEP = (DEST_MAX - DEST_MIN) / 3;
+const CREATE_RADIUS = 190;
+
 const RADIUS: Record<ToolbarIconName | "create", number> = {
-  create: 122,
-  sketchbook: 84,
-  tasks: 92,
-  profile: 104,
-  gear: 112,
+  create: CREATE_RADIUS,
+  sketchbook: DEST_MIN,
+  tasks: DEST_MIN + DEST_STEP,
+  profile: DEST_MIN + DEST_STEP * 2,
+  gear: DEST_MAX,
 };
 
 function arcOffset(angleDeg: number, radius: number): { dx: number; dy: number } {
