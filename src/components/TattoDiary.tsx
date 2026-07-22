@@ -1159,10 +1159,10 @@ function buildStars() {
 // period, that phase relationship holds forever, so two meteors' visible
 // windows can never land at the same time (unlike independent random delays,
 // which drift in and out of overlap over a long enough session). Tuned to
-// ~195/hour (the 30/hour throttle was for the now-removed comets, not this
-// plain gold shower): METEOR_COUNT per METEOR_CYCLE seconds, i.e.
-// COUNT * 3600 / CYCLE.
-const METEOR_CYCLE = 74;
+// ~65/hour (was ~195/hour — too frequent to read as a rare event; the
+// 30/hour throttle was for the now-removed comets, not this plain gold
+// shower): METEOR_COUNT per METEOR_CYCLE seconds, i.e. COUNT * 3600 / CYCLE.
+const METEOR_CYCLE = 220;
 function buildMeteors() {
   const slot = METEOR_CYCLE / METEOR_COUNT;
   return Array.from({ length: METEOR_COUNT }, (_, i) => {
