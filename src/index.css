@@ -152,7 +152,7 @@
 }
 
 .nav-fab__ray-glow {
-  opacity: 0.45;
+  opacity: 0.405;
   filter: blur(2px);
 }
 
@@ -168,7 +168,7 @@
    "this line has depth", just via shadow rather than glow. */
 :root[data-theme="light"] .nav-fab__ray-glow {
   fill: #4a3010;
-  opacity: 0.22;
+  opacity: 0.198;
 }
 
 .nav-fab__ray-dot {
@@ -185,7 +185,7 @@
    above stays confined to its own side of the edge. */
 .nav-fab__ray-dot-glow {
   fill: var(--gold);
-  opacity: 0.55;
+  opacity: 0.495;
   filter: blur(3px);
   animation: nav-fab-ray-in 0.2s ease both;
 }
@@ -237,7 +237,7 @@
   height: 33.34%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 230, 170, 0.6), rgba(255, 230, 170, 0));
+  background: radial-gradient(circle, rgba(255, 230, 170, 0.54), rgba(255, 230, 170, 0));
   /* A real blur on top of the gradient's own falloff, rather than relying on
      the gradient alone — it reads as a soft diffuse glow instead of a disc
      with a feathered edge. */
@@ -250,7 +250,7 @@
   height: 82px;
   background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
   border: 1px solid rgba(var(--gold-rgb), 0.65);
-  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.65), 0 0 30px rgba(var(--gold-rgb), 0.55), 0 4px 16px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495), 0 4px 16px rgba(0, 0, 0, 0.28);
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
@@ -265,7 +265,7 @@
   /* Same glow intensity as the main button (below) — the size difference
      between them already carries hierarchy, the halo brightness doesn't
      need to repeat it. */
-  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.65), 0 0 30px rgba(var(--gold-rgb), 0.55);
+  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495);
   transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(var(--nav-scale, 1));
   animation: nav-fab-in 0.2s ease both;
   animation-delay: calc(var(--i, 0) * 40ms);
