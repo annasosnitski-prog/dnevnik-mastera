@@ -4874,21 +4874,6 @@ function AdminDashboardScreen({
 
         {/* Уведомления и напоминания идут наверх, над блоком предстоящих
             сессий — это то, что требует внимания мастера в первую очередь. */}
-
-        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
-            бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
-            [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
-            справочный список, карточку мастер заводит в Дневнике сама
-            (см. calendarSync.ts). */}
-        {syncActive(calendarSync) && (
-          <GoldFrame style={{ padding: '14px 16px' }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
-            <div style={{ marginTop: 8 }}>
-              <BotBookingsList settings={calendarSync} />
-            </div>
-          </GoldFrame>
-        )}
-
         <RemindersSection overdue={overdue} healing={healing} soon={soon} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
 
         {/* Upcoming sessions, with a master-configurable lookahead window —
@@ -4948,6 +4933,21 @@ function AdminDashboardScreen({
             </div>
           )}
         </GoldFrame>
+
+        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
+            бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
+            [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
+            справочный список, карточку мастер заводит в Дневнике сама
+            (см. calendarSync.ts). Сгруппирован с «Предстоящие сессии» —
+            оба про то, что запланировано впереди. */}
+        {syncActive(calendarSync) && (
+          <GoldFrame style={{ padding: '14px 16px' }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
+            <div style={{ marginTop: 8 }}>
+              <BotBookingsList settings={calendarSync} />
+            </div>
+          </GoldFrame>
+        )}
 
         {/* Quick stats — clients (with срочно/важно in the lower half) beside
             назначено сессий/консультаций. «Частый стиль» stays on Мастер. */}
