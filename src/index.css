@@ -256,11 +256,16 @@
   pointer-events: none;
 }
 
+/* The main button keeps the plate it had before this round of NavFab
+   tweaks — a translucent surface gradient over the theme background,
+   rather than the flat black the secondary buttons now use — since it's
+   always on screen and stays the fixed anchor of the whole control. */
 .nav-fab__main {
   width: 82px;
   height: 82px;
+  background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
   border: 1px solid rgba(var(--gold-rgb), 0.65);
-  box-shadow: 0 0 4px rgba(var(--gold-rgb), 0.585), 0 0 20px rgba(var(--gold-rgb), 0.495), 0 4px 16px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495), 0 4px 16px rgba(0, 0, 0, 0.28);
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
