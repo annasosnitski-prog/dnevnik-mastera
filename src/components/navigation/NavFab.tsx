@@ -203,10 +203,28 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 );
               })}
             </g>
-            {/* Junction dots sit inside the same mask as the rays, so the
-                half that would otherwise sit on top of a button is cut off
-                flush with its edge — only the outward-facing half shows,
-                like a laser's source and impact point. */}
+            {/* Each dot's soft halo sits outside the mask, on purpose — a
+                point of light spilling a little onto the button it marks
+                reads as natural bloom, not the same visual glitch as a
+                straight edge poking through (what the mask above still
+                prevents for the rays themselves). Only the dot's own crisp
+                core is clipped, so its solid disc still doesn't sit on top
+                of the button — just the glow around it. */}
+            {positions.map(({ dx, dy }, i) => {
+              const len = Math.hypot(dx, dy) || 1;
+              const ux = dx / len;
+              const uy = dy / len;
+              const hubX = ux * HUB_HALF;
+              const hubY = uy * HUB_HALF;
+              const itemX = dx - ux * ITEM_HALF;
+              const itemY = dy - uy * ITEM_HALF;
+              return (
+                <g key={i}>
+                  <circle className="nav-fab__ray-dot-glow" cx={hubX} cy={hubY} r={4.5} />
+                  <circle className="nav-fab__ray-dot-glow" cx={itemX} cy={itemY} r={4.5} />
+                </g>
+              );
+            })}
             <g mask="url(#navFabRayMask)">
               {positions.map(({ dx, dy }, i) => {
                 const len = Math.hypot(dx, dy) || 1;

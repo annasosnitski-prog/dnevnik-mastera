@@ -173,7 +173,20 @@
 
 .nav-fab__ray-dot {
   fill: var(--gold);
-  filter: drop-shadow(0 0 3px var(--gold));
+  /* Matches the ray's own peak opacity (see .nav-fab__ray above) so the dot
+     reads as the same beam continuing, not a separately-coloured cap on it. */
+  opacity: 0.9;
+  animation: nav-fab-ray-in 0.2s ease both;
+}
+
+/* The dot's halo, stronger than a plain drop-shadow would give and — unlike
+   the ray itself — deliberately left outside the clip mask, so this glow is
+   free to spill a little onto the button it's marking; only the crisp dot
+   above stays confined to its own side of the edge. */
+.nav-fab__ray-dot-glow {
+  fill: var(--gold);
+  opacity: 0.55;
+  filter: blur(3px);
   animation: nav-fab-ray-in 0.2s ease both;
 }
 
