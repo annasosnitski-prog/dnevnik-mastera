@@ -126,25 +126,42 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             style={{ left: -rayExtent, top: -rayExtent, width: rayExtent * 2, height: rayExtent * 2 }}
             viewBox={`${-rayExtent} ${-rayExtent} ${rayExtent * 2} ${rayExtent * 2}`}
           >
-            {/* Each ray runs edge-to-edge (hub outline to button outline),
-                not centre-to-centre — trimming both ends by their circle's
-                own radius along the same direction vector. */}
+            {/* A blurred stroke's glow spreads past its own geometry no
+                matter how precisely the line itself is trimmed, so trimming
+                alone still let it bleed into a button's (transparent)
+                interior. This mask hard-clips the whole ray — including its
+                blur — to a disc cut out at the hub and at every button, so
+                nothing is ever visible past those circles' actual edges. */}
+            <mask id="navFabRayMask">
+              <rect x={-rayExtent} y={-rayExtent} width={rayExtent * 2} height={rayExtent * 2} fill="white" />
+              <circle cx={0} cy={0} r={HUB_HALF} fill="black" />
+              {positions.map(({ dx, dy }, i) => (
+                <circle key={i} cx={dx} cy={dy} r={ITEM_HALF} fill="black" />
+              ))}
+            </mask>
+            {/* Each ray still runs edge-to-edge, not centre-to-centre — the
+                trim below places the junction dots exactly on each circle's
+                boundary; the mask above is what actually keeps the stroke
+                and its glow from crossing that boundary. */}
+            <g mask="url(#navFabRayMask)">
+              {positions.map(({ dx, dy }, i) => (
+                <g key={i}>
+                  <line className="nav-fab__ray-glow" x1={0} y1={0} x2={dx} y2={dy} />
+                  <line className="nav-fab__ray" x1={0} y1={0} x2={dx} y2={dy} />
+                </g>
+              ))}
+            </g>
+            {/* Junction dots sit right on the boundary itself (unmasked —
+                they're meant to be visible), like a laser's source and
+                impact point. */}
             {positions.map(({ dx, dy }, i) => {
               const len = Math.hypot(dx, dy);
               const ux = dx / len;
               const uy = dy / len;
-              const x1 = ux * HUB_HALF;
-              const y1 = uy * HUB_HALF;
-              const x2 = dx - ux * ITEM_HALF;
-              const y2 = dy - uy * ITEM_HALF;
               return (
                 <g key={i}>
-                  <line className="nav-fab__ray-glow" x1={x1} y1={y1} x2={x2} y2={y2} />
-                  <line className="nav-fab__ray" x1={x1} y1={y1} x2={x2} y2={y2} />
-                  {/* Junction points — where the beam leaves the hub and where
-                      it lands on the button, like a laser's source and impact. */}
-                  <circle className="nav-fab__ray-dot" cx={x1} cy={y1} r={2.4} />
-                  <circle className="nav-fab__ray-dot" cx={x2} cy={y2} r={2.4} />
+                  <circle className="nav-fab__ray-dot" cx={ux * HUB_HALF} cy={uy * HUB_HALF} r={2.4} />
+                  <circle className="nav-fab__ray-dot" cx={dx - ux * ITEM_HALF} cy={dy - uy * ITEM_HALF} r={2.4} />
                 </g>
               );
             })}
