@@ -209,6 +209,25 @@
   transition: transform 0.15s ease;
 }
 
+/* A small pale spotlight sitting behind each icon, a third of the button's
+   own diameter — brighter than the icon itself so the glyph reads as
+   silhouetted against its own little glow rather than floating on flat
+   background. Percentage sizing scales it correctly for both the bigger
+   main button and the smaller fan items without a separate rule for each. */
+.nav-fab__main::before,
+.nav-fab__item::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 33.34%;
+  height: 33.34%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 230, 170, 0.6), rgba(255, 230, 170, 0));
+  pointer-events: none;
+}
+
 .nav-fab__main {
   width: 82px;
   height: 82px;
