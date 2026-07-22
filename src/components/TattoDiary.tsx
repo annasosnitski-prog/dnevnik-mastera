@@ -4333,8 +4333,27 @@ function SplitStatBlock({
 
 // Copies text to the clipboard, showing a brief «Скопировано» confirmation —
 // shared by every healing-reminder card (Задачи + Мастер both render one).
-function CopyMessageButton({ text }: { text: string }) {
+// Copies the auto-message, then opens a small dropdown of the client's
+// contacts (phone + chat links) so the master can jump straight to
+// whichever app they'll paste it into — same anchored-dropdown pattern as
+// the note card's «⋮» actions menu below.
+function CopyMessageButton({
+  text,
+  client,
+  onOpenChange,
+}: {
+  text: string;
+  client: Client;
+  // Lets the parent SwipeDismissCard raise itself above later siblings while
+  // this popover is open — see the `raised` doc comment on SwipeDismissCard.
+  onOpenChange?: (open: boolean) => void;
+}) {
   const [copied, setCopied] = useState(false);
+  const [showContacts, setShowContacts] = useState(false);
+  const setContacts = (open: boolean) => {
+    setShowContacts(open);
+    onOpenChange?.(open);
+  };
   const copy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -4351,26 +4370,79 @@ function CopyMessageButton({ text }: { text: string }) {
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
+    setContacts(true);
   };
+  const chatLinks = client.chatLinks || [];
+  const hasContacts = Boolean(client.phone) || chatLinks.length > 0;
   return (
-    <div
-      onClick={copy}
-      role="button"
-      aria-label="Скопировать сообщение"
-      style={{
-        fontSize: fs(11),
-        color: COLORS.gold,
-        border: '1px solid rgba(var(--gold-rgb),0.4)',
-        borderRadius: 2,
-        padding: '4px 9px',
-        letterSpacing: '0.6px',
-        textTransform: 'uppercase',
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        flexShrink: 0,
-      }}
-    >
-      {copied ? 'Скопировано' : 'Скопировать'}
+    <div style={{ position: 'relative', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+      <div
+        onClick={copy}
+        role="button"
+        aria-label="Скопировать сообщение"
+        style={{
+          fontSize: fs(11),
+          color: COLORS.gold,
+          border: '1px solid rgba(var(--gold-rgb),0.4)',
+          borderRadius: 2,
+          padding: '4px 9px',
+          letterSpacing: '0.6px',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {copied ? 'Скопировано' : 'Скопировать'}
+      </div>
+      {showContacts && (
+        <>
+          <div onClick={() => setContacts(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 6px)',
+              right: 0,
+              width: 220,
+              background: COLORS.sheet,
+              border: '1px solid rgba(var(--gold-rgb),0.2)',
+              borderRadius: 4,
+              padding: 10,
+              boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+              zIndex: 17,
+            }}
+          >
+            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 6 }}>
+              Открыть у клиента
+            </div>
+            {client.phone && (
+              <a
+                href={`tel:${client.phone.replace(/[^\d+]/g, '')}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px', fontSize: fs(13), color: COLORS.textPrimary, textDecoration: 'none' }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: COLORS.gold, flexShrink: 0 }} />
+                {client.phone}
+              </a>
+            )}
+            {chatLinks.map((link) => (
+              <a
+                key={link.id}
+                href={link.url}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px', fontSize: fs(13), color: COLORS.textPrimary, textDecoration: 'none' }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: COLORS.gold, flexShrink: 0 }} />
+                {PLATFORM_LABELS[link.platform]}
+              </a>
+            ))}
+            {!hasContacts && (
+              <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic', padding: '4px 2px' }}>
+                Нет контактов — добавьте в карточке клиента
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -4686,6 +4758,10 @@ function RemindersSection({
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const soonList = soon ?? [];
+  // Which card's CopyMessageButton contacts popover is open, if any — that
+  // card gets `raised` so its popover isn't trapped behind a later sibling's
+  // own stacking context (see SwipeDismissCard's `raised` doc comment).
+  const [raisedKey, setRaisedKey] = useState<string | null>(null);
   if (overdue.length === 0 && healing.length === 0 && soonList.length === 0) return null;
   return (
     <div>
@@ -4708,7 +4784,7 @@ function RemindersSection({
         {healing.map((it) => {
           const key = healingReminderKey(it);
           return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)}>
+            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
               {(flyOutThen) => (
               <div
                 style={{
@@ -4731,7 +4807,11 @@ function RemindersSection({
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <CopyMessageButton text={healingReminderMessage(it.client)} />
+                  <CopyMessageButton
+                    text={healingReminderMessage(it.client)}
+                    client={it.client}
+                    onOpenChange={(open) => setRaisedKey(open ? key : null)}
+                  />
                   <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
                 </div>
               </div>
@@ -4742,7 +4822,7 @@ function RemindersSection({
         {soonList.map((it) => {
           const key = soonReminderKey(it);
           return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)}>
+            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
               {(flyOutThen) => (
               <div
                 style={{
@@ -4766,7 +4846,11 @@ function RemindersSection({
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <CopyMessageButton text={soonReminderMessage(it)} />
+                  <CopyMessageButton
+                    text={soonReminderMessage(it)}
+                    client={it.client}
+                    onOpenChange={(open) => setRaisedKey(open ? key : null)}
+                  />
                   <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
                 </div>
               </div>
