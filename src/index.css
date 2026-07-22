@@ -196,19 +196,20 @@
   }
 }
 
-/* Secondary items stay transparent rings with a soft gold halo — a light
-   presence when idle. The main button (below) is the one exception: it's
-   always on screen, so it gets a solid, theme-matching plate instead. Both
-   share the --nav-scale custom property for the :active press-down, since
-   each one's resting `transform` already carries its own translate (arc
-   position for items, dead-centre for main) that a plain `transform: scale()`
-   override would otherwise clobber. */
+/* Every button on the fan — main and items alike — sits on a solid black
+   disc now, in both themes: a consistent dark stage for the gold ring/glow/
+   icon to stand on, rather than the items showing whatever's behind them
+   (stars, clouds) through a transparent centre. Both share the --nav-scale
+   custom property for the :active press-down, since each one's resting
+   `transform` already carries its own translate (arc position for items,
+   dead-centre for main) that a plain `transform: scale()` override would
+   otherwise clobber. */
 .nav-fab__main,
 .nav-fab__item {
   appearance: none;
   padding: 0;
   border-radius: 50%;
-  background: transparent;
+  background: #000;
   border: 1px solid rgba(var(--gold-rgb), 0.45);
   color: var(--toolbar-icon-active);
   display: flex;
@@ -248,9 +249,8 @@
 .nav-fab__main {
   width: 82px;
   height: 82px;
-  background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
   border: 1px solid rgba(var(--gold-rgb), 0.65);
-  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495), 0 4px 16px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 4px rgba(var(--gold-rgb), 0.585), 0 0 20px rgba(var(--gold-rgb), 0.495), 0 4px 16px rgba(0, 0, 0, 0.28);
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
@@ -265,7 +265,7 @@
   /* Same glow intensity as the main button (below) — the size difference
      between them already carries hierarchy, the halo brightness doesn't
      need to repeat it. */
-  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495);
+  box-shadow: 0 0 4px rgba(var(--gold-rgb), 0.585), 0 0 20px rgba(var(--gold-rgb), 0.495);
   transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(var(--nav-scale, 1));
   animation: nav-fab-in 0.2s ease both;
   animation-delay: calc(var(--i, 0) * 40ms);

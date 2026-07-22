@@ -192,12 +192,12 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                     <polygon
                       className="nav-fab__ray-glow"
                       fill={`url(#navFabRayGrad-${i})`}
-                      points={rayShape(x1, y1, x2, y2, 0.6, 5)}
+                      points={rayShape(x1, y1, x2, y2, 0.4, 2.8)}
                     />
                     <polygon
                       className="nav-fab__ray"
                       fill={`url(#navFabRayGrad-${i})`}
-                      points={rayShape(x1, y1, x2, y2, 0.3, 1.4)}
+                      points={rayShape(x1, y1, x2, y2, 0.2, 0.8)}
                     />
                   </g>
                 );
@@ -299,7 +299,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          <ToolbarIcon name={current.id} size={32} />
+          {/* 37px on an 82px button matches the fan items' own icon-to-button
+              ratio (28px on 62px) — proportionate, not just "big enough". */}
+          <ToolbarIcon name={current.id} size={37} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
