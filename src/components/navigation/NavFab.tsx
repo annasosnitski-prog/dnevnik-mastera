@@ -76,6 +76,21 @@ function arcOffset(angleDeg: number, radius: number): { dx: number; dy: number }
   return { dx: radius * Math.cos(angleRad), dy: -radius * Math.sin(angleRad) };
 }
 
+// A tapered quad instead of a fixed-width stroke — narrow at (x1,y1),
+// widest at (x2,y2) — so a ray can actually narrow toward the hub rather
+// than just fading in opacity. wNear/wFar are each half the width at that
+// end, measured perpendicular to the ray's own direction.
+function rayShape(x1: number, y1: number, x2: number, y2: number, wNear: number, wFar: number): string {
+  const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+  const px = -(y2 - y1) / len;
+  const py = (x2 - x1) / len;
+  const p1 = [x1 + px * wNear, y1 + py * wNear];
+  const p2 = [x2 + px * wFar, y2 + py * wFar];
+  const p3 = [x2 - px * wFar, y2 - py * wFar];
+  const p4 = [x1 - px * wNear, y1 - py * wNear];
+  return [p1, p2, p3, p4].map((p) => p.join(",")).join(" ");
+}
+
 // Half the main button's / a fan item's own width — a ray is drawn only
 // between the two circles' edges, not centre-to-centre, so it reads as
 // deliberately meeting each button's outline rather than just being hidden
@@ -139,32 +154,72 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 <circle key={i} cx={dx} cy={dy} r={ITEM_HALF} fill="black" />
               ))}
             </mask>
-            {/* Each ray still runs edge-to-edge, not centre-to-centre — the
-                trim below places the junction dots exactly on each circle's
-                boundary; the mask above is what actually keeps the stroke
-                and its glow from crossing that boundary. */}
+            <defs>
+              {/* One gradient per ray, running along its own length (hub →
+                  button) — dim near the hub, brightest at the button, like
+                  a beam losing intensity over distance rather than a flat
+                  line with uniform brightness. */}
+              {positions.map(({ dx, dy }, i) => {
+                const len = Math.hypot(dx, dy) || 1;
+                const ux = dx / len;
+                const uy = dy / len;
+                const x1 = ux * HUB_HALF;
+                const y1 = uy * HUB_HALF;
+                return (
+                  <linearGradient key={i} id={`navFabRayGrad-${i}`} gradientUnits="userSpaceOnUse" x1={x1} y1={y1} x2={dx} y2={dy}>
+                    <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.05} />
+                    <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.95} />
+                  </linearGradient>
+                );
+              })}
+            </defs>
+            {/* Each ray is a tapered shape, not a fixed-width stroke — thin
+                and faint at the hub, widening and brightening toward the
+                button, like natural beam falloff run in reverse. Drawn
+                under the mask above so neither the shape nor its blur ever
+                crosses into a button's interior. */}
             <g mask="url(#navFabRayMask)">
-              {positions.map(({ dx, dy }, i) => (
-                <g key={i}>
-                  <line className="nav-fab__ray-glow" x1={0} y1={0} x2={dx} y2={dy} />
-                  <line className="nav-fab__ray" x1={0} y1={0} x2={dx} y2={dy} />
-                </g>
-              ))}
+              {positions.map(({ dx, dy }, i) => {
+                const len = Math.hypot(dx, dy) || 1;
+                const ux = dx / len;
+                const uy = dy / len;
+                const x1 = ux * HUB_HALF;
+                const y1 = uy * HUB_HALF;
+                const x2 = dx - ux * ITEM_HALF;
+                const y2 = dy - uy * ITEM_HALF;
+                return (
+                  <g key={i}>
+                    <polygon
+                      className="nav-fab__ray-glow"
+                      fill={`url(#navFabRayGrad-${i})`}
+                      points={rayShape(x1, y1, x2, y2, 0.6, 5)}
+                    />
+                    <polygon
+                      className="nav-fab__ray"
+                      fill={`url(#navFabRayGrad-${i})`}
+                      points={rayShape(x1, y1, x2, y2, 0.3, 1.4)}
+                    />
+                  </g>
+                );
+              })}
             </g>
-            {/* Junction dots sit right on the boundary itself (unmasked —
-                they're meant to be visible), like a laser's source and
-                impact point. */}
-            {positions.map(({ dx, dy }, i) => {
-              const len = Math.hypot(dx, dy);
-              const ux = dx / len;
-              const uy = dy / len;
-              return (
-                <g key={i}>
-                  <circle className="nav-fab__ray-dot" cx={ux * HUB_HALF} cy={uy * HUB_HALF} r={2.4} />
-                  <circle className="nav-fab__ray-dot" cx={dx - ux * ITEM_HALF} cy={dy - uy * ITEM_HALF} r={2.4} />
-                </g>
-              );
-            })}
+            {/* Junction dots sit inside the same mask as the rays, so the
+                half that would otherwise sit on top of a button is cut off
+                flush with its edge — only the outward-facing half shows,
+                like a laser's source and impact point. */}
+            <g mask="url(#navFabRayMask)">
+              {positions.map(({ dx, dy }, i) => {
+                const len = Math.hypot(dx, dy) || 1;
+                const ux = dx / len;
+                const uy = dy / len;
+                return (
+                  <g key={i}>
+                    <circle className="nav-fab__ray-dot" cx={ux * HUB_HALF} cy={uy * HUB_HALF} r={2.4} />
+                    <circle className="nav-fab__ray-dot" cx={dx - ux * ITEM_HALF} cy={dy - uy * ITEM_HALF} r={2.4} />
+                  </g>
+                );
+              })}
+            </g>
           </svg>
         )}
         {open &&
