@@ -213,8 +213,11 @@ function buildChatLink(platform: ChatPlatform, raw: string): string {
     }
     case 'telegram':
       return handle ? `https://t.me/${handle}` : trimmed;
+    // Social-media platforms (Instagram/Facebook/TikTok/Pinterest) open the
+    // profile page, not a chat — only whatsapp/telegram/messenger are actual
+    // messaging apps and get a direct-chat link.
     case 'instagram':
-      return handle ? `https://ig.me/m/${handle}` : trimmed;
+      return handle ? `https://instagram.com/${handle}` : trimmed;
     case 'facebook':
       return handle ? `https://facebook.com/${handle}` : trimmed;
     case 'messenger':
