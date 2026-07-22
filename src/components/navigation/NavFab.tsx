@@ -132,7 +132,14 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
 
   return (
     <>
-      {open && <div onClick={() => setOpen(false)} aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 55 }} />}
+      {open && (
+        <div
+          className="nav-fab__scrim"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+          style={{ position: "absolute", inset: 0, zIndex: 55 }}
+        />
+      )}
       <div className="nav-fab">
         {open && (
           <svg
