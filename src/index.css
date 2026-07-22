@@ -238,6 +238,10 @@
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 230, 170, 0.6), rgba(255, 230, 170, 0));
+  /* A real blur on top of the gradient's own falloff, rather than relying on
+     the gradient alone — it reads as a soft diffuse glow instead of a disc
+     with a feathered edge. */
+  filter: blur(6px);
   pointer-events: none;
 }
 
