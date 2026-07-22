@@ -114,6 +114,22 @@
   --toolbar-icon-active: #7E5818;
 }
 
+/* The tap-to-close backdrop behind the open fan — softly blurs whatever
+   screen is behind it, so the menu itself reads as the sharp, focused layer
+   on top rather than fighting the page content for attention. */
+.nav-fab__scrim {
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: nav-fab-scrim-in 0.2s ease both;
+}
+
+@keyframes nav-fab-scrim-in {
+  from {
+    backdrop-filter: blur(0);
+    -webkit-backdrop-filter: blur(0);
+  }
+}
+
 /* Navigation FAB — a single circle, bottom-centre, replacing the full-width
    bottom bar entirely (see NavFab.tsx). Closed, it shows the current
    screen's icon; tapping it fans the other destinations out around it in an
@@ -333,7 +349,8 @@
   .nav-fab__item,
   .nav-fab__ray-glow,
   .nav-fab__ray,
-  .nav-fab__ray-dot {
+  .nav-fab__ray-dot,
+  .nav-fab__scrim {
     animation: none;
   }
 
