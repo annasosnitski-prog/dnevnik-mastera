@@ -196,19 +196,20 @@
   }
 }
 
-/* Secondary items stay transparent rings with a soft gold halo — a light
-   presence when idle. The main button (below) is the one exception: it's
-   always on screen, so it gets a solid, theme-matching plate instead. Both
-   share the --nav-scale custom property for the :active press-down, since
-   each one's resting `transform` already carries its own translate (arc
-   position for items, dead-centre for main) that a plain `transform: scale()`
-   override would otherwise clobber. */
+/* Every button on the fan — main and items alike — sits on a solid black
+   disc now, in both themes: a consistent dark stage for the gold ring/glow/
+   icon to stand on, rather than the items showing whatever's behind them
+   (stars, clouds) through a transparent centre. Both share the --nav-scale
+   custom property for the :active press-down, since each one's resting
+   `transform` already carries its own translate (arc position for items,
+   dead-centre for main) that a plain `transform: scale()` override would
+   otherwise clobber. */
 .nav-fab__main,
 .nav-fab__item {
   appearance: none;
   padding: 0;
   border-radius: 50%;
-  background: transparent;
+  background: #000;
   border: 1px solid rgba(var(--gold-rgb), 0.45);
   color: var(--toolbar-icon-active);
   display: flex;
@@ -220,6 +221,16 @@
   left: 0;
   top: 0;
   transition: transform 0.15s ease;
+}
+
+/* Light theme's stage is the parchment background itself, not black — a
+   black disc read as a hole punched through the page. Filling with --bg
+   makes the button read as raised parchment (ring/glow/icon on top),
+   matching the same "disc as stage" idea as the dark theme's black. Only
+   the secondary (destination) buttons get this swap — the main button
+   keeps its black fill in both themes. */
+:root[data-theme="light"] .nav-fab__item:not(.nav-fab__item--create) {
+  background: var(--bg);
 }
 
 /* A small pale spotlight sitting behind each icon, a third of the button's
@@ -245,6 +256,10 @@
   pointer-events: none;
 }
 
+/* The main button keeps the plate it had before this round of NavFab
+   tweaks — a translucent surface gradient over the theme background,
+   rather than the flat black the secondary buttons now use — since it's
+   always on screen and stays the fixed anchor of the whole control. */
 .nav-fab__main {
   width: 82px;
   height: 82px;
@@ -265,7 +280,7 @@
   /* Same glow intensity as the main button (below) — the size difference
      between them already carries hierarchy, the halo brightness doesn't
      need to repeat it. */
-  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495);
+  box-shadow: 0 0 4px rgba(var(--gold-rgb), 0.585), 0 0 20px rgba(var(--gold-rgb), 0.495);
   transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(var(--nav-scale, 1));
   animation: nav-fab-in 0.2s ease both;
   animation-delay: calc(var(--i, 0) * 40ms);
