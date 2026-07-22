@@ -201,10 +201,32 @@ const PLATFORM_LABELS: Record<ChatPlatform, string> = {
   other: 'Ссылка',
 };
 
+// A platform's own domain, keyed the same as its handle-building case below —
+// lets buildChatLink recognize a pasted link that's missing only the
+// "https://" prefix (e.g. "instagram.com/name", copied from a share sheet
+// without the protocol).
+const CHAT_PLATFORM_DOMAINS: Partial<Record<ChatPlatform, string>> = {
+  whatsapp: 'wa.me',
+  telegram: 't.me',
+  instagram: 'instagram.com',
+  facebook: 'facebook.com',
+  messenger: 'm.me',
+  tiktok: 'tiktok.com',
+  pinterest: 'pinterest.com',
+};
+
 // Turns a raw input (phone, @handle, domain or full URL) into an openable link.
 function buildChatLink(platform: ChatPlatform, raw: string): string {
   const trimmed = raw.trim();
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  // Without this, a link like "instagram.com/name" falls through to the
+  // handle logic below, which would prefix the domain a second time —
+  // "https://instagram.com/instagram.com/name" — a broken URL that the
+  // platform then redirects to its own homepage instead of the profile/chat.
+  const domain = CHAT_PLATFORM_DOMAINS[platform];
+  if (domain && new RegExp(`^(www\\.)?${domain.replace('.', '\\.')}(/|$)`, 'i').test(trimmed)) {
+    return `https://${trimmed}`;
+  }
   const handle = trimmed.replace(/^@/, '');
   switch (platform) {
     case 'whatsapp': {
