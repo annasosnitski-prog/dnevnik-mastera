@@ -116,22 +116,27 @@
 
 /* Navigation FAB — a single circle, bottom-centre, replacing the full-width
    bottom bar entirely (see NavFab.tsx). Closed, it shows the current
-   screen's icon; tapping it fans the other three destinations out above it. */
+   screen's icon; tapping it fans the other destinations out around it in an
+   arc (each item's exact position — --dx/--dy — is computed in JS from its
+   angle on that arc and set inline per item). This element itself is a
+   zero-size anchor point, not a box — .nav-fab__main/.nav-fab__item are
+   positioned absolutely from its top-left corner. */
 .nav-fab {
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   z-index: 56;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
+  width: 0;
+  height: 0;
 }
 
 /* Secondary items stay transparent rings with a soft gold halo — a light
    presence when idle. The main button (below) is the one exception: it's
-   always on screen, so it gets a solid, theme-matching plate instead. */
+   always on screen, so it gets a solid, theme-matching plate instead. Both
+   share the --nav-scale custom property for the :active press-down, since
+   each one's resting `transform` already carries its own translate (arc
+   position for items, dead-centre for main) that a plain `transform: scale()`
+   override would otherwise clobber. */
 .nav-fab__main,
 .nav-fab__item {
   appearance: none;
@@ -145,20 +150,23 @@
   justify-content: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: 0;
   transition: transform 0.15s ease;
 }
 
 .nav-fab__main {
-  width: 68px;
-  height: 68px;
+  width: 82px;
+  height: 82px;
   background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
-  border: 1px solid rgba(var(--gold-rgb), 0.55);
-  box-shadow: 0 0 3px rgba(var(--gold-rgb), 0.5), 0 0 18px rgba(var(--gold-rgb), 0.35), 0 4px 14px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(var(--gold-rgb), 0.65);
+  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.65), 0 0 30px rgba(var(--gold-rgb), 0.55), 0 4px 16px rgba(0, 0, 0, 0.28);
+  transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
 .nav-fab__main:active {
-  transform: scale(0.92);
+  --nav-scale: 0.92;
 }
 
 .nav-fab__item {
@@ -166,17 +174,18 @@
   height: 62px;
   color: var(--toolbar-icon);
   box-shadow: 0 0 3px rgba(var(--gold-rgb), 0.4), 0 0 14px rgba(var(--gold-rgb), 0.28);
-  animation: nav-fab-in 0.18s ease both;
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(var(--nav-scale, 1));
+  animation: nav-fab-in 0.2s ease both;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 
 .nav-fab__item:active {
-  transform: scale(0.92);
+  --nav-scale: 0.92;
 }
 
 /* «Создать» reads differently from the plain nav destinations — a solid
-   gold fill, since it's an action rather than a place to go. Same size as
-   the other nav-fab__item circles; it stands out on colour, not scale. */
+   gold fill, since it's an action rather than a place to go, and it sits
+   farthest out on the arc so it also reads as the most prominent item. */
 .nav-fab__item--create {
   background: var(--gold);
   border-color: var(--gold);
@@ -190,14 +199,18 @@
   color: inherit;
 }
 
+/* Both keyframes read the same --dx/--dy/--nav-scale custom properties as
+   the resting `transform` above (rather than a fixed translateY), so every
+   item animates in along its own straight line from the hub outward,
+   whichever direction that line happens to point on the arc. */
 @keyframes nav-fab-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.8);
+    transform: translate(calc(-50% + var(--dx, 0px) * 0.5), calc(-50% + var(--dy, 0px) * 0.5)) scale(0.75);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(var(--nav-scale, 1));
   }
 }
 
