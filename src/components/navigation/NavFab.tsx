@@ -35,17 +35,25 @@ const NAV_ITEMS: {
   { id: "gear", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
 ];
 
-// The fan opens along an arc above the hub rather than a straight column —
-// a full circle would run off the bottom of the screen, since the hub itself
-// sits at the bottom edge. «Создать» rides farthest out (see CREATE_RADIUS)
-// so it reads as the most prominent stop on the arc, not just another item.
-const ARC_SPAN_DEG = 150;
-const ARC_START_DEG = 90 + ARC_SPAN_DEG / 2;
-const ITEM_RADIUS = 96;
-const CREATE_RADIUS = 114;
+// Fixed per-destination spot on the arc — each one always fans out to the
+// same place whenever it's visible, rather than being recomputed from
+// however many others happen to be showing (which is how a screen that
+// hides one destination would otherwise reshuffle the rest). «Создать»
+// owns dead centre-top, the one unambiguous "most important" spot, and the
+// farthest radius so it reads as the standout action rather than a fifth
+// destination. The other four are ordered and spaced per NAV_ITEMS' own
+// frequency ranking (Блокнот > Клиенты > Админка > Мастер): closer and
+// higher = reached for more often, farther and lower = reached for less —
+// giving each its own height rather than one uniform arc.
+const FAN_POSITIONS: Record<ToolbarIconName | "create", { angleDeg: number; radius: number }> = {
+  create: { angleDeg: 90, radius: 122 },
+  sketchbook: { angleDeg: 150, radius: 84 },
+  tasks: { angleDeg: 40, radius: 92 },
+  profile: { angleDeg: 200, radius: 102 },
+  gear: { angleDeg: -8, radius: 110 },
+};
 
-function arcOffset(index: number, count: number, radius: number): { dx: number; dy: number } {
-  const angleDeg = count <= 1 ? 90 : ARC_START_DEG - index * (ARC_SPAN_DEG / (count - 1));
+function arcOffset({ angleDeg, radius }: { angleDeg: number; radius: number }): { dx: number; dy: number } {
   const angleRad = (angleDeg * Math.PI) / 180;
   return { dx: radius * Math.cos(angleRad), dy: -radius * Math.sin(angleRad) };
 }
@@ -76,7 +84,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         {open &&
           fanEntries.map((entry, i) => {
             const isCreate = entry.kind === "create";
-            const { dx, dy } = arcOffset(i, fanEntries.length, isCreate ? CREATE_RADIUS : ITEM_RADIUS);
+            const { dx, dy } = arcOffset(FAN_POSITIONS[isCreate ? "create" : entry.item.id]);
             const style = { ["--i" as string]: i, ["--dx" as string]: `${dx}px`, ["--dy" as string]: `${dy}px` };
 
             if (isCreate) {
