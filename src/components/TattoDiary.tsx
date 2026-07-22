@@ -213,8 +213,11 @@ function buildChatLink(platform: ChatPlatform, raw: string): string {
     }
     case 'telegram':
       return handle ? `https://t.me/${handle}` : trimmed;
+    // Social-media platforms (Instagram/Facebook/TikTok/Pinterest) open the
+    // profile page, not a chat — only whatsapp/telegram/messenger are actual
+    // messaging apps and get a direct-chat link.
     case 'instagram':
-      return handle ? `https://ig.me/m/${handle}` : trimmed;
+      return handle ? `https://instagram.com/${handle}` : trimmed;
     case 'facebook':
       return handle ? `https://facebook.com/${handle}` : trimmed;
     case 'messenger':
@@ -2825,9 +2828,10 @@ export default function TattoDiary() {
       </div>
 
       {/* Navigation — sibling of the screens so it pins to the shell bottom
-          (never scrolls). Shown on the list and settings screens, hidden
-          while a bottom sheet is open so it can't sit over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin') && !sheetOpen && (
+          (never scrolls). Shown on every main screen, including the client
+          Detail screen, hidden while a bottom sheet is open so it can't sit
+          over the sheet's controls. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail') && !sheetOpen && (
         <NavFab
           active={screen}
           onNavigate={(s) => setScreen(s)}
@@ -2844,7 +2848,9 @@ export default function TattoDiary() {
                 ? () => setShowSummaryComposer(true)
                 : screen === 'admin'
                   ? () => setShowCalendar(true)
-                  : undefined
+                  : screen === 'detail' && selectedClient
+                    ? () => setShowAddChoice(true)
+                    : undefined
           }
         />
       )}
@@ -3021,7 +3027,6 @@ export default function TattoDiary() {
             onBack={goBack}
             onSave={saveClient}
             onEditClient={() => setShowEditClientForm(true)}
-            onAddSession={() => setShowAddChoice(true)}
             onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
             onDeleteSession={deleteSession}
             onUpdateSessionPhotos={updateSessionPhotos}
@@ -3086,8 +3091,8 @@ export default function TattoDiary() {
       />
 
       {/* ═══════════ NEW / EDIT SESSION SHEET ═══════════ */}
-      {/* The game for a new session already ran when "Добавить сессию" was
-          tapped — see onAddSession above — so submitting here just saves it. */}
+      {/* The game for a new session already ran when the choice was made in
+          AddChoiceSheet below — so submitting here just saves it. */}
       <NewSessionSheet
         open={showNewSessionForm}
         clientName={selectedClient?.name || ''}
@@ -4333,8 +4338,27 @@ function SplitStatBlock({
 
 // Copies text to the clipboard, showing a brief «Скопировано» confirmation —
 // shared by every healing-reminder card (Задачи + Мастер both render one).
-function CopyMessageButton({ text }: { text: string }) {
+// Copies the auto-message, then opens a small dropdown of the client's
+// contacts (phone + chat links) so the master can jump straight to
+// whichever app they'll paste it into — same anchored-dropdown pattern as
+// the note card's «⋮» actions menu below.
+function CopyMessageButton({
+  text,
+  client,
+  onOpenChange,
+}: {
+  text: string;
+  client: Client;
+  // Lets the parent SwipeDismissCard raise itself above later siblings while
+  // this popover is open — see the `raised` doc comment on SwipeDismissCard.
+  onOpenChange?: (open: boolean) => void;
+}) {
   const [copied, setCopied] = useState(false);
+  const [showContacts, setShowContacts] = useState(false);
+  const setContacts = (open: boolean) => {
+    setShowContacts(open);
+    onOpenChange?.(open);
+  };
   const copy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -4351,26 +4375,79 @@ function CopyMessageButton({ text }: { text: string }) {
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
+    setContacts(true);
   };
+  const chatLinks = client.chatLinks || [];
+  const hasContacts = Boolean(client.phone) || chatLinks.length > 0;
   return (
-    <div
-      onClick={copy}
-      role="button"
-      aria-label="Скопировать сообщение"
-      style={{
-        fontSize: fs(11),
-        color: COLORS.gold,
-        border: '1px solid rgba(var(--gold-rgb),0.4)',
-        borderRadius: 2,
-        padding: '4px 9px',
-        letterSpacing: '0.6px',
-        textTransform: 'uppercase',
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        flexShrink: 0,
-      }}
-    >
-      {copied ? 'Скопировано' : 'Скопировать'}
+    <div style={{ position: 'relative', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+      <div
+        onClick={copy}
+        role="button"
+        aria-label="Скопировать сообщение"
+        style={{
+          fontSize: fs(11),
+          color: COLORS.gold,
+          border: '1px solid rgba(var(--gold-rgb),0.4)',
+          borderRadius: 2,
+          padding: '4px 9px',
+          letterSpacing: '0.6px',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {copied ? 'Скопировано' : 'Скопировать'}
+      </div>
+      {showContacts && (
+        <>
+          <div onClick={() => setContacts(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 6px)',
+              right: 0,
+              width: 220,
+              background: COLORS.sheet,
+              border: '1px solid rgba(var(--gold-rgb),0.2)',
+              borderRadius: 4,
+              padding: 10,
+              boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+              zIndex: 17,
+            }}
+          >
+            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 6 }}>
+              Открыть у клиента
+            </div>
+            {client.phone && (
+              <a
+                href={`tel:${client.phone.replace(/[^\d+]/g, '')}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px', fontSize: fs(13), color: COLORS.textPrimary, textDecoration: 'none' }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: COLORS.gold, flexShrink: 0 }} />
+                {client.phone}
+              </a>
+            )}
+            {chatLinks.map((link) => (
+              <a
+                key={link.id}
+                href={link.url}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px', fontSize: fs(13), color: COLORS.textPrimary, textDecoration: 'none' }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: COLORS.gold, flexShrink: 0 }} />
+                {PLATFORM_LABELS[link.platform]}
+              </a>
+            ))}
+            {!hasContacts && (
+              <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic', padding: '4px 2px' }}>
+                Нет контактов — добавьте в карточке клиента
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -4686,6 +4763,10 @@ function RemindersSection({
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const soonList = soon ?? [];
+  // Which card's CopyMessageButton contacts popover is open, if any — that
+  // card gets `raised` so its popover isn't trapped behind a later sibling's
+  // own stacking context (see SwipeDismissCard's `raised` doc comment).
+  const [raisedKey, setRaisedKey] = useState<string | null>(null);
   if (overdue.length === 0 && healing.length === 0 && soonList.length === 0) return null;
   return (
     <div>
@@ -4708,7 +4789,7 @@ function RemindersSection({
         {healing.map((it) => {
           const key = healingReminderKey(it);
           return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)}>
+            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
               {(flyOutThen) => (
               <div
                 style={{
@@ -4731,7 +4812,11 @@ function RemindersSection({
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <CopyMessageButton text={healingReminderMessage(it.client)} />
+                  <CopyMessageButton
+                    text={healingReminderMessage(it.client)}
+                    client={it.client}
+                    onOpenChange={(open) => setRaisedKey(open ? key : null)}
+                  />
                   <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
                 </div>
               </div>
@@ -4742,7 +4827,7 @@ function RemindersSection({
         {soonList.map((it) => {
           const key = soonReminderKey(it);
           return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)}>
+            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
               {(flyOutThen) => (
               <div
                 style={{
@@ -4766,7 +4851,11 @@ function RemindersSection({
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <CopyMessageButton text={soonReminderMessage(it)} />
+                  <CopyMessageButton
+                    text={soonReminderMessage(it)}
+                    client={it.client}
+                    onOpenChange={(open) => setRaisedKey(open ? key : null)}
+                  />
                   <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
                 </div>
               </div>
@@ -5140,6 +5229,26 @@ function FacebookIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+function WhatsAppIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" {...props}>
+      <path
+        d="M10 3.5a6.5 6.5 0 0 0-5.6 9.8L3.5 16.5l3.3-.9A6.5 6.5 0 1 0 10 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7.6 7.4c-.3.6-.1 1.4.5 2.3.7 1 1.7 1.9 2.7 2.3.6.3 1.2.2 1.6-.2l.3-.3c.2-.2.2-.5 0-.7l-.9-.9c-.2-.2-.5-.2-.6 0l-.3.3c-.5-.2-1-.6-1.4-1s-.7-.9-.9-1.4l.3-.3c.2-.2.2-.4 0-.6l-.9-.9c-.2-.2-.5-.2-.7 0Z"
+        stroke="currentColor"
+        strokeWidth="0.9"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 // ===================== MASTER DASHBOARD =====================
 function MasterDashboardScreen({
@@ -5193,6 +5302,7 @@ function MasterDashboardScreen({
   // twice); empty platforms show a dim placeholder.
   const SOCIAL_PLATFORMS: { key: ChatPlatform; label: string; Icon: (props: SVGProps<SVGSVGElement>) => JSX.Element }[] = [
     { key: 'instagram', label: 'Instagram', Icon: InstagramIcon },
+    { key: 'whatsapp', label: 'WhatsApp', Icon: WhatsAppIcon },
     { key: 'tiktok', label: 'TikTok', Icon: TikTokIcon },
     { key: 'pinterest', label: 'Pinterest', Icon: PinterestIcon },
     { key: 'facebook', label: 'Facebook', Icon: FacebookIcon },
@@ -6483,7 +6593,6 @@ function DetailScreen({
   onBack,
   onSave,
   onEditClient,
-  onAddSession,
   onEditSession,
   onDeleteSession,
   onUpdateSessionPhotos,
@@ -6504,7 +6613,6 @@ function DetailScreen({
   onBack: () => void;
   onSave: (client: Client) => void;
   onEditClient: () => void;
-  onAddSession: () => void;
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
@@ -6656,16 +6764,12 @@ function DetailScreen({
       </div>
 
       {/* "История работы" sub-header — pinned below the tab bar (never
-          scrolls), shown only on the Сессии tab. The add-session "+" sits on
-          the right, styled like NavFab's solid-gold «Создать» action since
-          it's the same kind of action (create), not a place to go; tap runs
-          the RPS game first, then opens the sheet. */}
+          scrolls), shown only on the Сессии tab. Adding a session is now
+          only reachable from the nav FAB's contextual «Создать» (shown on
+          this screen too) — no local add button duplicating it here. */}
       {activeTab === 'sessions' && (
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
             padding: '14px 24px',
             background: COLORS.bg,
             flexShrink: 0,
@@ -6681,33 +6785,6 @@ function DetailScreen({
             }}
           >
             История работы
-          </div>
-          <div
-            onClick={onAddSession}
-            role="button"
-            aria-label="Добавить сессию"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
-              background: 'var(--gold)',
-              border: '1px solid var(--gold)',
-              color: COLORS.bg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            {/* A global `svg { color: var(--gold) }` default (see NavFab's
-                --create button for the same workaround) would otherwise
-                paint this gold-on-gold and make it disappear — override
-                back to the button's own (dark) color inline. */}
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style={{ color: 'inherit' }}>
-              <line x1="7" y1="1.5" x2="7" y2="12.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
           </div>
         </div>
       )}

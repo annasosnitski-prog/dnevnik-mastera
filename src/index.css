@@ -116,22 +116,93 @@
 
 /* Navigation FAB — a single circle, bottom-centre, replacing the full-width
    bottom bar entirely (see NavFab.tsx). Closed, it shows the current
-   screen's icon; tapping it fans the other three destinations out above it. */
+   screen's icon; tapping it fans the other destinations out around it in an
+   arc (each item's exact position — --dx/--dy — is computed in JS from its
+   angle on that arc and set inline per item). This element itself is a
+   zero-size anchor point, not a box — .nav-fab__main/.nav-fab__item are
+   positioned absolutely from its top-left corner. */
 .nav-fab {
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   z-index: 56;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
+  width: 0;
+  height: 0;
+}
+
+/* Thin gold spokes from the hub out to each open item — same idea as the
+   reference's hub-and-spoke fan, just gold instead of rainbow. Positioned
+   absolutely (see NavFab.tsx for rayExtent) so its origin (0,0 in the
+   viewBox) sits exactly on the hub point; pointer-events stay off so the
+   rays never intercept taps meant for the buttons above them. Each ray is
+   two stacked tapered shapes (see rayShape in NavFab.tsx) — a soft blurred
+   one for the glow, a crisp one on top for the line itself — each filled
+   with its own per-ray gradient (dim at the hub, bright at the button)
+   rather than a flat stroke colour, so the beam reads as fading out toward
+   the centre instead of having uniform brightness end to end. */
+.nav-fab__rays {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.nav-fab__ray-glow,
+.nav-fab__ray {
+  animation: nav-fab-ray-in 0.2s ease both;
+}
+
+.nav-fab__ray-glow {
+  opacity: 0.405;
+  filter: blur(2px);
+}
+
+.nav-fab__ray {
+  opacity: 0.9;
+}
+
+/* A blurred glow reads as light escaping into the dark in the dark theme,
+   but the same gold blurred into a pale parchment background just looks
+   soft, not lit — there's no dark to escape into. Light theme inverts the
+   metaphor instead: the line itself stays gold (legible against the light
+   ground), but its halo turns dark and ink-like, so it still reads as
+   "this line has depth", just via shadow rather than glow. */
+:root[data-theme="light"] .nav-fab__ray-glow {
+  fill: #4a3010;
+  opacity: 0.198;
+}
+
+.nav-fab__ray-dot {
+  fill: var(--gold);
+  /* Matches the ray's own peak opacity (see .nav-fab__ray above) so the dot
+     reads as the same beam continuing, not a separately-coloured cap on it. */
+  opacity: 0.9;
+  animation: nav-fab-ray-in 0.2s ease both;
+}
+
+/* The dot's halo, stronger than a plain drop-shadow would give and — unlike
+   the ray itself — deliberately left outside the clip mask, so this glow is
+   free to spill a little onto the button it's marking; only the crisp dot
+   above stays confined to its own side of the edge. */
+.nav-fab__ray-dot-glow {
+  fill: var(--gold);
+  opacity: 0.495;
+  filter: blur(3px);
+  animation: nav-fab-ray-in 0.2s ease both;
+}
+
+@keyframes nav-fab-ray-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Secondary items stay transparent rings with a soft gold halo — a light
    presence when idle. The main button (below) is the one exception: it's
-   always on screen, so it gets a solid, theme-matching plate instead. */
+   always on screen, so it gets a solid, theme-matching plate instead. Both
+   share the --nav-scale custom property for the :active press-down, since
+   each one's resting `transform` already carries its own translate (arc
+   position for items, dead-centre for main) that a plain `transform: scale()`
+   override would otherwise clobber. */
 .nav-fab__main,
 .nav-fab__item {
   appearance: none;
@@ -145,38 +216,68 @@
   justify-content: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: 0;
   transition: transform 0.15s ease;
 }
 
+/* A small pale spotlight sitting behind each icon, a third of the button's
+   own diameter — brighter than the icon itself so the glyph reads as
+   silhouetted against its own little glow rather than floating on flat
+   background. Percentage sizing scales it correctly for both the bigger
+   main button and the smaller fan items without a separate rule for each. */
+.nav-fab__main::before,
+.nav-fab__item::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 33.34%;
+  height: 33.34%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 230, 170, 0.54), rgba(255, 230, 170, 0));
+  /* A real blur on top of the gradient's own falloff, rather than relying on
+     the gradient alone — it reads as a soft diffuse glow instead of a disc
+     with a feathered edge. */
+  filter: blur(6px);
+  pointer-events: none;
+}
+
 .nav-fab__main {
-  width: 68px;
-  height: 68px;
+  width: 82px;
+  height: 82px;
   background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
-  border: 1px solid rgba(var(--gold-rgb), 0.55);
-  box-shadow: 0 0 3px rgba(var(--gold-rgb), 0.5), 0 0 18px rgba(var(--gold-rgb), 0.35), 0 4px 14px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(var(--gold-rgb), 0.65);
+  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495), 0 4px 16px rgba(0, 0, 0, 0.28);
+  transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
 .nav-fab__main:active {
-  transform: scale(0.92);
+  --nav-scale: 0.92;
 }
 
 .nav-fab__item {
   width: 62px;
   height: 62px;
   color: var(--toolbar-icon);
-  box-shadow: 0 0 3px rgba(var(--gold-rgb), 0.4), 0 0 14px rgba(var(--gold-rgb), 0.28);
-  animation: nav-fab-in 0.18s ease both;
+  /* Same glow intensity as the main button (below) — the size difference
+     between them already carries hierarchy, the halo brightness doesn't
+     need to repeat it. */
+  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495);
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(var(--nav-scale, 1));
+  animation: nav-fab-in 0.2s ease both;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 
 .nav-fab__item:active {
-  transform: scale(0.92);
+  --nav-scale: 0.92;
 }
 
 /* «Создать» reads differently from the plain nav destinations — a solid
-   gold fill, since it's an action rather than a place to go. Same size as
-   the other nav-fab__item circles; it stands out on colour, not scale. */
+   gold fill, since it's an action rather than a place to go, and it sits
+   farthest out on the arc so it also reads as the most prominent item. */
 .nav-fab__item--create {
   background: var(--gold);
   border-color: var(--gold);
@@ -190,14 +291,18 @@
   color: inherit;
 }
 
+/* Both keyframes read the same --dx/--dy/--nav-scale custom properties as
+   the resting `transform` above (rather than a fixed translateY), so every
+   item animates in along its own straight line from the hub outward,
+   whichever direction that line happens to point on the arc. */
 @keyframes nav-fab-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.8);
+    transform: translate(calc(-50% + var(--dx, 0px) * 0.5), calc(-50% + var(--dy, 0px) * 0.5)) scale(0.75);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(var(--nav-scale, 1));
   }
 }
 
@@ -210,7 +315,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav-fab__item {
+  .nav-fab__item,
+  .nav-fab__ray-glow,
+  .nav-fab__ray,
+  .nav-fab__ray-dot {
     animation: none;
   }
 
