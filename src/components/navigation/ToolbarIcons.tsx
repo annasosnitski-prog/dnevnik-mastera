@@ -1,10 +1,10 @@
 import type { SVGProps } from "react";
 
 export type ToolbarIconName =
-  | "dashboard"
   | "tasks"
   | "sketchbook"
-  | "profile";
+  | "profile"
+  | "gear";
 
 interface ToolbarIconProps extends SVGProps<SVGSVGElement> {
   name: ToolbarIconName;
@@ -18,20 +18,15 @@ const sharedProps = {
   strokeLinejoin: "round" as const,
 };
 
-function JewelryDashboardIcon(
+function JewelryGearIcon(
   props: SVGProps<SVGSVGElement>,
 ) {
   return (
     <svg viewBox="0 0 32 32" {...sharedProps} {...props}>
-      <rect x="5" y="8" width="22" height="19" rx="1.6" strokeWidth="1.55" />
-      <path strokeWidth="1.55" d="M5 13.5h22" />
-      <path strokeWidth="1.5" d="M11 5.5v5M21 5.5v5" />
-      <circle
-        cx="21.5"
-        cy="19.5"
-        r="1.4"
-        fill="currentColor"
-        stroke="none"
+      <circle cx="16" cy="16" r="5.1" strokeWidth="1.55" />
+      <path
+        strokeWidth="1.55"
+        d="M16 4.3v3M16 24.7v3M27.7 16h-3M7.3 16h-3M24.3 7.7l-2.15 2.15M9.85 22.15l-2.15 2.15M24.3 24.3l-2.15-2.15M9.85 9.85 7.7 7.7"
       />
     </svg>
   );
@@ -111,13 +106,13 @@ export function ToolbarIcon({
   };
 
   switch (name) {
-    case "dashboard":
-      return <JewelryDashboardIcon {...iconProps} />;
     case "tasks":
       return <JewelryTasksIcon {...iconProps} />;
     case "sketchbook":
       return <JewelrySketchbookIcon {...iconProps} />;
     case "profile":
       return <JewelryProfileIcon {...iconProps} />;
+    case "gear":
+      return <JewelryGearIcon {...iconProps} />;
   }
 }

@@ -31,8 +31,8 @@ const NAV_ITEMS: {
   // «Клиенты» stays lit for Настройки and a client's Detail screen too —
   // both are reached from the roster, not a separate section.
   { id: "tasks", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail" },
-  { id: "dashboard", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
-  { id: "profile", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
+  { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
+  { id: "gear", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
 ];
 
 // Single circular button, bottom-right — replaces the full-width bottom bar.
