@@ -5224,6 +5224,26 @@ function FacebookIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+function WhatsAppIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" {...props}>
+      <path
+        d="M10 3.5a6.5 6.5 0 0 0-5.6 9.8L3.5 16.5l3.3-.9A6.5 6.5 0 1 0 10 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7.6 7.4c-.3.6-.1 1.4.5 2.3.7 1 1.7 1.9 2.7 2.3.6.3 1.2.2 1.6-.2l.3-.3c.2-.2.2-.5 0-.7l-.9-.9c-.2-.2-.5-.2-.6 0l-.3.3c-.5-.2-1-.6-1.4-1s-.7-.9-.9-1.4l.3-.3c.2-.2.2-.4 0-.6l-.9-.9c-.2-.2-.5-.2-.7 0Z"
+        stroke="currentColor"
+        strokeWidth="0.9"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 // ===================== MASTER DASHBOARD =====================
 function MasterDashboardScreen({
@@ -5277,6 +5297,7 @@ function MasterDashboardScreen({
   // twice); empty platforms show a dim placeholder.
   const SOCIAL_PLATFORMS: { key: ChatPlatform; label: string; Icon: (props: SVGProps<SVGSVGElement>) => JSX.Element }[] = [
     { key: 'instagram', label: 'Instagram', Icon: InstagramIcon },
+    { key: 'whatsapp', label: 'WhatsApp', Icon: WhatsAppIcon },
     { key: 'tiktok', label: 'TikTok', Icon: TikTokIcon },
     { key: 'pinterest', label: 'Pinterest', Icon: PinterestIcon },
     { key: 'facebook', label: 'Facebook', Icon: FacebookIcon },
