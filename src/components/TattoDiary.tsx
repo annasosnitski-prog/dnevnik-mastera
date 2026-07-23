@@ -2050,6 +2050,21 @@ export default function TattoDiary() {
     tx.onerror = () => setDbError('Не удалось импортировать данные.');
   };
 
+  // Adds/updates just the given clients (put, no clear) — the counterpart to
+  // a single-client export: importing that file merges it into whatever's
+  // already stored instead of replacing the whole list.
+  const importClients = (newClients: Client[]) => {
+    if (!db) {
+      setDbError('Хранилище недоступно — импорт не выполнен.');
+      return;
+    }
+    const tx = db.transaction('clients', 'readwrite');
+    const store = tx.objectStore('clients');
+    newClients.forEach((c) => store.put(c));
+    tx.oncomplete = () => loadClients(db);
+    tx.onerror = () => setDbError('Не удалось импортировать данные.');
+  };
+
   const selectedClient = clients.find((c) => c.id === selectedId) || null;
 
   const filteredClients = sortClients(
@@ -3094,6 +3109,7 @@ export default function TattoDiary() {
               })
             }
             onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
+            onImportClients={importClients}
           />
         )}
       </div>
@@ -6674,6 +6690,7 @@ function DetailScreen({
   onUpsertNote,
   onAddNote,
   onDeleteNote,
+  onImportClients,
 }: {
   client: Client;
   activeTab: 'info' | 'sessions' | 'extra';
@@ -6694,6 +6711,10 @@ function DetailScreen({
   onUpsertNote: (note: ClientNote) => void;
   onAddNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onDeleteNote: (noteId: string) => void;
+  // Merge-import (add/update, never clears) — the counterpart to this same
+  // screen's client export, so a single exported client's file can be
+  // brought back in without wiping the rest of the roster.
+  onImportClients: (clients: Client[]) => void;
 }) {
   const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
     flex: 1,
@@ -6735,6 +6756,29 @@ function DetailScreen({
     await shareOrDownloadJSON(json, filename, `INKA — ${client.name}`);
   };
 
+  // Export and import share one button — a small menu picks which, since
+  // both are the same «move a client to/from a file» idea and rarely used
+  // side by side.
+  const [showTransferMenu, setShowTransferMenu] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
+        if (!rawClients || !rawClients.length) throw new Error('bad shape');
+        onImportClients(rawClients.map((c: any, i: number) => normalizeClient(c, i)));
+        setImportFeedback({ ok: true, text: rawClients.length > 1 ? `Импортировано ${rawClients.length} клиент(ов)` : 'Клиент импортирован' });
+      } catch {
+        setImportFeedback({ ok: false, text: 'Не удалось прочитать файл' });
+      }
+      setTimeout(() => setImportFeedback(null), 2400);
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <>
       {/* Hero header */}
@@ -6756,22 +6800,96 @@ function DetailScreen({
             <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Export just this client — a JSON file in the same shape the
-                full backup uses, so it round-trips through the same import
-                on Админка. Icon-only (no label) since it sits next to
-                «править», which already carries the text weight here. */}
-            <div
-              className="inka-back"
-              onClick={handleExportClient}
-              role="button"
-              aria-label="Экспортировать клиента"
-              title="Экспортировать только этого клиента"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, cursor: 'pointer', flexShrink: 0 }}
-            >
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-                <path d="M8 2V10M8 10L5 7M8 10L11 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M3 12.5V13.5C3 13.78 3.22 14 3.5 14H12.5C12.78 14 13 13.78 13 13.5V12.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+            {/* Export/import this one client — a single button, a menu picks
+                which. Same JSON shape the full backup uses (just a
+                single-client array), so an exported file round-trips back
+                in through either this button or Админка's own import. */}
+            <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+              <div
+                className="inka-back"
+                onClick={() => setShowTransferMenu((v) => !v)}
+                role="button"
+                aria-label="Экспорт/импорт клиента"
+                aria-expanded={showTransferMenu}
+                title="Экспортировать или импортировать этого клиента"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, cursor: 'pointer' }}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                  <path d="M5 3V13M5 13L2.5 10.5M5 13L7.5 10.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M11 13V3M11 3L8.5 5.5M11 3L13.5 5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              {showTransferMenu && (
+                <>
+                  <div onClick={() => setShowTransferMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      width: 176,
+                      background: COLORS.sheet,
+                      border: '1px solid rgba(var(--gold-rgb),0.2)',
+                      borderRadius: 4,
+                      padding: 6,
+                      boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                      zIndex: 17,
+                    }}
+                  >
+                    <div
+                      onClick={() => {
+                        setShowTransferMenu(false);
+                        handleExportClient();
+                      }}
+                      role="button"
+                      style={{ padding: '9px 8px', fontSize: fs(13), color: COLORS.textPrimary, cursor: 'pointer', borderRadius: 2 }}
+                    >
+                      Экспортировать
+                    </div>
+                    <div
+                      onClick={() => {
+                        setShowTransferMenu(false);
+                        importFileRef.current?.click();
+                      }}
+                      role="button"
+                      style={{ padding: '9px 8px', fontSize: fs(13), color: COLORS.textPrimary, cursor: 'pointer', borderRadius: 2 }}
+                    >
+                      Импортировать
+                    </div>
+                  </div>
+                </>
+              )}
+              <input
+                ref={importFileRef}
+                type="file"
+                accept="application/json"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImportFile(file);
+                  e.target.value = '';
+                }}
+              />
+              {importFeedback && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    whiteSpace: 'nowrap',
+                    fontSize: fs(11),
+                    color: importFeedback.ok ? COLORS.gold : 'var(--urgent)',
+                    background: COLORS.sheet,
+                    border: '1px solid rgba(var(--gold-rgb),0.2)',
+                    borderRadius: 4,
+                    padding: '6px 10px',
+                    boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                    zIndex: 17,
+                  }}
+                >
+                  {importFeedback.text}
+                </div>
+              )}
             </div>
             {/* Edit client */}
             <div
