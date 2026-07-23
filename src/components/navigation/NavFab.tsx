@@ -35,14 +35,22 @@ const NAV_ITEMS: {
   { id: "gear", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
 ];
 
-// Angle: split evenly across however many items happen to be open right
-// now, so every sector between two neighbouring buttons is the same size
-// no matter which destination the current screen hides — a fixed per-item
-// angle can't guarantee that (removing one item from a static grid leaves
-// a gap twice as wide right next to it). «Создать» is placed in the middle
-// of the sequence below, so on every screen it lands at or next to the
-// true centre of whatever arc results.
+// Angle: split across however many items happen to be open right now — see
+// GAP_WEIGHT below for how that split isn't perfectly even. «Создать» is
+// placed in the middle of the sequence below, so on every screen it lands
+// at or next to the true centre of whatever arc results.
 const ARC_SPAN_DEG = 150;
+
+// Each gap between neighbouring fan slots gets a weight, not a fixed size —
+// slots either side of «Создать» sit closer together (it's a big circle at
+// a big radius, so it already has plenty of clearance from its neighbours),
+// freeing up angle for the two destination-to-destination gaps instead.
+// Those are the tight ones: their radii sit closest to the hub, where the
+// same angular gap covers far less physical distance — widening exactly
+// those two gaps is what lets DEST_MIN/TIER_2 below sit close together
+// without the two circles' edges overlapping.
+const GAP_WEIGHT_OUTER = 1.5;
+const GAP_WEIGHT_INNER = 1;
 
 // Radius: fixed per destination — this is where each one's own importance
 // shows up. Per Fitts's law, a target reached for constantly should need
@@ -57,15 +65,16 @@ const ARC_SPAN_DEG = 150;
 // without a button's own edge crossing off-screen on a narrow (~360px)
 // phone; pushing it further risks clipping a destination clean off the
 // visible area, which is worse for accessibility than a long reach ever is.
-// Within that fixed envelope, the three steps grow (not equal) — each one
-// bigger than the last — so the jump between tiers reads as clearly
-// deliberate at a glance instead of nearly the same as its neighbours.
-// «Создать» then breaks past DEST_MAX by a wide, deliberate margin — it's
-// the one CTA, not a fourth destination, so it needs to read as a different
-// tier at a glance, not just one more step in the same sequence.
+// Buttons must never overlap each other — only their rays are allowed to
+// cross — so every tier here is checked against its actual neighbour's
+// angle (via GAP_WEIGHT above) to keep a real gap between the two circles'
+// edges, not just their centres. «Создать» then breaks past DEST_MAX by a
+// wide, deliberate margin — it's the one CTA, not a fourth destination, so
+// it needs to read as a different tier at a glance, not just one more step
+// in the same sequence.
 const DEST_MIN = 68;
-const DEST_TIER_2 = 88;
-const DEST_TIER_3 = 113;
+const DEST_TIER_2 = 100;
+const DEST_TIER_3 = 122;
 const DEST_MAX = 145;
 const CREATE_RADIUS = 200;
 
@@ -132,10 +141,25 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   // main button instead, so an outstanding reminder is never invisible.
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
 
+  // Each gap's weight — smaller (GAP_WEIGHT_INNER) on either side of
+  // «Создать», larger (GAP_WEIGHT_OUTER) between two destinations — then
+  // normalised so the weights sum to the full ARC_SPAN_DEG. See GAP_WEIGHT
+  // above for why: it's what gives the destination pairs room to spread
+  // their radii apart without the circles themselves overlapping.
+  const gapWeights = fanEntries.slice(1).map((_, i) => {
+    const touchesCreate = fanEntries[i].kind === "create" || fanEntries[i + 1].kind === "create";
+    return touchesCreate ? GAP_WEIGHT_INNER : GAP_WEIGHT_OUTER;
+  });
+  const totalWeight = gapWeights.reduce((sum, w) => sum + w, 0) || 1;
+  // cumulativeWeight[i] = the summed weight of every gap before entry i, so
+  // cumulativeWeight[0] is always 0 (nothing precedes the first entry).
+  const cumulativeWeight: number[] = [0];
+  gapWeights.forEach((w) => cumulativeWeight.push(cumulativeWeight[cumulativeWeight.length - 1] + w));
+
   // Computed once so the connecting rays (drawn first, underneath) and the
   // buttons themselves (drawn on top) agree on exactly the same points.
   const positions = fanEntries.map((entry, i) => {
-    const angleDeg = fanEntries.length <= 1 ? 90 : 90 + ARC_SPAN_DEG / 2 - i * (ARC_SPAN_DEG / (fanEntries.length - 1));
+    const angleDeg = fanEntries.length <= 1 ? 90 : 90 + ARC_SPAN_DEG / 2 - cumulativeWeight[i] * (ARC_SPAN_DEG / totalWeight);
     return arcOffset(angleDeg, RADIUS[entry.kind === "create" ? "create" : entry.item.id]);
   });
   const rayExtent = CREATE_RADIUS + 40;
