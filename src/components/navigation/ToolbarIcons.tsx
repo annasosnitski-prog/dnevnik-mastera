@@ -4,7 +4,8 @@ export type ToolbarIconName =
   | "tasks"
   | "sketchbook"
   | "profile"
-  | "gear";
+  | "gear"
+  | "clients";
 
 interface ToolbarIconProps extends SVGProps<SVGSVGElement> {
   name: ToolbarIconName;
@@ -91,6 +92,26 @@ function JewelryProfileIcon(
   );
 }
 
+// Two of the same silhouette used for «Профиль» above, scaled down and
+// overlapping — reusing that shape (rather than drawing a new one) keeps the
+// pair visually consistent with the single-person icon it's distinct from.
+function JewelryClientsIcon(
+  props: SVGProps<SVGSVGElement>,
+) {
+  return (
+    <svg viewBox="0 0 32 32" fill="currentColor" stroke="none" {...props}>
+      <g transform="translate(-0.85,4.4) scale(0.68)">
+        <circle cx="16" cy="12" r="4.25" />
+        <path d="M7.5 27c.6-5 3.6-7.5 8.5-7.5s7.9 2.5 8.5 7.5" />
+      </g>
+      <g transform="translate(8.65,2.4) scale(0.78)">
+        <circle cx="16" cy="12" r="4.25" />
+        <path d="M7.5 27c.6-5 3.6-7.5 8.5-7.5s7.9 2.5 8.5 7.5" />
+      </g>
+    </svg>
+  );
+}
+
 export function ToolbarIcon({
   name,
   size = 30,
@@ -115,5 +136,7 @@ export function ToolbarIcon({
       return <JewelryProfileIcon {...iconProps} />;
     case "gear":
       return <JewelryGearIcon {...iconProps} />;
+    case "clients":
+      return <JewelryClientsIcon {...iconProps} />;
   }
 }

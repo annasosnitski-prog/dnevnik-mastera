@@ -566,19 +566,23 @@ function upcomingItems(clients: Client[], days: number): UpcomingItem[] {
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// Counts open (not-done) notes by urgency, across all clients — the two
-// buckets the dashboard surfaces: urgent, and important.
-function urgencyCounts(clients: Client[]): { urgent: number; important: number } {
+// Counts open (not-done) notes by urgency — the two buckets the dashboard
+// surfaces: urgent, and important.
+function notesUrgencyCounts(notes: ClientNote[]): { urgent: number; important: number } {
   let urgent = 0;
   let important = 0;
-  for (const c of clients) {
-    for (const n of c.notes) {
-      if (n.done) continue;
-      if (n.urgency === 'urgent') urgent++;
-      else if (n.urgency === 'important') important++;
-    }
+  for (const n of notes) {
+    if (n.done) continue;
+    if (n.urgency === 'urgent') urgent++;
+    else if (n.urgency === 'important') important++;
   }
   return { urgent, important };
+}
+
+// Same, across every client's notes — the master's own (client-less) notes
+// are counted separately, see notesUrgencyCounts above.
+function urgencyCounts(clients: Client[]): { urgent: number; important: number } {
+  return notesUrgencyCounts(clients.flatMap((c) => c.notes));
 }
 
 // Whole days between an ISO date and today (local), floored — used for the
@@ -1888,6 +1892,10 @@ export default function TattoDiary() {
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
   // nav FAB's contextual create action can open it from outside.
   const [showSummaryComposer, setShowSummaryComposer] = useState(false);
+  // Блокнот's urgency filter — lifted the same way, so Админка's stat blocks
+  // can jump straight to «Срочно»/«Важно» pre-filtered instead of landing on
+  // the unfiltered list.
+  const [summaryFilter, setSummaryFilter] = useState<UrgencyKey | 'all'>('all');
 
   // ── Calendar-driven creation: «Создать событие» on a picked day walks
   // through kind → client (existing/new) → the actual session/consultation
@@ -2947,6 +2955,8 @@ export default function TattoDiary() {
             onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
             showComposer={showSummaryComposer}
             onShowComposerChange={setShowSummaryComposer}
+            filter={summaryFilter}
+            onFilterChange={setSummaryFilter}
           />
         )}
       </div>
@@ -2990,6 +3000,7 @@ export default function TattoDiary() {
         {screen === 'admin' && (
           <AdminDashboardScreen
             clients={clients}
+            masterNotes={masterInfo.notes}
             prefs={prefs}
             onChangePrefs={setPrefs}
             onOpenSession={openEntryForEdit}
@@ -3001,6 +3012,10 @@ export default function TattoDiary() {
             onOpenEntry={openEntryForEdit}
             onDismissReminder={dismissReminder}
             onCancelEntry={markEntryCancelled}
+            onOpenNotes={(urgency) => {
+              setSummaryFilter(urgency);
+              setScreen('summary');
+            }}
           />
         )}
       </div>
@@ -4328,11 +4343,16 @@ function SplitStatBlock({
   b,
 }: {
   direction?: 'row' | 'column';
-  a: { label: string; value: string | number };
-  b: { label: string; value: string | number };
+  a: { label: string; value: string | number; onClick?: () => void };
+  b: { label: string; value: string | number; onClick?: () => void };
 }) {
-  const cell = (item: { label: string; value: string | number }) => (
-    <div style={{ flex: 1, textAlign: 'center' }}>
+  const cell = (item: { label: string; value: string | number; onClick?: () => void }) => (
+    <div
+      onClick={item.onClick}
+      role={item.onClick ? 'button' : undefined}
+      aria-label={item.onClick ? item.label : undefined}
+      style={{ flex: 1, textAlign: 'center', cursor: item.onClick ? 'pointer' : undefined }}
+    >
       <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
         {item.label}
       </div>
@@ -4897,6 +4917,7 @@ function RemindersSection({
 // running the practice rather than the master's own profile.
 function AdminDashboardScreen({
   clients,
+  masterNotes,
   prefs,
   onChangePrefs,
   onOpenSession,
@@ -4908,8 +4929,10 @@ function AdminDashboardScreen({
   onDismissReminder,
   onCancelEntry,
   calendarSync,
+  onOpenNotes,
 }: {
   clients: Client[];
+  masterNotes: ClientNote[];
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
@@ -4921,9 +4944,13 @@ function AdminDashboardScreen({
   onDismissReminder: (key: string) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   calendarSync: CalendarSyncSettings;
+  // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
+  // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
+  onOpenNotes: (urgency: UrgencyKey) => void;
 }) {
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
+  const personalNotes = notesUrgencyCounts(masterNotes);
   const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
   const plannedSessionsCount = statsUpcoming.filter((i) => i.kind === 'session').length;
   const plannedConsultationsCount = statsUpcoming.filter((i) => i.kind === 'consultation').length;
@@ -5143,12 +5170,12 @@ function AdminDashboardScreen({
             </div>
             <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: '100%', height: 1, marginBottom: 13 }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
-              <div style={{ flex: 1, textAlign: 'center' }}>
+              <div onClick={() => onOpenNotes('urgent')} role="button" aria-label={URGENCY[0].label} style={{ flex: 1, textAlign: 'center', cursor: 'pointer' }}>
                 <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
                 <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{urgent}</div>
               </div>
               <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: 1, height: 34, flexShrink: 0 }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
+              <div onClick={() => onOpenNotes('important')} role="button" aria-label={URGENCY[1].label} style={{ flex: 1, textAlign: 'center', cursor: 'pointer' }}>
                 <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[1].emoji} {URGENCY[1].short}</div>
                 <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{important}</div>
               </div>
@@ -5161,6 +5188,14 @@ function AdminDashboardScreen({
             b={{ label: 'Консультаций', value: plannedConsultationsCount }}
           />
         </div>
+
+        {/* Личные заметки мастера — то же срочно/важно, только для заметок
+            без привязки к клиенту (папка хранения). Тап переходит в Блокнот
+            с этим фильтром уже включённым, как и у клиентских счётчиков выше. */}
+        <SplitStatBlock
+          a={{ label: `${URGENCY[0].emoji} ${URGENCY[0].short} · личные`, value: personalNotes.urgent, onClick: () => onOpenNotes('urgent') }}
+          b={{ label: `${URGENCY[1].emoji} ${URGENCY[1].short} · личные`, value: personalNotes.important, onClick: () => onOpenNotes('important') }}
+        />
 
         {/* Backup — export the whole client list to a JSON file, or restore
             from one (replaces everything currently stored). */}
@@ -6187,6 +6222,8 @@ function SummaryScreen({
   onDeleteMasterNote,
   showComposer,
   onShowComposerChange,
+  filter,
+  onFilterChange,
 }: {
   clients: Client[];
   masterNotes: ClientNote[];
@@ -6204,8 +6241,12 @@ function SummaryScreen({
   // onCreate in the App shell.
   showComposer: boolean;
   onShowComposerChange: (open: boolean) => void;
+  // Also lifted — so Админка's stat blocks can land here pre-filtered to a
+  // specific urgency (e.g. tapping «Срочно» opens this screen already
+  // narrowed to urgent notes) instead of always opening on «Все».
+  filter: UrgencyKey | 'all';
+  onFilterChange: (filter: UrgencyKey | 'all') => void;
 }) {
-  const [filter, setFilter] = useState<UrgencyKey | 'all'>('all');
   const [showClosed, setShowClosed] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -6289,7 +6330,7 @@ function SummaryScreen({
           {showFilters && (
             <>
               <div
-                onClick={() => setFilter('all')}
+                onClick={() => onFilterChange('all')}
                 role="button"
                 aria-label="Все"
                 title="Все"
@@ -6313,7 +6354,7 @@ function SummaryScreen({
               {URGENCY.map((u) => (
                 <div
                   key={u.key}
-                  onClick={() => setFilter(u.key)}
+                  onClick={() => onFilterChange(u.key)}
                   role="button"
                   aria-label={u.label}
                   title={u.label}
