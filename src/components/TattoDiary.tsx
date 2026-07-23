@@ -1860,7 +1860,7 @@ export default function TattoDiary() {
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('sessions');
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorFilter, setColorFilter] = useState<string>('all');
@@ -2116,14 +2116,16 @@ export default function TattoDiary() {
 
   // Reached once a client (existing or freshly created) is in place for the
   // event the master started from the calendar — lands on that client's
-  // sessions tab with the session/consultation form open, date prefilled.
+  // sessions or consultations tab (matching the kind being created) with
+  // the form open, date prefilled.
   const openPendingCalendarEvent = () => {
-    setActiveTab('sessions');
     setScreen('detail');
     if (calendarEventKind === 'consultation') {
+      setActiveTab('consultations');
       setEditConsultation(null);
       setShowNewConsultationForm(true);
     } else {
+      setActiveTab('sessions');
       setEditSession(null);
       setShowNewSessionForm(true);
     }
@@ -2278,17 +2280,18 @@ export default function TattoDiary() {
     const client = clients.find((c) => c.id === clientId);
     if (!client) return;
     setSelectedId(client.id);
-    setActiveTab('sessions');
     setScreen('detail');
     if (kind === 'consultation') {
       const consultation = client.consultations.find((c) => c.id === itemId);
       if (!consultation) return;
+      setActiveTab('consultations');
       setEditConsultation(consultation);
       setShowNewConsultationForm(true);
       return;
     }
     const session = client.sessions.find((s) => s.id === itemId);
     if (!session) return;
+    setActiveTab('sessions');
     setEditSession(session);
     setShowNewSessionForm(true);
   };
@@ -6303,7 +6306,11 @@ function SummaryScreen({
       const r = urgencyRank(a.note.urgency) - urgencyRank(b.note.urgency);
       return r !== 0 ? r : b.note.createdDate.localeCompare(a.note.createdDate);
     });
-  const hasAnyNote = masterNotes.length > 0 || clients.some((c) => c.notes.length);
+  // Split into two dedicated columns — general (the master's own, client-less)
+  // and work notes (tied to a client) — instead of one mixed list.
+  const generalItems = items.filter(({ client }) => client === null);
+  const workItems = items.filter(({ client }) => client !== null);
+  const hasAnyClientNote = clients.some((c) => c.notes.length);
 
   return (
     <div style={{ minHeight: '100%' }}>
@@ -6312,7 +6319,7 @@ function SummaryScreen({
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Рабочие заметки
+          Планнер
         </div>
         <StarDivider />
       </div>
@@ -6420,82 +6427,24 @@ function SummaryScreen({
         </div>
       </div>
 
-      {/* New general note (client-less, stored on the master) — opened via
-          the nav FAB's contextual «Создать» action. */}
-      {showComposer && (
-        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-              Новая общая заметка
-            </div>
-            <ReminderCloseButton onClick={() => onShowComposerChange(false)} />
-          </div>
-          <NoteComposer
-            onAdd={(text, urgency, photos) => {
-              onAddMasterNote(text, urgency, photos);
-              onShowComposerChange(false);
-            }}
-          />
+      {/* Planned sessions & consultations, full width, up top — a quick look
+          at what's coming before the notes columns below. */}
+      <div style={{ padding: '2px 20px 16px', position: 'relative', zIndex: 1 }}>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 8 }}>
+          Записи
         </div>
-      )}
-
-      {/* Two columns, like the client list: the task list on the left,
-          planned sessions & consultations on the right. */}
-      <div style={{ padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
-        {/* Column 1 — the task list */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
-            Задачи
-          </div>
-          {items.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
-              {hasAnyNote ? 'Нет по этому фильтру' : 'Заметок пока нет'}
-            </div>
-          ) : (
-            items.map(({ note, client }) =>
-              client ? (
-                <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
-                  <NoteItem
-                    note={note}
-                    client={client}
-                    onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
-                    onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
-                    onDelete={() => onDeleteNote(client.id, note.id)}
-                  />
-                </div>
-              ) : (
-                <div key={`master-${note.id}`}>
-                  <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 4, marginLeft: 2 }}>
-                    Общая заметка
-                  </div>
-                  <NoteItem
-                    note={note}
-                    onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
-                    onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
-                    onDelete={() => onDeleteMasterNote(note.id)}
-                  />
-                </div>
-              ),
-            )
-          )}
-        </div>
-
-        {/* Column 2 — planned sessions & consultations */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
-            Записи
-          </div>
-          {plannedItems.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
-          ) : (
-            plannedItems.map((it) => (
+        {plannedItems.length === 0 ? (
+          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {plannedItems.map((it) => (
               <div
                 key={`${it.kind}-${it.client.id}-${it.id}`}
                 onClick={() => (it.kind === 'session' ? onOpenSession(it.client.id, it.id) : onOpenConsultation(it.client.id, it.id))}
                 style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: 3,
+                  alignItems: 'center',
+                  gap: 10,
                   padding: '9px 11px',
                   borderRadius: 2,
                   cursor: 'pointer',
@@ -6503,19 +6452,89 @@ function SummaryScreen({
                   background: 'rgba(var(--surface-rgb),0.018)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.client.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {it.client.name || '—'}
-                  </span>
-                </div>
-                <div style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.client.color, flexShrink: 0 }} />
+                <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>
+                  {it.client.name || '—'}
+                </span>
+                <span style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>
                   {it.kind === 'session' ? 'Сессия' : 'Консультация'}
-                </div>
-                <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
+                </span>
+                <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
                   {it.date ? formatDate(it.date).replace(/ \d{4}$/, '') : 'Без даты'}
                   {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1 }}>
+        <StarDivider />
+      </div>
+
+      {/* Two columns of notes below: general (the master's own, client-less)
+          on the left, work notes (tied to a client) on the right. */}
+      <div style={{ padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+        {/* Column 1 — general notes (client-less, the master's own) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
+            Общие
+          </div>
+          {/* New general note (client-less, stored on the master) — opened
+              via the nav FAB's contextual «Создать» action. */}
+          {showComposer && (
+            <div style={{ marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  Новая заметка
                 </div>
+                <ReminderCloseButton onClick={() => onShowComposerChange(false)} />
+              </div>
+              <NoteComposer
+                onAdd={(text, urgency, photos) => {
+                  onAddMasterNote(text, urgency, photos);
+                  onShowComposerChange(false);
+                }}
+              />
+            </div>
+          )}
+          {generalItems.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+              {masterNotes.length ? 'Нет по этому фильтру' : 'Заметок пока нет'}
+            </div>
+          ) : (
+            generalItems.map(({ note }) => (
+              <NoteItem
+                key={`master-${note.id}`}
+                note={note}
+                onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
+                onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
+                onDelete={() => onDeleteMasterNote(note.id)}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Column 2 — work notes (tied to a client) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
+            Рабочие
+          </div>
+          {workItems.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+              {hasAnyClientNote ? 'Нет по этому фильтру' : 'Заметок пока нет'}
+            </div>
+          ) : (
+            workItems.map(({ note, client }) => (
+              <div key={`${client!.id}-${note.id}`} onClick={() => onOpenClient(client!.id)} style={{ cursor: 'pointer' }}>
+                <NoteItem
+                  note={note}
+                  client={client!}
+                  onToggleDone={() => onToggleDone(client!.id, { ...note, done: !note.done })}
+                  onEdit={(text, urgency) => onEditNote(client!.id, { ...note, text, urgency })}
+                  onDelete={() => onDeleteNote(client!.id, note.id)}
+                />
               </div>
             ))
           )}
@@ -6693,8 +6712,8 @@ function DetailScreen({
   onImportClients,
 }: {
   client: Client;
-  activeTab: 'info' | 'sessions' | 'extra';
-  onTab: (t: 'info' | 'sessions' | 'extra') => void;
+  activeTab: 'info' | 'sessions' | 'consultations' | 'extra';
+  onTab: (t: 'info' | 'sessions' | 'consultations' | 'extra') => void;
   onBack: () => void;
   onSave: (client: Client) => void;
   onEditClient: () => void;
@@ -6758,10 +6777,21 @@ function DetailScreen({
 
   // Export and import share one button — a small menu picks which, since
   // both are the same «move a client to/from a file» idea and rarely used
-  // side by side.
+  // side by side. The menu (and the feedback tooltip below) render via
+  // `position: fixed` with a manually-tracked anchor point rather than
+  // `absolute` — the hero header this button sits in has `overflow: hidden`
+  // (it clips its own decorative art), which would otherwise clip the
+  // dropdown too whenever the header is in its collapsed (short) state.
   const [showTransferMenu, setShowTransferMenu] = useState(false);
+  const [transferMenuAnchor, setTransferMenuAnchor] = useState<{ top: number; right: number } | null>(null);
   const [importFeedback, setImportFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const transferBtnRef = useRef<HTMLDivElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const openTransferMenu = () => {
+    const rect = transferBtnRef.current?.getBoundingClientRect();
+    if (rect) setTransferMenuAnchor({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    setShowTransferMenu(true);
+  };
   const handleImportFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -6804,10 +6834,10 @@ function DetailScreen({
                 which. Same JSON shape the full backup uses (just a
                 single-client array), so an exported file round-trips back
                 in through either this button or Админка's own import. */}
-            <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+            <div ref={transferBtnRef} style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
               <div
                 className="inka-back"
-                onClick={() => setShowTransferMenu((v) => !v)}
+                onClick={() => (showTransferMenu ? setShowTransferMenu(false) : openTransferMenu())}
                 role="button"
                 aria-label="Экспорт/импорт клиента"
                 aria-expanded={showTransferMenu}
@@ -6819,14 +6849,14 @@ function DetailScreen({
                   <path d="M11 13V3M11 3L8.5 5.5M11 3L13.5 5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              {showTransferMenu && (
+              {showTransferMenu && transferMenuAnchor && (
                 <>
                   <div onClick={() => setShowTransferMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
                   <div
                     style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 8px)',
-                      right: 0,
+                      position: 'fixed',
+                      top: transferMenuAnchor.top,
+                      right: transferMenuAnchor.right,
                       width: 176,
                       background: COLORS.sheet,
                       border: '1px solid rgba(var(--gold-rgb),0.2)',
@@ -6873,9 +6903,9 @@ function DetailScreen({
               {importFeedback && (
                 <div
                   style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 8px)',
-                    right: 0,
+                    position: 'fixed',
+                    top: transferMenuAnchor?.top ?? 0,
+                    right: transferMenuAnchor?.right ?? 24,
                     whiteSpace: 'nowrap',
                     fontSize: fs(11),
                     color: importFeedback.ok ? COLORS.gold : 'var(--urgent)',
@@ -6971,19 +7001,23 @@ function DetailScreen({
         <div onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
           Сессии
         </div>
+        <div onClick={() => onTab('consultations')} style={tabStyle('consultations')}>
+          Консультации
+        </div>
+        <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
+          Заметки
+        </div>
         <div onClick={() => onTab('info')} style={tabStyle('info')}>
           Инфо
         </div>
-        <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
-          Задачи
-        </div>
       </div>
 
-      {/* "История работы" sub-header — pinned below the tab bar (never
-          scrolls), shown only on the Сессии tab. Adding a session is now
-          only reachable from the nav FAB's contextual «Создать» (shown on
-          this screen too) — no local add button duplicating it here. */}
-      {activeTab === 'sessions' && (
+      {/* Sub-header — pinned below the tab bar (never scrolls), shown on
+          both the Сессии and Консультации tabs, labelled per tab now that
+          they're split. Adding an entry is only reachable from the nav
+          FAB's contextual «Создать» (shown on this screen too) — no local
+          add button duplicating it here. */}
+      {(activeTab === 'sessions' || activeTab === 'consultations') && (
         <div
           style={{
             padding: '14px 24px',
@@ -7000,15 +7034,16 @@ function DetailScreen({
               textTransform: 'uppercase',
             }}
           >
-            История работы
+            {activeTab === 'sessions' ? 'История сессий' : 'История консультаций'}
           </div>
         </div>
       )}
 
       {/* Tab content */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px' }}>
-        {activeTab === 'sessions' && (
+        {(activeTab === 'sessions' || activeTab === 'consultations') && (
           <SessionsTab
+            kind={activeTab}
             client={client}
             onEditSession={onEditSession}
             onDeleteSession={onDeleteSession}
@@ -8043,6 +8078,52 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
   );
 }
 
+// A note clamped to a few lines with a «Показать полностью ▾ / Свернуть ▴»
+// toggle — only shown when the text actually overflows that clamp, so a
+// short note never grows an affordance it doesn't need. Measured via
+// scrollHeight vs clientHeight: -webkit-line-clamp hides the extra content
+// visually but scrollHeight still reports the full, un-clamped height.
+function ExpandableText({ text, style, clampLines = 4 }: { text: string; style?: React.CSSProperties; clampLines?: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setExpanded(false);
+    const el = ref.current;
+    if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1);
+  }, [text]);
+
+  return (
+    <div>
+      <div
+        ref={ref}
+        dir="auto"
+        style={{
+          ...style,
+          ...(expanded
+            ? {}
+            : { display: '-webkit-box', WebkitLineClamp: clampLines, WebkitBoxOrient: 'vertical', overflow: 'hidden' }),
+        }}
+      >
+        {text}
+      </div>
+      {overflowing && (
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+          role="button"
+          style={{ fontSize: fs(11), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer', marginTop: 4, display: 'inline-block' }}
+        >
+          {expanded ? 'Свернуть ▴' : 'Показать полностью ▾'}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // Small ✕ on a session card; a tap reveals "Удалить? Да/Нет" inline.
 function SessionDeleteControl({
   onDelete,
@@ -8132,16 +8213,20 @@ function SessionPhotos({
   };
 
   const thumbnails = photos.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+        // A grid (not a wrapping flex row of fixed-size tiles) so thumbnails
+        // stretch to fill whatever width is left on the last row — with just
+        // one or two photos, fixed 78px tiles left most of the card's own
+        // width sitting empty next to them.
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 8, marginBottom: 10 }}>
           {photos.map((src, i) => (
-            <div key={i} style={{ position: 'relative', width: 78, height: 78 }}>
+            <div key={i} style={{ position: 'relative', width: '100%', aspectRatio: '1' }}>
               <img
                 src={src}
                 alt=""
                 onClick={() => setViewerSrc(src)}
                 style={{
-                  width: 78,
-                  height: 78,
+                  width: '100%',
+                  height: '100%',
                   objectFit: 'cover',
                   borderRadius: 2,
                   border: '1px solid rgba(var(--gold-rgb),0.2)',
@@ -8301,8 +8386,13 @@ function SessionPhotos({
   );
 }
 
-// ── Sessions tab ──
+// ── Sessions tab (also used, filtered, for the separate Консультации tab) ──
+// Sessions and consultations used to share one combined timeline under a
+// single «Сессии» tab; they're now split into their own tabs, so this
+// component takes `kind` to render just the one list, sorted the same way
+// (most recent first, undated entries sink to the bottom).
 function SessionsTab({
+  kind,
   client,
   onEditSession,
   onDeleteSession,
@@ -8313,6 +8403,7 @@ function SessionsTab({
   onViewSession,
   onViewConsultation,
 }: {
+  kind: 'sessions' | 'consultations';
   client: Client;
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -8323,46 +8414,43 @@ function SessionsTab({
   onViewSession: (session: Session) => void;
   onViewConsultation: (consultation: Consultation) => void;
 }) {
-  // Sessions and consultations share one dated timeline — most recent first,
-  // undated entries sink to the bottom.
-  type TimelineEntry = { kind: 'session'; session: Session } | { kind: 'consultation'; consultation: Consultation };
-  const timeline: TimelineEntry[] = [
-    ...client.sessions.map((session): TimelineEntry => ({ kind: 'session', session })),
-    ...client.consultations.map((consultation): TimelineEntry => ({ kind: 'consultation', consultation })),
-  ].sort((a, b) => {
-    const dateA = a.kind === 'session' ? a.session.date : a.consultation.date;
-    const dateB = b.kind === 'session' ? b.session.date : b.consultation.date;
-    return (dateB || '').localeCompare(dateA || '');
-  });
-
-  return (
-    <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-      {timeline.length === 0 && (
-        <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий и консультаций пока нет.</div>
-      )}
-
-      {timeline.map((entry) =>
-        entry.kind === 'consultation' ? (
+  if (kind === 'consultations') {
+    const consultations = [...client.consultations].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return (
+      <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+        {consultations.length === 0 && (
+          <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Консультаций пока нет.</div>
+        )}
+        {consultations.map((consultation) => (
           <ConsultationRow
-            key={`c-${entry.consultation.id}`}
-            consultation={entry.consultation}
+            key={consultation.id}
+            consultation={consultation}
             onEdit={onEditConsultation}
-            onDelete={() => onDeleteConsultation(entry.consultation.id)}
+            onDelete={() => onDeleteConsultation(consultation.id)}
             onView={onViewConsultation}
           />
-        ) : (
-          <SessionRow
-            key={entry.session.id}
-            session={entry.session}
-            clientColor={client.color}
-            onEdit={onEditSession}
-            onDelete={() => onDeleteSession(entry.session.id)}
-            onView={onViewSession}
-            onToggleDone={() => onToggleSessionDone(entry.session.id)}
-            onUpdatePhotos={(photos) => onUpdateSessionPhotos(entry.session.id, photos)}
-          />
-        ),
+        ))}
+      </div>
+    );
+  }
+
+  const sessions = [...client.sessions].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return (
+    <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+      {sessions.length === 0 && (
+        <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
       )}
+      {sessions.map((session) => (
+        <SessionRow
+          key={session.id}
+          session={session}
+          onEdit={onEditSession}
+          onDelete={() => onDeleteSession(session.id)}
+          onView={onViewSession}
+          onToggleDone={() => onToggleSessionDone(session.id)}
+          onUpdatePhotos={(photos) => onUpdateSessionPhotos(session.id, photos)}
+        />
+      ))}
     </div>
   );
 }
@@ -8385,25 +8473,11 @@ function ConsultationRow({
   const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(() => setConfirming(true));
   const meta = urgencyMeta(consultation.urgency);
   return (
-    <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            flexShrink: 0,
-            marginTop: 4,
-            border: '1px solid rgba(var(--gold-rgb),0.5)',
-          }}
-        />
-        <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
-      </div>
+    <div style={{ marginBottom: 14 }}>
       <div
         onClick={() => onView(consultation)}
         {...swipeHandlers}
         style={{
-          flex: 1,
           background: 'rgba(var(--surface-rgb),0.018)',
           border: '1px solid rgba(var(--gold-rgb),0.22)',
           borderRadius: 2,
@@ -8451,7 +8525,11 @@ function ConsultationRow({
                 <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
             </div>
-            <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+            {/* Extra gap + divider before delete — pencil and × used to sit
+                right next to each other, easy to mis-tap. */}
+            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, marginLeft: 2, borderLeft: '1px solid rgba(var(--gold-rgb),0.15)' }}>
+              <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+            </div>
           </div>
         </div>
         {/* Photos moved up — right under the header — and read-only here. */}
@@ -8466,9 +8544,7 @@ function ConsultationRow({
           </div>
         )}
         {consultation.generalNotes && (
-          <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>
-            {consultation.generalNotes}
-          </div>
+          <ExpandableText text={consultation.generalNotes} style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }} />
         )}
         {consultation.feeling && (
           <div style={{ marginTop: 6 }}>
@@ -8494,7 +8570,6 @@ function ConsultationRow({
 // delete as ConsultationRow above.
 function SessionRow({
   session,
-  clientColor,
   onEdit,
   onDelete,
   onView,
@@ -8502,7 +8577,6 @@ function SessionRow({
   onUpdatePhotos,
 }: {
   session: Session;
-  clientColor: string;
   onEdit: (session: Session) => void;
   onDelete: () => void;
   onView: (session: Session) => void;
@@ -8512,26 +8586,11 @@ function SessionRow({
   const [confirming, setConfirming] = useState(false);
   const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(() => setConfirming(true));
   return (
-    <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            flexShrink: 0,
-            marginTop: 4,
-            background: session.done ? clientColor : 'transparent',
-            border: session.done ? 'none' : '1px solid rgba(var(--gold-rgb),0.25)',
-          }}
-        />
-        <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
-      </div>
+    <div style={{ marginBottom: 14 }}>
       <div
         onClick={() => onView(session)}
         {...swipeHandlers}
         style={{
-          flex: 1,
           background: 'rgba(var(--surface-rgb),0.018)',
           border: '1px solid rgba(var(--gold-rgb),0.1)',
           borderRadius: 2,
@@ -8614,15 +8673,26 @@ function SessionRow({
                 <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
             </div>
-            <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+            {/* Extra gap + divider before delete — pencil and × used to sit
+                right next to each other, easy to mis-tap. */}
+            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, marginLeft: 2, borderLeft: '1px solid rgba(var(--gold-rgb),0.15)' }}>
+              <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+            </div>
           </div>
+        </div>
+        {/* Photos right under the header — same order as ConsultationRow.
+            Still the card's own quick-add (onChange, allowDelete={false}),
+            not the read-only viewer — this is the one place a photo can be
+            added without opening the full edit form. */}
+        <div onClick={(e) => e.stopPropagation()}>
+          <SessionPhotos photos={session.photos} onChange={onUpdatePhotos} allowDelete={false} />
         </div>
         {session.area && (
           <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
             {session.area}
           </div>
         )}
-        {session.note && <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+        {session.note && <ExpandableText text={session.note} style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }} />}
         {(session.colors || session.needles || session.skinReaction) && (
           <div
             style={{
@@ -8639,9 +8709,6 @@ function SessionRow({
             {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
           </div>
         )}
-        <div onClick={(e) => e.stopPropagation()}>
-          <SessionPhotos photos={session.photos} onChange={onUpdatePhotos} allowDelete={false} />
-        </div>
       </div>
     </div>
   );
@@ -10042,6 +10109,13 @@ function NewSessionSheet({
       </div>
 
       <div style={{ padding: '4px 24px 50px' }}>
+        {/* Photos first — same order as the consultation form (see
+            NewConsultationSheet), rather than tacked on near the end. */}
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Фото</FieldLabel>
+          <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
+        </div>
+
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Название сессии</FieldLabel>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
@@ -10139,12 +10213,6 @@ function NewSessionSheet({
             placeholder="Что делали, наблюдения..."
             style={{ ...INPUT_STYLE, resize: 'none', height: 80 }}
           />
-        </div>
-
-        {/* Photos: upload (native picker offers "Take Photo" on mobile) */}
-        <div style={{ marginBottom: 14 }}>
-          <FieldLabel>Фото</FieldLabel>
-          <SessionPhotos photos={photos} onChange={setPhotos} />
         </div>
 
         {/* Manually ticked once a healed-skin photo has been added — drives
