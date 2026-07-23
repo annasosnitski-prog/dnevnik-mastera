@@ -5,6 +5,7 @@ export type ToolbarIconName =
   | "sketchbook"
   | "profile"
   | "gear"
+  | "settingsGear"
   | "clients"
   | "brush";
 
@@ -22,8 +23,10 @@ const sharedProps = {
 
 // Filled (not outlined) like the profile icon below — the teeth and rim are
 // one solid shape, with the centre hole punched out via the evenodd fill
-// rule rather than drawn as a separate stroked ring.
-function JewelryGearIcon(
+// rule rather than drawn as a separate stroked ring. Used for the in-screen
+// «Настройки» button on the Мастер dashboard (moved there once «gear» itself
+// took on a distinct icon for the NavFab destination below).
+function JewelrySettingsGearIcon(
   props: SVGProps<SVGSVGElement>,
 ) {
   return (
@@ -32,6 +35,23 @@ function JewelryGearIcon(
         fillRule="evenodd"
         d="M14.010 5.996 L14.458 3.797 L14.220 1.912 L17.780 1.912 L17.542 3.797 L17.990 5.996 A10.200 10.200 0 0 1 21.667 7.519 L23.539 6.281 L24.703 4.780 L27.220 7.297 L25.719 8.461 L24.481 10.333 A10.200 10.200 0 0 1 26.004 14.010 L28.203 14.458 L30.088 14.220 L30.088 17.780 L28.203 17.542 L26.004 17.990 A10.200 10.200 0 0 1 24.481 21.667 L25.719 23.539 L27.220 24.703 L24.703 27.220 L23.539 25.719 L21.667 24.481 A10.200 10.200 0 0 1 17.990 26.004 L17.542 28.203 L17.780 30.088 L14.220 30.088 L14.458 28.203 L14.010 26.004 A10.200 10.200 0 0 1 10.333 24.481 L8.461 25.719 L7.297 27.220 L4.780 24.703 L6.281 23.539 L7.519 21.667 A10.200 10.200 0 0 1 5.996 17.990 L3.797 17.542 L1.912 17.780 L1.912 14.220 L3.797 14.458 L5.996 14.010 A10.200 10.200 0 0 1 7.519 10.333 L6.281 8.461 L4.780 7.297 L7.297 4.780 L8.461 6.281 L10.333 7.519 A10.200 10.200 0 0 1 14.010 5.996 Z M21.100 16 A5.1 5.1 0 1 1 10.900 16 A5.1 5.1 0 1 1 21.100 16 Z"
       />
+    </svg>
+  );
+}
+
+// An open-end wrench on the diagonal — reads as "tools/setup" at a glance,
+// distinct from the settings-gear now living inside the Мастер screen itself.
+// The source artwork traced this as two nested contours (an outer + an
+// inset copy, opposite winding) — the classic "stroke converted to a fill"
+// setup — which renders as a hollow outline when both are kept. Only the
+// outer contour is kept here, filled solid, so it reads as a silhouette
+// like the icons above rather than a hairline outline.
+function JewelryMasterIcon(
+  props: SVGProps<SVGSVGElement>,
+) {
+  return (
+    <svg viewBox="0 0 329.497 329.497" fill="currentColor" stroke="none" {...props}>
+      <path d="M77.713,328.151c-9.955,0-19.718-1.896-29.024-5.649l-9.01-3.638l42.301-42.301c3.946-3.94,6.118-9.19,6.118-14.762 c0-5.585-2.172-10.823-6.118-14.775c-7.899-7.899-21.646-7.899-29.544,0L9.897,289.577l-3.728-8.76 C2.076,271.19,0,260.984,0,250.45c0-42.854,34.866-77.713,77.713-77.713c9.158,0,18.092,1.581,26.626,4.704l73.774-73.78 c-2.68-7.982-4.036-16.241-4.036-24.608c0-42.848,34.866-77.707,77.713-77.707c10.257,0,20.245,1.986,29.692,5.9l8.888,3.683 l-42.854,42.848c-3.946,3.946-6.118,9.197-6.118,14.775s2.172,10.829,6.118,14.775c7.899,7.886,21.658,7.886,29.544,0 l42.848-42.848l3.683,8.882c3.914,9.46,5.906,19.448,5.906,29.692c0,42.848-34.859,77.707-77.707,77.707 c-9.158,0-18.092-1.581-26.633-4.704l-73.78,73.78c2.686,7.982,4.042,16.241,4.042,24.615 C155.42,293.292,120.561,328.151,77.713,328.151z" />
     </svg>
   );
 }
@@ -113,20 +133,16 @@ function JewelryClientsIcon(
   );
 }
 
-// A paintbrush leaning on the diagonal — handle, metal ferrule band, and a
-// tapered bristle tip — filled solid like the gear/sketchbook icons above,
-// for «Мастерская» (the standalone sketch/idea board, separate from any
-// client).
+// A paintbrush leaning on the diagonal, tip resting in its own paint pool —
+// filled solid like the gear/sketchbook icons above, for «Мастерская» (the
+// standalone sketch/idea board, separate from any client).
 function JewelryBrushIcon(
   props: SVGProps<SVGSVGElement>,
 ) {
   return (
-    <svg viewBox="0 0 32 32" fill="currentColor" stroke="none" {...props}>
-      <g transform="rotate(45 16 16)">
-        <path d="M13.4 14.2H18.6V29.5C18.6 30.5 17.8 31.3 16.8 31.3H15.2C14.2 31.3 13.4 30.5 13.4 29.5Z" />
-        <rect x="12.6" y="10.4" width="6.8" height="4.4" />
-        <path d="M12.6 10.4 L19.4 10.4 L16.6 1 C16.4 0.6 15.6 0.6 15.4 1 Z" />
-      </g>
+    <svg viewBox="0 0 30 30" fill="currentColor" stroke="none" {...props}>
+      <path d="M4.5 22c-1.614 0-2.597.884-3.04 1.867C1.013 24.85 1 25.915 1 26.5c0 .497-.114 1.14-.285 1.664-.113.418-.305.796-.463.902-.445.256-.263.935.25.934H4c1.415 0 2.457-.728 3.09-1.568.632-.84.91-1.76.91-2.432 0-.525-.01-1.48-.467-2.36C7.076 22.756 6.093 22 4.5 22z" />
+      <path d="M29.424.002c-.102-.006-.182.006-.263.02-.162.033-.33.09-.533.167-.404.155-.93.4-1.566.732-1.272.66-2.983 1.658-4.91 2.902-3.857 2.49-8.574 5.962-12.305 9.694-1.31 1.31-1.857 2.706-1.845 3.972.012 1.267.57 2.378 1.35 3.16.783.783 1.883 1.338 3.15 1.35 1.267.012 2.673-.533 3.983-1.844 3.732-3.73 7.204-8.448 9.693-12.304 1.245-1.928 2.24-3.64 2.903-4.913.33-.637.576-1.163.73-1.567.08-.202.135-.37.167-.533.016-.082.027-.162.02-.264-.004-.102-.022-.254-.17-.402-.15-.15-.3-.166-.403-.172z" />
     </svg>
   );
 }
@@ -154,7 +170,9 @@ export function ToolbarIcon({
     case "profile":
       return <JewelryProfileIcon {...iconProps} />;
     case "gear":
-      return <JewelryGearIcon {...iconProps} />;
+      return <JewelryMasterIcon {...iconProps} />;
+    case "settingsGear":
+      return <JewelrySettingsGearIcon {...iconProps} />;
     case "clients":
       return <JewelryClientsIcon {...iconProps} />;
     case "brush":

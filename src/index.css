@@ -249,6 +249,22 @@
   background: var(--bg);
 }
 
+/* The current destination's own circle shares the main hub's plate — same
+   translucent surface gradient — instead of the flat dark/parchment fill the
+   other destinations get, so it reads as "you are here" even though its size
+   matches every other fan item. The light-theme override above is a higher-
+   specificity selector (:root[attr] + class + :not()), so this needs a
+   matching :not(.nav-fab__item--create) compound — and an explicit
+   light-scoped copy, placed after that override so the tie breaks by source
+   order — to actually win in both themes rather than just in dark. */
+.nav-fab__item--current:not(.nav-fab__item--create) {
+  background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
+}
+
+:root[data-theme="light"] .nav-fab__item--current:not(.nav-fab__item--create) {
+  background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
+}
+
 /* A small pale spotlight sitting behind each icon, a third of the button's
    own diameter — brighter than the icon itself so the glyph reads as
    silhouetted against its own little glow rather than floating on flat
@@ -313,6 +329,22 @@
   background: var(--gold);
   border-color: var(--gold);
   color: var(--bg);
+}
+
+/* An inset ring, dark like the other buttons' own plate colour, outline only
+   (no fill) — echoes the family of dark circles it sits among, just inverted
+   (gold outside, dark ring inside) since Create is the one solid-gold button. */
+.nav-fab__item--create::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 90%;
+  height: 90%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1.5px solid #000;
+  pointer-events: none;
 }
 
 /* The plus glyph is a raw inline <svg> (not routed through ToolbarIcon), so

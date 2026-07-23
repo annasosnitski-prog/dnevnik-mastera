@@ -52,6 +52,14 @@ const ARC_SPAN_DEG = 150;
 // without the two circles' edges overlapping.
 const GAP_WEIGHT_OUTER = 1.5;
 const GAP_WEIGHT_INNER = 1;
+// The Планнер↔Клиенты gap specifically gets an even bigger share, taken from
+// the Клиенты↔Мастерская gap next to it (their sum still keeps every later
+// slot — Мастерская, «Создать», Админка, Мастер — at the same angle as
+// before). That tilts Клиенты's own position toward vertical, so its height
+// reads as its own distinct step between «Создать» and the Мастерская/
+// Админка pair, rather than blending into their row (see DEST_TIER_2 below).
+const GAP_WEIGHT_SKETCHBOOK_CLIENTS = 2.367;
+const GAP_WEIGHT_CLIENTS_BRUSH = 1.233;
 
 // Radius: fixed per destination — this is where each one's own importance
 // shows up. Per Fitts's law, a target reached for constantly should need
@@ -80,8 +88,13 @@ const GAP_WEIGHT_INNER = 1;
 // visually adjacent to Админка/Мастер (Create's own big circle sits between
 // the two halves), so only same-side neighbours need checking against each
 // other.
+// Клиенты sits further out than strict frequency order would suggest — a
+// deliberate exception so its own ray reads as clearly longer/shorter than
+// its two neighbours (Планнер, Мастерская) rather than blending into a
+// nearly-even row; the wide outer-gap weight above still keeps it clear of
+// both.
 const DEST_MIN = 68;
-const DEST_TIER_2 = 110;
+const DEST_TIER_2 = 170;
 const DEST_TIER_3 = 128;
 const DEST_TIER_4 = 136;
 const DEST_MAX = 146;
@@ -128,6 +141,15 @@ const ITEM_HALF = 31;
 const HUB_SIZE = HUB_HALF * 2;
 const ITEM_SIZE = ITEM_HALF * 2;
 
+// Every other icon has real margin baked into its own viewBox, so rendering
+// it at 2/3 of the button's height already reads as comfortably inset. The
+// «Мастерская» brush and «Мастер» wrench glyphs both lean on the diagonal
+// and fill their own viewBox corner-to-corner (tip to tip), so the same
+// 2/3-of-height size instead makes that diagonal span nearly the whole
+// button. Sized down separately for both so the diagonal — not the height —
+// comes out to 2/3 of the button's diameter.
+const DIAGONAL_ICON_SIZE = Math.round((ITEM_SIZE * 2) / 3 / Math.SQRT2);
+
 // Single circular button, bottom-centre — replaces the full-width bottom bar.
 // Closed, it shows the icon for whatever screen is currently open (so you
 // always know where you are without expanding it); tapping it fans the
@@ -155,10 +177,25 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   // «Создать», larger (GAP_WEIGHT_OUTER) between two destinations — then
   // normalised so the weights sum to the full ARC_SPAN_DEG. See GAP_WEIGHT
   // above for why: it's what gives the destination pairs room to spread
-  // their radii apart without the circles themselves overlapping.
+  // their radii apart without the circles themselves overlapping. The
+  // Планнер↔Клиенты / Клиенты↔Мастерская pair gets its own special-cased
+  // split (by id, not just create-adjacency) so Клиенты's own angle can
+  // tilt toward vertical without shifting anything past Мастерская — see
+  // GAP_WEIGHT_SKETCHBOOK_CLIENTS above.
+  const idOf = (e: FanEntry) => (e.kind === "nav" ? e.item.id : null);
   const gapWeights = fanEntries.slice(1).map((_, i) => {
-    const touchesCreate = fanEntries[i].kind === "create" || fanEntries[i + 1].kind === "create";
-    return touchesCreate ? GAP_WEIGHT_INNER : GAP_WEIGHT_OUTER;
+    const a = fanEntries[i];
+    const b = fanEntries[i + 1];
+    if (a.kind === "create" || b.kind === "create") return GAP_WEIGHT_INNER;
+    const aId = idOf(a);
+    const bId = idOf(b);
+    if ((aId === "sketchbook" && bId === "clients") || (aId === "clients" && bId === "sketchbook")) {
+      return GAP_WEIGHT_SKETCHBOOK_CLIENTS;
+    }
+    if ((aId === "clients" && bId === "brush") || (aId === "brush" && bId === "clients")) {
+      return GAP_WEIGHT_CLIENTS_BRUSH;
+    }
+    return GAP_WEIGHT_OUTER;
   });
   const totalWeight = gapWeights.reduce((sum, w) => sum + w, 0) || 1;
   // cumulativeWeight[i] = the summed weight of every gap before entry i, so
@@ -320,11 +357,12 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
 
             const { item } = entry;
             const badges = item.screen === "admin" ? adminBadges : undefined;
+            const isCurrent = item === current;
             return (
               <button
                 key={item.id}
                 type="button"
-                className="nav-fab__item"
+                className={isCurrent ? "nav-fab__item nav-fab__item--current" : "nav-fab__item"}
                 style={style}
                 aria-label={item.label}
                 onClick={() => {
@@ -333,8 +371,13 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 }}
               >
                 {/* Icons fill 2/3 of their own button's height, matching the
-                    hub's own icon-to-button ratio. */}
-                <ToolbarIcon name={item.id} size={Math.round((ITEM_SIZE * 2) / 3)} />
+                    hub's own icon-to-button ratio — except the brush and
+                    wrench, sized by their own diagonal instead (see
+                    DIAGONAL_ICON_SIZE above). */}
+                <ToolbarIcon
+                  name={item.id}
+                  size={item.id === "brush" || item.id === "gear" ? DIAGONAL_ICON_SIZE : Math.round((ITEM_SIZE * 2) / 3)}
+                />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
