@@ -50,18 +50,24 @@ const ARC_SPAN_DEG = 150;
 // own frequency ranking (Блокнот > Клиенты > Админка > Мастер): closer for
 // the ones used all the time, farther for the rare ones.
 //
-// DEST_MIN is the shortest ray — Блокнот, right at the edge of a comfortable
-// reach from the main button. The other three destinations step outward in
-// equal thirds of the way to DEST_MAX (a rule-of-thirds progression reads
-// as more deliberately graduated than either bunching them up or spacing
-// them by equal absolute amounts). «Создать» then breaks past DEST_MAX by a
-// wide, deliberate margin — it's the one CTA, not a fourth destination, so
-// it needs to read as a different tier at a glance, not just one more step
-// in the same sequence.
-const DEST_MIN = 82;
-const DEST_MAX = 142;
-const DEST_STEP = (DEST_MAX - DEST_MIN) / 3;
-const CREATE_RADIUS = 190;
+// DEST_MIN sits right outside the hub — as tight as it can get without the
+// two circles' own edges touching (HUB_HALF + ITEM_HALF + a small gap for
+// the ray itself to read as a distinct line). DEST_MAX is the safe ceiling
+// for the two outermost fan slots (±15° off horizontal — see ARC_SPAN_DEG)
+// without a button's own edge crossing off-screen on a narrow (~360px)
+// phone; pushing it further risks clipping a destination clean off the
+// visible area, which is worse for accessibility than a long reach ever is.
+// Within that fixed envelope, the three steps grow (not equal) — each one
+// bigger than the last — so the jump between tiers reads as clearly
+// deliberate at a glance instead of nearly the same as its neighbours.
+// «Создать» then breaks past DEST_MAX by a wide, deliberate margin — it's
+// the one CTA, not a fourth destination, so it needs to read as a different
+// tier at a glance, not just one more step in the same sequence.
+const DEST_MIN = 68;
+const DEST_TIER_2 = 88;
+const DEST_TIER_3 = 113;
+const DEST_MAX = 145;
+const CREATE_RADIUS = 200;
 
 // Explicit key set (not derived from ToolbarIconName) — the main button
 // below always shows the $ icon regardless of the active screen, so
@@ -69,8 +75,8 @@ const CREATE_RADIUS = 190;
 const RADIUS: Record<"sketchbook" | "clients" | "profile" | "gear" | "create", number> = {
   create: CREATE_RADIUS,
   sketchbook: DEST_MIN,
-  clients: DEST_MIN + DEST_STEP,
-  profile: DEST_MIN + DEST_STEP * 2,
+  clients: DEST_TIER_2,
+  profile: DEST_TIER_3,
   gear: DEST_MAX,
 };
 
