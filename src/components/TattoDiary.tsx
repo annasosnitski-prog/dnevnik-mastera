@@ -5560,6 +5560,8 @@ function MasterDashboardScreen({
           )}
         </GoldFrame>
 
+        {/* Оплата + Контакты side by side — оплата слева, ссылки справа. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'start' }}>
         {/* Оплата — master's own payment links + bank details. Once there's
             data, the card shows a read view that copies everything to the
             clipboard on tap; the pencil toggle switches back to the edit form. */}
@@ -5625,9 +5627,9 @@ function MasterDashboardScreen({
               }}
               role="button"
               aria-label={editingPhone ? 'Готово' : 'Редактировать телефон'}
-              style={editToggleStyle}
+              style={{ ...editToggleStyle, flexShrink: 0 }}
             >
-              {editingPhone ? 'Готово' : masterInfo.phone ? 'Изменить телефон' : 'Заполнить телефон'}
+              {editingPhone ? 'Готово' : masterInfo.phone ? 'Изменить' : 'Заполнить'}
             </span>
           </div>
           {editingPhone || !masterInfo.phone ? (
@@ -5683,6 +5685,7 @@ function MasterDashboardScreen({
           ))}
           <AddChatLinkForm onAdd={addChatLink} />
         </GoldFrame>
+        </div>
 
         {/* Автоматизация — бот в Telegram (ссылка, которую мастер копирует
             и отправляет клиенту для брони) + синхронизация с Инка-
@@ -7762,8 +7765,9 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
           }}
           style={{
             flex: 1,
+            minWidth: 0,
             textAlign: 'center',
-            padding: '9px',
+            padding: '9px 4px',
             borderRadius: 2,
             border: '1px solid rgba(var(--gold-rgb),0.15)',
             color: COLORS.textFaint,
@@ -7771,6 +7775,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             letterSpacing: '1px',
             textTransform: 'uppercase',
             cursor: 'pointer',
+            wordBreak: 'break-word',
           }}
         >
           Отмена
@@ -7785,8 +7790,9 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
           }}
           style={{
             flex: 1,
+            minWidth: 0,
             textAlign: 'center',
-            padding: '9px',
+            padding: '9px 4px',
             borderRadius: 2,
             border: '1px solid rgba(var(--gold-rgb),0.35)',
             background: 'rgba(var(--gold-rgb),0.05)',
@@ -7795,6 +7801,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             letterSpacing: '1px',
             textTransform: 'uppercase',
             cursor: 'pointer',
+            wordBreak: 'break-word',
           }}
         >
           Добавить
