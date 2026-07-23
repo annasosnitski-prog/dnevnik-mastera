@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ToolbarIcon, type ToolbarIconName } from "./ToolbarIcons";
+import { ToolbarIcon } from "./ToolbarIcons";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail";
 
@@ -22,7 +22,7 @@ interface NavFabProps {
 // sits above all of these (see the render below) as the one action, not a
 // destination.
 const NAV_ITEMS: {
-  id: ToolbarIconName;
+  id: "sketchbook" | "clients" | "profile" | "gear";
   label: string;
   screen: AppScreen;
   isActive: (active: AppScreen) => boolean;
@@ -30,7 +30,7 @@ const NAV_ITEMS: {
   { id: "sketchbook", label: "Блокнот", screen: "summary", isActive: (a) => a === "summary" },
   // «Клиенты» stays lit for Настройки and a client's Detail screen too —
   // both are reached from the roster, not a separate section.
-  { id: "tasks", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail" },
+  { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail" },
   { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
   { id: "gear", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
 ];
@@ -63,10 +63,13 @@ const DEST_MAX = 142;
 const DEST_STEP = (DEST_MAX - DEST_MIN) / 3;
 const CREATE_RADIUS = 190;
 
-const RADIUS: Record<ToolbarIconName | "create", number> = {
+// Explicit key set (not derived from ToolbarIconName) — the main button
+// below always shows the $ icon regardless of the active screen, so
+// "tasks" no longer names a fan destination and doesn't need a radius here.
+const RADIUS: Record<"sketchbook" | "clients" | "profile" | "gear" | "create", number> = {
   create: CREATE_RADIUS,
   sketchbook: DEST_MIN,
-  tasks: DEST_MIN + DEST_STEP,
+  clients: DEST_MIN + DEST_STEP,
   profile: DEST_MIN + DEST_STEP * 2,
   gear: DEST_MAX,
 };
@@ -306,10 +309,12 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          {/* 2/3 of the button's own height (HUB_HALF * 2), so every icon —
-              regardless of its own natural proportions — reads as the same
-              size on the hub. */}
-          <ToolbarIcon name={current.id} size={Math.round((HUB_HALF * 2 * 2) / 3)} />
+          {/* The hub always shows the $ sign — a fixed identity, not a
+              current-screen indicator — regardless of which of the four
+              destinations is active. 2/3 of the button's own height
+              (HUB_HALF * 2), matching the fan items' own icon-to-button
+              ratio. */}
+          <ToolbarIcon name="tasks" size={Math.round((HUB_HALF * 2 * 2) / 3)} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
