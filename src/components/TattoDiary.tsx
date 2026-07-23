@@ -315,6 +315,28 @@ interface Consultation {
   createdDate: string;
 }
 
+// A standalone sketch/portfolio idea for «Творческая мастерская» — not tied
+// to any client (unlike Consultation, which lives inside a Client). Shares
+// the consultation's own field set (same brief-writing form) since it's the
+// same kind of thinking — mood, references, technique — just without a
+// person attached to it yet; the one field it adds is its own colour tag,
+// since without a client there's no `client.color` to inherit.
+interface Project {
+  id: string;
+  title: string; // project name, e.g. "Дракон в стиле джапан"
+  color: string; // marker colour, chosen at creation — see MarkerColorPalette
+  date: string; // ISO yyyy-mm-dd — optional, a project need not be scheduled
+  time: string; // HH:MM, 24h
+  area: string; // "Место" — intended placement, if already decided
+  style: string; // "Техника и стиль"
+  generalNotes: string; // "Общие заметки"
+  feeling: string; // "Чувство/ощущение"
+  creative: string; // "Креатив"
+  inspirationSources: string; // "Источники вдохновения"
+  photos: string[];
+  createdDate: string;
+}
+
 // Styles as an array regardless of legacy shape; joined label for display.
 const clientStyles = (c: { styles?: string[]; style?: string }): string[] =>
   c.styles && c.styles.length ? c.styles : c.style ? [c.style] : [];
@@ -820,16 +842,41 @@ function normalizeClient(raw: any, index: number): Client {
   };
 }
 
+function normalizeProject(raw: any, index: number): Project {
+  return {
+    id: String(raw?.id ?? Date.now() + index),
+    title: raw?.title ?? '',
+    color: raw?.color ?? MARKER_COLORS[index % MARKER_COLORS.length],
+    date: raw?.date ?? '',
+    time: raw?.time ?? '',
+    area: raw?.area ?? '',
+    style: raw?.style ?? '',
+    generalNotes: raw?.generalNotes ?? '',
+    feeling: raw?.feeling ?? '',
+    creative: raw?.creative ?? '',
+    inspirationSources: raw?.inspirationSources ?? '',
+    photos: Array.isArray(raw?.photos) ? raw.photos : [],
+    createdDate: raw?.createdDate ?? new Date().toISOString(),
+  };
+}
+
 // ===================== DATABASE =====================
+// Version bumped 1 → 2 to add the «projects» store (Творческая мастерская) —
+// existing installs upgrade in place on next load; onupgradeneeded only
+// touches stores that don't exist yet, so the clients store and its data are
+// never re-created or wiped.
 const initDB = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
-    const request = indexedDB.open('TattoDiaryDB', 1);
+    const request = indexedDB.open('TattoDiaryDB', 2);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains('clients')) {
         db.createObjectStore('clients', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('projects')) {
+        db.createObjectStore('projects', { keyPath: 'id' });
       }
     };
   });
@@ -1795,6 +1842,8 @@ export default function TattoDiary() {
   // yet" — without it, the first-run empty state flashes on every load before
   // the (real) client list comes in.
   const [clientsLoaded, setClientsLoaded] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [db, setDb] = useState<IDBDatabase | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(readInitialTheme);
@@ -1858,7 +1907,7 @@ export default function TattoDiary() {
   }, [dismissedReminders]);
   const dismissReminder = (key: string) => setDismissedReminders((prev) => (prev.includes(key) ? prev : [...prev, key]));
 
-  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin'>('list');
+  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1879,6 +1928,9 @@ export default function TattoDiary() {
   const [showAddChoice, setShowAddChoice] = useState(false);
   const [showNewConsultationForm, setShowNewConsultationForm] = useState(false);
   const [editConsultation, setEditConsultation] = useState<Consultation | null>(null);
+  // «Творческая мастерская» — standalone projects, not tied to any client.
+  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
+  const [editProject, setEditProject] = useState<Project | null>(null);
   // Read-only fullscreen viewer for a consultation or a session, opened by
   // tapping the card body (the pencil still edits). Holds the client id so the
   // viewer always reflects the latest stored copy even after an edit.
@@ -1979,6 +2031,7 @@ export default function TattoDiary() {
       .then((database) => {
         setDb(database);
         loadClients(database);
+        loadProjects(database);
       })
       .catch((err) => {
         console.error('IndexedDB init failed:', err);
@@ -1994,6 +2047,42 @@ export default function TattoDiary() {
       setClientsLoaded(true);
     };
     request.onerror = () => setDbError('Не удалось загрузить клиентов.');
+  };
+
+  const loadProjects = (database: IDBDatabase) => {
+    const tx = database.transaction('projects', 'readonly');
+    const request = tx.objectStore('projects').getAll();
+    request.onsuccess = () => {
+      setProjects((request.result || []).map(normalizeProject));
+      setProjectsLoaded(true);
+    };
+    request.onerror = () => setDbError('Не удалось загрузить проекты.');
+  };
+
+  const saveProject = (project: Project) => {
+    if (!db) {
+      setDbError('Хранилище недоступно — изменения не сохранены.');
+      return;
+    }
+    const tx = db.transaction('projects', 'readwrite');
+    tx.objectStore('projects').put(project);
+    tx.oncomplete = () => loadProjects(db);
+    tx.onerror = () => setDbError('Не удалось сохранить изменения.');
+  };
+
+  const deleteProject = (id: string) => {
+    if (!db) {
+      setDbError('Хранилище недоступно — проект не удалён.');
+      return;
+    }
+    const tx = db.transaction('projects', 'readwrite');
+    tx.objectStore('projects').delete(id);
+    tx.oncomplete = () => {
+      loadProjects(db);
+      setEditProject(null);
+      setShowNewProjectForm(false);
+    };
+    tx.onerror = () => setDbError('Не удалось удалить проект.');
   };
 
   const saveClient = (client: Client) => {
@@ -2219,6 +2308,29 @@ export default function TattoDiary() {
   const deleteConsultation = (consultationId: string) => {
     if (!selectedClient) return;
     saveClient({ ...selectedClient, consultations: selectedClient.consultations.filter((c) => c.id !== consultationId) });
+  };
+
+  // ── Мастерская: standalone projects, not tied to any client ──
+  const handleAddProject = (data: {
+    title: string;
+    color: string;
+    date: string;
+    time: string;
+    area: string;
+    style: string;
+    generalNotes: string;
+    feeling: string;
+    creative: string;
+    inspirationSources: string;
+    photos: string[];
+  }) => {
+    if (editProject) {
+      saveProject({ ...editProject, ...data });
+    } else {
+      saveProject({ id: Date.now().toString(), createdDate: new Date().toISOString(), ...data });
+    }
+    setShowNewProjectForm(false);
+    setEditProject(null);
   };
 
   // ── Notes (used by the client «Дополнительно» tab and the «Сводка» screen) ──
@@ -2879,7 +2991,7 @@ export default function TattoDiary() {
           (never scrolls). Shown on every main screen, including the client
           Detail screen, hidden while a bottom sheet is open so it can't sit
           over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail') && !sheetOpen && (
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop') && !sheetOpen && (
         <NavFab
           active={screen}
           onNavigate={(s) => setScreen(s)}
@@ -2898,7 +3010,9 @@ export default function TattoDiary() {
                   ? () => setShowCalendar(true)
                   : screen === 'detail' && selectedClient
                     ? () => setShowAddChoice(true)
-                    : undefined
+                    : screen === 'workshop'
+                      ? () => setShowNewProjectForm(true)
+                      : undefined
           }
         />
       )}
@@ -3033,6 +3147,30 @@ export default function TattoDiary() {
             onOpenNotes={(urgency) => {
               setSummaryFilter(urgency);
               setScreen('summary');
+            }}
+          />
+        )}
+      </div>
+
+      {/* ═══════════ ТВОРЧЕСКАЯ МАСТЕРСКАЯ ═══════════ */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: screen === 'workshop' ? 'translateX(0)' : 'translateX(110%)',
+          transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          zIndex: 3,
+        }}
+      >
+        {screen === 'workshop' && (
+          <WorkshopScreen
+            projects={projects}
+            projectsLoaded={projectsLoaded}
+            onOpenProject={(project) => {
+              setEditProject(project);
+              setShowNewProjectForm(true);
             }}
           />
         )}
@@ -3187,6 +3325,18 @@ export default function TattoDiary() {
         initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewConsultation}
         onAdd={handleAddConsultation}
+      />
+
+      {/* ═══════════ NEW / EDIT PROJECT SHEET (Творческая мастерская) ═══════════ */}
+      <NewProjectSheet
+        open={showNewProjectForm}
+        initial={editProject}
+        onClose={() => {
+          setShowNewProjectForm(false);
+          setEditProject(null);
+        }}
+        onAdd={handleAddProject}
+        onDelete={editProject ? () => deleteProject(editProject.id) : undefined}
       />
 
       {/* ═══════════ TIMELINE VIEWER (read-only consultation / session) ═══════════ */}
@@ -4326,6 +4476,203 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ===================== ТВОРЧЕСКАЯ МАСТЕРСКАЯ =====================
+// «Мастерская» — a standalone board of sketch/portfolio ideas, none of them
+// tied to a client. Its cover cards are ClientGridCard's own design (colour
+// stripes + gem corner + drop-cap title), just built from a Project instead
+// of a Client — see ClientGridCard above for the shared decoration helpers
+// (TopStripe/RightStripe/GemCorner).
+function ProjectCard({ project, onClick }: { project: Project; onClick: () => void }) {
+  return (
+    <div
+      className="inka-card"
+      onClick={onClick}
+      style={{
+        position: 'relative',
+        background: 'transparent',
+        borderRadius: 3,
+        height: 250,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <TopStripe color={project.color} />
+      <RightStripe color={project.color} />
+      <GemCorner color={project.color} />
+
+      <div
+        style={{
+          padding: '10px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          position: 'relative',
+          zIndex: 2,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flexShrink: 0, direction: isRTL(project.title) ? 'rtl' : 'ltr' }}>
+          <span
+            style={{
+              fontFamily: DROP_CAP_FONT,
+              fontSize: fs(58),
+              fontWeight: 600,
+              lineHeight: 1.12,
+              color: COLORS.gold,
+              letterSpacing: '0px',
+              flexShrink: 0,
+              marginTop: -2,
+            }}
+          >
+            {firstLetter(project.title)}
+          </span>
+          <div style={{ paddingTop: 7, minWidth: 0, overflow: 'hidden' }}>
+            <div
+              dir="auto"
+              style={{
+                fontFamily: DROP_CAP_FONT,
+                fontSize: fs(19),
+                fontWeight: 600,
+                color: COLORS.textPrimary,
+                lineHeight: 1.2,
+                letterSpacing: '0.3px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {nameRest(project.title)}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.42), transparent)', margin: '7px 0' }} />
+
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {project.generalNotes ? (
+            <div
+              dir="auto"
+              style={{
+                fontSize: fs(15),
+                color: 'var(--text-secondary)',
+                fontStyle: 'italic',
+                lineHeight: 1.4,
+                display: '-webkit-box',
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {project.generalNotes}
+            </div>
+          ) : (
+            <div style={{ fontSize: fs(15), color: COLORS.textTrace, fontStyle: 'italic' }}>Без заметок</div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 6, minWidth: 0 }}>
+          <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Дата</div>
+          <div
+            style={{
+              fontSize: fs(12),
+              color: COLORS.textSecondary,
+              fontStyle: 'italic',
+              marginTop: 2,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {ISO_DATE_RE.test(project.date) ? formatDate(project.date) : 'Без даты'}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {project.style ? (
+            <span
+              style={{
+                fontSize: fs(11),
+                color: project.color,
+                border: `0.5px solid ${project.color}`,
+                padding: '2px 7px',
+                borderRadius: 1,
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100%',
+              }}
+            >
+              {project.style}
+            </span>
+          ) : (
+            <span style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.5px' }}>—</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkshopScreen({
+  projects,
+  projectsLoaded,
+  onOpenProject,
+}: {
+  projects: Project[];
+  projectsLoaded: boolean;
+  onOpenProject: (project: Project) => void;
+}) {
+  return (
+    <div style={{ minHeight: '100%' }}>
+      <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        <InkaLogo height={fs(34)} />
+        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+          Мастерская
+        </div>
+        <StarDivider />
+      </div>
+
+      <div
+        className="inka-client-grid"
+        style={{
+          padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)',
+          display: 'grid',
+          gap: 10,
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        {projects.map((project) => (
+          <ProjectCard key={project.id} project={project} onClick={() => onOpenProject(project)} />
+        ))}
+      </div>
+
+      {projectsLoaded && projects.length === 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 280,
+            left: 0,
+            right: 0,
+            textAlign: 'center',
+            fontSize: fs(15),
+            fontStyle: 'italic',
+            color: COLORS.textGhost,
+            pointerEvents: 'none',
+            padding: '0 40px',
+          }}
+        >
+          Пока нет проектов — нажмите «+» внизу, чтобы добавить первый
+        </div>
+      )}
     </div>
   );
 }
@@ -5579,8 +5926,6 @@ function MasterDashboardScreen({
           )}
         </GoldFrame>
 
-        {/* Оплата + Контакты side by side — оплата слева, ссылки справа. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'start' }}>
         {/* Оплата — master's own payment links + bank details. Once there's
             data, the card shows a read view that copies everything to the
             clipboard on tap; the pencil toggle switches back to the edit form. */}
@@ -5704,7 +6049,6 @@ function MasterDashboardScreen({
           ))}
           <AddChatLinkForm onAdd={addChatLink} />
         </GoldFrame>
-        </div>
 
         {/* Автоматизация — бот в Telegram (ссылка, которую мастер копирует
             и отправляет клиенту для брони) + синхронизация с Инка-
@@ -8386,11 +8730,22 @@ function SessionPhotos({
   );
 }
 
+// A session's own date when it has one; otherwise its creation time (the
+// timestamp baked into its id — see handleAddSession), converted to the same
+// yyyy-mm-dd shape. This lets an undated session slot into the timeline where
+// it was actually added, instead of always sinking to the very bottom below
+// every dated session regardless of when it was created.
+function sessionTimelineKey(session: Session): string {
+  if (ISO_DATE_RE.test(session.date)) return session.date;
+  const createdAt = Number(session.id);
+  return Number.isFinite(createdAt) ? new Date(createdAt).toISOString().slice(0, 10) : '';
+}
+
 // ── Sessions tab (also used, filtered, for the separate Консультации tab) ──
 // Sessions and consultations used to share one combined timeline under a
 // single «Сессии» tab; they're now split into their own tabs, so this
 // component takes `kind` to render just the one list, sorted the same way
-// (most recent first, undated entries sink to the bottom).
+// (most recent first; an undated session sorts by when it was added instead).
 function SessionsTab({
   kind,
   client,
@@ -8434,7 +8789,7 @@ function SessionsTab({
     );
   }
 
-  const sessions = [...client.sessions].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const sessions = [...client.sessions].sort((a, b) => sessionTimelineKey(b).localeCompare(sessionTimelineKey(a)));
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
       {sessions.length === 0 && (
@@ -10805,6 +11160,206 @@ function NewConsultationSheet({
             {isEdit ? 'Сохранить' : 'Добавить консультацию'}
           </span>
         </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// ── Новый / редактирование проекта («Творческая мастерская») — same field
+// set as NewConsultationSheet (same kind of creative brief), minus the
+// client-skin block (there's no client) and urgency chips, plus a title and
+// a colour tag (MarkerColorPalette) since a project has no client.color to
+// borrow for its cover. ──
+function NewProjectSheet({
+  open,
+  initial,
+  onClose,
+  onAdd,
+  onDelete,
+}: {
+  open: boolean;
+  initial?: Project | null;
+  onClose: () => void;
+  onAdd: (data: {
+    title: string;
+    color: string;
+    date: string;
+    time: string;
+    area: string;
+    style: string;
+    generalNotes: string;
+    feeling: string;
+    creative: string;
+    inspirationSources: string;
+    photos: string[];
+  }) => void;
+  // Present only when editing an existing project — omitted for a new one.
+  onDelete?: () => void;
+}) {
+  const isEdit = !!initial;
+  const [title, setTitle] = useState('');
+  const [color, setColor] = useState(MARKER_COLORS[0]);
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [area, setArea] = useState('');
+  const [style, setStyle] = useState('');
+  const [generalNotes, setGeneralNotes] = useState('');
+  const [feeling, setFeeling] = useState('');
+  const [creative, setCreative] = useState('');
+  const [inspirationSources, setInspirationSources] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setTitle(initial?.title ?? '');
+      setColor(initial?.color ?? MARKER_COLORS[0]);
+      setDate(initial?.date ?? '');
+      setTime(initial?.time ?? '');
+      setArea(initial?.area ?? '');
+      setStyle(initial?.style ?? '');
+      setGeneralNotes(initial?.generalNotes ?? '');
+      setFeeling(initial?.feeling ?? '');
+      setCreative(initial?.creative ?? '');
+      setInspirationSources(initial?.inspirationSources ?? '');
+      setPhotos(initial?.photos ?? []);
+      setConfirmingDelete(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  return (
+    <BottomSheet open={open} heightPct={85}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>Мастерская</div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
+          {isEdit ? 'Редактировать проект' : 'Новый проект'}
+        </div>
+        <SheetStarDivider />
+      </div>
+
+      <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
+        <div className="inka-consult-left">
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Фотографии</FieldLabel>
+            <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Цветовая метка</FieldLabel>
+            <MarkerColorPalette value={color} onPick={setColor} />
+          </div>
+        </div>
+
+        <div className="inka-consult-right">
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Название</FieldLabel>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Дракон в стиле джапан..." style={INPUT_STYLE} />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Дата</FieldLabel>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Время</FieldLabel>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Место</FieldLabel>
+            <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Общие заметки</FieldLabel>
+            <textarea
+              value={generalNotes}
+              onChange={(e) => setGeneralNotes(e.target.value)}
+              placeholder="Идея, договорённости, мысли мастера..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 90 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Чувство / ощущение</FieldLabel>
+            <textarea
+              value={feeling}
+              onChange={(e) => setFeeling(e.target.value)}
+              placeholder="Какое чувство или ощущение должна передавать татуировка..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Источники вдохновения</FieldLabel>
+            <textarea
+              value={inspirationSources}
+              onChange={(e) => setInspirationSources(e.target.value)}
+              placeholder="Укажите источники, авторов, образы..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Креатив</FieldLabel>
+            <textarea
+              value={creative}
+              onChange={(e) => setCreative(e.target.value)}
+              placeholder="Смелая идея, изюминка, что-то особенное..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 70 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Техника и стиль</FieldLabel>
+            <input
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              placeholder="Выберите технику и стилистику работы..."
+              style={INPUT_STYLE}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div
+          className="inka-submit"
+          onClick={() => onAdd({ title, color, date, time, area, style, generalNotes, feeling, creative, inspirationSources, photos })}
+          style={SUBMIT_STYLE}
+        >
+          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
+            {isEdit ? 'Сохранить' : 'Добавить проект'}
+          </span>
+        </div>
+
+        {onDelete && (
+          confirmingDelete ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div
+                onClick={() => setConfirmingDelete(false)}
+                style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}
+              >
+                Отмена
+              </div>
+              <div
+                onClick={onDelete}
+                style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}
+              >
+                Удалить проект
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={() => setConfirmingDelete(true)}
+              style={{ textAlign: 'center', padding: '10px 0', color: COLORS.textFaint, fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              Удалить проект
+            </div>
+          )
+        )}
       </div>
     </BottomSheet>
   );
