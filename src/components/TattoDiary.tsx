@@ -8383,11 +8383,22 @@ function SessionPhotos({
   );
 }
 
+// A session's own date when it has one; otherwise its creation time (the
+// timestamp baked into its id — see handleAddSession), converted to the same
+// yyyy-mm-dd shape. This lets an undated session slot into the timeline where
+// it was actually added, instead of always sinking to the very bottom below
+// every dated session regardless of when it was created.
+function sessionTimelineKey(session: Session): string {
+  if (ISO_DATE_RE.test(session.date)) return session.date;
+  const createdAt = Number(session.id);
+  return Number.isFinite(createdAt) ? new Date(createdAt).toISOString().slice(0, 10) : '';
+}
+
 // ── Sessions tab (also used, filtered, for the separate Консультации tab) ──
 // Sessions and consultations used to share one combined timeline under a
 // single «Сессии» tab; they're now split into their own tabs, so this
 // component takes `kind` to render just the one list, sorted the same way
-// (most recent first, undated entries sink to the bottom).
+// (most recent first; an undated session sorts by when it was added instead).
 function SessionsTab({
   kind,
   client,
@@ -8431,7 +8442,7 @@ function SessionsTab({
     );
   }
 
-  const sessions = [...client.sessions].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const sessions = [...client.sessions].sort((a, b) => sessionTimelineKey(b).localeCompare(sessionTimelineKey(a)));
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
       {sessions.length === 0 && (
