@@ -80,8 +80,13 @@ const GAP_WEIGHT_INNER = 1;
 // visually adjacent to Админка/Мастер (Create's own big circle sits between
 // the two halves), so only same-side neighbours need checking against each
 // other.
+// Клиенты sits further out than strict frequency order would suggest — a
+// deliberate exception so its own ray reads as clearly longer/shorter than
+// its two neighbours (Планнер, Мастерская) rather than blending into a
+// nearly-even row; the wide outer-gap weight above still keeps it clear of
+// both.
 const DEST_MIN = 68;
-const DEST_TIER_2 = 110;
+const DEST_TIER_2 = 133;
 const DEST_TIER_3 = 128;
 const DEST_TIER_4 = 136;
 const DEST_MAX = 146;
@@ -320,11 +325,12 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
 
             const { item } = entry;
             const badges = item.screen === "admin" ? adminBadges : undefined;
+            const isCurrent = item === current;
             return (
               <button
                 key={item.id}
                 type="button"
-                className="nav-fab__item"
+                className={isCurrent ? "nav-fab__item nav-fab__item--current" : "nav-fab__item"}
                 style={style}
                 aria-label={item.label}
                 onClick={() => {

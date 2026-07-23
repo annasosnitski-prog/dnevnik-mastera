@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, memo, type SVGProps } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
+import { ToolbarIcon } from './navigation/ToolbarIcons';
 import {
   readSyncSettings,
   writeSyncSettings,
@@ -321,12 +322,20 @@ interface Consultation {
 // same kind of thinking — mood, references, technique — just without a
 // person attached to it yet; the one field it adds is its own colour tag,
 // since without a client there's no `client.color` to inherit.
+type ProjectCategory = 'tattoo' | 'drawing' | 'collab' | 'other';
+
+const PROJECT_CATEGORIES: { key: ProjectCategory; label: string }[] = [
+  { key: 'tattoo', label: 'Тату' },
+  { key: 'drawing', label: 'Рисунок' },
+  { key: 'collab', label: 'Коллаба' },
+  { key: 'other', label: 'Другое' },
+];
+
 interface Project {
   id: string;
   title: string; // project name, e.g. "Дракон в стиле джапан"
   color: string; // marker colour, chosen at creation — see MarkerColorPalette
-  date: string; // ISO yyyy-mm-dd — optional, a project need not be scheduled
-  time: string; // HH:MM, 24h
+  category: ProjectCategory;
   area: string; // "Место" — intended placement, if already decided
   style: string; // "Техника и стиль"
   generalNotes: string; // "Общие заметки"
@@ -847,8 +856,7 @@ function normalizeProject(raw: any, index: number): Project {
     id: String(raw?.id ?? Date.now() + index),
     title: raw?.title ?? '',
     color: raw?.color ?? MARKER_COLORS[index % MARKER_COLORS.length],
-    date: raw?.date ?? '',
-    time: raw?.time ?? '',
+    category: PROJECT_CATEGORIES.some((c) => c.key === raw?.category) ? raw.category : 'tattoo',
     area: raw?.area ?? '',
     style: raw?.style ?? '',
     generalNotes: raw?.generalNotes ?? '',
@@ -2314,8 +2322,7 @@ export default function TattoDiary() {
   const handleAddProject = (data: {
     title: string;
     color: string;
-    date: string;
-    time: string;
+    category: ProjectCategory;
     area: string;
     style: string;
     generalNotes: string;
@@ -4541,9 +4548,10 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
                 color: COLORS.textPrimary,
                 lineHeight: 1.2,
                 letterSpacing: '0.3px',
-                whiteSpace: 'nowrap',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
               }}
             >
               {nameRest(project.title)}
@@ -4576,7 +4584,7 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
         </div>
 
         <div style={{ marginBottom: 6, minWidth: 0 }}>
-          <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Дата</div>
+          <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Тип</div>
           <div
             style={{
               fontSize: fs(12),
@@ -4588,7 +4596,7 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
               textOverflow: 'ellipsis',
             }}
           >
-            {ISO_DATE_RE.test(project.date) ? formatDate(project.date) : 'Без даты'}
+            {PROJECT_CATEGORIES.find((c) => c.key === project.category)?.label ?? 'Другое'}
           </div>
         </div>
 
@@ -5817,19 +5825,7 @@ function MasterDashboardScreen({
             cursor: 'pointer',
           }}
         >
-          <svg width="21" height="21" viewBox="0 0 20 20" fill="none" style={{ color: 'var(--gold)' }}>
-            <path
-              d="M10 6.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4Z"
-              stroke="currentColor"
-              strokeWidth="1.3"
-            />
-            <path
-              d="M10 2.4v1.9M10 15.7v1.9M17.6 10h-1.9M4.3 10H2.4M15.2 4.8l-1.34 1.34M6.14 13.86 4.8 15.2M15.2 15.2l-1.34-1.34M6.14 6.14 4.8 4.8"
-              stroke="currentColor"
-              strokeWidth="1.3"
-              strokeLinecap="round"
-            />
-          </svg>
+          <ToolbarIcon name="settingsGear" size={21} style={{ color: 'var(--gold)' }} />
         </div>
         <div
           style={{
@@ -9105,6 +9101,38 @@ function UrgencyChips({ value, onPick }: { value: UrgencyKey; onPick: (u: Urgenc
   );
 }
 
+// ── Project category picker (single-select chips, no emoji) ──
+function ProjectCategoryChips({ value, onPick }: { value: ProjectCategory; onPick: (c: ProjectCategory) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {PROJECT_CATEGORIES.map((c) => {
+        const on = value === c.key;
+        return (
+          <div
+            key={c.key}
+            onClick={() => onPick(c.key)}
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: fs(12),
+              padding: '5px 9px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              border: on ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              color: on ? COLORS.gold : COLORS.textFaint,
+              background: on ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+              letterSpacing: '0.4px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s',
+            }}
+          >
+            {c.label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // A single note row. In the client tab it shows text + urgency; in «Сводка» a
 // client label (colour dot + name in plain type) is prepended.
 function NoteItem({
@@ -11183,8 +11211,7 @@ function NewProjectSheet({
   onAdd: (data: {
     title: string;
     color: string;
-    date: string;
-    time: string;
+    category: ProjectCategory;
     area: string;
     style: string;
     generalNotes: string;
@@ -11199,8 +11226,7 @@ function NewProjectSheet({
   const isEdit = !!initial;
   const [title, setTitle] = useState('');
   const [color, setColor] = useState(MARKER_COLORS[0]);
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
+  const [category, setCategory] = useState<ProjectCategory>('tattoo');
   const [area, setArea] = useState('');
   const [style, setStyle] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
@@ -11214,8 +11240,7 @@ function NewProjectSheet({
     if (open) {
       setTitle(initial?.title ?? '');
       setColor(initial?.color ?? MARKER_COLORS[0]);
-      setDate(initial?.date ?? '');
-      setTime(initial?.time ?? '');
+      setCategory(initial?.category ?? 'tattoo');
       setArea(initial?.area ?? '');
       setStyle(initial?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
@@ -11259,12 +11284,8 @@ function NewProjectSheet({
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Дата</FieldLabel>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Время</FieldLabel>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
+            <FieldLabel>Тип</FieldLabel>
+            <ProjectCategoryChips value={category} onPick={setCategory} />
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -11327,7 +11348,7 @@ function NewProjectSheet({
       <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div
           className="inka-submit"
-          onClick={() => onAdd({ title, color, date, time, area, style, generalNotes, feeling, creative, inspirationSources, photos })}
+          onClick={() => onAdd({ title, color, category, area, style, generalNotes, feeling, creative, inspirationSources, photos })}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
