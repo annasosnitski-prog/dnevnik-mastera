@@ -13,6 +13,15 @@ import {
   type CalendarSyncSettings,
   type BotBooking,
 } from '../lib/calendarSync';
+import {
+  sendToContent,
+  ContentSyncError,
+  readContentSyncSettings,
+  writeContentSyncSettings,
+  type ContentDraftMedia,
+  type ContentSyncSettings,
+} from '../lib/contentSync';
+import { downsizeToPreview } from '../lib/imagePreview';
 
 // ===================== DESIGN TOKENS =====================
 // Values resolve to CSS variables (see index.css), so the same component
@@ -161,6 +170,10 @@ interface Session {
   // `done`. Excluded from upcoming/overdue lists; shown as «Отменена» in
   // the client's history instead of just disappearing.
   cancelled: boolean;
+  // Разметка от ContentINKA (роль/качество/архетипы/черновик текста на
+  // каждое фото) — null, пока мастер не нажала «Отправить в контент».
+  // См. src/lib/contentSync.ts.
+  contentDraft?: ContentDraftMedia[] | null;
 }
 
 interface ClientDocument {
@@ -314,6 +327,9 @@ interface Consultation {
   // reminder's «Отменить» action.
   cancelled: boolean;
   createdDate: string;
+  // См. Session.contentDraft — то же поле, для консультации фото это
+  // референсы/мудборд, разметка приходит без role/quality/format.
+  contentDraft?: ContentDraftMedia[] | null;
 }
 
 // A standalone sketch/portfolio idea for «Творческая мастерская» — not tied
@@ -787,6 +803,7 @@ function normalizeClient(raw: any, index: number): Client {
         done: s?.done ?? true,
         healed: s?.healed ?? false,
         cancelled: s?.cancelled ?? false,
+        contentDraft: Array.isArray(s?.contentDraft) ? s.contentDraft : null,
       }))
     : [];
 
@@ -834,6 +851,7 @@ function normalizeClient(raw: any, index: number): Client {
           done: Boolean(cn?.done),
           cancelled: Boolean(cn?.cancelled),
           createdDate: cn?.createdDate ?? new Date().toISOString(),
+          contentDraft: Array.isArray(cn?.contentDraft) ? cn.contentDraft : null,
         }))
       : [],
     documents: Array.isArray(raw?.documents) ? raw.documents : [],
@@ -1890,6 +1908,14 @@ export default function TattoDiary() {
     writeSyncSettings(calendarSync);
   }, [calendarSync]);
 
+  // Настройки ContentINKA — тот же принцип, свой ключ localStorage
+  // (inka-content-sync, не inka-calendar-sync), свой секрет. См.
+  // src/lib/contentSync.ts.
+  const [contentSync, setContentSync] = useState<ContentSyncSettings>(readContentSyncSettings);
+  useEffect(() => {
+    writeContentSyncSettings(contentSync);
+  }, [contentSync]);
+
   // Предупреждение о пересечении: если синхронизированная запись легла
   // поверх чего-то в календаре (например брони клиента через бота) —
   // показываем янтарный баннер. Запись не блокируется, решение за мастером.
@@ -2361,6 +2387,28 @@ export default function TattoDiary() {
     saveClient({
       ...selectedClient,
       sessions: selectedClient.sessions.map((s) => (s.id === sessionId ? { ...s, photos } : s)),
+    });
+  };
+
+  // Разметка от ContentINKA после «Отправить в контент» — см.
+  // src/lib/contentSync.ts. clientId-scoped (не selectedClient) — «Отправить
+  // в контент» доступна и из TimelineViewSheet, открытого глобально (см.
+  // markEntryCancelled выше — тот же принцип), не только со страницы клиента.
+  const updateSessionContentDraft = (clientId: string, sessionId: string, contentDraft: ContentDraftMedia[]) => {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    saveClient({
+      ...c,
+      sessions: c.sessions.map((s) => (s.id === sessionId ? { ...s, contentDraft } : s)),
+    });
+  };
+
+  const updateConsultationContentDraft = (clientId: string, consultationId: string, contentDraft: ContentDraftMedia[]) => {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    saveClient({
+      ...c,
+      consultations: c.consultations.map((cn) => (cn.id === consultationId ? { ...cn, contentDraft } : cn)),
     });
   };
 
@@ -3120,6 +3168,8 @@ export default function TattoDiary() {
             onOpenSettings={() => setScreen('settings')}
             calendarSync={calendarSync}
             onChangeCalendarSync={setCalendarSync}
+            contentSync={contentSync}
+            onChangeContentSync={setContentSync}
           />
         )}
       </div>
@@ -3351,6 +3401,7 @@ export default function TattoDiary() {
         open={!!viewEntry && (!!viewedSession || !!viewedConsultation)}
         session={viewedSession}
         consultation={viewedConsultation}
+        clientName={viewClient ? `${viewClient.name} ${viewClient.surname}`.trim() : ''}
         onClose={() => setViewEntry(null)}
         onEdit={() => {
           if (viewEntry) setSelectedId(viewEntry.clientId);
@@ -3362,6 +3413,12 @@ export default function TattoDiary() {
             setShowNewSessionForm(true);
           }
           setViewEntry(null);
+        }}
+        onSaveSessionContentDraft={(sessionId, media) => {
+          if (viewEntry) updateSessionContentDraft(viewEntry.clientId, sessionId, media);
+        }}
+        onSaveConsultationContentDraft={(consultationId, media) => {
+          if (viewEntry) updateConsultationContentDraft(viewEntry.clientId, consultationId, media);
         }}
       />
 
@@ -5790,6 +5847,8 @@ function MasterDashboardScreen({
   onOpenSettings,
   calendarSync,
   onChangeCalendarSync,
+  contentSync,
+  onChangeContentSync,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
@@ -5797,6 +5856,8 @@ function MasterDashboardScreen({
   onOpenSettings: () => void;
   calendarSync: CalendarSyncSettings;
   onChangeCalendarSync: (s: CalendarSyncSettings) => void;
+  contentSync: ContentSyncSettings;
+  onChangeContentSync: (s: ContentSyncSettings) => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -5870,6 +5931,7 @@ function MasterDashboardScreen({
 
   const [colorsOpen, setColorsOpen] = useState(false);
   const [showSyncSecret, setShowSyncSecret] = useState(false);
+  const [showContentSecret, setShowContentSecret] = useState(false);
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -6286,6 +6348,109 @@ function MasterDashboardScreen({
               : calendarSync.enabled
               ? 'нужен секретный код — без него синхронизация не работает.'
               : 'выключена: записи остаются только в дневнике.'}
+          </div>
+        </GoldFrame>
+
+        {/* ContentINKA — тот же принцип, что «Инка-календарь» выше, свой
+            секрет и свой адрес сервиса (не тот же деплой, что у бота). */}
+        <GoldFrame plain style={{ padding: '14px 16px', marginTop: 12 }}>
+          <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 8 }}>ContentINKA · Отбор и текст</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {([
+              { v: true, label: 'Включена' },
+              { v: false, label: 'Выключена' },
+            ] as { v: boolean; label: string }[]).map((o) => (
+              <div
+                key={String(o.v)}
+                onClick={() => onChangeContentSync({ ...contentSync, enabled: o.v })}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: fs(13),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  border: contentSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: contentSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: contentSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <input
+              type={showContentSecret ? 'text' : 'password'}
+              value={contentSync.secret}
+              onChange={(e) => onChangeContentSync({ ...contentSync, secret: e.target.value })}
+              placeholder="Секретный код ContentINKA"
+              autoComplete="off"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '10px 40px 10px 12px',
+                borderRadius: 2,
+                border: '1px solid rgba(var(--gold-rgb),0.2)',
+                background: 'rgba(var(--surface-rgb),0.03)',
+                color: 'var(--text-secondary)',
+                fontSize: fs(13),
+                outline: 'none',
+              }}
+            />
+            <span
+              onClick={() => setShowContentSecret((v) => !v)}
+              role="button"
+              aria-label={showContentSecret ? 'Скрыть код' : 'Показать код'}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                right: 10,
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                color: COLORS.textGhost,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {showContentSecret ? (
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              )}
+            </span>
+          </div>
+          <input
+            type="text"
+            value={contentSync.endpoint}
+            onChange={(e) => onChangeContentSync({ ...contentSync, endpoint: e.target.value })}
+            placeholder="https://contentinka-....vercel.app"
+            autoComplete="off"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px',
+              borderRadius: 2,
+              border: '1px solid rgba(var(--gold-rgb),0.2)',
+              background: 'rgba(var(--surface-rgb),0.03)',
+              color: 'var(--text-secondary)',
+              fontSize: fs(12),
+              outline: 'none',
+            }}
+          />
+          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
+            {contentSync.enabled && contentSync.secret && contentSync.endpoint
+              ? '«Отправить в контент» доступна в карточке сессии/консультации.'
+              : 'нужны адрес сервиса и секретный код — без них кнопка «Отправить в контент» не сработает.'}
           </div>
         </GoldFrame>
 
@@ -9746,18 +9911,145 @@ function ViewField({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Кнопка «Отправить в контент» + результат (роль/качество/архетип/текст на
+// каждое фото) — для сессии и консультации одна и та же панель, разница в
+// том, какой контекст собирается и что показывает role/format (для
+// консультации фото — референсы, этих полей не будет, см.
+// contentinka-design.md). Триггер — ручная кнопка, не привязана к `done`
+// (у консультации нет эквивалента «сессия завершена», а контент нужен и
+// по запланированной, и по прошедшей).
+function ContentPanel({
+  clientName,
+  sourceType,
+  itemId,
+  photos,
+  work,
+  zone,
+  style,
+  description,
+  contentDraft,
+  onSaved,
+}: {
+  clientName: string;
+  sourceType: 'session' | 'consultation';
+  itemId: string;
+  photos: string[];
+  work?: string;
+  zone: string;
+  style: string;
+  description: string;
+  contentDraft?: ContentDraftMedia[] | null;
+  onSaved: (media: ContentDraftMedia[]) => void;
+}) {
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (photos.length === 0) return null;
+
+  const handleSend = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      const previews = await Promise.all(
+        photos.map(async (photo, i) => ({
+          id: `${itemId}-${i}`,
+          preview_data_url: await downsizeToPreview(photo),
+        })),
+      );
+      const media = await sendToContent({
+        sessionId: itemId,
+        sourceType,
+        session: { client: clientName, work, zone, style, description },
+        media: previews,
+      });
+      onSaved(media);
+    } catch (err) {
+      setError(err instanceof ContentSyncError ? err.message : 'Не удалось отправить в контент.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 8 }}>
+        Контент
+      </div>
+      {!contentDraft || contentDraft.length === 0 ? (
+        <div
+          className="inka-submit"
+          onClick={sending ? undefined : handleSend}
+          style={{
+            border: '1px solid rgba(var(--gold-rgb),0.35)',
+            borderRadius: 2,
+            padding: '10px 0',
+            textAlign: 'center',
+            fontSize: fs(13),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            color: COLORS.textPrimary,
+            opacity: sending ? 0.6 : 1,
+            cursor: sending ? 'default' : 'pointer',
+          }}
+        >
+          {sending ? 'Отправляю…' : 'Отправить в контент'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {contentDraft
+            .filter((m) => m.technical_status === 'kept')
+            .map((m) => (
+              <div
+                key={m.id}
+                style={{
+                  border: '1px solid rgba(var(--gold-rgb),0.2)',
+                  borderRadius: 2,
+                  padding: '10px 12px',
+                }}
+              >
+                {(m.role || m.format) && (
+                  <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginBottom: 6, letterSpacing: '0.5px' }}>
+                    {[m.role, m.format, m.cover_candidate ? 'обложка' : null].filter(Boolean).join(' · ')}
+                  </div>
+                )}
+                {m.text_draft && (
+                  <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                    {m.text_draft}
+                  </div>
+                )}
+              </div>
+            ))}
+          <div
+            onClick={sending ? undefined : handleSend}
+            style={{ fontSize: fs(12), color: COLORS.textGhost, textAlign: 'center', cursor: sending ? 'default' : 'pointer', textDecoration: 'underline' }}
+          >
+            {sending ? 'Отправляю…' : 'Отправить заново'}
+          </div>
+        </div>
+      )}
+      {error && <div style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', marginTop: 8 }}>{error}</div>}
+    </div>
+  );
+}
+
 function TimelineViewSheet({
   open,
   session,
   consultation,
+  clientName,
   onClose,
   onEdit,
+  onSaveSessionContentDraft,
+  onSaveConsultationContentDraft,
 }: {
   open: boolean;
   session: Session | null;
   consultation: Consultation | null;
+  clientName: string;
   onClose: () => void;
   onEdit: () => void;
+  onSaveSessionContentDraft: (sessionId: string, media: ContentDraftMedia[]) => void;
+  onSaveConsultationContentDraft: (consultationId: string, media: ContentDraftMedia[]) => void;
 }) {
   const isConsult = !!consultation;
   const dateLine = (() => {
@@ -9792,6 +10084,19 @@ function TimelineViewSheet({
             <ViewField label="Креатив" value={consultation.creative} />
             <ViewField label="Техника и стиль" value={consultation.style} />
             {urgency && <ViewField label="Срочность" value={`${urgency.emoji} ${urgency.label}`} />}
+            <ContentPanel
+              clientName={clientName}
+              sourceType="consultation"
+              itemId={consultation.id}
+              photos={consultation.photos}
+              zone={consultation.area}
+              style={consultation.style}
+              description={[consultation.generalNotes, consultation.feeling, consultation.creative, consultation.inspirationSources]
+                .filter(Boolean)
+                .join('\n\n')}
+              contentDraft={consultation.contentDraft}
+              onSaved={(media) => onSaveConsultationContentDraft(consultation.id, media)}
+            />
           </>
         ) : session ? (
           <>
@@ -9804,6 +10109,18 @@ function TimelineViewSheet({
             <ViewField label="Краски" value={session.colors} />
             <ViewField label="Иглы" value={session.needles} />
             <ViewField label="Реакция кожи" value={session.skinReaction} />
+            <ContentPanel
+              clientName={clientName}
+              sourceType="session"
+              itemId={session.id}
+              photos={session.photos}
+              work={session.name}
+              zone={session.area}
+              style={session.style}
+              description={session.note}
+              contentDraft={session.contentDraft}
+              onSaved={(media) => onSaveSessionContentDraft(session.id, media)}
+            />
           </>
         ) : null}
 
