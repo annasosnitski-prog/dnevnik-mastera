@@ -4910,6 +4910,30 @@ function RemindersSection({
   );
 }
 
+// Shares a JSON payload via the native share sheet if the device has one
+// (files, not just text, so it can be AirDropped/sent as an attachment),
+// falling back to a plain browser download otherwise — shared by the full
+// backup export (Админка) and the single-client export (Инфо tab).
+async function shareOrDownloadJSON(json: string, filename: string, shareTitle: string): Promise<void> {
+  const file = new File([json], filename, { type: 'application/json' });
+  const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+  if (nav.canShare && nav.canShare({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: shareTitle });
+      return;
+    } catch (err) {
+      if ((err as DOMException)?.name === 'AbortError') return;
+    }
+  }
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ===================== ADMIN DASHBOARD =====================
 // The control panel: every reminder, the upcoming-sessions lookahead, the
 // client/session/consultation stats (minus «Частый стиль», which stays a
@@ -4962,33 +4986,11 @@ function AdminDashboardScreen({
   // replaces window.confirm() so the prompt matches the app's own dialogs.
   const [pendingImport, setPendingImport] = useState<Client[] | null>(null);
 
-  // Downloads the backup as a file — the fallback path when the device has no
-  // native share sheet (most desktop browsers).
-  const downloadBackup = (json: string, filename: string) => {
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleExport = async () => {
     const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
     const json = JSON.stringify(payload, null, 2);
     const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    const file = new File([json], filename, { type: 'application/json' });
-    const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
-    if (nav.canShare && nav.canShare({ files: [file] })) {
-      try {
-        await nav.share({ files: [file], title: 'INKA — резервная копия' });
-        return;
-      } catch (err) {
-        if ((err as DOMException)?.name === 'AbortError') return;
-      }
-    }
-    downloadBackup(json, filename);
+    await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');
   };
 
   const handleImportFile = (file: File) => {
@@ -5558,6 +5560,8 @@ function MasterDashboardScreen({
           )}
         </GoldFrame>
 
+        {/* Оплата + Контакты side by side — оплата слева, ссылки справа. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'start' }}>
         {/* Оплата — master's own payment links + bank details. Once there's
             data, the card shows a read view that copies everything to the
             clipboard on tap; the pencil toggle switches back to the edit form. */}
@@ -5623,9 +5627,9 @@ function MasterDashboardScreen({
               }}
               role="button"
               aria-label={editingPhone ? 'Готово' : 'Редактировать телефон'}
-              style={editToggleStyle}
+              style={{ ...editToggleStyle, flexShrink: 0 }}
             >
-              {editingPhone ? 'Готово' : masterInfo.phone ? 'Изменить телефон' : 'Заполнить телефон'}
+              {editingPhone ? 'Готово' : masterInfo.phone ? 'Изменить' : 'Заполнить'}
             </span>
           </div>
           {editingPhone || !masterInfo.phone ? (
@@ -5681,6 +5685,7 @@ function MasterDashboardScreen({
           ))}
           <AddChatLinkForm onAdd={addChatLink} />
         </GoldFrame>
+        </div>
 
         {/* Автоматизация — бот в Telegram (ссылка, которую мастер копирует
             и отправляет клиенту для брони) + синхронизация с Инка-
@@ -6719,6 +6724,17 @@ function DetailScreen({
     setHeaderCollapsed(true);
   }, [client.id]);
 
+  // Same file shape as the full backup (see handleExport in
+  // AdminDashboardScreen), just with a single-client array — so it imports
+  // back in through that same «Импортировать» flow without any special-casing.
+  const handleExportClient = async () => {
+    const payload = { version: 1, exportedAt: new Date().toISOString(), clients: [client] };
+    const json = JSON.stringify(payload, null, 2);
+    const safeName = `${client.name} ${client.surname}`.trim().replace(/[^\p{L}\p{N}]+/gu, '_') || 'client';
+    const filename = `inka-${safeName}-${new Date().toISOString().slice(0, 10)}.json`;
+    await shareOrDownloadJSON(json, filename, `INKA — ${client.name}`);
+  };
+
   return (
     <>
       {/* Hero header */}
@@ -6739,16 +6755,35 @@ function DetailScreen({
             </svg>
             <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
-          {/* Edit client */}
-          <div
-            className="inka-back"
-            onClick={onEditClient}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
-          >
-            <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-              <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-            </svg>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Export just this client — a JSON file in the same shape the
+                full backup uses, so it round-trips through the same import
+                on Админка. Icon-only (no label) since it sits next to
+                «править», which already carries the text weight here. */}
+            <div
+              className="inka-back"
+              onClick={handleExportClient}
+              role="button"
+              aria-label="Экспортировать клиента"
+              title="Экспортировать только этого клиента"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, cursor: 'pointer', flexShrink: 0 }}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2V10M8 10L5 7M8 10L11 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M3 12.5V13.5C3 13.78 3.22 14 3.5 14H12.5C12.78 14 13 13.78 13 13.5V12.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            {/* Edit client */}
+            <div
+              className="inka-back"
+              onClick={onEditClient}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </div>
           </div>
         </div>
 
@@ -7730,8 +7765,9 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
           }}
           style={{
             flex: 1,
+            minWidth: 0,
             textAlign: 'center',
-            padding: '9px',
+            padding: '9px 4px',
             borderRadius: 2,
             border: '1px solid rgba(var(--gold-rgb),0.15)',
             color: COLORS.textFaint,
@@ -7739,6 +7775,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             letterSpacing: '1px',
             textTransform: 'uppercase',
             cursor: 'pointer',
+            wordBreak: 'break-word',
           }}
         >
           Отмена
@@ -7753,8 +7790,9 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
           }}
           style={{
             flex: 1,
+            minWidth: 0,
             textAlign: 'center',
-            padding: '9px',
+            padding: '9px 4px',
             borderRadius: 2,
             border: '1px solid rgba(var(--gold-rgb),0.35)',
             background: 'rgba(var(--gold-rgb),0.05)',
@@ -7763,6 +7801,7 @@ function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: strin
             letterSpacing: '1px',
             textTransform: 'uppercase',
             cursor: 'pointer',
+            wordBreak: 'break-word',
           }}
         >
           Добавить
