@@ -1860,7 +1860,7 @@ export default function TattoDiary() {
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'extra'>('sessions');
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorFilter, setColorFilter] = useState<string>('all');
@@ -2116,14 +2116,16 @@ export default function TattoDiary() {
 
   // Reached once a client (existing or freshly created) is in place for the
   // event the master started from the calendar — lands on that client's
-  // sessions tab with the session/consultation form open, date prefilled.
+  // sessions or consultations tab (matching the kind being created) with
+  // the form open, date prefilled.
   const openPendingCalendarEvent = () => {
-    setActiveTab('sessions');
     setScreen('detail');
     if (calendarEventKind === 'consultation') {
+      setActiveTab('consultations');
       setEditConsultation(null);
       setShowNewConsultationForm(true);
     } else {
+      setActiveTab('sessions');
       setEditSession(null);
       setShowNewSessionForm(true);
     }
@@ -2278,17 +2280,18 @@ export default function TattoDiary() {
     const client = clients.find((c) => c.id === clientId);
     if (!client) return;
     setSelectedId(client.id);
-    setActiveTab('sessions');
     setScreen('detail');
     if (kind === 'consultation') {
       const consultation = client.consultations.find((c) => c.id === itemId);
       if (!consultation) return;
+      setActiveTab('consultations');
       setEditConsultation(consultation);
       setShowNewConsultationForm(true);
       return;
     }
     const session = client.sessions.find((s) => s.id === itemId);
     if (!session) return;
+    setActiveTab('sessions');
     setEditSession(session);
     setShowNewSessionForm(true);
   };
@@ -6693,8 +6696,8 @@ function DetailScreen({
   onImportClients,
 }: {
   client: Client;
-  activeTab: 'info' | 'sessions' | 'extra';
-  onTab: (t: 'info' | 'sessions' | 'extra') => void;
+  activeTab: 'info' | 'sessions' | 'consultations' | 'extra';
+  onTab: (t: 'info' | 'sessions' | 'consultations' | 'extra') => void;
   onBack: () => void;
   onSave: (client: Client) => void;
   onEditClient: () => void;
@@ -6758,10 +6761,21 @@ function DetailScreen({
 
   // Export and import share one button — a small menu picks which, since
   // both are the same «move a client to/from a file» idea and rarely used
-  // side by side.
+  // side by side. The menu (and the feedback tooltip below) render via
+  // `position: fixed` with a manually-tracked anchor point rather than
+  // `absolute` — the hero header this button sits in has `overflow: hidden`
+  // (it clips its own decorative art), which would otherwise clip the
+  // dropdown too whenever the header is in its collapsed (short) state.
   const [showTransferMenu, setShowTransferMenu] = useState(false);
+  const [transferMenuAnchor, setTransferMenuAnchor] = useState<{ top: number; right: number } | null>(null);
   const [importFeedback, setImportFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const transferBtnRef = useRef<HTMLDivElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const openTransferMenu = () => {
+    const rect = transferBtnRef.current?.getBoundingClientRect();
+    if (rect) setTransferMenuAnchor({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    setShowTransferMenu(true);
+  };
   const handleImportFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -6804,10 +6818,10 @@ function DetailScreen({
                 which. Same JSON shape the full backup uses (just a
                 single-client array), so an exported file round-trips back
                 in through either this button or Админка's own import. */}
-            <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+            <div ref={transferBtnRef} style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
               <div
                 className="inka-back"
-                onClick={() => setShowTransferMenu((v) => !v)}
+                onClick={() => (showTransferMenu ? setShowTransferMenu(false) : openTransferMenu())}
                 role="button"
                 aria-label="Экспорт/импорт клиента"
                 aria-expanded={showTransferMenu}
@@ -6819,14 +6833,14 @@ function DetailScreen({
                   <path d="M11 13V3M11 3L8.5 5.5M11 3L13.5 5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              {showTransferMenu && (
+              {showTransferMenu && transferMenuAnchor && (
                 <>
                   <div onClick={() => setShowTransferMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
                   <div
                     style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 8px)',
-                      right: 0,
+                      position: 'fixed',
+                      top: transferMenuAnchor.top,
+                      right: transferMenuAnchor.right,
                       width: 176,
                       background: COLORS.sheet,
                       border: '1px solid rgba(var(--gold-rgb),0.2)',
@@ -6873,9 +6887,9 @@ function DetailScreen({
               {importFeedback && (
                 <div
                   style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 8px)',
-                    right: 0,
+                    position: 'fixed',
+                    top: transferMenuAnchor?.top ?? 0,
+                    right: transferMenuAnchor?.right ?? 24,
                     whiteSpace: 'nowrap',
                     fontSize: fs(11),
                     color: importFeedback.ok ? COLORS.gold : 'var(--urgent)',
@@ -6971,6 +6985,9 @@ function DetailScreen({
         <div onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
           Сессии
         </div>
+        <div onClick={() => onTab('consultations')} style={tabStyle('consultations')}>
+          Консультации
+        </div>
         <div onClick={() => onTab('info')} style={tabStyle('info')}>
           Инфо
         </div>
@@ -6979,11 +6996,12 @@ function DetailScreen({
         </div>
       </div>
 
-      {/* "История работы" sub-header — pinned below the tab bar (never
-          scrolls), shown only on the Сессии tab. Adding a session is now
-          only reachable from the nav FAB's contextual «Создать» (shown on
-          this screen too) — no local add button duplicating it here. */}
-      {activeTab === 'sessions' && (
+      {/* Sub-header — pinned below the tab bar (never scrolls), shown on
+          both the Сессии and Консультации tabs, labelled per tab now that
+          they're split. Adding an entry is only reachable from the nav
+          FAB's contextual «Создать» (shown on this screen too) — no local
+          add button duplicating it here. */}
+      {(activeTab === 'sessions' || activeTab === 'consultations') && (
         <div
           style={{
             padding: '14px 24px',
@@ -7000,15 +7018,16 @@ function DetailScreen({
               textTransform: 'uppercase',
             }}
           >
-            История работы
+            {activeTab === 'sessions' ? 'История сессий' : 'История консультаций'}
           </div>
         </div>
       )}
 
       {/* Tab content */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px' }}>
-        {activeTab === 'sessions' && (
+        {(activeTab === 'sessions' || activeTab === 'consultations') && (
           <SessionsTab
+            kind={activeTab}
             client={client}
             onEditSession={onEditSession}
             onDeleteSession={onDeleteSession}
@@ -8043,6 +8062,52 @@ function SessionMeta({ label, value }: { label: string; value: string }) {
   );
 }
 
+// A note clamped to a few lines with a «Показать полностью ▾ / Свернуть ▴»
+// toggle — only shown when the text actually overflows that clamp, so a
+// short note never grows an affordance it doesn't need. Measured via
+// scrollHeight vs clientHeight: -webkit-line-clamp hides the extra content
+// visually but scrollHeight still reports the full, un-clamped height.
+function ExpandableText({ text, style, clampLines = 4 }: { text: string; style?: React.CSSProperties; clampLines?: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setExpanded(false);
+    const el = ref.current;
+    if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1);
+  }, [text]);
+
+  return (
+    <div>
+      <div
+        ref={ref}
+        dir="auto"
+        style={{
+          ...style,
+          ...(expanded
+            ? {}
+            : { display: '-webkit-box', WebkitLineClamp: clampLines, WebkitBoxOrient: 'vertical', overflow: 'hidden' }),
+        }}
+      >
+        {text}
+      </div>
+      {overflowing && (
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+          role="button"
+          style={{ fontSize: fs(11), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer', marginTop: 4, display: 'inline-block' }}
+        >
+          {expanded ? 'Свернуть ▴' : 'Показать полностью ▾'}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // Small ✕ on a session card; a tap reveals "Удалить? Да/Нет" inline.
 function SessionDeleteControl({
   onDelete,
@@ -8132,16 +8197,20 @@ function SessionPhotos({
   };
 
   const thumbnails = photos.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+        // A grid (not a wrapping flex row of fixed-size tiles) so thumbnails
+        // stretch to fill whatever width is left on the last row — with just
+        // one or two photos, fixed 78px tiles left most of the card's own
+        // width sitting empty next to them.
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 8, marginBottom: 10 }}>
           {photos.map((src, i) => (
-            <div key={i} style={{ position: 'relative', width: 78, height: 78 }}>
+            <div key={i} style={{ position: 'relative', width: '100%', aspectRatio: '1' }}>
               <img
                 src={src}
                 alt=""
                 onClick={() => setViewerSrc(src)}
                 style={{
-                  width: 78,
-                  height: 78,
+                  width: '100%',
+                  height: '100%',
                   objectFit: 'cover',
                   borderRadius: 2,
                   border: '1px solid rgba(var(--gold-rgb),0.2)',
@@ -8301,8 +8370,13 @@ function SessionPhotos({
   );
 }
 
-// ── Sessions tab ──
+// ── Sessions tab (also used, filtered, for the separate Консультации tab) ──
+// Sessions and consultations used to share one combined timeline under a
+// single «Сессии» tab; they're now split into their own tabs, so this
+// component takes `kind` to render just the one list, sorted the same way
+// (most recent first, undated entries sink to the bottom).
 function SessionsTab({
+  kind,
   client,
   onEditSession,
   onDeleteSession,
@@ -8313,6 +8387,7 @@ function SessionsTab({
   onViewSession,
   onViewConsultation,
 }: {
+  kind: 'sessions' | 'consultations';
   client: Client;
   onEditSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -8323,46 +8398,44 @@ function SessionsTab({
   onViewSession: (session: Session) => void;
   onViewConsultation: (consultation: Consultation) => void;
 }) {
-  // Sessions and consultations share one dated timeline — most recent first,
-  // undated entries sink to the bottom.
-  type TimelineEntry = { kind: 'session'; session: Session } | { kind: 'consultation'; consultation: Consultation };
-  const timeline: TimelineEntry[] = [
-    ...client.sessions.map((session): TimelineEntry => ({ kind: 'session', session })),
-    ...client.consultations.map((consultation): TimelineEntry => ({ kind: 'consultation', consultation })),
-  ].sort((a, b) => {
-    const dateA = a.kind === 'session' ? a.session.date : a.consultation.date;
-    const dateB = b.kind === 'session' ? b.session.date : b.consultation.date;
-    return (dateB || '').localeCompare(dateA || '');
-  });
-
-  return (
-    <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-      {timeline.length === 0 && (
-        <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий и консультаций пока нет.</div>
-      )}
-
-      {timeline.map((entry) =>
-        entry.kind === 'consultation' ? (
+  if (kind === 'consultations') {
+    const consultations = [...client.consultations].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return (
+      <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+        {consultations.length === 0 && (
+          <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Консультаций пока нет.</div>
+        )}
+        {consultations.map((consultation) => (
           <ConsultationRow
-            key={`c-${entry.consultation.id}`}
-            consultation={entry.consultation}
+            key={consultation.id}
+            consultation={consultation}
             onEdit={onEditConsultation}
-            onDelete={() => onDeleteConsultation(entry.consultation.id)}
+            onDelete={() => onDeleteConsultation(consultation.id)}
             onView={onViewConsultation}
           />
-        ) : (
-          <SessionRow
-            key={entry.session.id}
-            session={entry.session}
-            clientColor={client.color}
-            onEdit={onEditSession}
-            onDelete={() => onDeleteSession(entry.session.id)}
-            onView={onViewSession}
-            onToggleDone={() => onToggleSessionDone(entry.session.id)}
-            onUpdatePhotos={(photos) => onUpdateSessionPhotos(entry.session.id, photos)}
-          />
-        ),
+        ))}
+      </div>
+    );
+  }
+
+  const sessions = [...client.sessions].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return (
+    <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+      {sessions.length === 0 && (
+        <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
       )}
+      {sessions.map((session) => (
+        <SessionRow
+          key={session.id}
+          session={session}
+          clientColor={client.color}
+          onEdit={onEditSession}
+          onDelete={() => onDeleteSession(session.id)}
+          onView={onViewSession}
+          onToggleDone={() => onToggleSessionDone(session.id)}
+          onUpdatePhotos={(photos) => onUpdateSessionPhotos(session.id, photos)}
+        />
+      ))}
     </div>
   );
 }
@@ -8466,9 +8539,7 @@ function ConsultationRow({
           </div>
         )}
         {consultation.generalNotes && (
-          <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>
-            {consultation.generalNotes}
-          </div>
+          <ExpandableText text={consultation.generalNotes} style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }} />
         )}
         {consultation.feeling && (
           <div style={{ marginTop: 6 }}>
@@ -8617,12 +8688,19 @@ function SessionRow({
             <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
           </div>
         </div>
+        {/* Photos right under the header — same order as ConsultationRow.
+            Still the card's own quick-add (onChange, allowDelete={false}),
+            not the read-only viewer — this is the one place a photo can be
+            added without opening the full edit form. */}
+        <div onClick={(e) => e.stopPropagation()}>
+          <SessionPhotos photos={session.photos} onChange={onUpdatePhotos} allowDelete={false} />
+        </div>
         {session.area && (
           <div dir="auto" style={{ fontSize: fs(12), color: COLORS.textFaint, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>
             {session.area}
           </div>
         )}
-        {session.note && <div dir="auto" style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }}>{session.note}</div>}
+        {session.note && <ExpandableText text={session.note} style={{ fontSize: fs(15), color: 'var(--text-soft2)', fontStyle: 'italic', lineHeight: 1.6 }} />}
         {(session.colors || session.needles || session.skinReaction) && (
           <div
             style={{
@@ -8639,9 +8717,6 @@ function SessionRow({
             {session.skinReaction && <SessionMeta label="Реакция кожи" value={session.skinReaction} />}
           </div>
         )}
-        <div onClick={(e) => e.stopPropagation()}>
-          <SessionPhotos photos={session.photos} onChange={onUpdatePhotos} allowDelete={false} />
-        </div>
       </div>
     </div>
   );
@@ -10042,6 +10117,13 @@ function NewSessionSheet({
       </div>
 
       <div style={{ padding: '4px 24px 50px' }}>
+        {/* Photos first — same order as the consultation form (see
+            NewConsultationSheet), rather than tacked on near the end. */}
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Фото</FieldLabel>
+          <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
+        </div>
+
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Название сессии</FieldLabel>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
@@ -10139,12 +10221,6 @@ function NewSessionSheet({
             placeholder="Что делали, наблюдения..."
             style={{ ...INPUT_STYLE, resize: 'none', height: 80 }}
           />
-        </div>
-
-        {/* Photos: upload (native picker offers "Take Photo" on mobile) */}
-        <div style={{ marginBottom: 14 }}>
-          <FieldLabel>Фото</FieldLabel>
-          <SessionPhotos photos={photos} onChange={setPhotos} />
         </div>
 
         {/* Manually ticked once a healed-skin photo has been added — drives
