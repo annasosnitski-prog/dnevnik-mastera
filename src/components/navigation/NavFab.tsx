@@ -143,11 +143,12 @@ const ITEM_SIZE = ITEM_HALF * 2;
 
 // Every other icon has real margin baked into its own viewBox, so rendering
 // it at 2/3 of the button's height already reads as comfortably inset. The
-// «Мастерская» brush glyph fills its own viewBox corner-to-corner (tip to
-// tip, on the diagonal), so the same 2/3-of-height size instead makes its
-// diagonal span nearly the whole button. Sized down separately so that
-// diagonal — not its height — comes out to 2/3 of the button's diameter.
-const BRUSH_ICON_SIZE = Math.round((ITEM_SIZE * 2) / 3 / Math.SQRT2);
+// «Мастерская» brush and «Мастер» wrench glyphs both lean on the diagonal
+// and fill their own viewBox corner-to-corner (tip to tip), so the same
+// 2/3-of-height size instead makes that diagonal span nearly the whole
+// button. Sized down separately for both so the diagonal — not the height —
+// comes out to 2/3 of the button's diameter.
+const DIAGONAL_ICON_SIZE = Math.round((ITEM_SIZE * 2) / 3 / Math.SQRT2);
 
 // Single circular button, bottom-centre — replaces the full-width bottom bar.
 // Closed, it shows the icon for whatever screen is currently open (so you
@@ -370,9 +371,13 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 }}
               >
                 {/* Icons fill 2/3 of their own button's height, matching the
-                    hub's own icon-to-button ratio — except the brush, sized
-                    by its own diagonal instead (see BRUSH_ICON_SIZE above). */}
-                <ToolbarIcon name={item.id} size={item.id === "brush" ? BRUSH_ICON_SIZE : Math.round((ITEM_SIZE * 2) / 3)} />
+                    hub's own icon-to-button ratio — except the brush and
+                    wrench, sized by their own diagonal instead (see
+                    DIAGONAL_ICON_SIZE above). */}
+                <ToolbarIcon
+                  name={item.id}
+                  size={item.id === "brush" || item.id === "gear" ? DIAGONAL_ICON_SIZE : Math.round((ITEM_SIZE * 2) / 3)}
+                />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
