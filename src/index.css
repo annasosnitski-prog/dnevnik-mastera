@@ -301,6 +301,14 @@
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
+/* Grows by two-thirds while the fan is open — the hub reads as "in charge"
+   of the ring around it rather than just one more circle sitting there.
+   HUB_HALF (27px) scaled by 5/3 is still well inside the closest fan item's
+   own radius, so it never overlaps a destination. */
+.nav-fab__main--open {
+  --nav-scale: 1.667;
+}
+
 .nav-fab__main:active {
   --nav-scale: 0.92;
 }

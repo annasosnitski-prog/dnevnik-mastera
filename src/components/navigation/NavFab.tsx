@@ -403,7 +403,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           })}
         <button
           type="button"
-          className="nav-fab__main"
+          className={open ? "nav-fab__main nav-fab__main--open" : "nav-fab__main"}
           aria-label={open ? "Закрыть меню" : `Раздел: ${current.label}`}
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}

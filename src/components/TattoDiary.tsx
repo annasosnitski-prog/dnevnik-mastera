@@ -9884,6 +9884,20 @@ function SheetCloseButton({ onClose }: { onClose: () => void }) {
   );
 }
 
+// Sits in the same top-right corner as SheetCloseButton, same size — swapped
+// in briefly after saving an edit (Session/Consultation) so the confirmation
+// reads as "the close button turned into a checkmark" rather than an
+// unrelated toast appearing elsewhere on the sheet.
+function SheetSavedCheck() {
+  return (
+    <div style={{ position: 'absolute', top: 18, right: 24 }}>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M2.5 8.3L6 11.8L13.5 4.3" stroke="#5E8C4A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
 // ===================== CALENDAR SHEET =====================
 // A month calendar opened from the «Ближайшая» badge on the client list.
 // Days holding a session or consultation get a marker dot (gold = session,
@@ -10543,6 +10557,11 @@ function NewSessionSheet({
   // to «Запланирована» instead.
   const [done, setDone] = useState(true);
   const [healed, setHealed] = useState(false);
+  // Briefly swaps the close «×» for a green check after saving an edit — see
+  // SheetSavedCheck — so the save reads as confirmed rather than the sheet
+  // just vanishing. Shown unconditionally on every edit-save, even when
+  // nothing in the form actually changed.
+  const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -10560,9 +10579,20 @@ function NewSessionSheet({
       setPhotos(initial?.photos ?? []);
       setDone(initial ? initial.done : !initialDate);
       setHealed(initial?.healed ?? false);
+      setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const handleSave = () => {
+    const data = { name, date, time, duration, style, area, colors, needles, skinReaction, note, photos, done, healed };
+    if (isEdit) {
+      setJustSaved(true);
+      setTimeout(() => onAdd(data), 700);
+    } else {
+      onAdd(data);
+    }
+  };
 
   const chipStyle = (selected: boolean, big: boolean): React.CSSProperties => ({
     fontFamily: "'Inter', sans-serif",
@@ -10582,7 +10612,7 @@ function NewSessionSheet({
   return (
     <BottomSheet open={open} heightPct={80}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        <SheetCloseButton onClose={onClose} />
+        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
           {isEdit ? 'Редактировать сессию' : 'Новая сессия'}
@@ -10729,7 +10759,7 @@ function NewSessionSheet({
 
         <div
           className="inka-submit"
-          onClick={() => onAdd({ name, date, time, duration, style, area, colors, needles, skinReaction, note, photos, done, healed })}
+          onClick={handleSave}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
@@ -11122,6 +11152,9 @@ function NewConsultationSheet({
   const [inspirationSources, setInspirationSources] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
+  // See NewSessionSheet's justSaved for why this shows unconditionally on
+  // every edit-save, not just when something actually changed.
+  const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -11135,14 +11168,25 @@ function NewConsultationSheet({
       setInspirationSources(initial?.inspirationSources ?? '');
       setUrgency(initial?.urgency ?? 'important');
       setPhotos(initial?.photos ?? []);
+      setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const handleSave = () => {
+    const data = { date, time, area, style, generalNotes, feeling, creative, inspirationSources, urgency, photos };
+    if (isEdit) {
+      setJustSaved(true);
+      setTimeout(() => onAdd(data), 700);
+    } else {
+      onAdd(data);
+    }
+  };
+
   return (
     <BottomSheet open={open} heightPct={85}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        <SheetCloseButton onClose={onClose} />
+        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
           {isEdit ? 'Редактировать консультацию' : 'Новая консультация'}
@@ -11280,7 +11324,7 @@ function NewConsultationSheet({
       <div style={{ padding: '0 24px 40px' }}>
         <div
           className="inka-submit"
-          onClick={() => onAdd({ date, time, area, style, generalNotes, feeling, creative, inspirationSources, urgency, photos })}
+          onClick={handleSave}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
