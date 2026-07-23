@@ -6306,7 +6306,11 @@ function SummaryScreen({
       const r = urgencyRank(a.note.urgency) - urgencyRank(b.note.urgency);
       return r !== 0 ? r : b.note.createdDate.localeCompare(a.note.createdDate);
     });
-  const hasAnyNote = masterNotes.length > 0 || clients.some((c) => c.notes.length);
+  // Split into two dedicated columns — general (the master's own, client-less)
+  // and work notes (tied to a client) — instead of one mixed list.
+  const generalItems = items.filter(({ client }) => client === null);
+  const workItems = items.filter(({ client }) => client !== null);
+  const hasAnyClientNote = clients.some((c) => c.notes.length);
 
   return (
     <div style={{ minHeight: '100%' }}>
@@ -6315,7 +6319,7 @@ function SummaryScreen({
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
         <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Рабочие заметки
+          Планнер
         </div>
         <StarDivider />
       </div>
@@ -6423,82 +6427,24 @@ function SummaryScreen({
         </div>
       </div>
 
-      {/* New general note (client-less, stored on the master) — opened via
-          the nav FAB's contextual «Создать» action. */}
-      {showComposer && (
-        <div style={{ padding: '0 20px 14px', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-              Новая общая заметка
-            </div>
-            <ReminderCloseButton onClick={() => onShowComposerChange(false)} />
-          </div>
-          <NoteComposer
-            onAdd={(text, urgency, photos) => {
-              onAddMasterNote(text, urgency, photos);
-              onShowComposerChange(false);
-            }}
-          />
+      {/* Planned sessions & consultations, full width, up top — a quick look
+          at what's coming before the notes columns below. */}
+      <div style={{ padding: '2px 20px 16px', position: 'relative', zIndex: 1 }}>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 8 }}>
+          Записи
         </div>
-      )}
-
-      {/* Two columns, like the client list: the task list on the left,
-          planned sessions & consultations on the right. */}
-      <div style={{ padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
-        {/* Column 1 — the task list */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
-            Задачи
-          </div>
-          {items.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
-              {hasAnyNote ? 'Нет по этому фильтру' : 'Заметок пока нет'}
-            </div>
-          ) : (
-            items.map(({ note, client }) =>
-              client ? (
-                <div key={`${client.id}-${note.id}`} onClick={() => onOpenClient(client.id)} style={{ cursor: 'pointer' }}>
-                  <NoteItem
-                    note={note}
-                    client={client}
-                    onToggleDone={() => onToggleDone(client.id, { ...note, done: !note.done })}
-                    onEdit={(text, urgency) => onEditNote(client.id, { ...note, text, urgency })}
-                    onDelete={() => onDeleteNote(client.id, note.id)}
-                  />
-                </div>
-              ) : (
-                <div key={`master-${note.id}`}>
-                  <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 4, marginLeft: 2 }}>
-                    Общая заметка
-                  </div>
-                  <NoteItem
-                    note={note}
-                    onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
-                    onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
-                    onDelete={() => onDeleteMasterNote(note.id)}
-                  />
-                </div>
-              ),
-            )
-          )}
-        </div>
-
-        {/* Column 2 — planned sessions & consultations */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
-            Записи
-          </div>
-          {plannedItems.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
-          ) : (
-            plannedItems.map((it) => (
+        {plannedItems.length === 0 ? (
+          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированного</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {plannedItems.map((it) => (
               <div
                 key={`${it.kind}-${it.client.id}-${it.id}`}
                 onClick={() => (it.kind === 'session' ? onOpenSession(it.client.id, it.id) : onOpenConsultation(it.client.id, it.id))}
                 style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: 3,
+                  alignItems: 'center',
+                  gap: 10,
                   padding: '9px 11px',
                   borderRadius: 2,
                   cursor: 'pointer',
@@ -6506,19 +6452,89 @@ function SummaryScreen({
                   background: 'rgba(var(--surface-rgb),0.018)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.client.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {it.client.name || '—'}
-                  </span>
-                </div>
-                <div style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.client.color, flexShrink: 0 }} />
+                <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>
+                  {it.client.name || '—'}
+                </span>
+                <span style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>
                   {it.kind === 'session' ? 'Сессия' : 'Консультация'}
-                </div>
-                <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
+                </span>
+                <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
                   {it.date ? formatDate(it.date).replace(/ \d{4}$/, '') : 'Без даты'}
                   {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1 }}>
+        <StarDivider />
+      </div>
+
+      {/* Two columns of notes below: general (the master's own, client-less)
+          on the left, work notes (tied to a client) on the right. */}
+      <div style={{ padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+        {/* Column 1 — general notes (client-less, the master's own) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
+            Общие
+          </div>
+          {/* New general note (client-less, stored on the master) — opened
+              via the nav FAB's contextual «Создать» action. */}
+          {showComposer && (
+            <div style={{ marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  Новая заметка
                 </div>
+                <ReminderCloseButton onClick={() => onShowComposerChange(false)} />
+              </div>
+              <NoteComposer
+                onAdd={(text, urgency, photos) => {
+                  onAddMasterNote(text, urgency, photos);
+                  onShowComposerChange(false);
+                }}
+              />
+            </div>
+          )}
+          {generalItems.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+              {masterNotes.length ? 'Нет по этому фильтру' : 'Заметок пока нет'}
+            </div>
+          ) : (
+            generalItems.map(({ note }) => (
+              <NoteItem
+                key={`master-${note.id}`}
+                note={note}
+                onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
+                onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
+                onDelete={() => onDeleteMasterNote(note.id)}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Column 2 — work notes (tied to a client) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
+            Рабочие
+          </div>
+          {workItems.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+              {hasAnyClientNote ? 'Нет по этому фильтру' : 'Заметок пока нет'}
+            </div>
+          ) : (
+            workItems.map(({ note, client }) => (
+              <div key={`${client!.id}-${note.id}`} onClick={() => onOpenClient(client!.id)} style={{ cursor: 'pointer' }}>
+                <NoteItem
+                  note={note}
+                  client={client!}
+                  onToggleDone={() => onToggleDone(client!.id, { ...note, done: !note.done })}
+                  onEdit={(text, urgency) => onEditNote(client!.id, { ...note, text, urgency })}
+                  onDelete={() => onDeleteNote(client!.id, note.id)}
+                />
               </div>
             ))
           )}
@@ -6988,11 +7004,11 @@ function DetailScreen({
         <div onClick={() => onTab('consultations')} style={tabStyle('consultations')}>
           Консультации
         </div>
+        <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
+          Заметки
+        </div>
         <div onClick={() => onTab('info')} style={tabStyle('info')}>
           Инфо
-        </div>
-        <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
-          Задачи
         </div>
       </div>
 
@@ -8428,7 +8444,6 @@ function SessionsTab({
         <SessionRow
           key={session.id}
           session={session}
-          clientColor={client.color}
           onEdit={onEditSession}
           onDelete={() => onDeleteSession(session.id)}
           onView={onViewSession}
@@ -8458,25 +8473,11 @@ function ConsultationRow({
   const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(() => setConfirming(true));
   const meta = urgencyMeta(consultation.urgency);
   return (
-    <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            flexShrink: 0,
-            marginTop: 4,
-            border: '1px solid rgba(var(--gold-rgb),0.5)',
-          }}
-        />
-        <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
-      </div>
+    <div style={{ marginBottom: 14 }}>
       <div
         onClick={() => onView(consultation)}
         {...swipeHandlers}
         style={{
-          flex: 1,
           background: 'rgba(var(--surface-rgb),0.018)',
           border: '1px solid rgba(var(--gold-rgb),0.22)',
           borderRadius: 2,
@@ -8524,7 +8525,11 @@ function ConsultationRow({
                 <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
             </div>
-            <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+            {/* Extra gap + divider before delete — pencil and × used to sit
+                right next to each other, easy to mis-tap. */}
+            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, marginLeft: 2, borderLeft: '1px solid rgba(var(--gold-rgb),0.15)' }}>
+              <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+            </div>
           </div>
         </div>
         {/* Photos moved up — right under the header — and read-only here. */}
@@ -8565,7 +8570,6 @@ function ConsultationRow({
 // delete as ConsultationRow above.
 function SessionRow({
   session,
-  clientColor,
   onEdit,
   onDelete,
   onView,
@@ -8573,7 +8577,6 @@ function SessionRow({
   onUpdatePhotos,
 }: {
   session: Session;
-  clientColor: string;
   onEdit: (session: Session) => void;
   onDelete: () => void;
   onView: (session: Session) => void;
@@ -8583,26 +8586,11 @@ function SessionRow({
   const [confirming, setConfirming] = useState(false);
   const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(() => setConfirming(true));
   return (
-    <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 8 }}>
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            flexShrink: 0,
-            marginTop: 4,
-            background: session.done ? clientColor : 'transparent',
-            border: session.done ? 'none' : '1px solid rgba(var(--gold-rgb),0.25)',
-          }}
-        />
-        <div style={{ width: 1, flex: 1, background: 'rgba(var(--gold-rgb),0.08)', marginTop: 5 }} />
-      </div>
+    <div style={{ marginBottom: 14 }}>
       <div
         onClick={() => onView(session)}
         {...swipeHandlers}
         style={{
-          flex: 1,
           background: 'rgba(var(--surface-rgb),0.018)',
           border: '1px solid rgba(var(--gold-rgb),0.1)',
           borderRadius: 2,
@@ -8685,7 +8673,11 @@ function SessionRow({
                 <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
             </div>
-            <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+            {/* Extra gap + divider before delete — pencil and × used to sit
+                right next to each other, easy to mis-tap. */}
+            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, marginLeft: 2, borderLeft: '1px solid rgba(var(--gold-rgb),0.15)' }}>
+              <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+            </div>
           </div>
         </div>
         {/* Photos right under the header — same order as ConsultationRow.

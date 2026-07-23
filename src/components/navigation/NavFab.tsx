@@ -27,7 +27,7 @@ const NAV_ITEMS: {
   screen: AppScreen;
   isActive: (active: AppScreen) => boolean;
 }[] = [
-  { id: "sketchbook", label: "Блокнот", screen: "summary", isActive: (a) => a === "summary" },
+  { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary" },
   // «Клиенты» stays lit for Настройки and a client's Detail screen too —
   // both are reached from the roster, not a separate section.
   { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail" },
@@ -98,7 +98,7 @@ function rayShape(x1: number, y1: number, x2: number, y2: number, wNear: number,
 // between the two circles' edges, not centre-to-centre, so it reads as
 // deliberately meeting each button's outline rather than just being hidden
 // underneath it.
-const HUB_HALF = 41;
+const HUB_HALF = 27;
 const ITEM_HALF = 31;
 
 // Single circular button, bottom-centre — replaces the full-width bottom bar.
