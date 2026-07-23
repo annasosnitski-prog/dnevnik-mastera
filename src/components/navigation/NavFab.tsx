@@ -16,24 +16,25 @@ interface NavFabProps {
   onCreate?: () => void;
 }
 
-// Ordered by how often a master actually reaches for each one: Блокнот
-// (logged the most), Клиенты (the core roster), Мастерская (creative work,
-// reached for often but not constantly), Админка (checked daily/weekly),
-// Мастер (settings — reached for least). «Создать» sits above all of these
-// (see the render below) as the one action, not a destination.
+// Order used to be pure frequency (Планнер reached for most, Мастер least),
+// but Планнер and Мастер have swapped array slots on explicit request — the
+// radius each id maps to (see RADIUS below) was swapped along with them, so
+// this is a full slot exchange, not just an angular reshuffle: Мастер now
+// takes Планнер's old close-in ray (then doubled — see DEST_MIN below) and
+// Планнер takes Мастер's old far ray.
 const NAV_ITEMS: {
   id: "sketchbook" | "clients" | "brush" | "profile" | "gear";
   label: string;
   screen: AppScreen;
   isActive: (active: AppScreen) => boolean;
 }[] = [
-  { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary" },
+  { id: "gear", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
   // «Клиенты» stays lit for Настройки and a client's Detail screen too —
   // both are reached from the roster, not a separate section.
   { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail" },
   { id: "brush", label: "Мастерская", screen: "workshop", isActive: (a) => a === "workshop" },
   { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
-  { id: "gear", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
+  { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary" },
 ];
 
 // Angle: split across however many items happen to be open right now — see
@@ -52,20 +53,24 @@ const ARC_SPAN_DEG = 150;
 // without the two circles' edges overlapping.
 const GAP_WEIGHT_OUTER = 1.5;
 const GAP_WEIGHT_INNER = 1;
-// The Планнер↔Клиенты gap specifically gets an even bigger share, taken from
-// the Клиенты↔Мастерская gap next to it (their sum still keeps every later
-// slot — Мастерская, «Создать», Админка, Мастер — at the same angle as
-// before). That tilts Клиенты's own position toward vertical, so its height
-// reads as its own distinct step between «Создать» and the Мастерская/
-// Админка pair, rather than blending into their row (see DEST_TIER_2 below).
-const GAP_WEIGHT_SKETCHBOOK_CLIENTS = 2.367;
-const GAP_WEIGHT_CLIENTS_BRUSH = 1.233;
+// Клиенты's own left-hand gap (to whichever item sits at NAV_ITEMS index 0 —
+// Мастер, now that it's swapped in) specifically gets an even bigger share,
+// taken from Клиенты's right-hand gap (to Мастерская at index 2) next to it
+// (their sum still keeps every later slot — Мастерская, «Создать», Админка,
+// Планнер — at the same angle as before). That tilts Клиенты's own position
+// toward vertical, so its height reads as its own distinct step between
+// «Создать» and the Мастерская/Админка pair, rather than blending into their
+// row (see DEST_TIER_2 below).
+const GAP_WEIGHT_CLIENTS_LEFT = 2.367;
+const GAP_WEIGHT_CLIENTS_RIGHT = 1.233;
 
 // Radius: fixed per destination — this is where each one's own importance
 // shows up. Per Fitts's law, a target reached for constantly should need
 // less travel to hit than one opened rarely, so radius follows NAV_ITEMS'
-// own frequency ranking (Блокнот > Клиенты > Админка > Мастер): closer for
-// the ones used all the time, farther for the rare ones.
+// own frequency ranking: closer for the ones used all the time, farther for
+// the rare ones. Мастер is the one deliberate exception (see MASTER_RADIUS
+// below) — swapped onto Планнер's old close-in ray, then doubled on top of
+// that, an explicit override rather than a frequency read.
 //
 // DEST_MIN sits right outside the hub — as tight as it can get without the
 // two circles' own edges touching (HUB_HALF + ITEM_HALF + a small gap for
@@ -81,16 +86,16 @@ const GAP_WEIGHT_CLIENTS_BRUSH = 1.233;
 // wide, deliberate margin — it's the one CTA, not a fourth destination, so
 // it needs to read as a different tier at a glance, not just one more step
 // in the same sequence.
-// With 5 destinations (was 4), Планнер/Клиенты/Мастерская all sit before
+// With 5 destinations (was 4), Мастер/Клиенты/Мастерская all sit before
 // «Создать» in the fan sequence — three items sharing one outer-gap chain
 // instead of two — so the same-angle overlap constraint now binds on that
 // whole chain, not just the closest pair. Клиенты and Мастерская aren't
-// visually adjacent to Админка/Мастер (Create's own big circle sits between
+// visually adjacent to Админка/Планнер (Create's own big circle sits between
 // the two halves), so only same-side neighbours need checking against each
 // other.
 // Клиенты sits further out than strict frequency order would suggest — a
 // deliberate exception so its own ray reads as clearly longer/shorter than
-// its two neighbours (Планнер, Мастерская) rather than blending into a
+// its two neighbours (Мастер, Мастерская) rather than blending into a
 // nearly-even row; the wide outer-gap weight above still keeps it clear of
 // both.
 const DEST_MIN = 68;
@@ -99,17 +104,23 @@ const DEST_TIER_3 = 128;
 const DEST_TIER_4 = 136;
 const DEST_MAX = 146;
 const CREATE_RADIUS = 205;
+// Мастер and Планнер swapped array slots on request, and their radii
+// swapped along with them (Планнер now rides Мастер's old DEST_MAX ray) —
+// then Мастер's own new ray was doubled again on top of that, so it no
+// longer reads as "the closest, most-frequent" ray despite sitting where
+// that slot used to be.
+const MASTER_RADIUS = DEST_MIN * 2;
 
 // Explicit key set (not derived from ToolbarIconName) — the main button
 // below always shows the $ icon regardless of the active screen, so
 // "tasks" no longer names a fan destination and doesn't need a radius here.
 const RADIUS: Record<"sketchbook" | "clients" | "brush" | "profile" | "gear" | "create", number> = {
   create: CREATE_RADIUS,
-  sketchbook: DEST_MIN,
+  sketchbook: DEST_MAX,
   clients: DEST_TIER_2,
   brush: DEST_TIER_3,
   profile: DEST_TIER_4,
-  gear: DEST_MAX,
+  gear: MASTER_RADIUS,
 };
 
 function arcOffset(angleDeg: number, radius: number): { dx: number; dy: number } {
@@ -177,23 +188,25 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   // «Создать», larger (GAP_WEIGHT_OUTER) between two destinations — then
   // normalised so the weights sum to the full ARC_SPAN_DEG. See GAP_WEIGHT
   // above for why: it's what gives the destination pairs room to spread
-  // their radii apart without the circles themselves overlapping. The
-  // Планнер↔Клиенты / Клиенты↔Мастерская pair gets its own special-cased
-  // split (by id, not just create-adjacency) so Клиенты's own angle can
-  // tilt toward vertical without shifting anything past Мастерская — see
-  // GAP_WEIGHT_SKETCHBOOK_CLIENTS above.
-  const idOf = (e: FanEntry) => (e.kind === "nav" ? e.item.id : null);
+  // their radii apart without the circles themselves overlapping. Клиенты's
+  // own two gaps (to whichever items flank it in NAV_ITEMS — index 0 and 2,
+  // not any particular id) get their own special-cased split so its angle
+  // can tilt toward vertical without shifting anything past its far
+  // neighbour — see GAP_WEIGHT_CLIENTS_LEFT above. Keyed by NAV_ITEMS
+  // index rather than id so this keeps targeting Клиенты's actual neighbours
+  // if NAV_ITEMS gets reordered again.
+  const indexOf = (e: FanEntry) => (e.kind === "nav" ? NAV_ITEMS.indexOf(e.item) : -1);
   const gapWeights = fanEntries.slice(1).map((_, i) => {
     const a = fanEntries[i];
     const b = fanEntries[i + 1];
     if (a.kind === "create" || b.kind === "create") return GAP_WEIGHT_INNER;
-    const aId = idOf(a);
-    const bId = idOf(b);
-    if ((aId === "sketchbook" && bId === "clients") || (aId === "clients" && bId === "sketchbook")) {
-      return GAP_WEIGHT_SKETCHBOOK_CLIENTS;
+    const aIdx = indexOf(a);
+    const bIdx = indexOf(b);
+    if ((aIdx === 0 && bIdx === 1) || (aIdx === 1 && bIdx === 0)) {
+      return GAP_WEIGHT_CLIENTS_LEFT;
     }
-    if ((aId === "clients" && bId === "brush") || (aId === "brush" && bId === "clients")) {
-      return GAP_WEIGHT_CLIENTS_BRUSH;
+    if ((aIdx === 1 && bIdx === 2) || (aIdx === 2 && bIdx === 1)) {
+      return GAP_WEIGHT_CLIENTS_RIGHT;
     }
     return GAP_WEIGHT_OUTER;
   });
