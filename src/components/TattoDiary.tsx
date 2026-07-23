@@ -5579,8 +5579,6 @@ function MasterDashboardScreen({
           )}
         </GoldFrame>
 
-        {/* Оплата + Контакты side by side — оплата слева, ссылки справа. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'start' }}>
         {/* Оплата — master's own payment links + bank details. Once there's
             data, the card shows a read view that copies everything to the
             clipboard on tap; the pencil toggle switches back to the edit form. */}
@@ -5704,7 +5702,6 @@ function MasterDashboardScreen({
           ))}
           <AddChatLinkForm onAdd={addChatLink} />
         </GoldFrame>
-        </div>
 
         {/* Автоматизация — бот в Telegram (ссылка, которую мастер копирует
             и отправляет клиенту для брони) + синхронизация с Инка-
