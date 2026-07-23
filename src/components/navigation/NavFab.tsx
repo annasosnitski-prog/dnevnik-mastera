@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcons";
 
-type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail";
+type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop";
 
 interface NavFabProps {
   active: AppScreen;
@@ -17,12 +17,12 @@ interface NavFabProps {
 }
 
 // Ordered by how often a master actually reaches for each one: Блокнот
-// (logged the most), Клиенты (the core roster), Админка (checked daily/
-// weekly, not constantly), Мастер (settings — reached for least). «Создать»
-// sits above all of these (see the render below) as the one action, not a
-// destination.
+// (logged the most), Клиенты (the core roster), Мастерская (creative work,
+// reached for often but not constantly), Админка (checked daily/weekly),
+// Мастер (settings — reached for least). «Создать» sits above all of these
+// (see the render below) as the one action, not a destination.
 const NAV_ITEMS: {
-  id: "sketchbook" | "clients" | "profile" | "gear";
+  id: "sketchbook" | "clients" | "brush" | "profile" | "gear";
   label: string;
   screen: AppScreen;
   isActive: (active: AppScreen) => boolean;
@@ -31,6 +31,7 @@ const NAV_ITEMS: {
   // «Клиенты» stays lit for Настройки and a client's Detail screen too —
   // both are reached from the roster, not a separate section.
   { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail" },
+  { id: "brush", label: "Мастерская", screen: "workshop", isActive: (a) => a === "workshop" },
   { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
   { id: "gear", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
 ];
@@ -72,20 +73,29 @@ const GAP_WEIGHT_INNER = 1;
 // wide, deliberate margin — it's the one CTA, not a fourth destination, so
 // it needs to read as a different tier at a glance, not just one more step
 // in the same sequence.
+// With 5 destinations (was 4), Планнер/Клиенты/Мастерская all sit before
+// «Создать» in the fan sequence — three items sharing one outer-gap chain
+// instead of two — so the same-angle overlap constraint now binds on that
+// whole chain, not just the closest pair. Клиенты and Мастерская aren't
+// visually adjacent to Админка/Мастер (Create's own big circle sits between
+// the two halves), so only same-side neighbours need checking against each
+// other.
 const DEST_MIN = 68;
-const DEST_TIER_2 = 100;
-const DEST_TIER_3 = 122;
-const DEST_MAX = 145;
-const CREATE_RADIUS = 200;
+const DEST_TIER_2 = 110;
+const DEST_TIER_3 = 128;
+const DEST_TIER_4 = 136;
+const DEST_MAX = 146;
+const CREATE_RADIUS = 205;
 
 // Explicit key set (not derived from ToolbarIconName) — the main button
 // below always shows the $ icon regardless of the active screen, so
 // "tasks" no longer names a fan destination and doesn't need a radius here.
-const RADIUS: Record<"sketchbook" | "clients" | "profile" | "gear" | "create", number> = {
+const RADIUS: Record<"sketchbook" | "clients" | "brush" | "profile" | "gear" | "create", number> = {
   create: CREATE_RADIUS,
   sketchbook: DEST_MIN,
   clients: DEST_TIER_2,
-  profile: DEST_TIER_3,
+  brush: DEST_TIER_3,
+  profile: DEST_TIER_4,
   gear: DEST_MAX,
 };
 

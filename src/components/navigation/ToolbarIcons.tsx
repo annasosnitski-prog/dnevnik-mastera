@@ -5,7 +5,8 @@ export type ToolbarIconName =
   | "sketchbook"
   | "profile"
   | "gear"
-  | "clients";
+  | "clients"
+  | "brush";
 
 interface ToolbarIconProps extends SVGProps<SVGSVGElement> {
   name: ToolbarIconName;
@@ -112,6 +113,24 @@ function JewelryClientsIcon(
   );
 }
 
+// A paintbrush leaning on the diagonal — handle, metal ferrule band, and a
+// tapered bristle tip — filled solid like the gear/sketchbook icons above,
+// for «Мастерская» (the standalone sketch/idea board, separate from any
+// client).
+function JewelryBrushIcon(
+  props: SVGProps<SVGSVGElement>,
+) {
+  return (
+    <svg viewBox="0 0 32 32" fill="currentColor" stroke="none" {...props}>
+      <g transform="rotate(45 16 16)">
+        <path d="M13.4 14.2H18.6V29.5C18.6 30.5 17.8 31.3 16.8 31.3H15.2C14.2 31.3 13.4 30.5 13.4 29.5Z" />
+        <rect x="12.6" y="10.4" width="6.8" height="4.4" />
+        <path d="M12.6 10.4 L19.4 10.4 L16.6 1 C16.4 0.6 15.6 0.6 15.4 1 Z" />
+      </g>
+    </svg>
+  );
+}
+
 export function ToolbarIcon({
   name,
   size = 30,
@@ -138,5 +157,7 @@ export function ToolbarIcon({
       return <JewelryGearIcon {...iconProps} />;
     case "clients":
       return <JewelryClientsIcon {...iconProps} />;
+    case "brush":
+      return <JewelryBrushIcon {...iconProps} />;
   }
 }
