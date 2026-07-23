@@ -100,11 +100,11 @@ function JewelryClientsIcon(
 ) {
   return (
     <svg viewBox="0 0 32 32" fill="currentColor" stroke="none" {...props}>
-      <g transform="translate(-1,3) scale(0.68)">
+      <g transform="translate(-0.85,4.4) scale(0.68)">
         <circle cx="16" cy="12" r="4.25" />
         <path d="M7.5 27c.6-5 3.6-7.5 8.5-7.5s7.9 2.5 8.5 7.5" />
       </g>
-      <g transform="translate(8.5,1) scale(0.78)">
+      <g transform="translate(8.65,2.4) scale(0.78)">
         <circle cx="16" cy="12" r="4.25" />
         <path d="M7.5 27c.6-5 3.6-7.5 8.5-7.5s7.9 2.5 8.5 7.5" />
       </g>
