@@ -4131,7 +4131,7 @@ function TopStripe({ color }: { color: string }) {
         top: 0,
         left: 0,
         right: 0,
-        height: 3,
+        height: 2,
         zIndex: 6, // above the gem corner so it tucks under the stripe
         pointerEvents: 'none',
         background: `linear-gradient(90deg, ${color} 0%, #f6e8c4 48%, ${color} 100%)`,
@@ -4152,7 +4152,7 @@ function RightStripe({ color }: { color: string }) {
         top: 0,
         bottom: 0,
         right: 0,
-        width: 3,
+        width: 2,
         zIndex: 6,
         pointerEvents: 'none',
         background: `linear-gradient(180deg, ${color} 0%, #f6e8c4 48%, ${color} 100%)`,
@@ -4165,7 +4165,7 @@ function RightStripe({ color }: { color: string }) {
 // Coloured-glass "gem" corner: a small translucent bevelled triangle with
 // gradient depth (глубина) and a soft colour reflection spilling onto the card
 // surface (цветной отсвет). Tucked under the top stripe; no specular glint.
-function GemCorner({ color, size = 28 }: { color: string; size?: number }) {
+function GemCorner({ color, size = 19 }: { color: string; size?: number }) {
   return (
     <>
       {/* colour reflection cast onto the surface */}
@@ -4216,7 +4216,7 @@ function GoldBottomStripe() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: 3,
+        height: 2,
         zIndex: 6,
         pointerEvents: 'none',
         background: 'linear-gradient(90deg, var(--gold) 0%, #f6e8c4 48%, var(--gold) 100%)',
@@ -4234,7 +4234,7 @@ function GoldLeftStripe() {
         top: 0,
         bottom: 0,
         left: 0,
-        width: 3,
+        width: 2,
         zIndex: 6,
         pointerEvents: 'none',
         background: 'linear-gradient(180deg, var(--gold) 0%, #f6e8c4 48%, var(--gold) 100%)',
@@ -4243,7 +4243,7 @@ function GoldLeftStripe() {
     />
   );
 }
-function GoldGemCorner({ size = 24 }: { size?: number }) {
+function GoldGemCorner({ size = 16 }: { size?: number }) {
   return (
     <>
       <div
