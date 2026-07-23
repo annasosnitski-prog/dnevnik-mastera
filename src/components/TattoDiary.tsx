@@ -9995,37 +9995,64 @@ function ContentPanel({
           {sending ? 'Отправляю…' : 'Отправить в контент'}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {contentDraft
-            .filter((m) => m.technical_status === 'kept')
-            .map((m) => (
-              <div
-                key={m.id}
-                style={{
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  borderRadius: 2,
-                  padding: '10px 12px',
-                }}
-              >
-                {(m.role || m.format) && (
-                  <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginBottom: 6, letterSpacing: '0.5px' }}>
-                    {[m.role, m.format, m.cover_candidate ? 'обложка' : null].filter(Boolean).join(' · ')}
-                  </div>
-                )}
-                {m.text_draft && (
-                  <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
-                    {m.text_draft}
-                  </div>
-                )}
+        (() => {
+          const kept = contentDraft.filter((m) => m.technical_status === 'kept');
+          // text_draft/визуальный архетип — один на весь материал, не по
+          // фото (см. contentinka-diary-handoff.md) — ContentINKA кладёт
+          // его в каждый объект media для удобства контракта, но
+          // показывать его нужно один раз, а не дублировать на карточку.
+          const sharedText = kept.find((m) => m.text_draft)?.text_draft;
+          // id вида `${itemId}-${i}` — тот же порядок, в котором фото
+          // отправлялись (см. handleSend), так сопоставляем разметку с
+          // конкретной картинкой обратно.
+          const photoByMediaId = (id: string): string | undefined => {
+            const idx = Number(id.slice(itemId.length + 1));
+            return Number.isFinite(idx) ? photos[idx] : undefined;
+          };
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {sharedText && (
+                <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {sharedText}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {kept.map((m) => {
+                  const src = photoByMediaId(m.id);
+                  return (
+                    <div key={m.id} style={{ width: 92 }}>
+                      {src && (
+                        <img
+                          src={src}
+                          alt=""
+                          style={{
+                            width: 92,
+                            height: 92,
+                            objectFit: 'cover',
+                            borderRadius: 2,
+                            border: m.cover_candidate ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                            display: 'block',
+                          }}
+                        />
+                      )}
+                      {(m.role || m.format) && (
+                        <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, marginTop: 4, textAlign: 'center', letterSpacing: '0.3px' }}>
+                          {[m.role, m.format].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          <div
-            onClick={sending ? undefined : handleSend}
-            style={{ fontSize: fs(12), color: COLORS.textGhost, textAlign: 'center', cursor: sending ? 'default' : 'pointer', textDecoration: 'underline' }}
-          >
-            {sending ? 'Отправляю…' : 'Отправить заново'}
-          </div>
-        </div>
+              <div
+                onClick={sending ? undefined : handleSend}
+                style={{ fontSize: fs(12), color: COLORS.textGhost, textAlign: 'center', cursor: sending ? 'default' : 'pointer', textDecoration: 'underline' }}
+              >
+                {sending ? 'Отправляю…' : 'Отправить заново'}
+              </div>
+            </div>
+          );
+        })()
       )}
       {error && <div style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', marginTop: 8 }}>{error}</div>}
     </div>
