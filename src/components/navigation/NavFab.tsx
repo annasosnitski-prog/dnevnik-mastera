@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcons";
 
-type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop";
+type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
 
 interface NavFabProps {
   active: AppScreen;
@@ -21,9 +21,11 @@ interface NavFabProps {
 // radius each id maps to (see RADIUS below) was swapped along with them, so
 // this is a full slot exchange, not just an angular reshuffle: Мастер now
 // takes Планнер's old close-in ray (then doubled — see DEST_MIN below) and
-// Планнер takes Мастер's old far ray.
+// Планнер takes Мастер's old far ray. Контент (ContentINKA) is the newest
+// addition — appended at the end, next to Планнер, rather than reshuffling
+// the four hand-tuned slots above it (see DEST_TIER_CONTENT below).
 const NAV_ITEMS: {
-  id: "sketchbook" | "clients" | "brush" | "profile" | "gear";
+  id: "sketchbook" | "content" | "clients" | "brush" | "profile" | "gear";
   label: string;
   screen: AppScreen;
   isActive: (active: AppScreen) => boolean;
@@ -35,6 +37,7 @@ const NAV_ITEMS: {
   { id: "brush", label: "Мастерская", screen: "workshop", isActive: (a) => a === "workshop" },
   { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
   { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary" },
+  { id: "content", label: "Контент", screen: "content", isActive: (a) => a === "content" },
 ];
 
 // Angle: split across however many items happen to be open right now — see
@@ -86,13 +89,13 @@ const GAP_WEIGHT_CLIENTS_RIGHT = 1.233;
 // wide, deliberate margin — it's the one CTA, not a fourth destination, so
 // it needs to read as a different tier at a glance, not just one more step
 // in the same sequence.
-// With 5 destinations (was 4), Мастер/Клиенты/Мастерская all sit before
+// With 6 destinations (was 5), Мастер/Клиенты/Мастерская all sit before
 // «Создать» in the fan sequence — three items sharing one outer-gap chain
 // instead of two — so the same-angle overlap constraint now binds on that
 // whole chain, not just the closest pair. Клиенты and Мастерская aren't
-// visually adjacent to Админка/Планнер (Create's own big circle sits between
-// the two halves), so only same-side neighbours need checking against each
-// other.
+// visually adjacent to Админка/Планнер/Контент (Create's own big circle
+// sits between the two halves), so only same-side neighbours need checking
+// against each other.
 // Клиенты sits further out than strict frequency order would suggest — a
 // deliberate exception so its own ray reads as clearly longer/shorter than
 // its two neighbours (Мастер, Мастерская) rather than blending into a
@@ -110,13 +113,19 @@ const CREATE_RADIUS = 205;
 // longer reads as "the closest, most-frequent" ray despite sitting where
 // that slot used to be.
 const MASTER_RADIUS = DEST_MIN * 2;
+// Контент is the newest destination, appended after Планнер rather than
+// reshuffling the five rays above — its own ray sits halfway between
+// Планнер's (DEST_MAX) and Клиенты's (DEST_TIER_2), reading as "next to
+// Планнер, just short of Клиенты" rather than disturbing either.
+const DEST_TIER_CONTENT = (DEST_MAX + DEST_TIER_2) / 2;
 
 // Explicit key set (not derived from ToolbarIconName) — the main button
 // below always shows the $ icon regardless of the active screen, so
 // "tasks" no longer names a fan destination and doesn't need a radius here.
-const RADIUS: Record<"sketchbook" | "clients" | "brush" | "profile" | "gear" | "create", number> = {
+const RADIUS: Record<"sketchbook" | "content" | "clients" | "brush" | "profile" | "gear" | "create", number> = {
   create: CREATE_RADIUS,
   sketchbook: DEST_MAX,
+  content: DEST_TIER_CONTENT,
   clients: DEST_TIER_2,
   brush: DEST_TIER_3,
   profile: DEST_TIER_4,

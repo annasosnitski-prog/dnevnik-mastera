@@ -7,7 +7,8 @@ export type ToolbarIconName =
   | "gear"
   | "settingsGear"
   | "clients"
-  | "brush";
+  | "brush"
+  | "content";
 
 interface ToolbarIconProps extends SVGProps<SVGSVGElement> {
   name: ToolbarIconName;
@@ -147,6 +148,21 @@ function JewelryBrushIcon(
   );
 }
 
+// Four-point sparkle — the mark used for content/generation elsewhere,
+// distinct from the other five icons' silhouettes. Points/controls
+// computed by rotating one base segment by 90° three times, so the shape
+// is exactly symmetric around its own centre (32×32 viewBox, centre 16,16)
+// rather than eyeballed.
+function JewelryContentIcon(
+  props: SVGProps<SVGSVGElement>,
+) {
+  return (
+    <svg viewBox="0 0 32 32" fill="currentColor" stroke="none" {...props}>
+      <path d="M16 4 C17 12 20 15 28 16 C20 17 17 20 16 28 C15 20 12 17 4 16 C12 15 15 12 16 4 Z" />
+    </svg>
+  );
+}
+
 export function ToolbarIcon({
   name,
   size = 30,
@@ -177,5 +193,7 @@ export function ToolbarIcon({
       return <JewelryClientsIcon {...iconProps} />;
     case "brush":
       return <JewelryBrushIcon {...iconProps} />;
+    case "content":
+      return <JewelryContentIcon {...iconProps} />;
   }
 }

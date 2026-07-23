@@ -2,10 +2,10 @@
 // ДНЕВНИК МАСТЕРА — синхронизация с ContentINKA
 // (мост Дневник → ContentINKA, по образцу calendarSync.ts)
 //
-// Когда мастер жмёт «Отправить в контент» в карточке сессии/консультации,
-// шлём фото (сжатыми превью, не оригиналы) и контекст в ContentINKA
-// (POST /api/ingest на отдельном сервисе, не в этом репозитории) и
-// получаем обратно разметку — роль, качество, архетипы, черновик текста.
+// Единственный эндпоинт — POST /api/ingest. source_type: session/
+// consultation/freeform; freeform допускает пустой media, если есть
+// непустой session.description. Перегенерация с инструкцией мастера — тот
+// же вызов, с полем master_instruction.
 //
 // БЕЗОПАСНОСТЬ: свой секрет, отдельный от inka-calendar-sync — хранится в
 // своём ключе localStorage, не в бэкапе (тот же принцип, что у секрета
@@ -46,8 +46,10 @@ export function writeContentSyncSettings(settings: ContentSyncSettings): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
-// Одно фото в разметке, вернувшейся от ContentINKA — см.
-// contentinka-diary-handoff.md (inka-bot repo) для полного контракта.
+// Разметка одного фото — без text_draft/visual_archetype/text_triad,
+// которые теперь приходят один раз на весь материал (см. IngestResult
+// ниже), не дублируются на каждый кадр. См. contentinka-diary-handoff.md
+// (inka-bot repo) для полного контракта.
 export interface ContentDraftMedia {
   id: string;
   technical_status: 'kept' | 'background' | 'rejected';
@@ -56,10 +58,6 @@ export interface ContentDraftMedia {
   cover_candidate?: boolean;
   format?: 'post' | 'story';
   order_index?: number;
-  visual_archetype?: string;
-  text_triad?: { opens: string; leads: string; closes: string };
-  text_draft?: string;
-  master_decision: 'pending' | 'confirmed' | 'removed';
 }
 
 export interface ContentSessionContext {
@@ -70,17 +68,27 @@ export interface ContentSessionContext {
   description: string;
 }
 
+export interface IngestResult {
+  media: ContentDraftMedia[];
+  visual_archetype: string | null;
+  text_triad: { opens: string; leads: string; closes: string } | null;
+  text_draft: string;
+}
+
 export class ContentSyncError extends Error {}
 
 // media — уже сжатые превью (data URL), не оригиналы; см. downsizeToPreview
-// в src/lib/imagePreview.ts. Бросает ContentSyncError с человекочитаемым
-// сообщением при сетевой ошибке/неправильной настройке/отказе сервера.
+// в src/lib/imagePreview.ts. Может быть пустым массивом только при
+// sourceType "freeform" (нужен непустой session.description). Бросает
+// ContentSyncError с человекочитаемым сообщением при сетевой ошибке/
+// неправильной настройке/отказе сервера.
 export async function sendToContent(params: {
   sessionId: string;
-  sourceType: 'session' | 'consultation';
+  sourceType: 'session' | 'consultation' | 'freeform';
   session: ContentSessionContext;
   media: { id: string; preview_data_url: string }[];
-}): Promise<ContentDraftMedia[]> {
+  masterInstruction?: string;
+}): Promise<IngestResult> {
   const settings = readContentSyncSettings();
   if (!settings.endpoint || !settings.secret) {
     throw new ContentSyncError('ContentINKA не настроен — впиши endpoint и секрет в настройках.');
@@ -99,6 +107,7 @@ export async function sendToContent(params: {
         source_type: params.sourceType,
         session: params.session,
         media: params.media,
+        master_instruction: params.masterInstruction ?? null,
       }),
     });
   } catch {
@@ -114,5 +123,5 @@ export async function sendToContent(params: {
   if (!data || !Array.isArray(data.media)) {
     throw new ContentSyncError('ContentINKA вернул неожиданный ответ.');
   }
-  return data.media as ContentDraftMedia[];
+  return data as IngestResult;
 }
