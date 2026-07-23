@@ -100,6 +100,8 @@ function rayShape(x1: number, y1: number, x2: number, y2: number, wNear: number,
 // underneath it.
 const HUB_HALF = 27;
 const ITEM_HALF = 31;
+const HUB_SIZE = HUB_HALF * 2;
+const ITEM_SIZE = ITEM_HALF * 2;
 
 // Single circular button, bottom-centre — replaces the full-width bottom bar.
 // Closed, it shows the icon for whatever screen is currently open (so you
@@ -108,18 +110,21 @@ const ITEM_HALF = 31;
 export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProps) {
   const [open, setOpen] = useState(false);
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
-  const others = NAV_ITEMS.filter((item) => item !== current);
   type FanEntry = { kind: "create" } | { kind: "nav"; item: (typeof NAV_ITEMS)[number] };
+  const isCurrentEntry = (entry: FanEntry) => entry.kind === "nav" && entry.item === current;
+  // The current destination's own fan circle echoes the main hub's own
+  // radius (not the standard fan-item one) — see the button size below.
+  const halfFor = (entry: FanEntry) => (isCurrentEntry(entry) ? HUB_HALF : ITEM_HALF);
   // «Создать» is spliced into the middle of the (frequency-ordered) others,
   // not just appended — see ARC_SPAN_DEG above for why that keeps it near
   // the centre of the arc regardless of which destination is missing.
   const fanEntries: FanEntry[] = onCreate
     ? [
-        ...others.slice(0, Math.ceil(others.length / 2)).map((item) => ({ kind: "nav" as const, item })),
+        ...NAV_ITEMS.slice(0, Math.ceil(NAV_ITEMS.length / 2)).map((item) => ({ kind: "nav" as const, item })),
         { kind: "create" as const },
-        ...others.slice(Math.ceil(others.length / 2)).map((item) => ({ kind: "nav" as const, item })),
+        ...NAV_ITEMS.slice(Math.ceil(NAV_ITEMS.length / 2)).map((item) => ({ kind: "nav" as const, item })),
       ]
-    : others.map((item) => ({ kind: "nav" as const, item }));
+    : NAV_ITEMS.map((item) => ({ kind: "nav" as const, item }));
   // «Админка» badges surface on its own circle when the menu is open; when
   // it's closed and Админка isn't the current page, the dot moves to the
   // main button instead, so an outstanding reminder is never invisible.
@@ -161,7 +166,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
               <rect x={-rayExtent} y={-rayExtent} width={rayExtent * 2} height={rayExtent * 2} fill="white" />
               <circle cx={0} cy={0} r={HUB_HALF} fill="black" />
               {positions.map(({ dx, dy }, i) => (
-                <circle key={i} cx={dx} cy={dy} r={ITEM_HALF} fill="black" />
+                <circle key={i} cx={dx} cy={dy} r={halfFor(fanEntries[i])} fill="black" />
               ))}
             </mask>
             <defs>
@@ -193,10 +198,11 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 const len = Math.hypot(dx, dy) || 1;
                 const ux = dx / len;
                 const uy = dy / len;
+                const half = halfFor(fanEntries[i]);
                 const x1 = ux * HUB_HALF;
                 const y1 = uy * HUB_HALF;
-                const x2 = dx - ux * ITEM_HALF;
-                const y2 = dy - uy * ITEM_HALF;
+                const x2 = dx - ux * half;
+                const y2 = dy - uy * half;
                 return (
                   <g key={i}>
                     <polygon
@@ -224,10 +230,11 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
               const len = Math.hypot(dx, dy) || 1;
               const ux = dx / len;
               const uy = dy / len;
+              const half = halfFor(fanEntries[i]);
               const hubX = ux * HUB_HALF;
               const hubY = uy * HUB_HALF;
-              const itemX = dx - ux * ITEM_HALF;
-              const itemY = dy - uy * ITEM_HALF;
+              const itemX = dx - ux * half;
+              const itemY = dy - uy * half;
               return (
                 <g key={i}>
                   <circle className="nav-fab__ray-dot-glow" cx={hubX} cy={hubY} r={4.5} />
@@ -240,10 +247,11 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 const len = Math.hypot(dx, dy) || 1;
                 const ux = dx / len;
                 const uy = dy / len;
+                const half = halfFor(fanEntries[i]);
                 return (
                   <g key={i}>
                     <circle className="nav-fab__ray-dot" cx={ux * HUB_HALF} cy={uy * HUB_HALF} r={2.4} />
-                    <circle className="nav-fab__ray-dot" cx={dx - ux * ITEM_HALF} cy={dy - uy * ITEM_HALF} r={2.4} />
+                    <circle className="nav-fab__ray-dot" cx={dx - ux * half} cy={dy - uy * half} r={2.4} />
                   </g>
                 );
               })}
@@ -279,19 +287,25 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
 
             const { item } = entry;
             const badges = item.screen === "admin" ? adminBadges : undefined;
+            // The current destination's own circle matches the hub's size —
+            // see isCurrentEntry/halfFor above — instead of the standard
+            // fan-item size, so it reads as "this is equivalent to home".
+            const buttonSize = isCurrentEntry(entry) ? HUB_SIZE : ITEM_SIZE;
             return (
               <button
                 key={item.id}
                 type="button"
                 className="nav-fab__item"
-                style={style}
+                style={isCurrentEntry(entry) ? { ...style, width: buttonSize, height: buttonSize } : style}
                 aria-label={item.label}
                 onClick={() => {
                   onNavigate(item.screen);
                   setOpen(false);
                 }}
               >
-                <ToolbarIcon name={item.id} size={28} />
+                {/* Icons fill 2/3 of their own button's height, matching the
+                    hub's own icon-to-button ratio. */}
+                <ToolbarIcon name={item.id} size={Math.round((buttonSize * 2) / 3)} />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
@@ -314,7 +328,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
               destinations is active. 2/3 of the button's own height
               (HUB_HALF * 2), matching the fan items' own icon-to-button
               ratio. */}
-          <ToolbarIcon name="tasks" size={Math.round((HUB_HALF * 2 * 2) / 3)} />
+          <ToolbarIcon name="tasks" size={Math.round((HUB_SIZE * 2) / 3)} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
