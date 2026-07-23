@@ -13,6 +13,16 @@ import {
   type CalendarSyncSettings,
   type BotBooking,
 } from '../lib/calendarSync';
+import {
+  sendToContent,
+  ContentSyncError,
+  readContentSyncSettings,
+  writeContentSyncSettings,
+  type ContentDraftMedia,
+  type ContentSyncSettings,
+  type ContentSessionContext,
+} from '../lib/contentSync';
+import { downsizeToPreview } from '../lib/imagePreview';
 
 // ===================== DESIGN TOKENS =====================
 // Values resolve to CSS variables (see index.css), so the same component
@@ -141,6 +151,30 @@ const urgencyRank = (k: UrgencyKey): number => URGENCY.findIndex((u) => u.key ==
 const urgencyMeta = (k: UrgencyKey) => URGENCY.find((u) => u.key === k) || URGENCY[URGENCY.length - 1];
 
 // ===================== DATA TYPES =====================
+
+// Единая сущность для всё, что проходит через ContentINKA — сессия,
+// консультация или свободная заметка («мастерская», если clientId=null),
+// с фото или без. Живёт в своём IndexedDB store ('contentEntries'), не
+// внутри Client — поэтому доступна с любой точки входа (страница
+// ContentINKA, вкладка «Контент» клиента, просмотр сессии/консультации)
+// как одни и те же данные, не три разных хранилища.
+interface ContentEntry {
+  id: string;
+  createdDate: string;
+  clientId: string | null; // null = мастерская
+  sourceType: 'session' | 'consultation' | 'freeform';
+  sourceId: string | null; // id сессии/консультации, если создано оттуда
+  format: 'post' | 'story' | null; // прицельный формат («текст для сторис»), если запрашивался
+  text: string; // ввод мастера — тема/инструкция, не результат
+  context: ContentSessionContext; // снимок на момент генерации — перегенерация не бегает за живой сессией
+  photos: string[]; // оригиналы (не превью) — те же data URL, что и в Session.photos
+  contentDraft: ContentDraftMedia[] | null; // per-photo разметка (role/format/...), если есть фото
+  visualArchetype: string | null;
+  textTriad: { opens: string; leads: string; closes: string } | null;
+  textDraft: string; // черновик текста — то, ради чего всё
+  status: 'draft' | 'confirmed';
+}
+
 interface Session {
   id: string;
   name: string; // session title, e.g. "Первая", "Голубика"
@@ -869,10 +903,12 @@ function normalizeProject(raw: any, index: number): Project {
 }
 
 // ===================== DATABASE =====================
-// Version bumped 1 → 2 to add the «projects» store (Творческая мастерская) —
-// existing installs upgrade in place on next load; onupgradeneeded only
-// touches stores that don't exist yet, so the clients store and its data are
-// never re-created or wiped.
+// Version bumped 1 → 2 to add two new stores at once — «projects»
+// (Творческая мастерская) and «contentEntries» (единая сущность для всего,
+// что проходит через ContentINKA — сессия/консультация/свободная заметка,
+// см. ContentEntry ниже). Existing installs upgrade in place on next load;
+// onupgradeneeded only touches stores that don't exist yet, so the clients
+// store and its data are never re-created or wiped.
 const initDB = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
     const request = indexedDB.open('TattoDiaryDB', 2);
@@ -885,6 +921,9 @@ const initDB = (): Promise<IDBDatabase> =>
       }
       if (!db.objectStoreNames.contains('projects')) {
         db.createObjectStore('projects', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('contentEntries')) {
+        db.createObjectStore('contentEntries', { keyPath: 'id' });
       }
     };
   });
@@ -1852,6 +1891,11 @@ export default function TattoDiary() {
   const [clientsLoaded, setClientsLoaded] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
+  // Единая сущность для всего, что проходит через ContentINKA — см.
+  // ContentEntry ниже. Отдельный store ('contentEntries'), не часть
+  // клиента — доступна и без выбранного клиента (страница ContentINKA,
+  // «мастерская»).
+  const [contentEntries, setContentEntries] = useState<ContentEntry[]>([]);
   const [db, setDb] = useState<IDBDatabase | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(readInitialTheme);
@@ -1890,6 +1934,14 @@ export default function TattoDiary() {
     writeSyncSettings(calendarSync);
   }, [calendarSync]);
 
+  // Настройки ContentINKA — тот же принцип, свой ключ localStorage
+  // (inka-content-sync, не inka-calendar-sync), свой секрет. См.
+  // src/lib/contentSync.ts.
+  const [contentSync, setContentSync] = useState<ContentSyncSettings>(readContentSyncSettings);
+  useEffect(() => {
+    writeContentSyncSettings(contentSync);
+  }, [contentSync]);
+
   // Предупреждение о пересечении: если синхронизированная запись легла
   // поверх чего-то в календаре (например брони клиента через бота) —
   // показываем янтарный баннер. Запись не блокируется, решение за мастером.
@@ -1915,7 +1967,7 @@ export default function TattoDiary() {
   }, [dismissedReminders]);
   const dismissReminder = (key: string) => setDismissedReminders((prev) => (prev.includes(key) ? prev : [...prev, key]));
 
-  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop'>('list');
+  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
@@ -2040,6 +2092,7 @@ export default function TattoDiary() {
         setDb(database);
         loadClients(database);
         loadProjects(database);
+        loadContentEntries(database);
       })
       .catch((err) => {
         console.error('IndexedDB init failed:', err);
@@ -2091,6 +2144,34 @@ export default function TattoDiary() {
       setShowNewProjectForm(false);
     };
     tx.onerror = () => setDbError('Не удалось удалить проект.');
+  };
+
+  const loadContentEntries = (database: IDBDatabase) => {
+    const tx = database.transaction('contentEntries', 'readonly');
+    const request = tx.objectStore('contentEntries').getAll();
+    request.onsuccess = () => setContentEntries(request.result || []);
+    request.onerror = () => setDbError('Не удалось загрузить черновики контента.');
+  };
+
+  // Единственная точка записи для contentEntries — по аналогии с
+  // saveClient. Апсерт по id: запись с тем же id перезаписывается
+  // (перегенерация текста), иначе создаётся новая.
+  const saveContentEntry = (entry: ContentEntry) => {
+    if (!db) {
+      setDbError('Хранилище недоступно — изменения не сохранены.');
+      return;
+    }
+    const tx = db.transaction('contentEntries', 'readwrite');
+    tx.objectStore('contentEntries').put(entry);
+    tx.oncomplete = () => loadContentEntries(db);
+    tx.onerror = () => setDbError('Не удалось сохранить черновик контента.');
+  };
+
+  const deleteContentEntry = (id: string) => {
+    if (!db) return;
+    const tx = db.transaction('contentEntries', 'readwrite');
+    tx.objectStore('contentEntries').delete(id);
+    tx.oncomplete = () => loadContentEntries(db);
   };
 
   const saveClient = (client: Client) => {
@@ -2998,7 +3079,7 @@ export default function TattoDiary() {
           (never scrolls). Shown on every main screen, including the client
           Detail screen, hidden while a bottom sheet is open so it can't sit
           over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop') && !sheetOpen && (
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop' || screen === 'content') && !sheetOpen && (
         <NavFab
           active={screen}
           onNavigate={(s) => setScreen(s)}
@@ -3120,6 +3201,31 @@ export default function TattoDiary() {
             onOpenSettings={() => setScreen('settings')}
             calendarSync={calendarSync}
             onChangeCalendarSync={setCalendarSync}
+            contentSync={contentSync}
+            onChangeContentSync={setContentSync}
+            onOpenContent={() => setScreen('content')}
+          />
+        )}
+      </div>
+
+      {/* ═══════════ CONTENTINKA ═══════════ */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: screen === 'content' ? 'translateX(0)' : 'translateX(110%)',
+          transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          zIndex: 3,
+        }}
+      >
+        {screen === 'content' && (
+          <ContentINKAScreen
+            clients={clients}
+            contentEntries={contentEntries}
+            onSaveEntry={saveContentEntry}
+            onDeleteEntry={deleteContentEntry}
           />
         )}
       </div>
@@ -3351,6 +3457,9 @@ export default function TattoDiary() {
         open={!!viewEntry && (!!viewedSession || !!viewedConsultation)}
         session={viewedSession}
         consultation={viewedConsultation}
+        clientId={viewClient?.id ?? null}
+        clientName={viewClient ? `${viewClient.name} ${viewClient.surname}`.trim() : ''}
+        contentEntries={contentEntries}
         onClose={() => setViewEntry(null)}
         onEdit={() => {
           if (viewEntry) setSelectedId(viewEntry.clientId);
@@ -3363,6 +3472,7 @@ export default function TattoDiary() {
           }
           setViewEntry(null);
         }}
+        onSaveContentEntry={saveContentEntry}
       />
 
       {/* ═══════════ CALENDAR (month view, opened from «Ближайшая») ═══════════ */}
@@ -5407,6 +5517,44 @@ async function shareOrDownloadJSON(json: string, filename: string, shareTitle: s
   URL.revokeObjectURL(url);
 }
 
+function dataUrlToFile(dataUrl: string, filename: string): File {
+  const m = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
+  const mime = m?.[1] ?? 'image/jpeg';
+  const bytes = atob(m?.[2] ?? '');
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new File([arr], filename, { type: mime });
+}
+
+// «Поделиться» готовым материалом — системный шеринг телефона (как в
+// CapCut/Фото): передаём фото+текст, дальше пользователь сам выбирает
+// приложение (Instagram/TikTok/что угодно) в системном меню, оно уже само
+// открывается с этим контентом на экране редактирования. Мы не выбираем
+// конкретное приложение — этим управляет ОС.
+async function shareContentEntry(photos: string[], text: string): Promise<void> {
+  const files = photos.map((p, i) => dataUrlToFile(p, `content-${i}.jpg`));
+  const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+  if (files.length > 0 && nav.canShare && nav.canShare({ files })) {
+    try {
+      await nav.share({ files, text });
+      return;
+    } catch (err) {
+      if ((err as DOMException)?.name === 'AbortError') return;
+    }
+  }
+  // Нет фото или платформа не поддерживает шеринг файлов — делимся хотя бы
+  // текстом (или копируем в буфер, если и это недоступно).
+  if (nav.share) {
+    try {
+      await nav.share({ text });
+      return;
+    } catch (err) {
+      if ((err as DOMException)?.name === 'AbortError') return;
+    }
+  }
+  await navigator.clipboard?.writeText(text);
+}
+
 // ===================== ADMIN DASHBOARD =====================
 // The control panel: every reminder, the upcoming-sessions lookahead, the
 // client/session/consultation stats (minus «Частый стиль», which stays a
@@ -5790,6 +5938,9 @@ function MasterDashboardScreen({
   onOpenSettings,
   calendarSync,
   onChangeCalendarSync,
+  contentSync,
+  onChangeContentSync,
+  onOpenContent,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
@@ -5797,6 +5948,9 @@ function MasterDashboardScreen({
   onOpenSettings: () => void;
   calendarSync: CalendarSyncSettings;
   onChangeCalendarSync: (s: CalendarSyncSettings) => void;
+  contentSync: ContentSyncSettings;
+  onChangeContentSync: (s: ContentSyncSettings) => void;
+  onOpenContent: () => void;
 }) {
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
@@ -5870,6 +6024,7 @@ function MasterDashboardScreen({
 
   const [colorsOpen, setColorsOpen] = useState(false);
   const [showSyncSecret, setShowSyncSecret] = useState(false);
+  const [showContentSecret, setShowContentSecret] = useState(false);
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -6286,6 +6441,124 @@ function MasterDashboardScreen({
               : calendarSync.enabled
               ? 'нужен секретный код — без него синхронизация не работает.'
               : 'выключена: записи остаются только в дневнике.'}
+          </div>
+        </GoldFrame>
+
+        {/* ContentINKA — тот же принцип, что «Инка-календарь» выше, свой
+            секрет и свой адрес сервиса (не тот же деплой, что у бота). */}
+        <GoldFrame plain style={{ padding: '14px 16px', marginTop: 12 }}>
+          <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 8 }}>ContentINKA · Отбор и текст</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {([
+              { v: true, label: 'Включена' },
+              { v: false, label: 'Выключена' },
+            ] as { v: boolean; label: string }[]).map((o) => (
+              <div
+                key={String(o.v)}
+                onClick={() => onChangeContentSync({ ...contentSync, enabled: o.v })}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: fs(13),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  border: contentSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: contentSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: contentSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <input
+              type={showContentSecret ? 'text' : 'password'}
+              value={contentSync.secret}
+              onChange={(e) => onChangeContentSync({ ...contentSync, secret: e.target.value })}
+              placeholder="Секретный код ContentINKA"
+              autoComplete="off"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '10px 40px 10px 12px',
+                borderRadius: 2,
+                border: '1px solid rgba(var(--gold-rgb),0.2)',
+                background: 'rgba(var(--surface-rgb),0.03)',
+                color: 'var(--text-secondary)',
+                fontSize: fs(13),
+                outline: 'none',
+              }}
+            />
+            <span
+              onClick={() => setShowContentSecret((v) => !v)}
+              role="button"
+              aria-label={showContentSecret ? 'Скрыть код' : 'Показать код'}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                right: 10,
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                color: COLORS.textGhost,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {showContentSecret ? (
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              )}
+            </span>
+          </div>
+          <input
+            type="text"
+            value={contentSync.endpoint}
+            onChange={(e) => onChangeContentSync({ ...contentSync, endpoint: e.target.value })}
+            placeholder="https://contentinka-....vercel.app"
+            autoComplete="off"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px',
+              borderRadius: 2,
+              border: '1px solid rgba(var(--gold-rgb),0.2)',
+              background: 'rgba(var(--surface-rgb),0.03)',
+              color: 'var(--text-secondary)',
+              fontSize: fs(12),
+              outline: 'none',
+            }}
+          />
+          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
+            {contentSync.enabled && contentSync.secret && contentSync.endpoint
+              ? '«Отправить в контент» доступна в карточке сессии/консультации.'
+              : 'нужны адрес сервиса и секретный код — без них кнопка «Отправить в контент» не сработает.'}
+          </div>
+          <div
+            onClick={onOpenContent}
+            role="button"
+            aria-label="Открыть ContentINKA"
+            style={{
+              marginTop: 12,
+              fontSize: fs(12),
+              color: COLORS.gold,
+              textAlign: 'center',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+            }}
+          >
+            Открыть ContentINKA · контент мастерской
           </div>
         </GoldFrame>
 
@@ -9746,18 +10019,542 @@ function ViewField({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Пресеты тона — под капотом просто master_instruction в тот же
+// /api/ingest, см. contentSync.ts. Не полный список архетипов (это было
+// бы избыточно как кнопки) — несколько ходовых направлений плюс
+// возможность просто попросить другой вариант.
+const TONE_PRESETS: { label: string; instruction: string }[] = [
+  { label: 'Теплее', instruction: 'сделай тон теплее, мягче — ближе к архетипу Женщина/Тепло' },
+  { label: 'Жёстче', instruction: 'сделай тон резче, прямее — ближе к архетипу Трикстер, без пафоса' },
+  { label: 'Проще', instruction: 'упрости — короче, без сложных оборотов, ближе к архетипу Дурак' },
+  { label: 'Ещё вариант', instruction: '' },
+];
+
+// Полноценный рабочий интерфейс ContentINKA — отдельная страница
+// (NavFab → «Контент»). В отличие от ленивых точек входа (ContentPanel в
+// TimelineViewSheet, вкладка клиента), отсюда можно: собрать материал с
+// нуля (клиент/мастерская, тема, фото — без обязательной привязки к
+// сессии), подтянуть в работу любую сессию/консультацию любого клиента, и
+// применить полный набор действий (тон, перегенерация, поделиться,
+// удалить) к любой уже созданной записи. Все три поверхности читают и
+// пишут в один и тот же contentEntries — не разные хранилища.
+function ContentINKAScreen({
+  clients,
+  contentEntries,
+  onSaveEntry,
+  onDeleteEntry,
+}: {
+  clients: Client[];
+  contentEntries: ContentEntry[];
+  onSaveEntry: (entry: ContentEntry) => void;
+  onDeleteEntry: (id: string) => void;
+}) {
+  const [composerClientId, setComposerClientId] = useState<string | null>(null); // null = мастерская
+  const [composerItemKey, setComposerItemKey] = useState<string>(''); // '' | 's:<id>' | 'c:<id>'
+  const [composerText, setComposerText] = useState('');
+  const [composerPhotos, setComposerPhotos] = useState<string[]>([]);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
+
+  const composerClient = clients.find((c) => c.id === composerClientId) ?? null;
+  const composerItem = (() => {
+    if (!composerClient || !composerItemKey) return null;
+    const [kind, id] = composerItemKey.split(':');
+    if (kind === 's') return { kind: 'session' as const, item: composerClient.sessions.find((s) => s.id === id) };
+    if (kind === 'c') return { kind: 'consultation' as const, item: composerClient.consultations.find((c) => c.id === id) };
+    return null;
+  })();
+
+  const resetComposer = () => {
+    setComposerText('');
+    setComposerPhotos([]);
+  };
+
+  const handleGenerate = async () => {
+    if (!composerText.trim() && composerPhotos.length === 0 && !composerItem) return;
+    setSending(true);
+    setError(null);
+    try {
+      const clientName = composerClient ? `${composerClient.name} ${composerClient.surname}`.trim() : '';
+      const linkedItem = composerItem?.item;
+      const sourceType: 'session' | 'consultation' | 'freeform' =
+        composerItem?.kind === 'session' ? 'session' : composerItem?.kind === 'consultation' ? 'consultation' : 'freeform';
+      const sourceId = linkedItem?.id ?? null;
+      const zone = linkedItem ? (linkedItem as Session & Consultation).area : '';
+      const style = linkedItem?.style ?? '';
+      const work = composerItem?.kind === 'session' ? (linkedItem as Session).name : undefined;
+      const noteFallback =
+        composerItem?.kind === 'session'
+          ? (linkedItem as Session).note
+          : composerItem?.kind === 'consultation'
+          ? [
+              (linkedItem as Consultation).generalNotes,
+              (linkedItem as Consultation).feeling,
+              (linkedItem as Consultation).creative,
+              (linkedItem as Consultation).inspirationSources,
+            ]
+              .filter(Boolean)
+              .join('\n\n')
+          : '';
+      const description = composerText.trim() || noteFallback;
+      const photos = composerPhotos.length > 0 ? composerPhotos : linkedItem?.photos ?? [];
+
+      const previews = await Promise.all(
+        photos.map(async (photo, i) => ({ id: `new-${i}`, preview_data_url: await downsizeToPreview(photo) })),
+      );
+      const result = await sendToContent({
+        sessionId: sourceId ?? `freeform-${Date.now()}`,
+        sourceType,
+        session: { client: clientName, work, zone, style, description },
+        media: previews,
+      });
+      onSaveEntry({
+        id: Date.now().toString(),
+        createdDate: new Date().toISOString(),
+        clientId: composerClientId,
+        sourceType,
+        sourceId,
+        format: null,
+        text: composerText,
+        context: { client: clientName, work, zone, style, description },
+        photos,
+        contentDraft: result.media,
+        visualArchetype: result.visual_archetype,
+        textTriad: result.text_triad,
+        textDraft: result.text_draft,
+        status: 'draft',
+      });
+      resetComposer();
+    } catch (err) {
+      setError(err instanceof ContentSyncError ? err.message : 'Не удалось сгенерировать контент.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const regenerate = async (entry: ContentEntry, instruction: string) => {
+    setError(null);
+    try {
+      const previews = await Promise.all(
+        entry.photos.map(async (photo, i) => ({ id: `${entry.id}-${i}`, preview_data_url: await downsizeToPreview(photo) })),
+      );
+      const result = await sendToContent({
+        sessionId: entry.sourceId ?? entry.id,
+        sourceType: entry.sourceType,
+        session: entry.context,
+        media: previews,
+        masterInstruction: instruction || undefined,
+      });
+      onSaveEntry({
+        ...entry,
+        contentDraft: result.media,
+        visualArchetype: result.visual_archetype,
+        textTriad: result.text_triad,
+        textDraft: result.text_draft,
+      });
+    } catch (err) {
+      setError(err instanceof ContentSyncError ? err.message : 'Не удалось перегенерировать.');
+    }
+  };
+
+  const visibleEntries = contentEntries
+    .filter((e) => (filterClientId === 'all' ? true : filterClientId === 'studio' ? e.clientId === null : e.clientId === filterClientId))
+    .sort((a, b) => b.createdDate.localeCompare(a.createdDate));
+
+  const clientLabel = (clientId: string | null) => {
+    if (clientId === null) return 'Мастерская';
+    const c = clients.find((x) => x.id === clientId);
+    return c ? `${c.name} ${c.surname}`.trim() : '—';
+  };
+
+  return (
+    <div style={{ minHeight: '100%' }}>
+      <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      <div style={{ padding: '6px 24px 12px' }}>
+        <InkaLogo height={fs(15)} />
+        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>ContentINKA</div>
+        <StarDivider />
+      </div>
+
+      <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* ── Composer ── */}
+        <GoldFrame plain style={{ padding: '16px 18px' }}>
+          <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 10 }}>Новая запись</div>
+
+          <select
+            value={composerClientId ?? ''}
+            onChange={(e) => {
+              setComposerClientId(e.target.value || null);
+              setComposerItemKey('');
+            }}
+            style={{ ...INPUT_STYLE, marginBottom: 10 }}
+          >
+            <option value="">Мастерская (без клиента)</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {`${c.name} ${c.surname}`.trim()}
+              </option>
+            ))}
+          </select>
+
+          {composerClient && (composerClient.sessions.length > 0 || composerClient.consultations.length > 0) && (
+            <select value={composerItemKey} onChange={(e) => setComposerItemKey(e.target.value)} style={{ ...INPUT_STYLE, marginBottom: 10 }}>
+              <option value="">Без привязки к сессии</option>
+              {composerClient.sessions.map((s) => (
+                <option key={`s:${s.id}`} value={`s:${s.id}`}>
+                  Сессия · {s.name || formatDate(s.date) || 'без названия'}
+                </option>
+              ))}
+              {composerClient.consultations.map((c) => (
+                <option key={`c:${c.id}`} value={`c:${c.id}`}>
+                  Консультация · {formatDate(c.date) || 'без даты'}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <textarea
+            value={composerText}
+            onChange={(e) => setComposerText(e.target.value)}
+            placeholder="Тема, мысль, инструкция — свободный ввод"
+            rows={4}
+            style={{ ...INPUT_STYLE, marginBottom: 10, resize: 'vertical', fontFamily: "'Inter', sans-serif" }}
+          />
+
+          <SessionPhotos photos={composerPhotos} onChange={setComposerPhotos} allowDelete buttonFirst />
+
+          <div
+            className="inka-submit"
+            onClick={sending ? undefined : handleGenerate}
+            style={{ ...SUBMIT_STYLE, marginTop: 12, opacity: sending ? 0.6 : 1, cursor: sending ? 'default' : 'pointer' }}
+          >
+            {sending ? 'Генерирую…' : 'Сгенерировать'}
+          </div>
+          {error && <div style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', marginTop: 8 }}>{error}</div>}
+        </GoldFrame>
+
+        {/* ── Filter ── */}
+        <select value={filterClientId} onChange={(e) => setFilterClientId(e.target.value)} style={INPUT_STYLE}>
+          <option value="all">Все записи</option>
+          <option value="studio">Мастерская</option>
+          {clients.map((c) => (
+            <option key={c.id} value={c.id}>
+              {`${c.name} ${c.surname}`.trim()}
+            </option>
+          ))}
+        </select>
+
+        {/* ── List ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {visibleEntries.length === 0 && (
+            <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока пусто.</div>
+          )}
+          {visibleEntries.map((entry) => (
+            <GoldFrame key={entry.id} plain style={{ padding: '14px 16px' }}>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '0.5px', marginBottom: 8 }}>
+                {clientLabel(entry.clientId)}
+                {entry.format === 'story' ? ' · сторис' : ''}
+              </div>
+              {entry.photos.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                  {entry.photos.map((p, i) => (
+                    <img key={i} src={p} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)' }} />
+                  ))}
+                </div>
+              )}
+              {entry.textDraft && (
+                <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: 10 }}>
+                  {entry.textDraft}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {TONE_PRESETS.map((preset) => (
+                  <span
+                    key={preset.label}
+                    onClick={() => regenerate(entry, preset.instruction)}
+                    style={{
+                      fontSize: fs(11),
+                      color: COLORS.textPrimary,
+                      border: '1px solid rgba(var(--gold-rgb),0.3)',
+                      borderRadius: 2,
+                      padding: '5px 10px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {preset.label}
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <span onClick={() => shareContentEntry(entry.photos, entry.textDraft)} style={{ fontSize: fs(12), color: COLORS.textGhost, cursor: 'pointer', textDecoration: 'underline' }}>
+                  Поделиться
+                </span>
+                <span onClick={() => onDeleteEntry(entry.id)} style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', cursor: 'pointer', textDecoration: 'underline' }}>
+                  Удалить
+                </span>
+              </div>
+            </GoldFrame>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContentPanel({
+  clientId,
+  clientName,
+  sourceType,
+  sourceId,
+  photos,
+  work,
+  zone,
+  style,
+  description,
+  entries,
+  onSaveEntry,
+}: {
+  clientId: string | null;
+  clientName: string;
+  sourceType: 'session' | 'consultation';
+  sourceId: string;
+  photos: string[];
+  work?: string;
+  zone: string;
+  style: string;
+  description: string;
+  entries: ContentEntry[];
+  onSaveEntry: (entry: ContentEntry) => void;
+}) {
+  const fullEntry = entries.find((e) => e.sourceType === sourceType && e.sourceId === sourceId && e.format === null) ?? null;
+  const storyEntry = entries.find((e) => e.sourceType === sourceType && e.sourceId === sourceId && e.format === 'story') ?? null;
+
+  const [sendingFull, setSendingFull] = useState(false);
+  const [sendingStory, setSendingStory] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (photos.length === 0 && !fullEntry && !storyEntry) return null;
+
+  // Фолбэк на work/zone/style, если заметка пустая — «текст для сторис»
+  // шлётся как freeform с media: [], а бэкенд требует непустой description.
+  const richDescription = description.trim() || [work, zone, style].filter(Boolean).join(', ');
+
+  const handleSendFull = async () => {
+    if (photos.length === 0) return;
+    setSendingFull(true);
+    setError(null);
+    try {
+      const previews = await Promise.all(
+        photos.map(async (photo, i) => ({
+          id: `${sourceId}-${i}`,
+          preview_data_url: await downsizeToPreview(photo),
+        })),
+      );
+      const result = await sendToContent({
+        sessionId: sourceId,
+        sourceType,
+        session: { client: clientName, work, zone, style, description },
+        media: previews,
+      });
+      onSaveEntry({
+        id: fullEntry?.id ?? `${sourceId}-full`,
+        createdDate: fullEntry?.createdDate ?? new Date().toISOString(),
+        clientId,
+        sourceType,
+        sourceId,
+        format: null,
+        text: '',
+        context: { client: clientName, work, zone, style, description },
+        photos,
+        contentDraft: result.media,
+        visualArchetype: result.visual_archetype,
+        textTriad: result.text_triad,
+        textDraft: result.text_draft,
+        status: 'draft',
+      });
+    } catch (err) {
+      setError(err instanceof ContentSyncError ? err.message : 'Не удалось отправить в контент.');
+    } finally {
+      setSendingFull(false);
+    }
+  };
+
+  const handleQuickStory = async () => {
+    setSendingStory(true);
+    setError(null);
+    try {
+      const result = await sendToContent({
+        sessionId: `${sourceId}-story`,
+        sourceType: 'freeform',
+        session: { client: clientName, work, zone, style, description: richDescription },
+        media: [],
+        masterInstruction: 'нужен короткий текст для формата сторис — не полный разбор, просто живая строка-две',
+      });
+      onSaveEntry({
+        id: storyEntry?.id ?? `${sourceId}-story`,
+        createdDate: storyEntry?.createdDate ?? new Date().toISOString(),
+        clientId,
+        sourceType,
+        sourceId,
+        format: 'story',
+        text: '',
+        context: { client: clientName, work, zone, style, description: richDescription },
+        photos: [],
+        contentDraft: null,
+        visualArchetype: result.visual_archetype,
+        textTriad: result.text_triad,
+        textDraft: result.text_draft,
+        status: 'draft',
+      });
+    } catch (err) {
+      setError(err instanceof ContentSyncError ? err.message : 'Не удалось сгенерировать текст.');
+    } finally {
+      setSendingStory(false);
+    }
+  };
+
+  const photoByIndexId = (id: string): string | undefined => {
+    const idx = Number(id.slice(sourceId.length + 1));
+    return Number.isFinite(idx) ? photos[idx] : undefined;
+  };
+
+  const linkStyle: React.CSSProperties = { fontSize: fs(12), color: COLORS.textGhost, cursor: 'pointer', textDecoration: 'underline' };
+  const buttonStyle = (busy: boolean): React.CSSProperties => ({
+    border: '1px solid rgba(var(--gold-rgb),0.35)',
+    borderRadius: 2,
+    padding: '10px 0',
+    textAlign: 'center',
+    fontSize: fs(13),
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+    color: COLORS.textPrimary,
+    opacity: busy ? 0.6 : 1,
+    cursor: busy ? 'default' : 'pointer',
+  });
+
+  return (
+    <div>
+      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 8 }}>
+        Контент
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {photos.length > 0 && (
+          <div>
+            {!fullEntry ? (
+              <div className="inka-submit" onClick={sendingFull ? undefined : handleSendFull} style={buttonStyle(sendingFull)}>
+                {sendingFull ? 'Отправляю…' : 'Отправить в контент'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {fullEntry.textDraft && (
+                  <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    {fullEntry.textDraft}
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {(fullEntry.contentDraft ?? [])
+                    .filter((m) => m.technical_status === 'kept')
+                    .map((m) => {
+                      const src = photoByIndexId(m.id);
+                      return (
+                        <div key={m.id} style={{ width: 92 }}>
+                          {src && (
+                            <img
+                              src={src}
+                              alt=""
+                              style={{
+                                width: 92,
+                                height: 92,
+                                objectFit: 'cover',
+                                borderRadius: 2,
+                                border: m.cover_candidate ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                                display: 'block',
+                              }}
+                            />
+                          )}
+                          {(m.role || m.format) && (
+                            <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, marginTop: 4, textAlign: 'center', letterSpacing: '0.3px' }}>
+                              {[m.role, m.format].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <span onClick={sendingFull ? undefined : handleSendFull} style={linkStyle}>
+                    {sendingFull ? 'Отправляю…' : 'Отправить заново'}
+                  </span>
+                  <span
+                    onClick={() =>
+                      shareContentEntry(
+                        photos.filter((_, i) => (fullEntry.contentDraft ?? []).some((m) => m.id === `${sourceId}-${i}` && m.technical_status === 'kept')),
+                        fullEntry.textDraft,
+                      )
+                    }
+                    style={linkStyle}
+                  >
+                    Поделиться
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
+          {!storyEntry ? (
+            <span onClick={sendingStory ? undefined : handleQuickStory} style={linkStyle}>
+              {sendingStory ? 'Генерирую…' : 'Текст для сторис'}
+            </span>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase' }}>Сторис</div>
+              {storyEntry.textDraft && (
+                <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {storyEntry.textDraft}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 16 }}>
+                <span onClick={sendingStory ? undefined : handleQuickStory} style={linkStyle}>
+                  {sendingStory ? 'Генерирую…' : 'Ещё вариант'}
+                </span>
+                <span onClick={() => shareContentEntry([], storyEntry.textDraft)} style={linkStyle}>
+                  Поделиться
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {error && <div style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', marginTop: 8 }}>{error}</div>}
+    </div>
+  );
+}
+
 function TimelineViewSheet({
   open,
   session,
   consultation,
+  clientId,
+  clientName,
+  contentEntries,
   onClose,
   onEdit,
+  onSaveContentEntry,
 }: {
   open: boolean;
   session: Session | null;
   consultation: Consultation | null;
+  clientId: string | null;
+  clientName: string;
+  contentEntries: ContentEntry[];
   onClose: () => void;
   onEdit: () => void;
+  onSaveContentEntry: (entry: ContentEntry) => void;
 }) {
   const isConsult = !!consultation;
   const dateLine = (() => {
@@ -9792,6 +10589,20 @@ function TimelineViewSheet({
             <ViewField label="Креатив" value={consultation.creative} />
             <ViewField label="Техника и стиль" value={consultation.style} />
             {urgency && <ViewField label="Срочность" value={`${urgency.emoji} ${urgency.label}`} />}
+            <ContentPanel
+              clientId={clientId}
+              clientName={clientName}
+              sourceType="consultation"
+              sourceId={consultation.id}
+              photos={consultation.photos}
+              zone={consultation.area}
+              style={consultation.style}
+              description={[consultation.generalNotes, consultation.feeling, consultation.creative, consultation.inspirationSources]
+                .filter(Boolean)
+                .join('\n\n')}
+              entries={contentEntries}
+              onSaveEntry={onSaveContentEntry}
+            />
           </>
         ) : session ? (
           <>
@@ -9804,6 +10615,19 @@ function TimelineViewSheet({
             <ViewField label="Краски" value={session.colors} />
             <ViewField label="Иглы" value={session.needles} />
             <ViewField label="Реакция кожи" value={session.skinReaction} />
+            <ContentPanel
+              clientId={clientId}
+              clientName={clientName}
+              sourceType="session"
+              sourceId={session.id}
+              photos={session.photos}
+              work={session.name}
+              zone={session.area}
+              style={session.style}
+              description={session.note}
+              entries={contentEntries}
+              onSaveEntry={onSaveContentEntry}
+            />
           </>
         ) : null}
 
