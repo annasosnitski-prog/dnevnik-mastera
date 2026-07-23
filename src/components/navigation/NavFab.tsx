@@ -58,8 +58,8 @@ const GAP_WEIGHT_INNER = 1;
 // before). That tilts Клиенты's own position toward vertical, so its height
 // reads as its own distinct step between «Создать» and the Мастерская/
 // Админка pair, rather than blending into their row (see DEST_TIER_2 below).
-const GAP_WEIGHT_SKETCHBOOK_CLIENTS = 2.6;
-const GAP_WEIGHT_CLIENTS_BRUSH = 1;
+const GAP_WEIGHT_SKETCHBOOK_CLIENTS = 2.367;
+const GAP_WEIGHT_CLIENTS_BRUSH = 1.233;
 
 // Radius: fixed per destination — this is where each one's own importance
 // shows up. Per Fitts's law, a target reached for constantly should need
