@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo, memo, type SVGProps } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, memo, type SVGProps } from 'react';
+import { createPortal } from 'react-dom';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
 import { ToolbarIcon } from './navigation/ToolbarIcons';
@@ -1550,12 +1551,12 @@ export default function TattoDiary() {
     return () => setConflictHandler(null);
   }, []);
 
-  // Reminder cards (see RemindersSection) the master has explicitly closed —
-  // by «×» or swipe — so they stay hidden even though the underlying overdue
-  // /healing condition hasn't changed. Keyed by a stable per-reminder string
-  // (see reminderKey below), not by anything that would naturally clear this
-  // — marking done, rescheduling, or ticking «Зажив» already removes the
-  // entry from its source list regardless of this set.
+  // Reminder cards (see RemindersSection) the master has hidden (via the «⋯»
+  // menu's «Скрыть», or a swipe) or snoozed («Отложить …») — so they stay out
+  // of the feed even though the underlying overdue/healing condition hasn't
+  // changed. Keyed by a stable per-reminder string (see reminderKeys), not by
+  // anything that would naturally clear this — marking done, rescheduling, or
+  // ticking «Зажив» already removes the entry from its source list regardless.
   // Скрытые/отложенные напоминания — см. src/reminders/reminderState.ts. На
   // старте подхватываем прежний формат (массив) и чистим истёкшие snooze.
   const [reminderState, setReminderState] = useState<ReminderState>(() => removeExpiredSnoozes(loadReminderState(), new Date()));
@@ -5142,16 +5143,15 @@ function useSwipeToReveal(onReveal: () => void) {
 // ≥30 days old, not yet ticked «Зажив» — copy the ready-made message and jump
 // to the session to tick it once the healed photo's in). Renders nothing
 // when both lists are empty, so callers can drop it in unconditionally.
-// A small «×» — closes a reminder card outright (no confirm step; reminders
-// are non-destructive, re-derived from live data, so there's nothing to lose
-// beyond the card itself, which reappears if the master reopens the app...
-// except once dismissed it's meant to stay gone, see dismissedReminders).
+// A small «×» close button (no confirm step). Reminder cards now hide/snooze
+// through ReminderMenuButton's «⋯» menu instead; this stays as the plain
+// close control for the note composer (see NoteComposer / onShowComposerChange).
 function ReminderCloseButton({ onClick }: { onClick: () => void }) {
   return (
     <span
       onClick={onClick}
       role="button"
-      aria-label="Скрыть напоминание"
+      aria-label="Закрыть"
       style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0, opacity: 0.55, padding: 2 }}
     >
       <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.textFaint }}>
@@ -5174,13 +5174,17 @@ function snoozeShowAfter(days: number): string {
 }
 
 // Компактное меню карточки напоминания («⋯»): отложить до завтра / на 3 дня /
-// скрыть. Заменяет одиночный «×», чтобы не громоздить кнопки на карточке.
-// Пункт «скрыть» относится только к текущему reminder-ключу — новое событие
-// той же сущности получит другой ключ и покажется снова.
+// скрыть. Стоит на месте прежней кнопки закрытия, чтобы не громоздить кнопки
+// на карточке. Пункт «скрыть» относится только к текущему reminder-ключу —
+// новое событие той же сущности получит другой ключ и покажется снова.
 //
-// Выпадашка рисуется через position:fixed от координат кнопки — так она не
-// обрезается overflow:hidden карточек (например, у просроченной) и не воюет
-// за z-index с их собственными stacking-контекстами.
+// Оверлей и выпадашка рендерятся через createPortal в document.body: карточки
+// напоминаний оборачиваются в SwipeDismissCard с transform, а position:fixed
+// внутри transformed-предка позиционируется относительно него, а не вьюпорта.
+// Портал в body (без transform) чинит это и заодно снимает вопросы с
+// overflow:hidden карточек и их z-index. Вертикально: открываем под кнопкой,
+// если снизу хватает места, иначе над ней; с отступом ≥6px от краёв вьюпорта.
+const REMINDER_MENU_MARGIN = 6;
 function ReminderMenuButton({
   onSnoozeTomorrow,
   onSnooze3Days,
@@ -5191,11 +5195,35 @@ function ReminderMenuButton({
   onHide: () => void;
 }) {
   const btnRef = useRef<HTMLSpanElement | null>(null);
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  // anchor — rect кнопки на момент открытия; coords — итоговое положение меню
+  // (считается после замера высоты меню в useLayoutEffect, до отрисовки).
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
   const openMenu = () => {
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 4, right: Math.max(6, window.innerWidth - r.right) });
+    if (r) {
+      setCoords(null); // пересчитать заново для этого открытия
+      setAnchor(r);
+    }
   };
+  const close = () => setAnchor(null);
+
+  useLayoutEffect(() => {
+    if (!anchor || !menuRef.current) return;
+    const menu = menuRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const right = Math.max(REMINDER_MENU_MARGIN, vw - anchor.right);
+    // Под кнопкой, если помещается; иначе над; иначе прижать к нижней границе.
+    let top = anchor.bottom + 4;
+    if (top + menu.height > vh - REMINDER_MENU_MARGIN) {
+      const above = anchor.top - 4 - menu.height;
+      top = above >= REMINDER_MENU_MARGIN ? above : Math.max(REMINDER_MENU_MARGIN, vh - REMINDER_MENU_MARGIN - menu.height);
+    }
+    setCoords({ top, right });
+  }, [anchor]);
+
   const rowStyle: React.CSSProperties = {
     padding: '9px 14px',
     fontSize: fs(12.5),
@@ -5203,6 +5231,10 @@ function ReminderMenuButton({
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     letterSpacing: '0.3px',
+  };
+  const runAndClose = (action: () => void) => {
+    close();
+    action();
   };
   return (
     <span ref={btnRef} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
@@ -5218,36 +5250,42 @@ function ReminderMenuButton({
           <circle cx="8" cy="13" r="1.4" fill="currentColor" />
         </svg>
       </span>
-      {pos && (
-        <>
-          {/* Клик мимо — закрыть меню. */}
-          <div onClick={() => setPos(null)} style={{ position: 'fixed', inset: 0, zIndex: 240 }} />
-          <div
-            style={{
-              position: 'fixed',
-              top: pos.top,
-              right: pos.right,
-              zIndex: 241,
-              background: COLORS.bg,
-              border: '1px solid rgba(var(--gold-rgb),0.3)',
-              borderRadius: 4,
-              boxShadow: '0 6px 20px rgba(0,0,0,0.35)',
-              overflow: 'hidden',
-              minWidth: 176,
-            }}
-          >
-            <div role="button" style={rowStyle} onClick={() => { setPos(null); onSnoozeTomorrow(); }}>
-              Отложить до завтра
+      {anchor &&
+        createPortal(
+          <>
+            {/* Клик мимо — закрыть меню. */}
+            <div onClick={close} style={{ position: 'fixed', inset: 0, zIndex: 240 }} />
+            <div
+              ref={menuRef}
+              style={{
+                position: 'fixed',
+                top: coords?.top ?? 0,
+                right: coords?.right ?? 0,
+                // Скрыто до замера (useLayoutEffect до отрисовки), чтобы не
+                // мигнуть в неправильной позиции при первом кадре.
+                visibility: coords ? 'visible' : 'hidden',
+                zIndex: 241,
+                background: COLORS.bg,
+                border: '1px solid rgba(var(--gold-rgb),0.3)',
+                borderRadius: 4,
+                boxShadow: '0 6px 20px rgba(0,0,0,0.35)',
+                overflow: 'hidden',
+                minWidth: 176,
+              }}
+            >
+              <div role="button" style={rowStyle} onClick={() => runAndClose(onSnoozeTomorrow)}>
+                Отложить до завтра
+              </div>
+              <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)' }} onClick={() => runAndClose(onSnooze3Days)}>
+                Отложить на 3 дня
+              </div>
+              <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textFaint }} onClick={() => runAndClose(onHide)}>
+                Скрыть это напоминание
+              </div>
             </div>
-            <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)' }} onClick={() => { setPos(null); onSnooze3Days(); }}>
-              Отложить на 3 дня
-            </div>
-            <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textFaint }} onClick={() => { setPos(null); onHide(); }}>
-              Скрыть это напоминание
-            </div>
-          </div>
-        </>
-      )}
+          </>,
+          document.body,
+        )}
     </span>
   );
 }
@@ -5255,11 +5293,11 @@ function ReminderMenuButton({
 // Wraps a reminder card so it can be swiped left/right, like a native
 // notification. Drags with the finger while held; past the threshold it
 // flies the rest of the way out and THEN runs the swipe action — the swipe
-// gesture and the card's own «×» can trigger DIFFERENT actions (e.g. an
-// overdue reminder's swipe marks it done, while its «×» just hides it),
-// which is why the completion action isn't fixed to one prop: swiping calls
-// onSwipeComplete, the «×» calls whatever action the render prop is invoked
-// with, and both play the same fly-out animation either way.
+// gesture and the card's own «⋯» menu actions can trigger DIFFERENT outcomes
+// (swiping hides the card, while the menu also offers snooze), which is why
+// the completion action isn't fixed to one prop: swiping calls
+// onSwipeComplete, the menu items call whatever action the render prop is
+// invoked with, and both play the same fly-out animation either way.
 function SwipeDismissCard({
   onSwipeComplete,
   revealLabel,
@@ -5382,11 +5420,12 @@ function SwipeDismissCard({
   );
 }
 
-// One overdue reminder card: name/date up top with the close «×», three
-// quick actions (Отменить / Закрыть / Перенести) in their own full-width
-// row below. No swipe and no tap-to-open on the card body — the only way
-// to open the underlying session/consultation is the explicit «Перенести»
-// action, so a stray tap on the card can't accidentally navigate away.
+// One overdue reminder card: name/date up top with the «⋯» menu (snooze /
+// hide), three quick actions (Отменить / Закрыть / Перенести) in their own
+// full-width row below. No swipe and no tap-to-open on the card body — the
+// only way to open the underlying session/consultation is the explicit
+// «Перенести» action, so a stray tap on the card can't accidentally navigate
+// away.
 function OverdueReminderCard({
   item,
   onReschedule,
