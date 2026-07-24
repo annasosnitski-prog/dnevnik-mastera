@@ -46,7 +46,7 @@ import {
 } from '../domain/client';
 // Чистые выборки/сортировки/агрегаты вынесены в domain/*Selectors и
 // utils/dates (PR 3 рефакторинга). Алгоритмы и результаты не менялись.
-import { ISO_DATE_RE, formatDate, dateParts, todayISO, daysSinceISO } from '../utils/dates';
+import { ISO_DATE_RE, formatDate, dateParts, todayISO } from '../utils/dates';
 import {
   getProjectById,
   getProjectsByClientId,
@@ -65,6 +65,11 @@ import {
   mostUsedStyle,
   upcomingItems,
 } from '../domain/plannerSelectors';
+// Логика напоминаний вынесена в src/reminders/* (PR 4 рефакторинга). Строители
+// теперь получают `now` аргументом; ключ проекта исправлен (см. reminderKeys).
+import type { OverdueItem, HealingItem, UpcomingSoonItem } from '../reminders/types';
+import { overdueEntries, healingReminders, upcomingSoonReminders, overdueProjects } from '../reminders/buildReminders';
+import { overdueReminderKey, healingReminderKey, soonReminderKey, projectReminderKey } from '../reminders/reminderKeys';
 import {
   type ProjectCategory,
   PROJECT_CATEGORIES,
@@ -320,8 +325,6 @@ const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
 
-const HEALING_REMINDER_DAYS = 30;
-
 // Every client-facing auto-message (healing check-in, upcoming-booking
 // reminder, and whatever gets added next) is written in the client's own
 // language (see Client.language, set from the Инфо tab) — keep new templates
@@ -363,98 +366,6 @@ function localizedWhen(dateIso: string, time: string, language: ClientLanguage):
   const [hh, mi] = time.split(':').map(Number);
   const timeStr = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(new Date(y, mo - 1, d, hh, mi));
   return `${dateStr}, ${timeStr}`;
-}
-
-// Sessions AND consultations whose date has passed while still marked
-// not-done — the master either ticks them done (it happened, wasn't logged)
-// or reschedules. Sorted oldest-first, so the most overdue leads.
-type OverdueItem = { client: Client; kind: 'session' | 'consultation'; id: string; date: string; time: string };
-
-function overdueEntries(clients: Client[]): OverdueItem[] {
-  const today = todayISO();
-  const result: OverdueItem[] = [];
-  for (const client of clients) {
-    for (const session of client.sessions) {
-      if (session.done || session.cancelled || !ISO_DATE_RE.test(session.date) || session.date >= today) continue;
-      result.push({ client, kind: 'session', id: session.id, date: session.date, time: session.time });
-    }
-    for (const consultation of client.consultations) {
-      if (consultation.done || consultation.cancelled || !ISO_DATE_RE.test(consultation.date) || consultation.date >= today) continue;
-      result.push({ client, kind: 'consultation', id: consultation.id, date: consultation.date, time: consultation.time });
-    }
-  }
-  return result.sort((a, b) => a.date.localeCompare(b.date));
-}
-
-// Done sessions, not yet marked healed, whose date is at least
-// HEALING_REMINDER_DAYS in the past — a nudge to check in with the client and
-// (once they send a healed-skin photo) tick «Зажив». Sorted oldest-first.
-type HealingItem = { client: Client; sessionId: string; date: string };
-
-function healingReminders(clients: Client[]): HealingItem[] {
-  const result: HealingItem[] = [];
-  for (const client of clients) {
-    for (const session of client.sessions) {
-      if (!session.done || session.healed || !ISO_DATE_RE.test(session.date)) continue;
-      if (daysSinceISO(session.date) >= HEALING_REMINDER_DAYS) {
-        result.push({ client, sessionId: session.id, date: session.date });
-      }
-    }
-  }
-  return result.sort((a, b) => a.date.localeCompare(b.date));
-}
-
-// Sessions/consultations starting 36–48 hours from now (not done, not
-// cancelled) — a heads-up to prep materials before the client arrives.
-// Undated/untimed entries have nothing to count down, so they're skipped.
-type UpcomingSoonItem = { client: Client; kind: 'session' | 'consultation'; id: string; date: string; time: string };
-const SOON_REMINDER_MIN_HOURS = 36;
-const SOON_REMINDER_MAX_HOURS = 48;
-
-function upcomingSoonReminders(clients: Client[]): UpcomingSoonItem[] {
-  const now = Date.now();
-  const result: UpcomingSoonItem[] = [];
-  const consider = (client: Client, kind: 'session' | 'consultation', id: string, date: string, time: string, done: boolean, cancelled: boolean) => {
-    if (done || cancelled || !ISO_DATE_RE.test(date) || !time) return;
-    const at = new Date(`${date}T${time}`).getTime();
-    if (Number.isNaN(at)) return;
-    const hoursUntil = (at - now) / 3600000;
-    if (hoursUntil >= SOON_REMINDER_MIN_HOURS && hoursUntil <= SOON_REMINDER_MAX_HOURS) {
-      result.push({ client, kind, id, date, time });
-    }
-  };
-  for (const client of clients) {
-    for (const session of client.sessions) consider(client, 'session', session.id, session.date, session.time, session.done, session.cancelled);
-    for (const consultation of client.consultations) consider(client, 'consultation', consultation.id, consultation.date, consultation.time, consultation.done, consultation.cancelled);
-  }
-  return result.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
-}
-
-// Активные проекты, у которых «следующий шаг» назначен на сегодня или уже
-// просрочен (Этап 3b). Срабатывает только когда мастер сама поставила дату —
-// проекты-корзины без даты сюда не попадают и не шумят. Отсортированы от
-// самого просроченного. Используется и на Планнере, и в напоминаниях.
-function overdueProjects(projects: Project[]): Project[] {
-  const today = todayISO();
-  return projects
-    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today)
-    .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
-}
-
-// Stable identity for a reminder card, independent of render order — used to
-// persist which cards the master has manually closed (see dismissedReminders
-// in the main component and RemindersSection below).
-function overdueReminderKey(it: OverdueItem): string {
-  return `overdue:${it.kind}:${it.id}`;
-}
-function healingReminderKey(it: HealingItem): string {
-  return `healing:${it.sessionId}`;
-}
-function soonReminderKey(it: UpcomingSoonItem): string {
-  return `soon:${it.kind}:${it.id}`;
-}
-function projectReminderKey(p: Project): string {
-  return `project:${p.id}`;
 }
 
 // Auto-message for the 36–48h heads-up — master copies it to nudge the
@@ -2523,11 +2434,14 @@ export default function TattoDiary() {
 
   // Reminders (see RemindersSection), minus whatever the master has closed —
   // computed once and shared by the toolbar badge, «Задачи», and «Мастер».
-  const visibleOverdue = overdueEntries(clients).filter((it) => !dismissedReminders.includes(overdueReminderKey(it)));
-  const visibleHealing = healingReminders(clients).filter((it) => !dismissedReminders.includes(healingReminderKey(it)));
-  const visibleSoon = upcomingSoonReminders(clients).filter((it) => !dismissedReminders.includes(soonReminderKey(it)));
+  // Один снимок времени на все четыре ленты — раньше каждая читала часы сама
+  // (todayISO()/Date.now()); поведение то же, но теперь оно детерминировано.
+  const remindersNow = new Date();
+  const visibleOverdue = overdueEntries(clients, remindersNow).filter((it) => !dismissedReminders.includes(overdueReminderKey(it)));
+  const visibleHealing = healingReminders(clients, remindersNow).filter((it) => !dismissedReminders.includes(healingReminderKey(it)));
+  const visibleSoon = upcomingSoonReminders(clients, remindersNow).filter((it) => !dismissedReminders.includes(soonReminderKey(it)));
   // Проекты с просроченным «следующим шагом» (Этап 3b) — в те же напоминания.
-  const visibleDueProjects = overdueProjects(projects).filter((p) => !dismissedReminders.includes(projectReminderKey(p)));
+  const visibleDueProjects = overdueProjects(projects, remindersNow).filter((p) => !dismissedReminders.includes(projectReminderKey(p)));
 
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
