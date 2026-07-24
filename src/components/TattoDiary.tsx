@@ -91,6 +91,8 @@ import {
   PROJECT_STATES,
   PROJECT_WAITING_FOR,
   PROJECT_PRIORITIES,
+  type NextActionType,
+  NEXT_ACTION_TYPES,
   type Project,
 } from '../domain/project';
 
@@ -488,6 +490,10 @@ function normalizeProject(raw: any, index: number): Project {
     waitingFor: PROJECT_WAITING_FOR.some((w) => w.key === raw?.waitingFor) ? raw.waitingFor : 'none',
     nextActionText: raw?.nextActionText ?? '',
     nextActionDate: raw?.nextActionDate ?? null,
+    // Отсутствует или неизвестное значение → null (не угадываем тип по
+    // nextActionText). Повторная нормализация валидного значения не меняет
+    // его — та же .some()-проверка, что и у остальных union-полей проекта.
+    nextActionType: NEXT_ACTION_TYPES.some((t) => t.key === raw?.nextActionType) ? raw.nextActionType : null,
     priority: PROJECT_PRIORITIES.some((p) => p.key === raw?.priority) ? raw.priority : 'normal',
     area: raw?.area ?? '',
     style: raw?.style ?? '',
@@ -2055,6 +2061,7 @@ export default function TattoDiary() {
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
     nextActionDate: string | null;
+    nextActionType: NextActionType | null;
     priority: ProjectPriority;
     area: string;
     style: string;
@@ -2168,6 +2175,7 @@ export default function TattoDiary() {
           waitingFor: 'none',
           nextActionText: '',
           nextActionDate: null,
+          nextActionType: null,
           priority: 'normal',
           area: '',
           style: '',
@@ -13042,6 +13050,7 @@ function NewProjectSheet({
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
     nextActionDate: string | null;
+    nextActionType: NextActionType | null;
     priority: ProjectPriority;
     area: string;
     style: string;
@@ -13064,6 +13073,7 @@ function NewProjectSheet({
   const [waitingFor, setWaitingFor] = useState<ProjectWaitingFor>('none');
   const [nextActionText, setNextActionText] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
+  const [nextActionType, setNextActionType] = useState<NextActionType | null>(null);
   const [priority, setPriority] = useState<ProjectPriority>('normal');
   const [area, setArea] = useState('');
   const [style, setStyle] = useState('');
@@ -13088,6 +13098,7 @@ function NewProjectSheet({
       setWaitingFor(initial?.waitingFor ?? 'none');
       setNextActionText(initial?.nextActionText ?? '');
       setNextActionDate(initial?.nextActionDate ?? '');
+      setNextActionType(initial?.nextActionType ?? null);
       setPriority(initial?.priority ?? 'normal');
       setArea(initial?.area ?? '');
       setStyle(initial?.style ?? '');
@@ -13204,6 +13215,21 @@ function NewProjectSheet({
               style={{ ...INPUT_STYLE, marginBottom: 8 }}
             />
             <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+              Тип действия
+            </div>
+            <select
+              value={nextActionType ?? ''}
+              onChange={(e) => setNextActionType((e.target.value || null) as NextActionType | null)}
+              style={{ ...INPUT_STYLE, marginBottom: 8 }}
+            >
+              <option value="">Не выбран</option>
+              {NEXT_ACTION_TYPES.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
               Дата (когда сделать)
             </div>
             <input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} style={INPUT_STYLE} />
@@ -13281,6 +13307,7 @@ function NewProjectSheet({
               waitingFor,
               nextActionText,
               nextActionDate: nextActionDate || null,
+              nextActionType,
               priority,
               area,
               style,
