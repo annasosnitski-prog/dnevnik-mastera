@@ -2065,6 +2065,9 @@ export default function TattoDiary() {
   // Read-only просмотр проекта (Этап 2): тап по проекту открывает просмотр,
   // а не сразу форму редактирования (см. ProjectViewSheet).
   const [viewProject, setViewProject] = useState<Project | null>(null);
+  // Клиент, под которого создаётся НОВЫЙ проект (кнопка «+ Новый» во вкладке
+  // клиента, Этап 3a) — используется только пока editProject === null.
+  const [newProjectClientId, setNewProjectClientId] = useState<string | null>(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -2516,6 +2519,7 @@ export default function TattoDiary() {
     }
     setShowNewProjectForm(false);
     setEditProject(null);
+    setNewProjectClientId(null);
   };
 
   // ── Миграция «Собрать старые записи в проекты» (Этап 2) ──
@@ -2568,6 +2572,18 @@ export default function TattoDiary() {
       });
     }
     return { buckets, records };
+  };
+
+  // Быстрая смена проекта записи без открытия полной формы редактирования
+  // (Этап 3a) — из read-only просмотра (TimelineViewSheet).
+  const reassignEntryProject = (clientId: string, kind: 'session' | 'consultation', entryId: string, projectId: string | null) => {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    if (kind === 'session') {
+      saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === entryId ? { ...s, projectId } : s)) });
+    } else {
+      saveClient({ ...c, consultations: c.consultations.map((cn) => (cn.id === entryId ? { ...cn, projectId } : cn)) });
+    }
   };
 
   // ── Notes (used by the client «Дополнительно» tab and the «Сводка» screen) ──
@@ -3500,6 +3516,13 @@ export default function TattoDiary() {
             onRemoveDocument={(docId) =>
               saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
             }
+            projects={projects}
+            onOpenProject={(project) => setViewProject(project)}
+            onCreateProject={() => {
+              setEditProject(null);
+              setNewProjectClientId(selectedClient.id);
+              setShowNewProjectForm(true);
+            }}
             onUpsertNote={(note) => upsertNote(selectedClient.id, note)}
             // Adding a note is NOT gated behind the mini-game. The composer
             // clears its text the moment it hands the note off, so gating here
@@ -3601,10 +3624,12 @@ export default function TattoDiary() {
       <NewProjectSheet
         open={showNewProjectForm}
         initial={editProject}
+        presetClientId={newProjectClientId}
         clients={clients}
         onClose={() => {
           setShowNewProjectForm(false);
           setEditProject(null);
+          setNewProjectClientId(null);
         }}
         onAdd={handleAddProject}
         onDelete={editProject ? () => deleteProject(editProject.id) : undefined}
@@ -3634,6 +3659,7 @@ export default function TattoDiary() {
         consultation={viewedConsultation}
         clientId={viewClient?.id ?? null}
         clientName={viewClient ? `${viewClient.name} ${viewClient.surname}`.trim() : ''}
+        clientProjects={viewClient ? projects.filter((p) => p.clientId === viewClient.id) : []}
         contentEntries={contentEntries}
         onClose={() => setViewEntry(null)}
         onEdit={() => {
@@ -3646,6 +3672,9 @@ export default function TattoDiary() {
             setShowNewSessionForm(true);
           }
           setViewEntry(null);
+        }}
+        onReassignProject={(projectId) => {
+          if (viewEntry) reassignEntryProject(viewEntry.clientId, viewEntry.kind, viewEntry.id, projectId);
         }}
         onSaveContentEntry={saveContentEntry}
       />
@@ -7773,6 +7802,9 @@ function DetailScreen({
   onAddNote,
   onDeleteNote,
   onImportClients,
+  projects,
+  onOpenProject,
+  onCreateProject,
 }: {
   client: Client;
   activeTab: 'info' | 'sessions' | 'consultations' | 'extra';
@@ -7797,6 +7829,9 @@ function DetailScreen({
   // screen's client export, so a single exported client's file can be
   // brought back in without wiping the rest of the roster.
   onImportClients: (clients: Client[]) => void;
+  projects: Project[];
+  onOpenProject: (project: Project) => void;
+  onCreateProject: () => void;
 }) {
   const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
     flex: 1,
@@ -8121,9 +8156,12 @@ function DetailScreen({
         {activeTab === 'info' && (
           <InfoTab
             client={client}
+            projects={projects}
             onSave={onSave}
             onAddDocument={onAddDocument}
             onRemoveDocument={onRemoveDocument}
+            onOpenProject={onOpenProject}
+            onCreateProject={onCreateProject}
           />
         )}
         {activeTab === 'extra' && (
@@ -8142,14 +8180,22 @@ function DetailScreen({
 // ── Info tab ──
 function InfoTab({
   client,
+  projects,
   onSave,
   onAddDocument,
   onRemoveDocument,
+  onOpenProject,
+  onCreateProject,
 }: {
   client: Client;
+  // Проекты этого клиента (Этап 3a) — видно сразу, что их может быть
+  // несколько, без похода в Мастерскую и фильтра по клиенту.
+  projects: Project[];
   onSave: (client: Client) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
+  onOpenProject: (project: Project) => void;
+  onCreateProject: () => void;
 }) {
   const metaCell = (span = false): React.CSSProperties => ({
     background: 'rgba(var(--surface-rgb),0.018)',
@@ -8158,11 +8204,64 @@ function InfoTab({
     padding: 13,
     gridColumn: span ? 'span 2' : undefined,
   });
+  const clientProjects = projects.filter((p) => p.clientId === client.id);
 
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
       {/* Contacts — moved to the top (was master notes) */}
       <ContactsSection client={client} onSave={onSave} first />
+
+      <SectionDivider />
+
+      {/* Проекты клиента (Этап 3a) — один клиент может иметь несколько. */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div
+            style={{
+              fontFamily: "'Kelly Slab', 'Playfair Display', serif",
+              fontSize: fs(11),
+              color: COLORS.textGhost,
+              letterSpacing: '3.5px',
+              textTransform: 'uppercase',
+            }}
+          >
+            Проекты
+          </div>
+          <span onClick={onCreateProject} style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
+            + Новый
+          </span>
+        </div>
+        {clientProjects.length === 0 ? (
+          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет проектов</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {clientProjects.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => onOpenProject(p)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '9px 11px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: 'rgba(var(--surface-rgb),0.018)',
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.title || 'Без названия'}
+                </span>
+                <span style={{ fontSize: fs(10.5), color: COLORS.textFaint, flexShrink: 0 }}>
+                  {PROJECT_STAGES.find((s) => s.key === p.stage)?.label ?? p.stage}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <SectionDivider />
 
@@ -10892,9 +10991,11 @@ function TimelineViewSheet({
   consultation,
   clientId,
   clientName,
+  clientProjects,
   contentEntries,
   onClose,
   onEdit,
+  onReassignProject,
   onSaveContentEntry,
 }: {
   open: boolean;
@@ -10902,9 +11003,13 @@ function TimelineViewSheet({
   consultation: Consultation | null;
   clientId: string | null;
   clientName: string;
+  // Проекты этого клиента — для быстрой смены проекта записи без захода в
+  // полную форму редактирования (Этап 3a).
+  clientProjects: Project[];
   contentEntries: ContentEntry[];
   onClose: () => void;
   onEdit: () => void;
+  onReassignProject: (projectId: string | null) => void;
   onSaveContentEntry: (entry: ContentEntry) => void;
 }) {
   const isConsult = !!consultation;
@@ -10914,6 +11019,7 @@ function TimelineViewSheet({
     return [formatDate(d) || 'Дата не указана', t].filter(Boolean).join(' · ');
   })();
   const urgency = consultation ? urgencyMeta(consultation.urgency) : null;
+  const currentProjectId = (isConsult ? consultation?.projectId : session?.projectId) ?? null;
 
   return (
     <BottomSheet open={open} heightPct={94}>
@@ -10930,6 +11036,23 @@ function TimelineViewSheet({
       </div>
 
       <div style={{ padding: '4px 24px 60px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {clientProjects.length > 0 && (
+          <div>
+            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Проект</div>
+            <select
+              value={currentProjectId ?? ''}
+              onChange={(e) => onReassignProject(e.target.value || null)}
+              style={{ ...INPUT_STYLE, fontSize: fs(14) }}
+            >
+              <option value="">— без проекта —</option>
+              {clientProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title || 'Без названия'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {isConsult && consultation ? (
           <>
             {consultation.photos.length > 0 && <SessionPhotos photos={consultation.photos} onChange={() => {}} allowDelete={false} readOnly />}
@@ -12691,6 +12814,7 @@ function ProjectViewSheet({
 function NewProjectSheet({
   open,
   initial,
+  presetClientId,
   clients,
   onClose,
   onAdd,
@@ -12698,6 +12822,9 @@ function NewProjectSheet({
 }: {
   open: boolean;
   initial?: Project | null;
+  // Предзаполняет клиента для НОВОГО проекта (Этап 3a, кнопка «+ Новый» во
+  // вкладке клиента) — игнорируется при редактировании существующего.
+  presetClientId?: string | null;
   clients: Client[];
   onClose: () => void;
   onAdd: (data: {
@@ -12747,7 +12874,7 @@ function NewProjectSheet({
       setTitle(initial?.title ?? '');
       setColor(initial?.color ?? MARKER_COLORS[0]);
       setCategory(initial?.category ?? 'tattoo');
-      setClientId(initial?.clientId ?? null);
+      setClientId(initial?.clientId ?? presetClientId ?? null);
       setStage(initial?.stage ?? 'idea');
       setState(initial?.state ?? 'active');
       setWaitingFor(initial?.waitingFor ?? 'none');
