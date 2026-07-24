@@ -1,7 +1,5 @@
-// Доменный тип проекта, его статусные union-типы и label-константы. Вынесено
-// из TattoDiary.tsx без изменений (PR 2). Второй модели Project не создаётся —
-// это тот же существующий тип. Поля nextActionType у проекта сейчас НЕТ — его
-// добавление — отдельный будущий PR (см. docs/TECH_REFACTOR_AUDIT.md).
+// Доменный тип проекта, его статусные union-типы и label-константы — тот же
+// существующий тип, что и раньше (вынесен из TattoDiary.tsx в PR 2).
 
 import type { Session } from './session';
 
@@ -59,6 +57,38 @@ export const PROJECT_PRIORITIES: { key: ProjectPriority; label: string }[] = [
   { key: 'normal', label: 'Обычный' },
 ];
 
+// Структурный тип «следующего шага» — чтобы будущая система (напоминания,
+// автоматизация) понимала СМЫСЛ действия без распознавания свободного текста
+// nextActionText. Дополняет его, не заменяет: nextActionText/nextActionDate
+// остаются как были. null = тип не выбран — это валидное, а не временное
+// состояние (не подставляется автоматически, см. normalizeProject).
+export type NextActionType =
+  | 'contact_client'
+  | 'collect_information'
+  | 'prepare_design'
+  | 'schedule_consultation'
+  | 'schedule_session'
+  | 'receive_deposit'
+  | 'prepare_session'
+  | 'check_healing'
+  | 'schedule_next_session'
+  | 'review_project'
+  | 'other';
+
+export const NEXT_ACTION_TYPES: { key: NextActionType; label: string }[] = [
+  { key: 'contact_client', label: 'Связаться с клиентом' },
+  { key: 'collect_information', label: 'Собрать информацию' },
+  { key: 'prepare_design', label: 'Подготовить дизайн' },
+  { key: 'schedule_consultation', label: 'Назначить консультацию' },
+  { key: 'schedule_session', label: 'Назначить сессию' },
+  { key: 'receive_deposit', label: 'Получить предоплату' },
+  { key: 'prepare_session', label: 'Подготовиться к сессии' },
+  { key: 'check_healing', label: 'Проверить заживление' },
+  { key: 'schedule_next_session', label: 'Назначить следующую сессию' },
+  { key: 'review_project', label: 'Проверить проект' },
+  { key: 'other', label: 'Другое' },
+];
+
 export interface Project {
   id: string;
   title: string; // project name, e.g. "Дракон в стиле джапан"
@@ -72,6 +102,9 @@ export interface Project {
   waitingFor: ProjectWaitingFor;
   nextActionText: string;
   nextActionDate: string | null; // ISO yyyy-mm-dd
+  // Структурный тип действия — см. NextActionType выше. Не выведен из
+  // nextActionText, задаётся мастером отдельно; null = не выбран.
+  nextActionType: NextActionType | null;
   priority: ProjectPriority;
   area: string; // "Место" — intended placement, if already decided
   style: string; // "Техника и стиль"
