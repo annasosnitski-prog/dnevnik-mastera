@@ -2082,6 +2082,10 @@ export default function TattoDiary() {
   // Клиент, под которого создаётся НОВЫЙ проект (кнопка «+ Новый» во вкладке
   // клиента, Этап 3a) — используется только пока editProject === null.
   const [newProjectClientId, setNewProjectClientId] = useState<string | null>(null);
+  // Проект, к которому сразу привязывается НОВАЯ сессия/консультация, если её
+  // создают из просмотра проекта (кнопки «+ Сессия/Консультация», Этап 3b) —
+  // предзаполняет поле «Проект» в форме. Только для новой записи.
+  const [presetEntryProjectId, setPresetEntryProjectId] = useState<string | null>(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -2377,12 +2381,14 @@ export default function TattoDiary() {
     setEditSession(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    setPresetEntryProjectId(null);
   };
   const closeNewConsultation = () => {
     setShowNewConsultationForm(false);
     setEditConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    setPresetEntryProjectId(null);
   };
   const closeEditClient = () => setShowEditClientForm(false);
   const closeBackdrop = () => {
@@ -2499,6 +2505,7 @@ export default function TattoDiary() {
     setEditConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    setPresetEntryProjectId(null);
   };
 
   const deleteConsultation = (consultationId: string) => {
@@ -2796,6 +2803,7 @@ export default function TattoDiary() {
     setEditSession(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    setPresetEntryProjectId(null);
   };
 
   const sheetOpen =
@@ -3622,6 +3630,7 @@ export default function TattoDiary() {
         open={showNewSessionForm}
         clientName={selectedClient?.name || ''}
         clientProjects={selectedClient ? projects.filter((p) => p.clientId === selectedClient.id) : []}
+        presetProjectId={presetEntryProjectId}
         initial={editSession}
         initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewSession}
@@ -3654,6 +3663,7 @@ export default function TattoDiary() {
         clientName={selectedClient?.name || ''}
         client={selectedClient}
         clientProjects={selectedClient ? projects.filter((p) => p.clientId === selectedClient.id) : []}
+        presetProjectId={presetEntryProjectId}
         initial={editConsultation}
         initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewConsultation}
@@ -3689,6 +3699,20 @@ export default function TattoDiary() {
         onOpenEntry={(clientId, kind, id) => {
           setViewProject(null);
           setViewEntry({ kind, clientId, id });
+        }}
+        onAddEntry={(clientId, kind) => {
+          // Новая сессия/консультация из проекта: встаём на клиента, заранее
+          // привязываем проект, открываем нужную форму.
+          setViewProject(null);
+          setSelectedId(clientId);
+          setPresetEntryProjectId(viewProject?.id ?? null);
+          if (kind === 'session') {
+            setEditSession(null);
+            setShowNewSessionForm(true);
+          } else {
+            setEditConsultation(null);
+            setShowNewConsultationForm(true);
+          }
         }}
       />
 
@@ -11894,6 +11918,7 @@ function NewSessionSheet({
   open,
   clientName,
   clientProjects,
+  presetProjectId,
   initial,
   initialDate,
   onClose,
@@ -11903,6 +11928,9 @@ function NewSessionSheet({
   clientName: string;
   // Проекты этого клиента — для опциональной привязки сессии (Этап 2).
   clientProjects: Project[];
+  // Предзаполняет «Проект» для новой сессии, созданной из просмотра проекта
+  // (Этап 3b) — игнорируется при редактировании существующей.
+  presetProjectId?: string | null;
   initial?: Session | null;
   // Prefills the date field for a brand-new session (e.g. started from a day
   // picked in the calendar) — ignored once `initial` is set (editing wins).
@@ -11966,7 +11994,7 @@ function NewSessionSheet({
       setPhotos(initial?.photos ?? []);
       setDone(initial ? initial.done : !initialDate);
       setHealed(initial?.healed ?? false);
-      setProjectId(initial?.projectId ?? null);
+      setProjectId(initial?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -12518,6 +12546,7 @@ function NewConsultationSheet({
   clientName,
   client,
   clientProjects,
+  presetProjectId,
   initial,
   initialDate,
   onClose,
@@ -12528,6 +12557,8 @@ function NewConsultationSheet({
   client: Client | null;
   // Проекты этого клиента — для опциональной привязки консультации (Этап 2).
   clientProjects: Project[];
+  // Предзаполняет «Проект» для новой консультации из просмотра проекта (3b).
+  presetProjectId?: string | null;
   initial?: Consultation | null;
   // Prefills the date field for a brand-new consultation (e.g. started from a
   // day picked in the calendar) — ignored once `initial` is set.
@@ -12575,7 +12606,7 @@ function NewConsultationSheet({
       setInspirationSources(initial?.inspirationSources ?? '');
       setUrgency(initial?.urgency ?? 'important');
       setPhotos(initial?.photos ?? []);
-      setProjectId(initial?.projectId ?? null);
+      setProjectId(initial?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -12770,6 +12801,7 @@ function ProjectViewSheet({
   onClose,
   onEdit,
   onOpenEntry,
+  onAddEntry,
 }: {
   open: boolean;
   project: Project | null;
@@ -12777,6 +12809,9 @@ function ProjectViewSheet({
   onClose: () => void;
   onEdit: (project: Project) => void;
   onOpenEntry: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
+  // Создать новую сессию/консультацию прямо из проекта (Этап 3b) — только для
+  // проектов с клиентом (без клиента реальной сессии не бывает).
+  onAddEntry: (clientId: string, kind: 'session' | 'consultation') => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
@@ -12847,6 +12882,25 @@ function ProjectViewSheet({
             <ViewField label="Чувство / ощущение" value={project.feeling} />
             <ViewField label="Креатив" value={project.creative} />
             <ViewField label="Источники вдохновения" value={project.inspirationSources} />
+
+            {/* Добавить запись прямо из проекта — только если у проекта есть
+                клиент (сессия/консультация без клиента не бывает). */}
+            {linkedClient && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div
+                  onClick={() => onAddEntry(linkedClient.id, 'session')}
+                  style={{ flex: 1, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.3)', color: COLORS.gold, fontSize: fs(12), letterSpacing: '0.5px', cursor: 'pointer' }}
+                >
+                  + Сессия
+                </div>
+                <div
+                  onClick={() => onAddEntry(linkedClient.id, 'consultation')}
+                  style={{ flex: 1, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.3)', color: COLORS.gold, fontSize: fs(12), letterSpacing: '0.5px', cursor: 'pointer' }}
+                >
+                  + Консультация
+                </div>
+              </div>
+            )}
 
             {(linkedSessions.length > 0 || linkedConsults.length > 0) && (
               <div>
