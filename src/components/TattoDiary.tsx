@@ -12512,6 +12512,9 @@ function NewProjectSheet({
               placeholder="Уточнить размер, получить фото спины..."
               style={{ ...INPUT_STYLE, marginBottom: 8 }}
             />
+            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+              Дата (когда сделать)
+            </div>
             <input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} style={INPUT_STYLE} />
           </div>
 
