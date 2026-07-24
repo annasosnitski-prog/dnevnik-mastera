@@ -2062,6 +2062,9 @@ export default function TattoDiary() {
     | { kind: 'consultation'; clientId: string; id: string }
     | null
   >(null);
+  // Read-only просмотр проекта (Этап 2): тап по проекту открывает просмотр,
+  // а не сразу форму редактирования (см. ProjectViewSheet).
+  const [viewProject, setViewProject] = useState<Project | null>(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -2750,6 +2753,7 @@ export default function TattoDiary() {
     showNewConsultationForm ||
     showAddChoice ||
     !!viewEntry ||
+    !!viewProject ||
     showCalendar ||
     !!calendarWalkStep;
 
@@ -3296,10 +3300,7 @@ export default function TattoDiary() {
           <SummaryScreen
             clients={clients}
             projects={projects}
-            onOpenProject={(project) => {
-              setEditProject(project);
-              setShowNewProjectForm(true);
-            }}
+            onOpenProject={(project) => setViewProject(project)}
             masterNotes={masterInfo.notes}
             onToggleDone={(clientId, note) => upsertNote(clientId, note)}
             onEditNote={(clientId, note) => upsertNote(clientId, note)}
@@ -3438,10 +3439,7 @@ export default function TattoDiary() {
             projects={projects}
             projectsLoaded={projectsLoaded}
             clients={clients}
-            onOpenProject={(project) => {
-              setEditProject(project);
-              setShowNewProjectForm(true);
-            }}
+            onOpenProject={(project) => setViewProject(project)}
           />
         )}
       </div>
@@ -3610,11 +3608,21 @@ export default function TattoDiary() {
         }}
         onAdd={handleAddProject}
         onDelete={editProject ? () => deleteProject(editProject.id) : undefined}
+      />
+
+      {/* ═══════════ PROJECT VIEW (read-only) ═══════════ */}
+      <ProjectViewSheet
+        open={!!viewProject}
+        project={viewProject ? projects.find((p) => p.id === viewProject.id) ?? viewProject : null}
+        clients={clients}
+        onClose={() => setViewProject(null)}
+        onEdit={(project) => {
+          setViewProject(null);
+          setEditProject(project);
+          setShowNewProjectForm(true);
+        }}
         onOpenEntry={(clientId, kind, id) => {
-          // Закрываем лист проекта и открываем read-only просмотр записи,
-          // чтобы два оверлея не наслаивались.
-          setShowNewProjectForm(false);
-          setEditProject(null);
+          setViewProject(null);
           setViewEntry({ kind, clientId, id });
         }}
       />
@@ -12543,6 +12551,138 @@ function NewConsultationSheet({
   );
 }
 
+// ── Read-only просмотр проекта (Этап 2) ──
+// Открывается по тапу на проект (в Мастерской или в «Активных проектах»
+// Планнера). Сверху статус, следующий шаг и записи проекта; редактирование
+// — отдельной кнопкой, а не сразу форма. Записи тапабельны — открывают
+// существующий просмотр сессии/консультации.
+function ProjectViewSheet({
+  open,
+  project,
+  clients,
+  onClose,
+  onEdit,
+  onOpenEntry,
+}: {
+  open: boolean;
+  project: Project | null;
+  clients: Client[];
+  onClose: () => void;
+  onEdit: (project: Project) => void;
+  onOpenEntry: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
+}) {
+  const clientName = project ? clientNameFor(clients, project.clientId) : null;
+  const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
+  const linkedSessions = linkedClient && project ? linkedClient.sessions.filter((s) => s.projectId === project.id) : [];
+  const linkedConsults = linkedClient && project ? linkedClient.consultations.filter((c) => c.projectId === project.id) : [];
+
+  const chipStyle: React.CSSProperties = {
+    fontSize: fs(11),
+    color: COLORS.textFaint,
+    border: '1px solid rgba(var(--gold-rgb),0.3)',
+    borderRadius: 2,
+    padding: '3px 9px',
+    letterSpacing: '0.5px',
+  };
+  const entryRowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '9px 11px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    border: '1px solid rgba(var(--gold-rgb),0.15)',
+    background: 'rgba(var(--surface-rgb),0.018)',
+  };
+
+  return (
+    <BottomSheet open={open} heightPct={90}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>
+          {clientName ?? 'Мастерская'}
+        </div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
+          {project?.title || 'Проект'}
+        </div>
+        <SheetStarDivider />
+      </div>
+
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {project && (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <span style={chipStyle}>{PROJECT_STAGES.find((s) => s.key === project.stage)?.label ?? project.stage}</span>
+              <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
+              {project.waitingFor !== 'none' && (
+                <span style={chipStyle}>Ждём: {PROJECT_WAITING_FOR.find((w) => w.key === project.waitingFor)?.label}</span>
+              )}
+              {project.priority !== 'normal' && (
+                <span style={chipStyle}>{PROJECT_PRIORITIES.find((p) => p.key === project.priority)?.label}</span>
+              )}
+            </div>
+
+            {project.nextActionText && (
+              <div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Следующий шаг</div>
+                <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textPrimary, lineHeight: 1.5 }}>
+                  {project.nextActionText}
+                  {project.nextActionDate ? ` · ${formatDate(project.nextActionDate)}` : ''}
+                </div>
+              </div>
+            )}
+
+            {project.photos.length > 0 && <SessionPhotos photos={project.photos} onChange={() => {}} allowDelete={false} readOnly />}
+
+            <ViewField label="Место" value={project.area} />
+            <ViewField label="Техника и стиль" value={project.style} />
+            <ViewField label="Общие заметки" value={project.generalNotes} />
+            <ViewField label="Чувство / ощущение" value={project.feeling} />
+            <ViewField label="Креатив" value={project.creative} />
+            <ViewField label="Источники вдохновения" value={project.inspirationSources} />
+
+            {(linkedSessions.length > 0 || linkedConsults.length > 0) && (
+              <div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Записи проекта</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {linkedSessions.map((s) => (
+                    <div key={`s-${s.id}`} onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'session', s.id)} style={entryRowStyle}>
+                      <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Сессия</span>
+                      <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {s.name || s.area || '—'}
+                      </span>
+                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
+                        {s.date ? formatDate(s.date).replace(/ \d{4}$/, '') : ''}
+                      </span>
+                    </div>
+                  ))}
+                  {linkedConsults.map((c) => (
+                    <div key={`c-${c.id}`} onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'consultation', c.id)} style={entryRowStyle}>
+                      <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Консультация</span>
+                      <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.area || '—'}
+                      </span>
+                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
+                        {c.date ? formatDate(c.date).replace(/ \d{4}$/, '') : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="inka-submit" onClick={() => onEdit(project)} style={{ ...SUBMIT_STYLE, marginTop: 8 }}>
+              <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
+                Редактировать
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
 // ── Новый / редактирование проекта («Творческая мастерская») — same field
 // set as NewConsultationSheet (same kind of creative brief), minus the
 // client-skin block (there's no client) and urgency chips, plus a title and
@@ -12555,7 +12695,6 @@ function NewProjectSheet({
   onClose,
   onAdd,
   onDelete,
-  onOpenEntry,
 }: {
   open: boolean;
   initial?: Project | null;
@@ -12582,8 +12721,6 @@ function NewProjectSheet({
   }) => void;
   // Present only when editing an existing project — omitted for a new one.
   onDelete?: () => void;
-  // Открыть привязанную к проекту запись в read-only просмотре (Этап 2).
-  onOpenEntry?: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
 }) {
   const isEdit = !!initial;
   const [title, setTitle] = useState('');
@@ -12604,13 +12741,6 @@ function NewProjectSheet({
   const [inspirationSources, setInspirationSources] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-
-  // Привязанные к этому проекту записи (Этап 2, link-подход): сессии/
-  // консультации физически лежат у клиента, но ссылаются на проект через
-  // projectId. Показываем их read-only списком; тап открывает просмотр.
-  const linkedClient = initial?.clientId ? clients.find((c) => c.id === initial.clientId) ?? null : null;
-  const linkedSessions = linkedClient && initial ? linkedClient.sessions.filter((s) => s.projectId === initial.id) : [];
-  const linkedConsults = linkedClient && initial ? linkedClient.consultations.filter((c) => c.projectId === initial.id) : [];
 
   useEffect(() => {
     if (open) {
@@ -12798,61 +12928,6 @@ function NewProjectSheet({
             />
           </div>
 
-          {(linkedSessions.length > 0 || linkedConsults.length > 0) && (
-            <div style={{ marginBottom: 16 }}>
-              <FieldLabel>Записи проекта</FieldLabel>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {linkedSessions.map((s) => (
-                  <div
-                    key={`s-${s.id}`}
-                    onClick={linkedClient ? () => onOpenEntry?.(linkedClient.id, 'session', s.id) : undefined}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '8px 10px',
-                      borderRadius: 2,
-                      cursor: onOpenEntry ? 'pointer' : 'default',
-                      border: '1px solid rgba(var(--gold-rgb),0.15)',
-                      background: 'rgba(var(--surface-rgb),0.018)',
-                    }}
-                  >
-                    <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Сессия</span>
-                    <span style={{ fontSize: fs(13), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {s.name || s.area || '—'}
-                    </span>
-                    <span style={{ fontSize: fs(11), color: COLORS.textGhost, flexShrink: 0 }}>
-                      {s.date ? formatDate(s.date).replace(/ \d{4}$/, '') : ''}
-                    </span>
-                  </div>
-                ))}
-                {linkedConsults.map((c) => (
-                  <div
-                    key={`c-${c.id}`}
-                    onClick={linkedClient ? () => onOpenEntry?.(linkedClient.id, 'consultation', c.id) : undefined}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '8px 10px',
-                      borderRadius: 2,
-                      cursor: onOpenEntry ? 'pointer' : 'default',
-                      border: '1px solid rgba(var(--gold-rgb),0.15)',
-                      background: 'rgba(var(--surface-rgb),0.018)',
-                    }}
-                  >
-                    <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Консультация</span>
-                    <span style={{ fontSize: fs(13), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {c.area || '—'}
-                    </span>
-                    <span style={{ fontSize: fs(11), color: COLORS.textGhost, flexShrink: 0 }}>
-                      {c.date ? formatDate(c.date).replace(/ \d{4}$/, '') : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
