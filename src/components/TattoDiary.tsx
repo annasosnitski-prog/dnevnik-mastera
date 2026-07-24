@@ -195,6 +195,10 @@ interface Session {
   // `done`. Excluded from upcoming/overdue lists; shown as «Отменена» in
   // the client's history instead of just disappearing.
   cancelled: boolean;
+  // Ссылка на Project (Этап 2, link-подход): сессия физически остаётся у
+  // клиента, но может принадлежать проекту. null = без проекта. НЕ входит
+  // в ключ синка календаря, так что привязка не дёргает Инка-календарь.
+  projectId: string | null;
 }
 
 interface ClientDocument {
@@ -348,6 +352,8 @@ interface Consultation {
   // reminder's «Отменить» action.
   cancelled: boolean;
   createdDate: string;
+  // См. Session.projectId — та же link-семантика (Этап 2).
+  projectId: string | null;
 }
 
 // A standalone sketch/portfolio idea for «Творческая мастерская» — not tied
@@ -869,6 +875,7 @@ function normalizeClient(raw: any, index: number): Client {
         done: s?.done ?? true,
         healed: s?.healed ?? false,
         cancelled: s?.cancelled ?? false,
+        projectId: s?.projectId ?? null,
       }))
     : [];
 
@@ -916,6 +923,7 @@ function normalizeClient(raw: any, index: number): Client {
           done: Boolean(cn?.done),
           cancelled: Boolean(cn?.cancelled),
           createdDate: cn?.createdDate ?? new Date().toISOString(),
+          projectId: cn?.projectId ?? null,
         }))
       : [],
     documents: Array.isArray(raw?.documents) ? raw.documents : [],
@@ -2054,6 +2062,9 @@ export default function TattoDiary() {
     | { kind: 'consultation'; clientId: string; id: string }
     | null
   >(null);
+  // Read-only просмотр проекта (Этап 2): тап по проекту открывает просмотр,
+  // а не сразу форму редактирования (см. ProjectViewSheet).
+  const [viewProject, setViewProject] = useState<Project | null>(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -2269,17 +2280,40 @@ export default function TattoDiary() {
     tx.onerror = () => setDbError('Не удалось удалить клиента.');
   };
 
-  // Wipes the store and repopulates it from an imported backup (Настройки → Резервная копия).
-  const replaceAllClients = (newClients: Client[]) => {
+  // Импорт полного бэкапа (Этап 2): clients + опционально projects и
+  // contentEntries. Стор трогаем ТОЛЬКО если соответствующий массив есть в
+  // файле — старый бэкап (только clients) не затирает проекты/контент.
+  const replaceAllData = (bundle: {
+    clients: Client[];
+    projects?: Project[];
+    contentEntries?: ContentEntry[];
+  }) => {
     if (!db) {
       setDbError('Хранилище недоступно — импорт не выполнен.');
       return;
     }
-    const tx = db.transaction('clients', 'readwrite');
-    const store = tx.objectStore('clients');
-    store.clear();
-    newClients.forEach((c) => store.put(c));
-    tx.oncomplete = () => loadClients(db);
+    const stores = ['clients'];
+    if (bundle.projects) stores.push('projects');
+    if (bundle.contentEntries) stores.push('contentEntries');
+    const tx = db.transaction(stores, 'readwrite');
+    const cs = tx.objectStore('clients');
+    cs.clear();
+    bundle.clients.forEach((c) => cs.put(c));
+    if (bundle.projects) {
+      const ps = tx.objectStore('projects');
+      ps.clear();
+      bundle.projects.forEach((p) => ps.put(p));
+    }
+    if (bundle.contentEntries) {
+      const es = tx.objectStore('contentEntries');
+      es.clear();
+      bundle.contentEntries.forEach((e) => es.put(e));
+    }
+    tx.oncomplete = () => {
+      loadClients(db);
+      if (bundle.projects) loadProjects(db);
+      if (bundle.contentEntries) loadContentEntries(db);
+    };
     tx.onerror = () => setDbError('Не удалось импортировать данные.');
   };
 
@@ -2428,6 +2462,7 @@ export default function TattoDiary() {
     inspirationSources: string;
     urgency: UrgencyKey;
     photos: string[];
+    projectId: string | null;
   }) => {
     if (!selectedClient) return;
     const fields = { ...data, done: false };
@@ -2481,6 +2516,58 @@ export default function TattoDiary() {
     }
     setShowNewProjectForm(false);
     setEditProject(null);
+  };
+
+  // ── Миграция «Собрать старые записи в проекты» (Этап 2) ──
+  // Для каждого клиента с сессиями/консультациями без projectId создаёт
+  // (если ещё нет) проект-«корзину» с детерминированным id `bucket-<id>` и
+  // проставляет на эти записи projectId. Чисто аддитивно и идемпотентно:
+  // содержимое записей не трогается, повторный запуск не плодит корзины.
+  // projectId не входит в ключ синка календаря, поэтому saveClient здесь не
+  // шлёт ничего в Инка-календарь.
+  const migrateRecordsIntoProjects = (): { buckets: number; records: number } => {
+    let buckets = 0;
+    let records = 0;
+    const existingProjectIds = new Set(projects.map((p) => p.id));
+    for (const client of clients) {
+      const orphanSessions = client.sessions.filter((s) => !s.projectId);
+      const orphanConsults = client.consultations.filter((c) => !c.projectId);
+      if (orphanSessions.length === 0 && orphanConsults.length === 0) continue;
+      const bucketId = `bucket-${client.id}`;
+      const fullName = `${client.name} ${client.surname}`.trim() || 'Клиент';
+      if (!existingProjectIds.has(bucketId)) {
+        saveProject({
+          id: bucketId,
+          title: `Записи · ${fullName}`,
+          color: client.color || MARKER_COLORS[0],
+          category: 'tattoo',
+          clientId: client.id,
+          stage: 'in_progress',
+          state: 'active',
+          waitingFor: 'none',
+          nextActionText: '',
+          nextActionDate: null,
+          priority: 'normal',
+          area: '',
+          style: '',
+          generalNotes: '',
+          feeling: '',
+          creative: '',
+          inspirationSources: '',
+          photos: [],
+          createdDate: new Date().toISOString(),
+        });
+        existingProjectIds.add(bucketId);
+        buckets += 1;
+      }
+      records += orphanSessions.length + orphanConsults.length;
+      saveClient({
+        ...client,
+        sessions: client.sessions.map((s) => (s.projectId ? s : { ...s, projectId: bucketId })),
+        consultations: client.consultations.map((c) => (c.projectId ? c : { ...c, projectId: bucketId })),
+      });
+    }
+    return { buckets, records };
   };
 
   // ── Notes (used by the client «Дополнительно» tab and the «Сводка» screen) ──
@@ -2614,6 +2701,7 @@ export default function TattoDiary() {
     photos: string[];
     done: boolean;
     healed: boolean;
+    projectId: string | null;
   }) => {
     if (!selectedClient) return;
     const fields = {
@@ -2630,6 +2718,7 @@ export default function TattoDiary() {
       photos: data.photos,
       done: data.done,
       healed: data.healed,
+      projectId: data.projectId,
     };
     let sessions: Session[];
     if (editSession) {
@@ -2664,6 +2753,7 @@ export default function TattoDiary() {
     showNewConsultationForm ||
     showAddChoice ||
     !!viewEntry ||
+    !!viewProject ||
     showCalendar ||
     !!calendarWalkStep;
 
@@ -3210,10 +3300,7 @@ export default function TattoDiary() {
           <SummaryScreen
             clients={clients}
             projects={projects}
-            onOpenProject={(project) => {
-              setEditProject(project);
-              setShowNewProjectForm(true);
-            }}
+            onOpenProject={(project) => setViewProject(project)}
             masterNotes={masterInfo.notes}
             onToggleDone={(clientId, note) => upsertNote(clientId, note)}
             onEditNote={(clientId, note) => upsertNote(clientId, note)}
@@ -3316,7 +3403,9 @@ export default function TattoDiary() {
             prefs={prefs}
             onChangePrefs={setPrefs}
             onOpenSession={openEntryForEdit}
-            onImport={replaceAllClients}
+            onImport={replaceAllData}
+            projects={projects}
+            contentEntries={contentEntries}
             calendarSync={calendarSync}
             overdue={visibleOverdue}
             healing={visibleHealing}
@@ -3328,6 +3417,7 @@ export default function TattoDiary() {
               setSummaryFilter(urgency);
               setScreen('summary');
             }}
+            onMigrateRecords={migrateRecordsIntoProjects}
           />
         )}
       </div>
@@ -3349,10 +3439,7 @@ export default function TattoDiary() {
             projects={projects}
             projectsLoaded={projectsLoaded}
             clients={clients}
-            onOpenProject={(project) => {
-              setEditProject(project);
-              setShowNewProjectForm(true);
-            }}
+            onOpenProject={(project) => setViewProject(project)}
           />
         )}
       </div>
@@ -3471,6 +3558,7 @@ export default function TattoDiary() {
       <NewSessionSheet
         open={showNewSessionForm}
         clientName={selectedClient?.name || ''}
+        clientProjects={selectedClient ? projects.filter((p) => p.clientId === selectedClient.id) : []}
         initial={editSession}
         initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewSession}
@@ -3502,6 +3590,7 @@ export default function TattoDiary() {
         open={showNewConsultationForm}
         clientName={selectedClient?.name || ''}
         client={selectedClient}
+        clientProjects={selectedClient ? projects.filter((p) => p.clientId === selectedClient.id) : []}
         initial={editConsultation}
         initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewConsultation}
@@ -3519,6 +3608,23 @@ export default function TattoDiary() {
         }}
         onAdd={handleAddProject}
         onDelete={editProject ? () => deleteProject(editProject.id) : undefined}
+      />
+
+      {/* ═══════════ PROJECT VIEW (read-only) ═══════════ */}
+      <ProjectViewSheet
+        open={!!viewProject}
+        project={viewProject ? projects.find((p) => p.id === viewProject.id) ?? viewProject : null}
+        clients={clients}
+        onClose={() => setViewProject(null)}
+        onEdit={(project) => {
+          setViewProject(null);
+          setEditProject(project);
+          setShowNewProjectForm(true);
+        }}
+        onOpenEntry={(clientId, kind, id) => {
+          setViewProject(null);
+          setViewEntry({ kind, clientId, id });
+        }}
       />
 
       {/* ═══════════ TIMELINE VIEWER (read-only consultation / session) ═══════════ */}
@@ -5683,6 +5789,8 @@ function AdminDashboardScreen({
   onChangePrefs,
   onOpenSession,
   onImport,
+  projects,
+  contentEntries,
   overdue,
   healing,
   soon,
@@ -5691,13 +5799,18 @@ function AdminDashboardScreen({
   onCancelEntry,
   calendarSync,
   onOpenNotes,
+  onMigrateRecords,
 }: {
   clients: Client[];
   masterNotes: ClientNote[];
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
-  onImport: (clients: Client[]) => void;
+  // Импорт полного бэкапа: clients + опционально projects/contentEntries.
+  onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[] }) => void;
+  // Нужны для экспорта в бэкап (Этап 2 — раньше выгружались только clients).
+  projects: Project[];
+  contentEntries: ContentEntry[];
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon: UpcomingSoonItem[];
@@ -5708,6 +5821,9 @@ function AdminDashboardScreen({
   // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
   onOpenNotes: (urgency: UrgencyKey) => void;
+  // Собирает старые сессии/консультации (без projectId) в проекты-корзины
+  // по клиенту. Возвращает сводку для показа результата (Этап 2).
+  onMigrateRecords: () => { buckets: number; records: number };
 }) {
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
@@ -5721,10 +5837,26 @@ function AdminDashboardScreen({
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   // Parsed and normalized, waiting on the inline «Да/Нет» confirm below —
   // replaces window.confirm() so the prompt matches the app's own dialogs.
-  const [pendingImport, setPendingImport] = useState<Client[] | null>(null);
+  // projects/contentEntries присутствуют только у бэкапов версии 2; у старых
+  // (только clients) они undefined и соответствующие сторы не трогаются.
+  const [pendingImport, setPendingImport] = useState<{
+    clients: Client[];
+    projects?: Project[];
+    contentEntries?: ContentEntry[];
+  } | null>(null);
+  // Миграция «Собрать старые записи в проекты» — двухшаговое подтверждение
+  // (сначала напоминаем про бэкап) + сообщение о результате.
+  const [migrateConfirm, setMigrateConfirm] = useState(false);
+  const [migrateResult, setMigrateResult] = useState<string | null>(null);
+  const hasUnorganizedRecords = clients.some(
+    (c) => c.sessions.some((s) => !s.projectId) || c.consultations.some((cs) => !cs.projectId),
+  );
 
   const handleExport = async () => {
-    const payload = { version: 1, exportedAt: new Date().toISOString(), clients };
+    // Версия 2: кроме clients выгружаем projects и contentEntries, чтобы
+    // проекты (в т.ч. корзины миграции) и черновики контента переживали
+    // восстановление. Старые бэкапы (version 1, только clients) читаются.
+    const payload = { version: 2, exportedAt: new Date().toISOString(), clients, projects, contentEntries };
     const json = JSON.stringify(payload, null, 2);
     const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
     await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');
@@ -5739,7 +5871,13 @@ function AdminDashboardScreen({
         if (!rawClients) throw new Error('bad shape');
         setImportError(null);
         setImportSuccess(null);
-        setPendingImport(rawClients.map((c: any, i: number) => normalizeClient(c, i)));
+        setPendingImport({
+          clients: rawClients.map((c: any, i: number) => normalizeClient(c, i)),
+          // Только если ключ реально есть в файле — иначе оставляем undefined,
+          // чтобы импорт старого бэкапа не стёр текущие проекты/контент.
+          projects: Array.isArray(parsed?.projects) ? parsed.projects.map((p: any, i: number) => normalizeProject(p, i)) : undefined,
+          contentEntries: Array.isArray(parsed?.contentEntries) ? (parsed.contentEntries as ContentEntry[]) : undefined,
+        });
       } catch {
         setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
       }
@@ -5750,7 +5888,7 @@ function AdminDashboardScreen({
   const confirmImport = () => {
     if (!pendingImport) return;
     onImport(pendingImport);
-    setImportSuccess(`Импортировано ${pendingImport.length} клиент(ов).`);
+    setImportSuccess(`Импортировано ${pendingImport.clients.length} клиент(ов).`);
     setPendingImport(null);
   };
 
@@ -5943,7 +6081,7 @@ function AdminDashboardScreen({
           {pendingImport ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', flex: 1, minWidth: 160 }}>
-                Импортировать {pendingImport.length} клиент(ов)? Текущие данные будут заменены.
+                Импортировать {pendingImport.clients.length} клиент(ов)? Текущие данные будут заменены.
               </span>
               <span onClick={confirmImport} style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
                 Да
@@ -5983,6 +6121,51 @@ function AdminDashboardScreen({
             <div style={{ marginTop: 10, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>{importSuccess}</div>
           )}
         </GoldFrame>
+
+        {/* Организация записей — собирает старые сессии/консультации (ещё не
+            привязанные к проекту) в проект-«корзину» по каждому клиенту.
+            Аддитивно: сами записи не меняются и не удаляются. Показывается,
+            только пока есть что собирать. */}
+        {(hasUnorganizedRecords || migrateResult) && (
+          <GoldFrame style={{ padding: '14px 16px' }}>
+            <div style={statLabelStyle}>Организация записей</div>
+            {migrateResult ? (
+              <div style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>{migrateResult}</div>
+            ) : migrateConfirm ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span style={{ fontSize: fs(12), color: 'var(--text-soft)', fontStyle: 'italic' }}>
+                  Старые сессии и консультации без проекта соберутся в проект-«корзину» по каждому клиенту (сами записи не меняются). Сначала сделайте резервную копию.
+                </span>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div onClick={handleExport} style={actionButtonStyle}>
+                    Сделать бэкап
+                  </div>
+                  <div
+                    onClick={() => {
+                      const { buckets, records } = onMigrateRecords();
+                      setMigrateConfirm(false);
+                      setMigrateResult(
+                        records === 0
+                          ? 'Нечего собирать — все записи уже в проектах.'
+                          : `Собрано ${records} запис(ей) в ${buckets} проект(ов).`,
+                      );
+                    }}
+                    style={{ ...actionButtonStyle, color: 'var(--urgent)', borderColor: 'rgba(200,90,90,0.4)' }}
+                  >
+                    Собрать
+                  </div>
+                  <div onClick={() => setMigrateConfirm(false)} style={actionButtonStyle}>
+                    Отмена
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div onClick={() => setMigrateConfirm(true)} style={actionButtonStyle}>
+                Собрать старые записи в проекты
+              </div>
+            )}
+          </GoldFrame>
+        )}
       </div>
     </div>
   );
@@ -11503,6 +11686,7 @@ function EditClientSheet({
 function NewSessionSheet({
   open,
   clientName,
+  clientProjects,
   initial,
   initialDate,
   onClose,
@@ -11510,6 +11694,8 @@ function NewSessionSheet({
 }: {
   open: boolean;
   clientName: string;
+  // Проекты этого клиента — для опциональной привязки сессии (Этап 2).
+  clientProjects: Project[];
   initial?: Session | null;
   // Prefills the date field for a brand-new session (e.g. started from a day
   // picked in the calendar) — ignored once `initial` is set (editing wins).
@@ -11529,6 +11715,7 @@ function NewSessionSheet({
     photos: string[];
     done: boolean;
     healed: boolean;
+    projectId: string | null;
   }) => void;
 }) {
   const isEdit = !!initial;
@@ -11549,6 +11736,7 @@ function NewSessionSheet({
   // to «Запланирована» instead.
   const [done, setDone] = useState(true);
   const [healed, setHealed] = useState(false);
+  const [projectId, setProjectId] = useState<string | null>(null);
   // Briefly swaps the close «×» for a green check after saving an edit — see
   // SheetSavedCheck — so the save reads as confirmed rather than the sheet
   // just vanishing. Shown unconditionally on every edit-save, even when
@@ -11571,13 +11759,14 @@ function NewSessionSheet({
       setPhotos(initial?.photos ?? []);
       setDone(initial ? initial.done : !initialDate);
       setHealed(initial?.healed ?? false);
+      setProjectId(initial?.projectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const handleSave = () => {
-    const data = { name, date, time, duration, style, area, colors, needles, skinReaction, note, photos, done, healed };
+    const data = { name, date, time, duration, style, area, colors, needles, skinReaction, note, photos, done, healed, projectId };
     if (isEdit) {
       setJustSaved(true);
       setTimeout(() => onAdd(data), 700);
@@ -11624,6 +11813,20 @@ function NewSessionSheet({
           <FieldLabel>Название сессии</FieldLabel>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
         </div>
+
+        {clientProjects.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Проект</FieldLabel>
+            <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
+              <option value="">— без проекта —</option>
+              {clientProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title || 'Без названия'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Date & time stacked full-width. Side-by-side used to overlap on
             iOS, where the native pickers keep a large intrinsic width and
@@ -12107,6 +12310,7 @@ function NewConsultationSheet({
   open,
   clientName,
   client,
+  clientProjects,
   initial,
   initialDate,
   onClose,
@@ -12115,6 +12319,8 @@ function NewConsultationSheet({
   open: boolean;
   clientName: string;
   client: Client | null;
+  // Проекты этого клиента — для опциональной привязки консультации (Этап 2).
+  clientProjects: Project[];
   initial?: Consultation | null;
   // Prefills the date field for a brand-new consultation (e.g. started from a
   // day picked in the calendar) — ignored once `initial` is set.
@@ -12131,6 +12337,7 @@ function NewConsultationSheet({
     inspirationSources: string;
     urgency: UrgencyKey;
     photos: string[];
+    projectId: string | null;
   }) => void;
 }) {
   const isEdit = !!initial;
@@ -12144,6 +12351,7 @@ function NewConsultationSheet({
   const [inspirationSources, setInspirationSources] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
+  const [projectId, setProjectId] = useState<string | null>(null);
   // See NewSessionSheet's justSaved for why this shows unconditionally on
   // every edit-save, not just when something actually changed.
   const [justSaved, setJustSaved] = useState(false);
@@ -12160,13 +12368,14 @@ function NewConsultationSheet({
       setInspirationSources(initial?.inspirationSources ?? '');
       setUrgency(initial?.urgency ?? 'important');
       setPhotos(initial?.photos ?? []);
+      setProjectId(initial?.projectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const handleSave = () => {
-    const data = { date, time, area, style, generalNotes, feeling, creative, inspirationSources, urgency, photos };
+    const data = { date, time, area, style, generalNotes, feeling, creative, inspirationSources, urgency, photos, projectId };
     if (isEdit) {
       setJustSaved(true);
       setTimeout(() => onAdd(data), 700);
@@ -12256,6 +12465,20 @@ function NewConsultationSheet({
             <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
           </div>
 
+          {clientProjects.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <FieldLabel>Проект</FieldLabel>
+              <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
+                <option value="">— без проекта —</option>
+                {clientProjects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title || 'Без названия'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Общие заметки</FieldLabel>
             <textarea
@@ -12323,6 +12546,138 @@ function NewConsultationSheet({
             {isEdit ? 'Сохранить' : 'Добавить консультацию'}
           </span>
         </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// ── Read-only просмотр проекта (Этап 2) ──
+// Открывается по тапу на проект (в Мастерской или в «Активных проектах»
+// Планнера). Сверху статус, следующий шаг и записи проекта; редактирование
+// — отдельной кнопкой, а не сразу форма. Записи тапабельны — открывают
+// существующий просмотр сессии/консультации.
+function ProjectViewSheet({
+  open,
+  project,
+  clients,
+  onClose,
+  onEdit,
+  onOpenEntry,
+}: {
+  open: boolean;
+  project: Project | null;
+  clients: Client[];
+  onClose: () => void;
+  onEdit: (project: Project) => void;
+  onOpenEntry: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
+}) {
+  const clientName = project ? clientNameFor(clients, project.clientId) : null;
+  const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
+  const linkedSessions = linkedClient && project ? linkedClient.sessions.filter((s) => s.projectId === project.id) : [];
+  const linkedConsults = linkedClient && project ? linkedClient.consultations.filter((c) => c.projectId === project.id) : [];
+
+  const chipStyle: React.CSSProperties = {
+    fontSize: fs(11),
+    color: COLORS.textFaint,
+    border: '1px solid rgba(var(--gold-rgb),0.3)',
+    borderRadius: 2,
+    padding: '3px 9px',
+    letterSpacing: '0.5px',
+  };
+  const entryRowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '9px 11px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    border: '1px solid rgba(var(--gold-rgb),0.15)',
+    background: 'rgba(var(--surface-rgb),0.018)',
+  };
+
+  return (
+    <BottomSheet open={open} heightPct={90}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>
+          {clientName ?? 'Мастерская'}
+        </div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
+          {project?.title || 'Проект'}
+        </div>
+        <SheetStarDivider />
+      </div>
+
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {project && (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <span style={chipStyle}>{PROJECT_STAGES.find((s) => s.key === project.stage)?.label ?? project.stage}</span>
+              <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
+              {project.waitingFor !== 'none' && (
+                <span style={chipStyle}>Ждём: {PROJECT_WAITING_FOR.find((w) => w.key === project.waitingFor)?.label}</span>
+              )}
+              {project.priority !== 'normal' && (
+                <span style={chipStyle}>{PROJECT_PRIORITIES.find((p) => p.key === project.priority)?.label}</span>
+              )}
+            </div>
+
+            {project.nextActionText && (
+              <div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Следующий шаг</div>
+                <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textPrimary, lineHeight: 1.5 }}>
+                  {project.nextActionText}
+                  {project.nextActionDate ? ` · ${formatDate(project.nextActionDate)}` : ''}
+                </div>
+              </div>
+            )}
+
+            {project.photos.length > 0 && <SessionPhotos photos={project.photos} onChange={() => {}} allowDelete={false} readOnly />}
+
+            <ViewField label="Место" value={project.area} />
+            <ViewField label="Техника и стиль" value={project.style} />
+            <ViewField label="Общие заметки" value={project.generalNotes} />
+            <ViewField label="Чувство / ощущение" value={project.feeling} />
+            <ViewField label="Креатив" value={project.creative} />
+            <ViewField label="Источники вдохновения" value={project.inspirationSources} />
+
+            {(linkedSessions.length > 0 || linkedConsults.length > 0) && (
+              <div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Записи проекта</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {linkedSessions.map((s) => (
+                    <div key={`s-${s.id}`} onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'session', s.id)} style={entryRowStyle}>
+                      <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Сессия</span>
+                      <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {s.name || s.area || '—'}
+                      </span>
+                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
+                        {s.date ? formatDate(s.date).replace(/ \d{4}$/, '') : ''}
+                      </span>
+                    </div>
+                  ))}
+                  {linkedConsults.map((c) => (
+                    <div key={`c-${c.id}`} onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'consultation', c.id)} style={entryRowStyle}>
+                      <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Консультация</span>
+                      <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.area || '—'}
+                      </span>
+                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
+                        {c.date ? formatDate(c.date).replace(/ \d{4}$/, '') : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="inka-submit" onClick={() => onEdit(project)} style={{ ...SUBMIT_STYLE, marginTop: 8 }}>
+              <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
+                Редактировать
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </BottomSheet>
   );
@@ -12572,6 +12927,7 @@ function NewProjectSheet({
               style={INPUT_STYLE}
             />
           </div>
+
         </div>
       </div>
 
