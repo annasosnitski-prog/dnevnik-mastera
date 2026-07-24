@@ -432,6 +432,11 @@ interface Project {
   inspirationSources: string; // "Источники вдохновения"
   photos: string[];
   createdDate: string;
+  // «Сессии без клиента» (Этап 3b-доп.) — для проектов без clientId, живут
+  // прямо на проекте (свой стор, клиента/календарь не трогают), пока не
+  // появится клиент. При привязке клиента к проекту (см. attachClientToProject
+  // в App) переезжают в client.sessions с тем же projectId и отсюда чистятся.
+  sessions: Session[];
 }
 
 // Styles as an array regardless of legacy shape; joined label for display.
@@ -871,27 +876,31 @@ function readInitialDismissedReminders(): string[] {
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
+// Общая нормализация сессии — переиспользуется и для client.sessions, и для
+// «сессий без клиента» на самом проекте (Project.sessions, Этап 3b-доп.).
+function normalizeSession(s: any, i: number): Session {
+  return {
+    id: String(s?.id ?? `${Date.now()}-${i}`),
+    name: s?.name ?? '',
+    date: s?.date ?? '',
+    time: s?.time ?? '',
+    duration: s?.duration ?? '',
+    style: s?.style ?? '',
+    area: s?.area ?? s?.proportions ?? '',
+    colors: Array.isArray(s?.colors) ? s.colors.join(', ') : s?.colors ?? '',
+    needles: s?.needles ?? '',
+    skinReaction: s?.skinReaction ?? '',
+    note: s?.note ?? s?.notes ?? '',
+    photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
+    done: s?.done ?? true,
+    healed: s?.healed ?? false,
+    cancelled: s?.cancelled ?? false,
+    projectId: s?.projectId ?? null,
+  };
+}
+
 function normalizeClient(raw: any, index: number): Client {
-  const sessions: Session[] = Array.isArray(raw?.sessions)
-    ? raw.sessions.map((s: any, i: number) => ({
-        id: String(s?.id ?? `${Date.now()}-${i}`),
-        name: s?.name ?? '',
-        date: s?.date ?? '',
-        time: s?.time ?? '',
-        duration: s?.duration ?? '',
-        style: s?.style ?? '',
-        area: s?.area ?? s?.proportions ?? '',
-        colors: Array.isArray(s?.colors) ? s.colors.join(', ') : s?.colors ?? '',
-        needles: s?.needles ?? '',
-        skinReaction: s?.skinReaction ?? '',
-        note: s?.note ?? s?.notes ?? '',
-        photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
-        done: s?.done ?? true,
-        healed: s?.healed ?? false,
-        cancelled: s?.cancelled ?? false,
-        projectId: s?.projectId ?? null,
-      }))
-    : [];
+  const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
 
   const latestStyle = sessions.length ? sessions[sessions.length - 1].style : '';
   const styles: string[] = Array.isArray(raw?.styles)
@@ -976,6 +985,7 @@ function normalizeProject(raw: any, index: number): Project {
     inspirationSources: raw?.inspirationSources ?? '',
     photos: Array.isArray(raw?.photos) ? raw.photos : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
+    sessions: Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [],
   };
 }
 
@@ -2086,6 +2096,9 @@ export default function TattoDiary() {
   // создают из просмотра проекта (кнопки «+ Сессия/Консультация», Этап 3b) —
   // предзаполняет поле «Проект» в форме. Только для новой записи.
   const [presetEntryProjectId, setPresetEntryProjectId] = useState<string | null>(null);
+  // Если задан — открытая форма «Новая сессия» сохраняет в Project.sessions
+  // этого проекта (сессия без клиента), а не в client.sessions (Этап 3b-доп.).
+  const [sessionTargetProjectId, setSessionTargetProjectId] = useState<string | null>(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -2382,6 +2395,7 @@ export default function TattoDiary() {
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
+    setSessionTargetProjectId(null);
   };
   const closeNewConsultation = () => {
     setShowNewConsultationForm(false);
@@ -2534,13 +2548,78 @@ export default function TattoDiary() {
     photos: string[];
   }) => {
     if (editProject) {
-      saveProject({ ...editProject, ...data });
+      // Клиента только что привязали к проекту, у которого копились «сессии
+      // без клиента» (см. Project.sessions) — переносим их клиенту с той же
+      // связью через projectId и чистим с проекта. Раньше clientId не было —
+      // значит client.sessions этого проекта ещё нет, дублей не возникнет.
+      if (!editProject.clientId && data.clientId && editProject.sessions.length > 0) {
+        const client = clients.find((c) => c.id === data.clientId);
+        if (client) {
+          saveClient({
+            ...client,
+            sessions: [...client.sessions, ...editProject.sessions.map((s) => ({ ...s, projectId: editProject.id }))],
+          });
+        }
+        saveProject({ ...editProject, ...data, sessions: [] });
+      } else {
+        saveProject({ ...editProject, ...data });
+      }
     } else {
-      saveProject({ id: Date.now().toString(), createdDate: new Date().toISOString(), ...data });
+      saveProject({ id: Date.now().toString(), createdDate: new Date().toISOString(), sessions: [], ...data });
     }
     setShowNewProjectForm(false);
     setEditProject(null);
     setNewProjectClientId(null);
+  };
+
+  // «Сессия без клиента» — живёт прямо в проекте (Project.sessions), пока к
+  // проекту не привязан клиент (см. миграцию в handleAddProject выше). Тот
+  // же набор полей, что и у обычной сессии клиента.
+  const handleAddProjectSession = (
+    projectId: string,
+    data: {
+      name: string;
+      date: string;
+      time: string;
+      duration: string;
+      style: string;
+      area: string;
+      colors: string;
+      needles: string;
+      skinReaction: string;
+      note: string;
+      photos: string[];
+      done: boolean;
+      healed: boolean;
+      projectId: string | null;
+    },
+  ) => {
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) return;
+    const fields = {
+      name: data.name.trim(),
+      date: data.date,
+      time: data.time,
+      duration: data.duration,
+      style: data.style,
+      area: data.area.trim(),
+      colors: data.colors.trim(),
+      needles: data.needles.trim(),
+      skinReaction: data.skinReaction.trim(),
+      note: data.note.trim(),
+      photos: data.photos,
+      done: data.done,
+      healed: data.healed,
+      projectId,
+    };
+    let sessions: Session[];
+    if (editSession) {
+      sessions = p.sessions.map((s) => (s.id === editSession.id ? { ...s, ...fields } : s));
+    } else {
+      sessions = [...p.sessions, { id: Date.now().toString(), cancelled: false, ...fields }];
+    }
+    saveProject({ ...p, sessions });
+    advanceProjectStage(projectId, fields.done ? 'in_progress' : 'booked');
   };
 
   // ── Миграция «Собрать старые записи в проекты» (Этап 2) ──
@@ -2581,6 +2660,7 @@ export default function TattoDiary() {
           inspirationSources: '',
           photos: [],
           createdDate: new Date().toISOString(),
+          sessions: [],
         });
         existingProjectIds.add(bucketId);
         buckets += 1;
@@ -3628,13 +3708,30 @@ export default function TattoDiary() {
           AddChoiceSheet below — so submitting here just saves it. */}
       <NewSessionSheet
         open={showNewSessionForm}
-        clientName={selectedClient?.name || ''}
-        clientProjects={selectedClient ? projects.filter((p) => p.clientId === selectedClient.id) : []}
-        presetProjectId={presetEntryProjectId}
+        clientName={
+          sessionTargetProjectId
+            ? projects.find((p) => p.id === sessionTargetProjectId)?.title || 'Проект'
+            : selectedClient?.name || ''
+        }
+        clientProjects={
+          sessionTargetProjectId
+            ? projects.filter((p) => p.id === sessionTargetProjectId)
+            : selectedClient
+            ? projects.filter((p) => p.clientId === selectedClient.id)
+            : []
+        }
+        presetProjectId={sessionTargetProjectId ?? presetEntryProjectId}
         initial={editSession}
         initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewSession}
-        onAdd={handleAddSession}
+        onAdd={(data) => {
+          if (sessionTargetProjectId) {
+            handleAddProjectSession(sessionTargetProjectId, data);
+            closeNewSession();
+          } else {
+            handleAddSession(data);
+          }
+        }}
       />
 
       {/* ═══════════ ADD CHOICE (session vs consultation) ═══════════ */}
@@ -3713,6 +3810,19 @@ export default function TattoDiary() {
             setEditConsultation(null);
             setShowNewConsultationForm(true);
           }
+        }}
+        onAddProjectSession={(projectId) => {
+          // Сессия без клиента — тот же проект и есть её единственный дом.
+          setViewProject(null);
+          setEditSession(null);
+          setSessionTargetProjectId(projectId);
+          setShowNewSessionForm(true);
+        }}
+        onEditProjectSession={(projectId, session) => {
+          setViewProject(null);
+          setEditSession(session);
+          setSessionTargetProjectId(projectId);
+          setShowNewSessionForm(true);
         }}
       />
 
@@ -12802,6 +12912,8 @@ function ProjectViewSheet({
   onEdit,
   onOpenEntry,
   onAddEntry,
+  onAddProjectSession,
+  onEditProjectSession,
 }: {
   open: boolean;
   project: Project | null;
@@ -12810,13 +12922,18 @@ function ProjectViewSheet({
   onEdit: (project: Project) => void;
   onOpenEntry: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
   // Создать новую сессию/консультацию прямо из проекта (Этап 3b) — только для
-  // проектов с клиентом (без клиента реальной сессии не бывает).
+  // проектов с клиентом.
   onAddEntry: (clientId: string, kind: 'session' | 'consultation') => void;
+  // «Сессия без клиента» — для проектов БЕЗ клиента, живёт на самом проекте
+  // (Этап 3b-доп.) до тех пор, пока к проекту не привяжут клиента.
+  onAddProjectSession: (projectId: string) => void;
+  onEditProjectSession: (projectId: string, session: Session) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
   const linkedSessions = linkedClient && project ? linkedClient.sessions.filter((s) => s.projectId === project.id) : [];
   const linkedConsults = linkedClient && project ? linkedClient.consultations.filter((c) => c.projectId === project.id) : [];
+  const ownSessions = project && !linkedClient ? project.sessions : [];
 
   const chipStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -12883,9 +13000,10 @@ function ProjectViewSheet({
             <ViewField label="Креатив" value={project.creative} />
             <ViewField label="Источники вдохновения" value={project.inspirationSources} />
 
-            {/* Добавить запись прямо из проекта — только если у проекта есть
-                клиент (сессия/консультация без клиента не бывает). */}
-            {linkedClient && (
+            {/* Добавить запись прямо из проекта. С клиентом — сессия/
+                консультация клиента; без клиента — «сессия без клиента»
+                живёт на самом проекте, пока клиента не привяжут (3b-доп.). */}
+            {linkedClient ? (
               <div style={{ display: 'flex', gap: 8 }}>
                 <div
                   onClick={() => onAddEntry(linkedClient.id, 'session')}
@@ -12900,9 +13018,18 @@ function ProjectViewSheet({
                   + Консультация
                 </div>
               </div>
+            ) : (
+              project && (
+                <div
+                  onClick={() => onAddProjectSession(project.id)}
+                  style={{ textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.3)', color: COLORS.gold, fontSize: fs(12), letterSpacing: '0.5px', cursor: 'pointer' }}
+                >
+                  + Сессия
+                </div>
+              )
             )}
 
-            {(linkedSessions.length > 0 || linkedConsults.length > 0) && (
+            {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0) && (
               <div>
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Записи проекта</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -12925,6 +13052,17 @@ function ProjectViewSheet({
                       </span>
                       <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
                         {c.date ? formatDate(c.date).replace(/ \d{4}$/, '') : ''}
+                      </span>
+                    </div>
+                  ))}
+                  {ownSessions.map((s) => (
+                    <div key={`os-${s.id}`} onClick={() => project && onEditProjectSession(project.id, s)} style={entryRowStyle}>
+                      <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Сессия · без клиента</span>
+                      <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {s.name || s.area || '—'}
+                      </span>
+                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
+                        {s.date ? formatDate(s.date).replace(/ \d{4}$/, '') : ''}
                       </span>
                     </div>
                   ))}
