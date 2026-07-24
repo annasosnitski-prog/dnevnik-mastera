@@ -822,6 +822,17 @@ function upcomingSoonReminders(clients: Client[]): UpcomingSoonItem[] {
   return result.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 }
 
+// Активные проекты, у которых «следующий шаг» назначен на сегодня или уже
+// просрочен (Этап 3b). Срабатывает только когда мастер сама поставила дату —
+// проекты-корзины без даты сюда не попадают и не шумят. Отсортированы от
+// самого просроченного. Используется и на Планнере, и в напоминаниях.
+function overdueProjects(projects: Project[]): Project[] {
+  const today = todayISO();
+  return projects
+    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today)
+    .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
+}
+
 // Stable identity for a reminder card, independent of render order — used to
 // persist which cards the master has manually closed (see dismissedReminders
 // in the main component and RemindersSection below).
@@ -833,6 +844,9 @@ function healingReminderKey(it: HealingItem): string {
 }
 function soonReminderKey(it: UpcomingSoonItem): string {
   return `soon:${it.kind}:${it.id}`;
+}
+function projectReminderKey(p: Project): string {
+  return `project:${p.id}`;
 }
 
 // Auto-message for the 36–48h heads-up — master copies it to nudge the
@@ -2586,6 +2600,22 @@ export default function TattoDiary() {
     }
   };
 
+  // Авто-переход этапа проекта (Этап 3b) — ТОЛЬКО ВПЕРЁД и не дальше «В
+  // работе»: создана будущая сессия → «Записан», сессия выполнена → «В
+  // работе». Никогда не откатывает назад (не трогает, если этап уже на
+  // целевом или дальше), «Заживление»/«Завершён» мастер ставит сама. Пишет
+  // в стор проектов (saveProject), сессий/клиента не касается — календарь не
+  // задет.
+  const advanceProjectStage = (projectId: string | null, target: ProjectStage) => {
+    if (!projectId) return;
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) return;
+    const cur = PROJECT_STAGES.findIndex((s) => s.key === p.stage);
+    const tgt = PROJECT_STAGES.findIndex((s) => s.key === target);
+    if (tgt < 0 || tgt <= cur) return;
+    saveProject({ ...p, stage: target });
+  };
+
   // ── Notes (used by the client «Дополнительно» tab and the «Сводка» screen) ──
   const upsertNote = (clientId: string, note: ClientNote) => {
     const c = clients.find((x) => x.id === clientId);
@@ -2614,10 +2644,13 @@ export default function TattoDiary() {
   // opening the edit form.
   const toggleSessionDone = (sessionId: string) => {
     if (!selectedClient) return;
+    const s = selectedClient.sessions.find((x) => x.id === sessionId);
     saveClient({
       ...selectedClient,
-      sessions: selectedClient.sessions.map((s) => (s.id === sessionId ? { ...s, done: !s.done } : s)),
+      sessions: selectedClient.sessions.map((x) => (x.id === sessionId ? { ...x, done: !x.done } : x)),
     });
+    // Отметили «выполнена» (было не выполнено) → двигаем проект в «В работе».
+    if (s && !s.done) advanceProjectStage(s.projectId, 'in_progress');
   };
 
   // clientId-scoped variant of the toggle above — for the «Отменить» quick
@@ -2756,6 +2789,9 @@ export default function TattoDiary() {
       style: mergedStyles.join(' · '),
       sessions,
     });
+    // Авто-переход этапа проекта (Этап 3b): выполненная сессия → «В работе»,
+    // запланированная (ещё не выполнена) → «Записан». Только вперёд.
+    advanceProjectStage(fields.projectId, fields.done ? 'in_progress' : 'booked');
     setShowNewSessionForm(false);
     setEditSession(null);
     setCalendarCreateDate(null);
@@ -2784,6 +2820,8 @@ export default function TattoDiary() {
   const visibleOverdue = overdueEntries(clients).filter((it) => !dismissedReminders.includes(overdueReminderKey(it)));
   const visibleHealing = healingReminders(clients).filter((it) => !dismissedReminders.includes(healingReminderKey(it)));
   const visibleSoon = upcomingSoonReminders(clients).filter((it) => !dismissedReminders.includes(soonReminderKey(it)));
+  // Проекты с просроченным «следующим шагом» (Этап 3b) — в те же напоминания.
+  const visibleDueProjects = overdueProjects(projects).filter((p) => !dismissedReminders.includes(projectReminderKey(p)));
 
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
@@ -3253,7 +3291,7 @@ export default function TattoDiary() {
           onNavigate={(s) => setScreen(s)}
           adminBadges={[
             ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
-            ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
+            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleDueProjects.length > 0 ? (['reminder'] as const) : []),
           ]}
           // Contextual create — same action each screen's own «+» used to
           // trigger, now all reachable from one place. Мастер has none.
@@ -3426,6 +3464,8 @@ export default function TattoDiary() {
             overdue={visibleOverdue}
             healing={visibleHealing}
             soon={visibleSoon}
+            dueProjects={visibleDueProjects}
+            onOpenProject={(project) => setViewProject(project)}
             onOpenEntry={openEntryForEdit}
             onDismissReminder={dismissReminder}
             onCancelEntry={markEntryCancelled}
@@ -5627,6 +5667,8 @@ function RemindersSection({
   overdue,
   healing,
   soon,
+  dueProjects,
+  onOpenProject,
   onOpenEntry,
   onDismiss,
   onCancel,
@@ -5634,16 +5676,19 @@ function RemindersSection({
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon?: UpcomingSoonItem[];
+  dueProjects?: Project[];
+  onOpenProject?: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismiss: (key: string) => void;
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const soonList = soon ?? [];
+  const dueProjectsList = dueProjects ?? [];
   // Which card's CopyMessageButton contacts popover is open, if any — that
   // card gets `raised` so its popover isn't trapped behind a later sibling's
   // own stacking context (see SwipeDismissCard's `raised` doc comment).
   const [raisedKey, setRaisedKey] = useState<string | null>(null);
-  if (overdue.length === 0 && healing.length === 0 && soonList.length === 0) return null;
+  if (overdue.length === 0 && healing.length === 0 && soonList.length === 0 && dueProjectsList.length === 0) return null;
   return (
     <div>
       <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
@@ -5739,6 +5784,40 @@ function RemindersSection({
             </SwipeDismissCard>
           );
         })}
+        {dueProjectsList.map((p) => {
+          const key = projectReminderKey(p);
+          return (
+            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
+              {(flyOutThen) => (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    padding: '9px 10px',
+                    borderRadius: 2,
+                    border: '1px solid rgba(var(--gold-rgb),0.2)',
+                    background: 'rgba(var(--surface-rgb),0.018)',
+                  }}
+                >
+                  <div onClick={() => onOpenProject?.(p)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                    <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {p.title || 'Проект'}
+                    </div>
+                    <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      Следующий шаг: {p.nextActionText || '—'}
+                      {p.nextActionDate ? ` · ${formatDate(p.nextActionDate)}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
+                  </div>
+                </div>
+              )}
+            </SwipeDismissCard>
+          );
+        })}
       </div>
     </div>
   );
@@ -5823,6 +5902,8 @@ function AdminDashboardScreen({
   overdue,
   healing,
   soon,
+  dueProjects,
+  onOpenProject,
   onOpenEntry,
   onDismissReminder,
   onCancelEntry,
@@ -5843,6 +5924,9 @@ function AdminDashboardScreen({
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon: UpcomingSoonItem[];
+  // Проекты с просроченным «следующим шагом» — в напоминания (Этап 3b).
+  dueProjects: Project[];
+  onOpenProject: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
@@ -5971,7 +6055,7 @@ function AdminDashboardScreen({
 
         {/* Уведомления и напоминания идут наверх, над блоком предстоящих
             сессий — это то, что требует внимания мастера в первую очередь. */}
-        <RemindersSection overdue={overdue} healing={healing} soon={soon} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
+        <RemindersSection overdue={overdue} healing={healing} soon={soon} dueProjects={dueProjects} onOpenProject={onOpenProject} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
 
         {/* Upcoming sessions, with a master-configurable lookahead window —
             same period picker as the stats grid below, so the two controls
