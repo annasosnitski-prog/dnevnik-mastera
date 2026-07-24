@@ -211,6 +211,7 @@ interface ClientDocument {
 
 // A free-form note/task with an urgency marker and a done flag. Lives in the
 // client's «Дополнительно» tab and is aggregated across clients in «Сводка».
+// Also doubles as the master's own client-less task list (masterInfo.notes).
 interface ClientNote {
   id: string;
   text: string;
@@ -218,6 +219,7 @@ interface ClientNote {
   done: boolean;
   createdDate: string;
   photos: string[];
+  projectId: string | null;
 }
 
 type ChatPlatform = 'whatsapp' | 'telegram' | 'instagram' | 'facebook' | 'messenger' | 'tiktok' | 'pinterest' | 'website' | 'other';
@@ -958,6 +960,7 @@ function normalizeClient(raw: any, index: number): Client {
           done: Boolean(n?.done),
           createdDate: n?.createdDate ?? new Date().toISOString(),
           photos: Array.isArray(n?.photos) ? n.photos : [],
+          projectId: n?.projectId ?? null,
         }))
       : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
@@ -1959,6 +1962,7 @@ function readInitialMasterInfo(): MasterInfo {
               done: Boolean(n?.done),
               createdDate: n?.createdDate ?? new Date().toISOString(),
               photos: Array.isArray(n?.photos) ? n.photos : [],
+              projectId: n?.projectId ?? null,
             }))
           : [],
       };
@@ -3497,7 +3501,7 @@ export default function TattoDiary() {
                 ...masterInfo,
                 notes: [
                   ...masterInfo.notes,
-                  { id: Date.now().toString(), text, urgency, done: false, createdDate: new Date().toISOString(), photos },
+                  { id: Date.now().toString(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId: null },
                 ],
               })
             }
@@ -3701,6 +3705,7 @@ export default function TattoDiary() {
                 done: false,
                 createdDate: new Date().toISOString(),
                 photos,
+                projectId: null,
               })
             }
             onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
@@ -3855,6 +3860,7 @@ export default function TattoDiary() {
         open={!!viewProject}
         project={viewProject ? projects.find((p) => p.id === viewProject.id) ?? viewProject : null}
         clients={clients}
+        masterNotes={masterInfo.notes}
         onClose={() => setViewProject(null)}
         onEdit={(project) => {
           setViewProject(null);
@@ -3870,6 +3876,13 @@ export default function TattoDiary() {
           setEditSession(session);
           setSessionTargetProjectId(projectId);
           setShowNewSessionForm(true);
+        }}
+        onToggleTaskDone={(clientId, note) => {
+          if (clientId) {
+            upsertNote(clientId, { ...note, done: !note.done });
+          } else {
+            setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? { ...n, done: !n.done } : n)) });
+          }
         }}
       />
 
@@ -7611,6 +7624,10 @@ function SummaryScreen({
     .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today)
     .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
 
+  // Client-less projects — candidates a master (client-less) note/task can
+  // be tied to.
+  const clientlessProjects = projects.filter((p) => p.clientId === null);
+
   // Client notes + the master's own (client-less) notes, one flat list.
   type NoteEntry = { note: ClientNote; client: Client | null };
   const items: NoteEntry[] = [
@@ -7866,8 +7883,9 @@ function SummaryScreen({
               <NoteItem
                 key={`master-${note.id}`}
                 note={note}
+                projects={clientlessProjects}
                 onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
-                onEdit={(text, urgency) => onEditMasterNote({ ...note, text, urgency })}
+                onEdit={(text, urgency, projectId) => onEditMasterNote({ ...note, text, urgency, projectId })}
                 onDelete={() => onDeleteMasterNote(note.id)}
               />
             ))
@@ -7889,8 +7907,9 @@ function SummaryScreen({
                 <NoteItem
                   note={note}
                   client={client!}
+                  projects={projects.filter((p) => p.clientId === client!.id)}
                   onToggleDone={() => onToggleDone(client!.id, { ...note, done: !note.done })}
-                  onEdit={(text, urgency) => onEditNote(client!.id, { ...note, text, urgency })}
+                  onEdit={(text, urgency, projectId) => onEditNote(client!.id, { ...note, text, urgency, projectId })}
                   onDelete={() => onDeleteNote(client!.id, note.id)}
                 />
               </div>
@@ -8433,6 +8452,7 @@ function DetailScreen({
         {activeTab === 'extra' && (
           <AdditionalTab
             client={client}
+            projects={projects.filter((p) => p.clientId === client.id)}
             onUpsertNote={onUpsertNote}
             onAddNote={onAddNote}
             onDeleteNote={onDeleteNote}
@@ -10230,18 +10250,24 @@ function NoteItem({
   onUpdatePhotos,
   onEdit,
   client,
+  projects,
 }: {
   note: ClientNote;
   onToggleDone: () => void;
   onDelete?: () => void;
   onUpdatePhotos?: (photos: string[]) => void;
-  onEdit?: (text: string, urgency: UrgencyKey) => void;
+  onEdit?: (text: string, urgency: UrgencyKey, projectId: string | null) => void;
   client?: Client;
+  // Candidate projects this note could be tied to — a client note only
+  // offers that client's own projects, a master (client-less) note only
+  // offers client-less projects. Omitted entirely hides the project field.
+  projects?: Project[];
 }) {
   const meta = urgencyMeta(note.urgency);
   const [editing, setEditing] = useState(false);
   const [draftText, setDraftText] = useState(note.text);
   const [draftUrgency, setDraftUrgency] = useState<UrgencyKey>(note.urgency);
+  const [draftProjectId, setDraftProjectId] = useState<string | null>(note.projectId);
   // Actions (Выполнено/Изменить/Удалить) live behind a «⋮» overflow menu —
   // only the urgency symbol stays visible at rest, mirroring the filter bar.
   const [showActions, setShowActions] = useState(false);
@@ -10256,12 +10282,13 @@ function NoteItem({
   const startEdit = () => {
     setDraftText(note.text);
     setDraftUrgency(note.urgency);
+    setDraftProjectId(note.projectId);
     setEditing(true);
     setShowActions(false);
   };
   const saveEdit = () => {
     const trimmed = draftText.trim();
-    if (trimmed && onEdit) onEdit(trimmed, draftUrgency);
+    if (trimmed && onEdit) onEdit(trimmed, draftUrgency, draftProjectId);
     setEditing(false);
   };
 
@@ -10328,6 +10355,18 @@ function NoteItem({
             <div style={{ marginTop: 8 }}>
               <UrgencyChips value={draftUrgency} onPick={setDraftUrgency} />
             </div>
+            {projects && projects.length > 0 && (
+              <select
+                value={draftProjectId ?? ''}
+                onChange={(e) => setDraftProjectId(e.target.value || null)}
+                style={{ ...INPUT_STYLE, marginTop: 8 }}
+              >
+                <option value="">— без проекта —</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.title || 'Проект'}</option>
+                ))}
+              </select>
+            )}
           </div>
         ) : (
           <div
@@ -10580,11 +10619,14 @@ function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey, ph
 //     sorted by urgency. Attachments live on the Инфо tab. ──
 function AdditionalTab({
   client,
+  projects,
   onUpsertNote,
   onAddNote,
   onDeleteNote,
 }: {
   client: Client;
+  // This client's own projects — candidates a note/task can be tied to.
+  projects: Project[];
   onUpsertNote: (note: ClientNote) => void;
   onAddNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
   onDeleteNote: (noteId: string) => void;
@@ -10608,10 +10650,11 @@ function AdditionalTab({
             <NoteItem
               key={n.id}
               note={n}
+              projects={projects}
               onToggleDone={() => toggleDone(n)}
               onDelete={() => onDeleteNote(n.id)}
               onUpdatePhotos={(photos) => onUpsertNote({ ...n, photos })}
-              onEdit={(text, urgency) => onUpsertNote({ ...n, text, urgency })}
+              onEdit={(text, urgency, projectId) => onUpsertNote({ ...n, text, urgency, projectId })}
             />
           ))}
         </div>
@@ -13126,14 +13169,19 @@ function ProjectViewSheet({
   open,
   project,
   clients,
+  masterNotes,
   onClose,
   onEdit,
   onOpenEntry,
   onEditProjectSession,
+  onToggleTaskDone,
 }: {
   open: boolean;
   project: Project | null;
   clients: Client[];
+  // Master's own (client-less) tasks — a project without a client draws its
+  // «Задачи» from here instead of a client's notes.
+  masterNotes: ClientNote[];
   onClose: () => void;
   onEdit: (project: Project) => void;
   onOpenEntry: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
@@ -13142,12 +13190,18 @@ function ProjectViewSheet({
   // кнопку «Создать» (остаётся видна поверх этого просмотра — см. onCreate
   // у NavFab), отдельных кнопок создания здесь больше нет.
   onEditProjectSession: (projectId: string, session: Session) => void;
+  onToggleTaskDone: (clientId: string | null, note: ClientNote) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
   const linkedSessions = linkedClient && project ? linkedClient.sessions.filter((s) => s.projectId === project.id) : [];
   const linkedConsults = linkedClient && project ? linkedClient.consultations.filter((c) => c.projectId === project.id) : [];
   const ownSessions = project && !linkedClient ? project.sessions : [];
+  const linkedTasks = project
+    ? linkedClient
+      ? linkedClient.notes.filter((n) => n.projectId === project.id)
+      : masterNotes.filter((n) => n.projectId === project.id)
+    : [];
 
   const chipStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -13249,6 +13303,38 @@ function ProjectViewSheet({
                       </span>
                       <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
                         {s.date ? formatDate(s.date).replace(/ \d{4}$/, '') : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {linkedTasks.length > 0 && (
+              <div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Задачи</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {linkedTasks.map((n) => (
+                    <div
+                      key={`t-${n.id}`}
+                      onClick={() => onToggleTaskDone(linkedClient?.id ?? null, n)}
+                      style={{ ...entryRowStyle, opacity: n.done ? 0.45 : 1 }}
+                    >
+                      <span style={{ fontSize: fs(16), lineHeight: 1.2, flexShrink: 0 }}>{n.done ? DONE_EMOJI : urgencyMeta(n.urgency).emoji}</span>
+                      <span
+                        dir="auto"
+                        style={{
+                          fontSize: fs(14),
+                          color: COLORS.textPrimary,
+                          flex: 1,
+                          minWidth: 0,
+                          textDecoration: n.done ? 'line-through' : 'none',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {n.text}
                       </span>
                     </div>
                   ))}
