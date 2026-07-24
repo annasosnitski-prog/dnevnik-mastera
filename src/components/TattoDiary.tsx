@@ -23,6 +23,38 @@ import {
   type ContentSessionContext,
 } from '../lib/contentSync';
 import { downsizeToPreview } from '../lib/imagePreview';
+// Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
+// Форма данных и значения не изменились — это те же существующие типы,
+// импортируемые обратно; второй модели Project не создавалось.
+import { type UrgencyKey, URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency';
+import { type Session } from '../domain/session';
+import { type Consultation } from '../domain/consultation';
+import { type ClientNote } from '../domain/task';
+import {
+  type ClientDocument,
+  type ChatPlatform,
+  type ChatLink,
+  PLATFORM_LABELS,
+  CHAT_PLATFORM_DOMAINS,
+  type ClientType,
+  CLIENT_TYPES,
+  type ClientLanguage,
+  CLIENT_LANGUAGES,
+  type Client,
+} from '../domain/client';
+import {
+  type ProjectCategory,
+  PROJECT_CATEGORIES,
+  type ProjectStage,
+  type ProjectState,
+  type ProjectWaitingFor,
+  type ProjectPriority,
+  PROJECT_STAGES,
+  PROJECT_STATES,
+  PROJECT_WAITING_FOR,
+  PROJECT_PRIORITIES,
+  type Project,
+} from '../domain/project';
 
 // ===================== DESIGN TOKENS =====================
 // Values resolve to CSS variables (see index.css), so the same component
@@ -130,22 +162,6 @@ const STYLES_PINNED_COUNT = 6;
 // A single priority scale (not the old urgent×important matrix — that 2-axis
 // split was confusing in practice, e.g. "buy a discounted item" doesn't map
 // cleanly onto "urgent but not important") plus a separate "interesting" tag.
-type UrgencyKey = 'urgent' | 'important' | 'normal' | 'interesting';
-
-const URGENCY: { key: UrgencyKey; emoji: string; label: string; short: string }[] = [
-  { key: 'urgent', emoji: '‼️', label: 'Срочно', short: 'Срочно' },
-  { key: 'important', emoji: '🔆', label: 'Важно', short: 'Важно' },
-  { key: 'normal', emoji: '🌙', label: 'Обычно', short: 'Обычно' },
-  { key: 'interesting', emoji: '⚡️', label: 'Интересно', short: 'Интересно' },
-];
-// Old 5-key urgent×important matrix → new single scale, so existing stored
-// notes keep a sensible priority instead of collapsing to one default.
-const LEGACY_URGENCY_MAP: Record<string, UrgencyKey> = {
-  urgent_important: 'urgent',
-  urgent_not: 'urgent',
-  important_not_urgent: 'important',
-  not_not: 'normal',
-};
 const DONE_EMOJI = '🍀';
 const urgencyRank = (k: UrgencyKey): number => URGENCY.findIndex((u) => u.key === k);
 const urgencyMeta = (k: UrgencyKey) => URGENCY.find((u) => u.key === k) || URGENCY[URGENCY.length - 1];
@@ -174,87 +190,6 @@ interface ContentEntry {
   textDraft: string; // черновик текста — то, ради чего всё
   status: 'draft' | 'confirmed';
 }
-
-interface Session {
-  id: string;
-  name: string; // session title, e.g. "Первая", "Голубика"
-  date: string; // ISO yyyy-mm-dd (or legacy free text)
-  time: string; // HH:MM, 24h — optional, shown only on the master dashboard
-  duration: string; // e.g. "4 ч"
-  style: string; // work style for this session
-  area: string; // work zone, e.g. "Левое плечо"
-  colors: string; // inks / colours used
-  needles: string; // needle configuration
-  skinReaction: string; // how the skin reacted
-  note: string;
-  photos: string[]; // captured/uploaded photos (data URLs)
-  done: boolean;
-  healed: boolean; // manually ticked once a healed-skin photo has been added
-  // Set only via the overdue reminder's «Отменить» quick action — a planned
-  // session that won't happen and won't be rescheduled, distinct from
-  // `done`. Excluded from upcoming/overdue lists; shown as «Отменена» in
-  // the client's history instead of just disappearing.
-  cancelled: boolean;
-  // Ссылка на Project (Этап 2, link-подход): сессия физически остаётся у
-  // клиента, но может принадлежать проекту. null = без проекта. НЕ входит
-  // в ключ синка календаря, так что привязка не дёргает Инка-календарь.
-  projectId: string | null;
-}
-
-interface ClientDocument {
-  id: string;
-  name: string;
-  fileUrl: string;
-  kind: 'document' | 'photo';
-  uploadedDate: string;
-}
-
-// A free-form note/task with an urgency marker and a done flag. Lives in the
-// client's «Дополнительно» tab and is aggregated across clients in «Сводка».
-// Also doubles as the master's own client-less task list (masterInfo.notes).
-interface ClientNote {
-  id: string;
-  text: string;
-  urgency: UrgencyKey;
-  done: boolean;
-  createdDate: string;
-  photos: string[];
-  projectId: string | null;
-}
-
-type ChatPlatform = 'whatsapp' | 'telegram' | 'instagram' | 'facebook' | 'messenger' | 'tiktok' | 'pinterest' | 'website' | 'other';
-
-interface ChatLink {
-  id: string;
-  platform: ChatPlatform;
-  url: string;
-}
-
-const PLATFORM_LABELS: Record<ChatPlatform, string> = {
-  whatsapp: 'WhatsApp',
-  telegram: 'Telegram',
-  instagram: 'Instagram',
-  facebook: 'Facebook',
-  messenger: 'Messenger',
-  tiktok: 'TikTok',
-  pinterest: 'Pinterest',
-  website: 'Сайт',
-  other: 'Ссылка',
-};
-
-// A platform's own domain, keyed the same as its handle-building case below —
-// lets buildChatLink recognize a pasted link that's missing only the
-// "https://" prefix (e.g. "instagram.com/name", copied from a share sheet
-// without the protocol).
-const CHAT_PLATFORM_DOMAINS: Partial<Record<ChatPlatform, string>> = {
-  whatsapp: 'wa.me',
-  telegram: 't.me',
-  instagram: 'instagram.com',
-  facebook: 'facebook.com',
-  messenger: 'm.me',
-  tiktok: 'tiktok.com',
-  pinterest: 'pinterest.com',
-};
 
 // Turns a raw input (phone, @handle, domain or full URL) into an openable link.
 function buildChatLink(platform: ChatPlatform, raw: string): string {
@@ -294,151 +229,6 @@ function buildChatLink(platform: ChatPlatform, raw: string): string {
     default:
       return trimmed;
   }
-}
-
-type ClientType = 'model' | 'client' | 'other';
-const CLIENT_TYPES: { value: ClientType; label: string }[] = [
-  { value: 'client', label: 'Клиент' },
-  { value: 'model', label: 'Модель' },
-  { value: 'other', label: 'Другое' },
-];
-
-// Language the client's auto-generated messages (reminders etc.) get
-// written in — set per-client in the Инфо tab, defaults to Russian.
-type ClientLanguage = 'ru' | 'en' | 'he';
-const CLIENT_LANGUAGES: { value: ClientLanguage; label: string }[] = [
-  { value: 'ru', label: 'Русский' },
-  { value: 'en', label: 'English' },
-  { value: 'he', label: 'עברית' },
-];
-
-interface Client {
-  id: string;
-  name: string; // first name, e.g. "Александра"
-  surname: string;
-  styles: string[]; // one or more tattoo styles
-  style: string; // joined styles, kept for search / back-compat
-  color: string; // marker colour (master-chosen at creation)
-  clientType: ClientType; // model / client / other — filterable on the list screen
-  language: ClientLanguage; // auto-generated messages (reminders etc.) are written in this language
-  note: string; // notes about the client ("Заметки о клиенте")
-  masterNote: string; // master's own notes, written inline from the info tab
-  phone: string; // contact phone number
-  skinType: string; // normal / sensitive / dry / oily / combination
-  skinTone: string; // skin-tone hex chosen from the palette
-  skinNotes: string; // free notes about the client's skin (legacy, superseded by allergies/skinReactions below)
-  allergies: string; // known allergies — shown read-only inside a consultation
-  skinReactions: string; // known skin reactions (redness, swelling...) — same
-  chatLinks: ChatLink[]; // WhatsApp / Telegram / Instagram / etc.
-  sessions: Session[];
-  consultations: Consultation[]; // planning/mood-board entries — references + creative brief, scheduled like sessions
-  documents: ClientDocument[];
-  notes: ClientNote[]; // structured notes/tasks with urgency markers
-  createdDate: string;
-}
-
-interface Consultation {
-  id: string;
-  date: string; // ISO yyyy-mm-dd
-  time: string; // HH:MM, 24h
-  area: string; // "Место" — body part/zone under discussion
-  style: string; // "Техника и стиль" — free text, unlike the session's chip picker
-  generalNotes: string; // "Общие заметки" — the client's own wishes/agreements + the master's own thoughts
-  feeling: string; // "Чувство/ощущение" — the mood or sensation the piece should evoke
-  creative: string; // "Креатив" — the wild/standout idea, the one distinctive twist
-  inspirationSources: string; // "Источники вдохновения" — authors, references
-  urgency: UrgencyKey;
-  photos: string[]; // reference / mood-board images
-  done: boolean;
-  // See Session.cancelled — same meaning, set only via the overdue
-  // reminder's «Отменить» action.
-  cancelled: boolean;
-  createdDate: string;
-  // См. Session.projectId — та же link-семантика (Этап 2).
-  projectId: string | null;
-}
-
-// A standalone sketch/portfolio idea for «Творческая мастерская» — not tied
-// to any client (unlike Consultation, which lives inside a Client). Shares
-// the consultation's own field set (same brief-writing form) since it's the
-// same kind of thinking — mood, references, technique — just without a
-// person attached to it yet; the one field it adds is its own colour tag,
-// since without a client there's no `client.color` to inherit.
-type ProjectCategory = 'tattoo' | 'drawing' | 'collab' | 'other';
-
-const PROJECT_CATEGORIES: { key: ProjectCategory; label: string }[] = [
-  { key: 'tattoo', label: 'Тату' },
-  { key: 'drawing', label: 'Рисунок' },
-  { key: 'collab', label: 'Коллаба' },
-  { key: 'other', label: 'Другое' },
-];
-
-// Три независимых параметра статуса вместо одной длинной строки-enum
-// (вроде "planning_waiting_client_photo_overdue") — где проект находится,
-// может ли он сейчас двигаться, и кто должен действовать, читаются по
-// отдельности и комбинируются свободно.
-type ProjectStage = 'idea' | 'inquiry' | 'planning' | 'booked' | 'in_progress' | 'healing' | 'completed';
-type ProjectState = 'active' | 'paused' | 'cancelled' | 'archived';
-type ProjectWaitingFor = 'master' | 'client' | 'external' | 'none';
-type ProjectPriority = 'urgent' | 'important' | 'normal';
-
-const PROJECT_STAGES: { key: ProjectStage; label: string }[] = [
-  { key: 'idea', label: 'Идея' },
-  { key: 'inquiry', label: 'Запрос' },
-  { key: 'planning', label: 'Подготовка' },
-  { key: 'booked', label: 'Записан' },
-  { key: 'in_progress', label: 'В работе' },
-  { key: 'healing', label: 'Заживление' },
-  { key: 'completed', label: 'Завершён' },
-];
-
-const PROJECT_STATES: { key: ProjectState; label: string }[] = [
-  { key: 'active', label: 'Активен' },
-  { key: 'paused', label: 'Пауза' },
-  { key: 'cancelled', label: 'Отменён' },
-  { key: 'archived', label: 'Архив' },
-];
-
-const PROJECT_WAITING_FOR: { key: ProjectWaitingFor; label: string }[] = [
-  { key: 'master', label: 'Мастера' },
-  { key: 'client', label: 'Клиента' },
-  { key: 'external', label: 'Внешнего' },
-  { key: 'none', label: 'Никого' },
-];
-
-const PROJECT_PRIORITIES: { key: ProjectPriority; label: string }[] = [
-  { key: 'urgent', label: 'Срочно' },
-  { key: 'important', label: 'Важно' },
-  { key: 'normal', label: 'Обычный' },
-];
-
-interface Project {
-  id: string;
-  title: string; // project name, e.g. "Дракон в стиле джапан"
-  color: string; // marker colour, chosen at creation — see MarkerColorPalette
-  category: ProjectCategory;
-  // null = идея без клиента ("мастерская", независимо от одноимённого
-  // clientId===null на ContentEntry — те две вещи не связаны).
-  clientId: string | null;
-  stage: ProjectStage;
-  state: ProjectState;
-  waitingFor: ProjectWaitingFor;
-  nextActionText: string;
-  nextActionDate: string | null; // ISO yyyy-mm-dd
-  priority: ProjectPriority;
-  area: string; // "Место" — intended placement, if already decided
-  style: string; // "Техника и стиль"
-  generalNotes: string; // "Общие заметки"
-  feeling: string; // "Чувство/ощущение"
-  creative: string; // "Креатив"
-  inspirationSources: string; // "Источники вдохновения"
-  photos: string[];
-  createdDate: string;
-  // «Сессии без клиента» (Этап 3b-доп.) — для проектов без clientId, живут
-  // прямо на проекте (свой стор, клиента/календарь не трогают), пока не
-  // появится клиент. При привязке клиента к проекту (см. attachClientToProject
-  // в App) переезжают в client.sessions с тем же projectId и отсюда чистятся.
-  sessions: Session[];
 }
 
 // Styles as an array regardless of legacy shape; joined label for display.
