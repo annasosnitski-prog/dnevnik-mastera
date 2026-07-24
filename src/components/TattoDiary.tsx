@@ -41,7 +41,30 @@ import {
   type ClientLanguage,
   CLIENT_LANGUAGES,
   type Client,
+  clientStyles,
+  stylesLabel,
 } from '../domain/client';
+// Чистые выборки/сортировки/агрегаты вынесены в domain/*Selectors и
+// utils/dates (PR 3 рефакторинга). Алгоритмы и результаты не менялись.
+import { ISO_DATE_RE, formatDate, dateParts, todayISO, daysSinceISO } from '../utils/dates';
+import {
+  getProjectById,
+  getProjectsByClientId,
+  getWorkshopProjects,
+  getSessionsByProjectId,
+  getConsultationsByProjectId,
+} from '../domain/projectSelectors';
+import { getTasksByProjectId, urgencyRank, urgencyMeta, notesUrgencyCounts, urgencyCounts } from '../domain/taskSelectors';
+import {
+  lastSession,
+  lastSessionDate,
+  nextPlannedSession,
+  type SortMode,
+  SORT_MODES,
+  sortClients,
+  mostUsedStyle,
+  upcomingItems,
+} from '../domain/plannerSelectors';
 import {
   type ProjectCategory,
   PROJECT_CATEGORIES,
@@ -163,8 +186,6 @@ const STYLES_PINNED_COUNT = 6;
 // split was confusing in practice, e.g. "buy a discounted item" doesn't map
 // cleanly onto "urgent but not important") plus a separate "interesting" tag.
 const DONE_EMOJI = '🍀';
-const urgencyRank = (k: UrgencyKey): number => URGENCY.findIndex((u) => u.key === k);
-const urgencyMeta = (k: UrgencyKey) => URGENCY.find((u) => u.key === k) || URGENCY[URGENCY.length - 1];
 
 // ===================== DATA TYPES =====================
 
@@ -231,12 +252,6 @@ function buildChatLink(platform: ChatPlatform, raw: string): string {
   }
 }
 
-// Styles as an array regardless of legacy shape; joined label for display.
-const clientStyles = (c: { styles?: string[]; style?: string }): string[] =>
-  c.styles && c.styles.length ? c.styles : c.style ? [c.style] : [];
-const stylesLabel = (c: { styles?: string[]; style?: string }): string =>
-  clientStyles(c).join(' · ');
-
 const SKIN_TYPES: { value: string; label: string }[] = [
   { value: '', label: 'Не указан' },
   { value: 'normal', label: 'Нормальная' },
@@ -251,32 +266,6 @@ const SKIN_TYPES: { value: string; label: string }[] = [
 ];
 
 // ===================== DERIVED HELPERS =====================
-const MONTHS_RU = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-// Formats an ISO yyyy-mm-dd as "24 мая 2026"; leaves legacy free-text as-is.
-function formatDate(value: string): string {
-  if (!value) return '';
-  const m = ISO_DATE_RE.exec(value);
-  if (!m) return value;
-  const [y, mo, d] = value.split('-');
-  return `${Number(d)} ${MONTHS_RU[Number(mo) - 1]} ${y}`;
-}
-
-const WEEKDAYS_SHORT_RU = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
-
-// Splits an ISO yyyy-mm-dd into weekday/day-number/month for the tear-off
-// calendar-square badge (see the «Ближайшая» tag). Local calendar date, not
-// UTC — a plain `new Date(iso)` would land on the previous day in western
-// timezones since the string parses as UTC midnight.
-function dateParts(value: string): { weekday: string; day: string; month: string } | null {
-  const m = ISO_DATE_RE.exec(value);
-  if (!m) return null;
-  const [y, mo, d] = value.split('-').map(Number);
-  const dt = new Date(y, mo - 1, d);
-  return { weekday: WEEKDAYS_SHORT_RU[dt.getDay()], day: String(d), month: MONTHS_RU[mo - 1] };
-}
 
 // Tear-off calendar square — weekday/day/month, showing the soonest upcoming
 // session or consultation. Positioned by the caller (each screen places it
@@ -330,184 +319,6 @@ const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
 
 const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
 const nameRest = (name: string) => (name ? name.slice(1) : '');
-
-// Chronological session order: dated sessions rank by their date. A session
-// without a date has nothing to rank by, so it inherits the date of the
-// nearest earlier dated session in creation order (or sorts before everything
-// if there isn't one yet) — it slots into the calendar gap it was added in.
-// Undated sessions sharing that same slot fall back to newest-created-first
-// among themselves, so the freshest one sits on top of that stack.
-const sortedSessions = (sessions: Session[]): Session[] => {
-  let anchor = '';
-  const withKey = sessions.map((s, i) => {
-    const dated = ISO_DATE_RE.test(s.date);
-    if (dated) anchor = s.date;
-    return { s, i, dated, key: dated ? s.date : anchor };
-  });
-  return withKey
-    .sort((a, b) => {
-      const byKey = b.key.localeCompare(a.key); // most recent date first
-      if (byKey !== 0) return byKey;
-      if (a.dated && b.dated) return a.i - b.i; // same explicit date: keep creation order
-      if (!a.dated && !b.dated) return b.i - a.i; // same slot, both undated: newest first
-      return a.dated ? -1 : 1; // the dated session anchoring this slot comes first
-    })
-    .map((x) => x.s);
-};
-
-// "Last session" means the most recent completed (done) one — a planned/future
-// session isn't a "last session" yet. sortedSessions is newest-first, so it's
-// the first done entry, not the last.
-const lastSession = (c: Client): Session | null => {
-  const done = sortedSessions(c.sessions).filter((s) => s.done);
-  return done.length ? done[0] : null;
-};
-const lastSessionDate = (c: Client) => {
-  const s = lastSession(c);
-  return s ? formatDate(s.date) || '—' : '—';
-};
-// The soonest planned (not-yet-done) session, if any — used to surface an
-// upcoming appointment ahead of the last completed one on the client card.
-const nextPlannedSession = (c: Client): Session | null => {
-  const planned = c.sessions.filter((s) => !s.done);
-  if (!planned.length) return null;
-  return [...planned].sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0];
-};
-
-// ── Client list sorting (list screen) ──
-type SortMode = 'name' | 'added' | 'session';
-const SORT_MODES: { key: SortMode; label: string }[] = [
-  { key: 'name', label: 'А–Я' },
-  { key: 'added', label: 'Новые' },
-  { key: 'session', label: 'По сессии' },
-];
-
-// Local (not UTC) today as yyyy-mm-dd, for string-comparing against ISO dates.
-function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-// For the «По сессии» sort: a client's most relevant appointment date. A nearest
-// upcoming (not-done, today-or-later) session/consultation wins; failing that,
-// the most recent past session date. hasUpcoming lets upcoming clients rank
-// above those with only history.
-function sessionSortKey(c: Client): { hasUpcoming: boolean; date: string } {
-  const today = todayISO();
-  let upcoming = '';
-  const considerUpcoming = (date: string, done: boolean, cancelled: boolean) => {
-    if (done || cancelled || !ISO_DATE_RE.test(date) || date < today) return;
-    if (!upcoming || date < upcoming) upcoming = date;
-  };
-  c.sessions.forEach((s) => considerUpcoming(s.date, s.done, s.cancelled));
-  c.consultations.forEach((cn) => considerUpcoming(cn.date, cn.done, cn.cancelled));
-  if (upcoming) return { hasUpcoming: true, date: upcoming };
-
-  let last = '';
-  c.sessions.forEach((s) => {
-    if (ISO_DATE_RE.test(s.date) && s.date > last) last = s.date;
-  });
-  return { hasUpcoming: false, date: last };
-}
-
-// Orders the (already-filtered) client list per the chosen sort mode.
-function sortClients(clients: Client[], mode: SortMode): Client[] {
-  const list = [...clients];
-  if (mode === 'name') {
-    return list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru', { sensitivity: 'base' }));
-  }
-  if (mode === 'added') {
-    // Newest first.
-    return list.sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
-  }
-  // 'session': nearest upcoming first, then most-recent past, empties last.
-  return list.sort((a, b) => {
-    const ka = sessionSortKey(a);
-    const kb = sessionSortKey(b);
-    if (ka.hasUpcoming !== kb.hasUpcoming) return ka.hasUpcoming ? -1 : 1;
-    if (ka.hasUpcoming) return ka.date.localeCompare(kb.date); // soonest first
-    if (!ka.date && !kb.date) return (a.name || '').localeCompare(b.name || '', 'ru');
-    if (!ka.date) return 1;
-    if (!kb.date) return -1;
-    return kb.date.localeCompare(ka.date); // most recent past first
-  });
-}
-
-// ── Master dashboard helpers ──
-// The tattoo style used across the most clients (ties broken by array order).
-function mostUsedStyle(clients: Client[]): string | null {
-  const counts = new Map<string, number>();
-  for (const c of clients) {
-    for (const s of clientStyles(c)) counts.set(s, (counts.get(s) || 0) + 1);
-  }
-  let best: string | null = null;
-  let bestCount = 0;
-  for (const [style, count] of counts) {
-    if (count > bestCount) {
-      best = style;
-      bestCount = count;
-    }
-  }
-  return best;
-}
-
-// Every not-yet-done session AND consultation, across all clients, whose ISO
-// date falls within [today, today+days] — sorted soonest-first. Consultations
-// are planned on the same calendar as sessions, so both feed one combined
-// list. Entries with a legacy non-ISO date (free text) are skipped since they
-// can't be date-compared.
-type UpcomingItem = { client: Client; kind: 'session' | 'consultation'; id: string; date: string; time: string };
-
-function upcomingItems(clients: Client[], days: number): UpcomingItem[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const horizon = new Date(today);
-  horizon.setDate(horizon.getDate() + days);
-
-  const result: UpcomingItem[] = [];
-  for (const client of clients) {
-    for (const session of client.sessions) {
-      if (session.done || session.cancelled || !ISO_DATE_RE.test(session.date)) continue;
-      const d = new Date(session.date + 'T00:00:00');
-      if (d >= today && d <= horizon) result.push({ client, kind: 'session', id: session.id, date: session.date, time: session.time });
-    }
-    for (const consultation of client.consultations) {
-      if (consultation.done || consultation.cancelled || !ISO_DATE_RE.test(consultation.date)) continue;
-      const d = new Date(consultation.date + 'T00:00:00');
-      if (d >= today && d <= horizon) {
-        result.push({ client, kind: 'consultation', id: consultation.id, date: consultation.date, time: consultation.time });
-      }
-    }
-  }
-  return result.sort((a, b) => a.date.localeCompare(b.date));
-}
-
-// Counts open (not-done) notes by urgency — the two buckets the dashboard
-// surfaces: urgent, and important.
-function notesUrgencyCounts(notes: ClientNote[]): { urgent: number; important: number } {
-  let urgent = 0;
-  let important = 0;
-  for (const n of notes) {
-    if (n.done) continue;
-    if (n.urgency === 'urgent') urgent++;
-    else if (n.urgency === 'important') important++;
-  }
-  return { urgent, important };
-}
-
-// Same, across every client's notes — the master's own (client-less) notes
-// are counted separately, see notesUrgencyCounts above.
-function urgencyCounts(clients: Client[]): { urgent: number; important: number } {
-  return notesUrgencyCounts(clients.flatMap((c) => c.notes));
-}
-
-// Whole days between an ISO date and today (local), floored — used for the
-// fixed 30-day healing check-in window.
-function daysSinceISO(date: string): number {
-  const then = new Date(date + 'T00:00:00');
-  const today = new Date(todayISO() + 'T00:00:00');
-  return Math.floor((today.getTime() - then.getTime()) / 86400000);
-}
 
 const HEALING_REMINDER_DAYS = 30;
 
@@ -2393,7 +2204,7 @@ export default function TattoDiary() {
       projectId: string | null;
     },
   ) => {
-    const p = projects.find((x) => x.id === projectId);
+    const p = getProjectById(projects, projectId);
     if (!p) return;
     const fields = {
       name: data.name.trim(),
@@ -2494,7 +2305,7 @@ export default function TattoDiary() {
   // задет.
   const advanceProjectStage = (projectId: string | null, target: ProjectStage) => {
     if (!projectId) return;
-    const p = projects.find((x) => x.id === projectId);
+    const p = getProjectById(projects, projectId);
     if (!p) return;
     const cur = PROJECT_STAGES.findIndex((s) => s.key === p.stage);
     const tgt = PROJECT_STAGES.findIndex((s) => s.key === target);
@@ -3540,14 +3351,14 @@ export default function TattoDiary() {
         open={showNewSessionForm}
         clientName={
           sessionTargetProjectId
-            ? projects.find((p) => p.id === sessionTargetProjectId)?.title || 'Проект'
+            ? getProjectById(projects, sessionTargetProjectId)?.title || 'Проект'
             : selectedClient?.name || ''
         }
         clientProjects={
           sessionTargetProjectId
             ? projects.filter((p) => p.id === sessionTargetProjectId)
             : selectedClient
-            ? projects.filter((p) => p.clientId === selectedClient.id)
+            ? getProjectsByClientId(projects, selectedClient.id)
             : []
         }
         presetProjectId={sessionTargetProjectId ?? presetEntryProjectId}
@@ -3622,7 +3433,7 @@ export default function TattoDiary() {
         open={showNewConsultationForm}
         clientName={selectedClient?.name || ''}
         client={selectedClient}
-        clientProjects={selectedClient ? projects.filter((p) => p.clientId === selectedClient.id) : []}
+        clientProjects={selectedClient ? getProjectsByClientId(projects, selectedClient.id) : []}
         presetProjectId={presetEntryProjectId}
         initial={editConsultation}
         initialDate={calendarCreateDate ?? undefined}
@@ -3648,7 +3459,7 @@ export default function TattoDiary() {
       {/* ═══════════ PROJECT VIEW (read-only) ═══════════ */}
       <ProjectViewSheet
         open={!!viewProject}
-        project={viewProject ? projects.find((p) => p.id === viewProject.id) ?? viewProject : null}
+        project={viewProject ? getProjectById(projects, viewProject.id) ?? viewProject : null}
         clients={clients}
         masterNotes={masterInfo.notes}
         onClose={() => setViewProject(null)}
@@ -3683,7 +3494,7 @@ export default function TattoDiary() {
         consultation={viewedConsultation}
         clientId={viewClient?.id ?? null}
         clientName={viewClient ? `${viewClient.name} ${viewClient.surname}`.trim() : ''}
-        clientProjects={viewClient ? projects.filter((p) => p.clientId === viewClient.id) : []}
+        clientProjects={viewClient ? getProjectsByClientId(projects, viewClient.id) : []}
         contentEntries={contentEntries}
         onClose={() => setViewEntry(null)}
         onEdit={() => {
@@ -7416,7 +7227,7 @@ function SummaryScreen({
 
   // Client-less projects — candidates a master (client-less) note/task can
   // be tied to.
-  const clientlessProjects = projects.filter((p) => p.clientId === null);
+  const clientlessProjects = getWorkshopProjects(projects);
 
   // Client notes + the master's own (client-less) notes, one flat list.
   type NoteEntry = { note: ClientNote; client: Client | null };
@@ -7697,7 +7508,7 @@ function SummaryScreen({
                 <NoteItem
                   note={note}
                   client={client!}
-                  projects={projects.filter((p) => p.clientId === client!.id)}
+                  projects={getProjectsByClientId(projects, client!.id)}
                   onToggleDone={() => onToggleDone(client!.id, { ...note, done: !note.done })}
                   onEdit={(text, urgency, projectId) => onEditNote(client!.id, { ...note, text, urgency, projectId })}
                   onDelete={() => onDeleteNote(client!.id, note.id)}
@@ -8242,7 +8053,7 @@ function DetailScreen({
         {activeTab === 'extra' && (
           <AdditionalTab
             client={client}
-            projects={projects.filter((p) => p.clientId === client.id)}
+            projects={getProjectsByClientId(projects, client.id)}
             onUpsertNote={onUpsertNote}
             onAddNote={onAddNote}
             onDeleteNote={onDeleteNote}
@@ -8280,7 +8091,7 @@ function InfoTab({
     padding: 13,
     gridColumn: span ? 'span 2' : undefined,
   });
-  const clientProjects = projects.filter((p) => p.clientId === client.id);
+  const clientProjects = getProjectsByClientId(projects, client.id);
 
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
@@ -12984,13 +12795,13 @@ function ProjectViewSheet({
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
-  const linkedSessions = linkedClient && project ? linkedClient.sessions.filter((s) => s.projectId === project.id) : [];
-  const linkedConsults = linkedClient && project ? linkedClient.consultations.filter((c) => c.projectId === project.id) : [];
+  const linkedSessions = linkedClient && project ? getSessionsByProjectId(linkedClient.sessions, project.id) : [];
+  const linkedConsults = linkedClient && project ? getConsultationsByProjectId(linkedClient.consultations, project.id) : [];
   const ownSessions = project && !linkedClient ? project.sessions : [];
   const linkedTasks = project
     ? linkedClient
-      ? linkedClient.notes.filter((n) => n.projectId === project.id)
-      : masterNotes.filter((n) => n.projectId === project.id)
+      ? getTasksByProjectId(linkedClient.notes, project.id)
+      : getTasksByProjectId(masterNotes, project.id)
     : [];
 
   const chipStyle: React.CSSProperties = {
