@@ -71,6 +71,15 @@ import type { OverdueItem, HealingItem, UpcomingSoonItem } from '../reminders/ty
 import { overdueEntries, healingReminders, upcomingSoonReminders, overdueProjects } from '../reminders/buildReminders';
 import { overdueReminderKey, healingReminderKey, soonReminderKey, projectReminderKey } from '../reminders/reminderKeys';
 import {
+  type ReminderState,
+  loadReminderState,
+  saveReminderState,
+  filterVisibleReminders,
+  dismissReminder,
+  snoozeReminder,
+  removeExpiredSnoozes,
+} from '../reminders/reminderState';
+import {
   type ProjectCategory,
   PROJECT_CATEGORIES,
   type ProjectStage,
@@ -373,19 +382,6 @@ function localizedWhen(dateIso: string, time: string, language: ClientLanguage):
 function soonReminderMessage(it: UpcomingSoonItem): string {
   const { language } = it.client;
   return REMINDER_TEXTS[language].soon(localizedWhen(it.date, it.time, language));
-}
-
-function readInitialDismissedReminders(): string[] {
-  try {
-    const raw = localStorage.getItem('inka-dismissed-reminders');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.filter((x) => typeof x === 'string');
-    }
-  } catch {
-    /* ignore */
-  }
-  return [];
 }
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
@@ -1560,15 +1556,14 @@ export default function TattoDiary() {
   // (see reminderKey below), not by anything that would naturally clear this
   // — marking done, rescheduling, or ticking «Зажив» already removes the
   // entry from its source list regardless of this set.
-  const [dismissedReminders, setDismissedReminders] = useState<string[]>(readInitialDismissedReminders);
+  // Скрытые/отложенные напоминания — см. src/reminders/reminderState.ts. На
+  // старте подхватываем прежний формат (массив) и чистим истёкшие snooze.
+  const [reminderState, setReminderState] = useState<ReminderState>(() => removeExpiredSnoozes(loadReminderState(), new Date()));
   useEffect(() => {
-    try {
-      localStorage.setItem('inka-dismissed-reminders', JSON.stringify(dismissedReminders));
-    } catch {
-      /* ignore */
-    }
-  }, [dismissedReminders]);
-  const dismissReminder = (key: string) => setDismissedReminders((prev) => (prev.includes(key) ? prev : [...prev, key]));
+    saveReminderState(reminderState);
+  }, [reminderState]);
+  const handleDismissReminder = (key: string) => setReminderState((prev) => dismissReminder(prev, key));
+  const handleSnoozeReminder = (key: string, showAfter: string) => setReminderState((prev) => snoozeReminder(prev, key, showAfter));
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -2437,11 +2432,11 @@ export default function TattoDiary() {
   // Один снимок времени на все четыре ленты — раньше каждая читала часы сама
   // (todayISO()/Date.now()); поведение то же, но теперь оно детерминировано.
   const remindersNow = new Date();
-  const visibleOverdue = overdueEntries(clients, remindersNow).filter((it) => !dismissedReminders.includes(overdueReminderKey(it)));
-  const visibleHealing = healingReminders(clients, remindersNow).filter((it) => !dismissedReminders.includes(healingReminderKey(it)));
-  const visibleSoon = upcomingSoonReminders(clients, remindersNow).filter((it) => !dismissedReminders.includes(soonReminderKey(it)));
+  const visibleOverdue = filterVisibleReminders(overdueEntries(clients, remindersNow), overdueReminderKey, reminderState, remindersNow);
+  const visibleHealing = filterVisibleReminders(healingReminders(clients, remindersNow), healingReminderKey, reminderState, remindersNow);
+  const visibleSoon = filterVisibleReminders(upcomingSoonReminders(clients, remindersNow), soonReminderKey, reminderState, remindersNow);
   // Проекты с просроченным «следующим шагом» (Этап 3b) — в те же напоминания.
-  const visibleDueProjects = overdueProjects(projects, remindersNow).filter((p) => !dismissedReminders.includes(projectReminderKey(p)));
+  const visibleDueProjects = filterVisibleReminders(overdueProjects(projects, remindersNow), projectReminderKey, reminderState, remindersNow);
 
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
@@ -3109,7 +3104,8 @@ export default function TattoDiary() {
             dueProjects={visibleDueProjects}
             onOpenProject={(project) => setViewProject(project)}
             onOpenEntry={openEntryForEdit}
-            onDismissReminder={dismissReminder}
+            onDismissReminder={handleDismissReminder}
+            onSnoozeReminder={handleSnoozeReminder}
             onCancelEntry={markEntryCancelled}
             onOpenNotes={(urgency) => {
               setSummaryFilter(urgency);
@@ -5166,6 +5162,96 @@ function ReminderCloseButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+// yyyy-mm-ddThh:mm:ss местного времени начала дня через `days` суток от
+// текущего момента — момент, после которого отложенная карточка снова
+// показывается (см. snoozeReminder). Начало дня, чтобы «до завтра» означало
+// именно завтрашнее утро, а не +24 часа от текущей минуты.
+function snoozeShowAfter(days: number): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
+
+// Компактное меню карточки напоминания («⋯»): отложить до завтра / на 3 дня /
+// скрыть. Заменяет одиночный «×», чтобы не громоздить кнопки на карточке.
+// Пункт «скрыть» относится только к текущему reminder-ключу — новое событие
+// той же сущности получит другой ключ и покажется снова.
+//
+// Выпадашка рисуется через position:fixed от координат кнопки — так она не
+// обрезается overflow:hidden карточек (например, у просроченной) и не воюет
+// за z-index с их собственными stacking-контекстами.
+function ReminderMenuButton({
+  onSnoozeTomorrow,
+  onSnooze3Days,
+  onHide,
+}: {
+  onSnoozeTomorrow: () => void;
+  onSnooze3Days: () => void;
+  onHide: () => void;
+}) {
+  const btnRef = useRef<HTMLSpanElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 4, right: Math.max(6, window.innerWidth - r.right) });
+  };
+  const rowStyle: React.CSSProperties = {
+    padding: '9px 14px',
+    fontSize: fs(12.5),
+    color: COLORS.textPrimary,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    letterSpacing: '0.3px',
+  };
+  return (
+    <span ref={btnRef} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+      <span
+        onClick={openMenu}
+        role="button"
+        aria-label="Действия с напоминанием"
+        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: 0.55, padding: 2 }}
+      >
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.textFaint }}>
+          <circle cx="8" cy="3" r="1.4" fill="currentColor" />
+          <circle cx="8" cy="8" r="1.4" fill="currentColor" />
+          <circle cx="8" cy="13" r="1.4" fill="currentColor" />
+        </svg>
+      </span>
+      {pos && (
+        <>
+          {/* Клик мимо — закрыть меню. */}
+          <div onClick={() => setPos(null)} style={{ position: 'fixed', inset: 0, zIndex: 240 }} />
+          <div
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              right: pos.right,
+              zIndex: 241,
+              background: COLORS.bg,
+              border: '1px solid rgba(var(--gold-rgb),0.3)',
+              borderRadius: 4,
+              boxShadow: '0 6px 20px rgba(0,0,0,0.35)',
+              overflow: 'hidden',
+              minWidth: 176,
+            }}
+          >
+            <div role="button" style={rowStyle} onClick={() => { setPos(null); onSnoozeTomorrow(); }}>
+              Отложить до завтра
+            </div>
+            <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)' }} onClick={() => { setPos(null); onSnooze3Days(); }}>
+              Отложить на 3 дня
+            </div>
+            <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textFaint }} onClick={() => { setPos(null); onHide(); }}>
+              Скрыть это напоминание
+            </div>
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
 // Wraps a reminder card so it can be swiped left/right, like a native
 // notification. Drags with the finger while held; past the threshold it
 // flies the rest of the way out and THEN runs the swipe action — the swipe
@@ -5305,11 +5391,13 @@ function OverdueReminderCard({
   item,
   onReschedule,
   onDismiss,
+  onSnooze,
   onCancel,
 }: {
   item: OverdueItem;
   onReschedule: () => void;
   onDismiss: () => void;
+  onSnooze: (showAfter: string) => void;
   onCancel: () => void;
 }) {
   const [dismissing, setDismissing] = useState(false);
@@ -5352,7 +5440,11 @@ function OverdueReminderCard({
             {item.kind === 'session' ? 'Сессия' : 'Консультация'} просрочена · {formatDate(item.date)}
           </div>
         </div>
-        <ReminderCloseButton onClick={() => flyOutThen(onDismiss)} />
+        <ReminderMenuButton
+          onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeShowAfter(1)))}
+          onSnooze3Days={() => flyOutThen(() => onSnooze(snoozeShowAfter(3)))}
+          onHide={() => flyOutThen(onDismiss)}
+        />
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
         <div onClick={onCancel} role="button" aria-label="Отменить" style={chipStyle}>
@@ -5381,6 +5473,7 @@ function RemindersSection({
   onOpenProject,
   onOpenEntry,
   onDismiss,
+  onSnooze,
   onCancel,
 }: {
   overdue: OverdueItem[];
@@ -5390,6 +5483,7 @@ function RemindersSection({
   onOpenProject?: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismiss: (key: string) => void;
+  onSnooze: (key: string, showAfter: string) => void;
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const soonList = soon ?? [];
@@ -5413,6 +5507,7 @@ function RemindersSection({
               item={it}
               onReschedule={() => onOpenEntry(it.client.id, it.id, it.kind)}
               onDismiss={() => onDismiss(key)}
+              onSnooze={(showAfter) => onSnooze(key, showAfter)}
               onCancel={() => onCancel(it.client.id, it.id, it.kind)}
             />
           );
@@ -5448,7 +5543,11 @@ function RemindersSection({
                     client={it.client}
                     onOpenChange={(open) => setRaisedKey(open ? key : null)}
                   />
-                  <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
+                  <ReminderMenuButton
+                    onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
+                    onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
+                    onHide={() => flyOutThen(() => onDismiss(key))}
+                  />
                 </div>
               </div>
               )}
@@ -5487,7 +5586,11 @@ function RemindersSection({
                     client={it.client}
                     onOpenChange={(open) => setRaisedKey(open ? key : null)}
                   />
-                  <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
+                  <ReminderMenuButton
+                    onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
+                    onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
+                    onHide={() => flyOutThen(() => onDismiss(key))}
+                  />
                 </div>
               </div>
               )}
@@ -5521,7 +5624,11 @@ function RemindersSection({
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
+                    <ReminderMenuButton
+                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
+                      onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
+                      onHide={() => flyOutThen(() => onDismiss(key))}
+                    />
                   </div>
                 </div>
               )}
@@ -5616,6 +5723,7 @@ function AdminDashboardScreen({
   onOpenProject,
   onOpenEntry,
   onDismissReminder,
+  onSnoozeReminder,
   onCancelEntry,
   calendarSync,
   onOpenNotes,
@@ -5639,6 +5747,7 @@ function AdminDashboardScreen({
   onOpenProject: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
+  onSnoozeReminder: (key: string, showAfter: string) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   calendarSync: CalendarSyncSettings;
   // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
@@ -5765,7 +5874,7 @@ function AdminDashboardScreen({
 
         {/* Уведомления и напоминания идут наверх, над блоком предстоящих
             сессий — это то, что требует внимания мастера в первую очередь. */}
-        <RemindersSection overdue={overdue} healing={healing} soon={soon} dueProjects={dueProjects} onOpenProject={onOpenProject} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
+        <RemindersSection overdue={overdue} healing={healing} soon={soon} dueProjects={dueProjects} onOpenProject={onOpenProject} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
 
         {/* Upcoming sessions, with a master-configurable lookahead window —
             same period picker as the stats grid below, so the two controls
