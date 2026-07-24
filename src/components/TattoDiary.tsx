@@ -432,6 +432,11 @@ interface Project {
   inspirationSources: string; // "Источники вдохновения"
   photos: string[];
   createdDate: string;
+  // «Сессии без клиента» (Этап 3b-доп.) — для проектов без clientId, живут
+  // прямо на проекте (свой стор, клиента/календарь не трогают), пока не
+  // появится клиент. При привязке клиента к проекту (см. attachClientToProject
+  // в App) переезжают в client.sessions с тем же projectId и отсюда чистятся.
+  sessions: Session[];
 }
 
 // Styles as an array regardless of legacy shape; joined label for display.
@@ -822,6 +827,17 @@ function upcomingSoonReminders(clients: Client[]): UpcomingSoonItem[] {
   return result.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 }
 
+// Активные проекты, у которых «следующий шаг» назначен на сегодня или уже
+// просрочен (Этап 3b). Срабатывает только когда мастер сама поставила дату —
+// проекты-корзины без даты сюда не попадают и не шумят. Отсортированы от
+// самого просроченного. Используется и на Планнере, и в напоминаниях.
+function overdueProjects(projects: Project[]): Project[] {
+  const today = todayISO();
+  return projects
+    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today)
+    .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
+}
+
 // Stable identity for a reminder card, independent of render order — used to
 // persist which cards the master has manually closed (see dismissedReminders
 // in the main component and RemindersSection below).
@@ -833,6 +849,9 @@ function healingReminderKey(it: HealingItem): string {
 }
 function soonReminderKey(it: UpcomingSoonItem): string {
   return `soon:${it.kind}:${it.id}`;
+}
+function projectReminderKey(p: Project): string {
+  return `project:${p.id}`;
 }
 
 // Auto-message for the 36–48h heads-up — master copies it to nudge the
@@ -857,27 +876,31 @@ function readInitialDismissedReminders(): string[] {
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
+// Общая нормализация сессии — переиспользуется и для client.sessions, и для
+// «сессий без клиента» на самом проекте (Project.sessions, Этап 3b-доп.).
+function normalizeSession(s: any, i: number): Session {
+  return {
+    id: String(s?.id ?? `${Date.now()}-${i}`),
+    name: s?.name ?? '',
+    date: s?.date ?? '',
+    time: s?.time ?? '',
+    duration: s?.duration ?? '',
+    style: s?.style ?? '',
+    area: s?.area ?? s?.proportions ?? '',
+    colors: Array.isArray(s?.colors) ? s.colors.join(', ') : s?.colors ?? '',
+    needles: s?.needles ?? '',
+    skinReaction: s?.skinReaction ?? '',
+    note: s?.note ?? s?.notes ?? '',
+    photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
+    done: s?.done ?? true,
+    healed: s?.healed ?? false,
+    cancelled: s?.cancelled ?? false,
+    projectId: s?.projectId ?? null,
+  };
+}
+
 function normalizeClient(raw: any, index: number): Client {
-  const sessions: Session[] = Array.isArray(raw?.sessions)
-    ? raw.sessions.map((s: any, i: number) => ({
-        id: String(s?.id ?? `${Date.now()}-${i}`),
-        name: s?.name ?? '',
-        date: s?.date ?? '',
-        time: s?.time ?? '',
-        duration: s?.duration ?? '',
-        style: s?.style ?? '',
-        area: s?.area ?? s?.proportions ?? '',
-        colors: Array.isArray(s?.colors) ? s.colors.join(', ') : s?.colors ?? '',
-        needles: s?.needles ?? '',
-        skinReaction: s?.skinReaction ?? '',
-        note: s?.note ?? s?.notes ?? '',
-        photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
-        done: s?.done ?? true,
-        healed: s?.healed ?? false,
-        cancelled: s?.cancelled ?? false,
-        projectId: s?.projectId ?? null,
-      }))
-    : [];
+  const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
 
   const latestStyle = sessions.length ? sessions[sessions.length - 1].style : '';
   const styles: string[] = Array.isArray(raw?.styles)
@@ -962,6 +985,7 @@ function normalizeProject(raw: any, index: number): Project {
     inspirationSources: raw?.inspirationSources ?? '',
     photos: Array.isArray(raw?.photos) ? raw.photos : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
+    sessions: Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [],
   };
 }
 
@@ -2054,6 +2078,11 @@ export default function TattoDiary() {
   // «Творческая мастерская» — standalone projects, not tied to any client.
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
+  // Главная кнопка «Создать» на Мастерской спрашивает «Новый проект» или
+  // «Сессия без клиента» — держит открытость этого выбора и, для второго
+  // варианта, открытость пикера «в какой проект».
+  const [showWorkshopCreateChoice, setShowWorkshopCreateChoice] = useState(false);
+  const [showProjectSessionPicker, setShowProjectSessionPicker] = useState(false);
   // Read-only fullscreen viewer for a consultation or a session, opened by
   // tapping the card body (the pencil still edits). Holds the client id so the
   // viewer always reflects the latest stored copy even after an edit.
@@ -2068,6 +2097,13 @@ export default function TattoDiary() {
   // Клиент, под которого создаётся НОВЫЙ проект (кнопка «+ Новый» во вкладке
   // клиента, Этап 3a) — используется только пока editProject === null.
   const [newProjectClientId, setNewProjectClientId] = useState<string | null>(null);
+  // Проект, к которому сразу привязывается НОВАЯ сессия/консультация, если её
+  // создают из просмотра проекта (кнопки «+ Сессия/Консультация», Этап 3b) —
+  // предзаполняет поле «Проект» в форме. Только для новой записи.
+  const [presetEntryProjectId, setPresetEntryProjectId] = useState<string | null>(null);
+  // Если задан — открытая форма «Новая сессия» сохраняет в Project.sessions
+  // этого проекта (сессия без клиента), а не в client.sessions (Этап 3b-доп.).
+  const [sessionTargetProjectId, setSessionTargetProjectId] = useState<string | null>(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -2363,12 +2399,15 @@ export default function TattoDiary() {
     setEditSession(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    setPresetEntryProjectId(null);
+    setSessionTargetProjectId(null);
   };
   const closeNewConsultation = () => {
     setShowNewConsultationForm(false);
     setEditConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    setPresetEntryProjectId(null);
   };
   const closeEditClient = () => setShowEditClientForm(false);
   const closeBackdrop = () => {
@@ -2485,6 +2524,7 @@ export default function TattoDiary() {
     setEditConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    setPresetEntryProjectId(null);
   };
 
   const deleteConsultation = (consultationId: string) => {
@@ -2513,13 +2553,78 @@ export default function TattoDiary() {
     photos: string[];
   }) => {
     if (editProject) {
-      saveProject({ ...editProject, ...data });
+      // Клиента только что привязали к проекту, у которого копились «сессии
+      // без клиента» (см. Project.sessions) — переносим их клиенту с той же
+      // связью через projectId и чистим с проекта. Раньше clientId не было —
+      // значит client.sessions этого проекта ещё нет, дублей не возникнет.
+      if (!editProject.clientId && data.clientId && editProject.sessions.length > 0) {
+        const client = clients.find((c) => c.id === data.clientId);
+        if (client) {
+          saveClient({
+            ...client,
+            sessions: [...client.sessions, ...editProject.sessions.map((s) => ({ ...s, projectId: editProject.id }))],
+          });
+        }
+        saveProject({ ...editProject, ...data, sessions: [] });
+      } else {
+        saveProject({ ...editProject, ...data });
+      }
     } else {
-      saveProject({ id: Date.now().toString(), createdDate: new Date().toISOString(), ...data });
+      saveProject({ id: Date.now().toString(), createdDate: new Date().toISOString(), sessions: [], ...data });
     }
     setShowNewProjectForm(false);
     setEditProject(null);
     setNewProjectClientId(null);
+  };
+
+  // «Сессия без клиента» — живёт прямо в проекте (Project.sessions), пока к
+  // проекту не привязан клиент (см. миграцию в handleAddProject выше). Тот
+  // же набор полей, что и у обычной сессии клиента.
+  const handleAddProjectSession = (
+    projectId: string,
+    data: {
+      name: string;
+      date: string;
+      time: string;
+      duration: string;
+      style: string;
+      area: string;
+      colors: string;
+      needles: string;
+      skinReaction: string;
+      note: string;
+      photos: string[];
+      done: boolean;
+      healed: boolean;
+      projectId: string | null;
+    },
+  ) => {
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) return;
+    const fields = {
+      name: data.name.trim(),
+      date: data.date,
+      time: data.time,
+      duration: data.duration,
+      style: data.style,
+      area: data.area.trim(),
+      colors: data.colors.trim(),
+      needles: data.needles.trim(),
+      skinReaction: data.skinReaction.trim(),
+      note: data.note.trim(),
+      photos: data.photos,
+      done: data.done,
+      healed: data.healed,
+      projectId,
+    };
+    let sessions: Session[];
+    if (editSession) {
+      sessions = p.sessions.map((s) => (s.id === editSession.id ? { ...s, ...fields } : s));
+    } else {
+      sessions = [...p.sessions, { id: Date.now().toString(), cancelled: false, ...fields }];
+    }
+    saveProject({ ...p, sessions });
+    advanceProjectStage(projectId, fields.done ? 'in_progress' : 'booked');
   };
 
   // ── Миграция «Собрать старые записи в проекты» (Этап 2) ──
@@ -2560,6 +2665,7 @@ export default function TattoDiary() {
           inspirationSources: '',
           photos: [],
           createdDate: new Date().toISOString(),
+          sessions: [],
         });
         existingProjectIds.add(bucketId);
         buckets += 1;
@@ -2584,6 +2690,22 @@ export default function TattoDiary() {
     } else {
       saveClient({ ...c, consultations: c.consultations.map((cn) => (cn.id === entryId ? { ...cn, projectId } : cn)) });
     }
+  };
+
+  // Авто-переход этапа проекта (Этап 3b) — ТОЛЬКО ВПЕРЁД и не дальше «В
+  // работе»: создана будущая сессия → «Записан», сессия выполнена → «В
+  // работе». Никогда не откатывает назад (не трогает, если этап уже на
+  // целевом или дальше), «Заживление»/«Завершён» мастер ставит сама. Пишет
+  // в стор проектов (saveProject), сессий/клиента не касается — календарь не
+  // задет.
+  const advanceProjectStage = (projectId: string | null, target: ProjectStage) => {
+    if (!projectId) return;
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) return;
+    const cur = PROJECT_STAGES.findIndex((s) => s.key === p.stage);
+    const tgt = PROJECT_STAGES.findIndex((s) => s.key === target);
+    if (tgt < 0 || tgt <= cur) return;
+    saveProject({ ...p, stage: target });
   };
 
   // ── Notes (used by the client «Дополнительно» tab and the «Сводка» screen) ──
@@ -2614,10 +2736,13 @@ export default function TattoDiary() {
   // opening the edit form.
   const toggleSessionDone = (sessionId: string) => {
     if (!selectedClient) return;
+    const s = selectedClient.sessions.find((x) => x.id === sessionId);
     saveClient({
       ...selectedClient,
-      sessions: selectedClient.sessions.map((s) => (s.id === sessionId ? { ...s, done: !s.done } : s)),
+      sessions: selectedClient.sessions.map((x) => (x.id === sessionId ? { ...x, done: !x.done } : x)),
     });
+    // Отметили «выполнена» (было не выполнено) → двигаем проект в «В работе».
+    if (s && !s.done) advanceProjectStage(s.projectId, 'in_progress');
   };
 
   // clientId-scoped variant of the toggle above — for the «Отменить» quick
@@ -2756,10 +2881,14 @@ export default function TattoDiary() {
       style: mergedStyles.join(' · '),
       sessions,
     });
+    // Авто-переход этапа проекта (Этап 3b): выполненная сессия → «В работе»,
+    // запланированная (ещё не выполнена) → «Записан». Только вперёд.
+    advanceProjectStage(fields.projectId, fields.done ? 'in_progress' : 'booked');
     setShowNewSessionForm(false);
     setEditSession(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
+    setPresetEntryProjectId(null);
   };
 
   const sheetOpen =
@@ -2768,10 +2897,18 @@ export default function TattoDiary() {
     showEditClientForm ||
     showNewConsultationForm ||
     showAddChoice ||
+    showWorkshopCreateChoice ||
+    showProjectSessionPicker ||
+    showNewProjectForm ||
     !!viewEntry ||
-    !!viewProject ||
     showCalendar ||
     !!calendarWalkStep;
+
+  // Просмотр проекта — единственная шторка, поверх которой остаётся видна
+  // главная кнопка «Создать»: она же и есть точка входа для «+ Сессия» /
+  // «+ Консультация» в открытом проекте (см. onCreate у NavFab ниже), так
+  // что отдельных кнопок создания внутри самого просмотра не нужно.
+  const navFabHidden = sheetOpen && !viewProject;
 
   // Resolve the entry being viewed to its latest stored copy (so an edit made
   // from the viewer is reflected if it reopens).
@@ -2784,6 +2921,8 @@ export default function TattoDiary() {
   const visibleOverdue = overdueEntries(clients).filter((it) => !dismissedReminders.includes(overdueReminderKey(it)));
   const visibleHealing = healingReminders(clients).filter((it) => !dismissedReminders.includes(healingReminderKey(it)));
   const visibleSoon = upcomingSoonReminders(clients).filter((it) => !dismissedReminders.includes(soonReminderKey(it)));
+  // Проекты с просроченным «следующим шагом» (Этап 3b) — в те же напоминания.
+  const visibleDueProjects = overdueProjects(projects).filter((p) => !dismissedReminders.includes(projectReminderKey(p)));
 
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
@@ -3246,19 +3385,41 @@ export default function TattoDiary() {
       {/* Navigation — sibling of the screens so it pins to the shell bottom
           (never scrolls). Shown on every main screen, including the client
           Detail screen, hidden while a bottom sheet is open so it can't sit
-          over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop' || screen === 'content') && !sheetOpen && (
+          over the sheet's controls — EXCEPT the project viewer, which stays
+          underneath it on purpose: «Создать» is the only entry point for
+          adding a session/consultation to the open project (see onCreate
+          below), so the main button has to stay reachable over it. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop' || screen === 'content') && !navFabHidden && (
         <NavFab
           active={screen}
           onNavigate={(s) => setScreen(s)}
           adminBadges={[
             ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
-            ...(visibleHealing.length > 0 || visibleSoon.length > 0 ? (['reminder'] as const) : []),
+            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleDueProjects.length > 0 ? (['reminder'] as const) : []),
           ]}
           // Contextual create — same action each screen's own «+» used to
           // trigger, now all reachable from one place. Мастер has none.
+          // Открытый просмотр проекта (viewProject) переопределяет экранную
+          // логику — «Создать» тут же заводит сессию/консультацию именно
+          // для этого проекта, а не то, что обычно делает текущий screen.
           onCreate={
-            screen === 'list' || screen === 'settings'
+            viewProject
+              ? () => {
+                  if (viewProject.clientId) {
+                    const client = clients.find((c) => c.id === viewProject.clientId);
+                    if (!client) return;
+                    setViewProject(null);
+                    setSelectedId(client.id);
+                    setPresetEntryProjectId(viewProject.id);
+                    setShowAddChoice(true);
+                  } else {
+                    setViewProject(null);
+                    setEditSession(null);
+                    setSessionTargetProjectId(viewProject.id);
+                    setShowNewSessionForm(true);
+                  }
+                }
+              : screen === 'list' || screen === 'settings'
               ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
               : screen === 'summary'
                 ? () => setShowSummaryComposer(true)
@@ -3267,7 +3428,7 @@ export default function TattoDiary() {
                   : screen === 'detail' && selectedClient
                     ? () => setShowAddChoice(true)
                     : screen === 'workshop'
-                      ? () => setShowNewProjectForm(true)
+                      ? () => setShowWorkshopCreateChoice(true)
                       : undefined
           }
         />
@@ -3426,6 +3587,8 @@ export default function TattoDiary() {
             overdue={visibleOverdue}
             healing={visibleHealing}
             soon={visibleSoon}
+            dueProjects={visibleDueProjects}
+            onOpenProject={(project) => setViewProject(project)}
             onOpenEntry={openEntryForEdit}
             onDismissReminder={dismissReminder}
             onCancelEntry={markEntryCancelled}
@@ -3580,12 +3743,30 @@ export default function TattoDiary() {
           AddChoiceSheet below — so submitting here just saves it. */}
       <NewSessionSheet
         open={showNewSessionForm}
-        clientName={selectedClient?.name || ''}
-        clientProjects={selectedClient ? projects.filter((p) => p.clientId === selectedClient.id) : []}
+        clientName={
+          sessionTargetProjectId
+            ? projects.find((p) => p.id === sessionTargetProjectId)?.title || 'Проект'
+            : selectedClient?.name || ''
+        }
+        clientProjects={
+          sessionTargetProjectId
+            ? projects.filter((p) => p.id === sessionTargetProjectId)
+            : selectedClient
+            ? projects.filter((p) => p.clientId === selectedClient.id)
+            : []
+        }
+        presetProjectId={sessionTargetProjectId ?? presetEntryProjectId}
         initial={editSession}
         initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewSession}
-        onAdd={handleAddSession}
+        onAdd={(data) => {
+          if (sessionTargetProjectId) {
+            handleAddProjectSession(sessionTargetProjectId, data);
+            closeNewSession();
+          } else {
+            handleAddSession(data);
+          }
+        }}
       />
 
       {/* ═══════════ ADD CHOICE (session vs consultation) ═══════════ */}
@@ -3608,12 +3789,46 @@ export default function TattoDiary() {
         }}
       />
 
+      {/* ═══════════ МАСТЕРСКАЯ: «СОЗДАТЬ» → проект / сессия без клиента ═══════════ */}
+      <WorkshopCreateChoiceSheet
+        open={showWorkshopCreateChoice}
+        onClose={() => setShowWorkshopCreateChoice(false)}
+        onPickProject={() => {
+          setShowWorkshopCreateChoice(false);
+          setEditProject(null);
+          setNewProjectClientId(null);
+          setShowNewProjectForm(true);
+        }}
+        onPickSession={() => {
+          setShowWorkshopCreateChoice(false);
+          setShowProjectSessionPicker(true);
+        }}
+      />
+      <ProjectSessionPickerSheet
+        open={showProjectSessionPicker}
+        projects={projects}
+        onClose={() => setShowProjectSessionPicker(false)}
+        onPick={(project) => {
+          setShowProjectSessionPicker(false);
+          setEditSession(null);
+          setSessionTargetProjectId(project.id);
+          setShowNewSessionForm(true);
+        }}
+        onCreateProject={() => {
+          setShowProjectSessionPicker(false);
+          setEditProject(null);
+          setNewProjectClientId(null);
+          setShowNewProjectForm(true);
+        }}
+      />
+
       {/* ═══════════ NEW / EDIT CONSULTATION SHEET ═══════════ */}
       <NewConsultationSheet
         open={showNewConsultationForm}
         clientName={selectedClient?.name || ''}
         client={selectedClient}
         clientProjects={selectedClient ? projects.filter((p) => p.clientId === selectedClient.id) : []}
+        presetProjectId={presetEntryProjectId}
         initial={editConsultation}
         initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewConsultation}
@@ -3649,6 +3864,12 @@ export default function TattoDiary() {
         onOpenEntry={(clientId, kind, id) => {
           setViewProject(null);
           setViewEntry({ kind, clientId, id });
+        }}
+        onEditProjectSession={(projectId, session) => {
+          setViewProject(null);
+          setEditSession(session);
+          setSessionTargetProjectId(projectId);
+          setShowNewSessionForm(true);
         }}
       />
 
@@ -5627,6 +5848,8 @@ function RemindersSection({
   overdue,
   healing,
   soon,
+  dueProjects,
+  onOpenProject,
   onOpenEntry,
   onDismiss,
   onCancel,
@@ -5634,16 +5857,19 @@ function RemindersSection({
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon?: UpcomingSoonItem[];
+  dueProjects?: Project[];
+  onOpenProject?: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismiss: (key: string) => void;
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const soonList = soon ?? [];
+  const dueProjectsList = dueProjects ?? [];
   // Which card's CopyMessageButton contacts popover is open, if any — that
   // card gets `raised` so its popover isn't trapped behind a later sibling's
   // own stacking context (see SwipeDismissCard's `raised` doc comment).
   const [raisedKey, setRaisedKey] = useState<string | null>(null);
-  if (overdue.length === 0 && healing.length === 0 && soonList.length === 0) return null;
+  if (overdue.length === 0 && healing.length === 0 && soonList.length === 0 && dueProjectsList.length === 0) return null;
   return (
     <div>
       <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
@@ -5739,6 +5965,40 @@ function RemindersSection({
             </SwipeDismissCard>
           );
         })}
+        {dueProjectsList.map((p) => {
+          const key = projectReminderKey(p);
+          return (
+            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
+              {(flyOutThen) => (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    padding: '9px 10px',
+                    borderRadius: 2,
+                    border: '1px solid rgba(var(--gold-rgb),0.2)',
+                    background: 'rgba(var(--surface-rgb),0.018)',
+                  }}
+                >
+                  <div onClick={() => onOpenProject?.(p)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                    <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {p.title || 'Проект'}
+                    </div>
+                    <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      Следующий шаг: {p.nextActionText || '—'}
+                      {p.nextActionDate ? ` · ${formatDate(p.nextActionDate)}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <ReminderCloseButton onClick={() => flyOutThen(() => onDismiss(key))} />
+                  </div>
+                </div>
+              )}
+            </SwipeDismissCard>
+          );
+        })}
       </div>
     </div>
   );
@@ -5823,6 +6083,8 @@ function AdminDashboardScreen({
   overdue,
   healing,
   soon,
+  dueProjects,
+  onOpenProject,
   onOpenEntry,
   onDismissReminder,
   onCancelEntry,
@@ -5843,6 +6105,9 @@ function AdminDashboardScreen({
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon: UpcomingSoonItem[];
+  // Проекты с просроченным «следующим шагом» — в напоминания (Этап 3b).
+  dueProjects: Project[];
+  onOpenProject: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
@@ -5971,7 +6236,7 @@ function AdminDashboardScreen({
 
         {/* Уведомления и напоминания идут наверх, над блоком предстоящих
             сессий — это то, что требует внимания мастера в первую очередь. */}
-        <RemindersSection overdue={overdue} healing={healing} soon={soon} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
+        <RemindersSection overdue={overdue} healing={healing} soon={soon} dueProjects={dueProjects} onOpenProject={onOpenProject} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onCancel={onCancelEntry} />
 
         {/* Upcoming sessions, with a master-configurable lookahead window —
             same period picker as the stats grid below, so the two controls
@@ -11024,6 +11289,7 @@ function TimelineViewSheet({
   return (
     <BottomSheet open={open} heightPct={94}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetEditButton onClick={onEdit} />
         <SheetCloseButton onClose={onClose} />
         <div style={{ marginBottom: 5 }}>
           <InkaLogo height={fs(15)} />
@@ -11104,26 +11370,6 @@ function TimelineViewSheet({
             />
           </>
         ) : null}
-
-        <div
-          className="inka-submit"
-          onClick={onEdit}
-          style={{
-            border: '1px solid rgba(var(--gold-rgb),0.35)',
-            borderRadius: 2,
-            padding: '12px 0',
-            textAlign: 'center',
-            cursor: 'pointer',
-            background: 'rgba(var(--gold-rgb),0.05)',
-            fontSize: fs(13),
-            color: COLORS.gold,
-            letterSpacing: '2px',
-            textTransform: 'uppercase',
-            marginTop: 6,
-          }}
-        >
-          Редактировать
-        </div>
       </div>
     </BottomSheet>
   );
@@ -11177,6 +11423,21 @@ function SheetCloseButton({ onClose }: { onClose: () => void }) {
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
+// Тот же карандаш, что и «править» в шапке карточки клиента (см.
+// DetailScreen) — единый визуальный язык для «редактировать» по всему
+// приложению, вместо разнобоя из текстовых кнопок. Сидит слева от крестика
+// закрытия, в том же верхнем правом углу read-only просмотров (Timeline/
+// ProjectViewSheet), а не отдельной кнопкой внизу листа.
+function SheetEditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="inka-back" onClick={onClick} style={{ position: 'absolute', top: 17, right: 52, cursor: 'pointer', color: COLORS.gold, opacity: 0.85 }}>
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+        <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
       </svg>
     </div>
   );
@@ -11810,6 +12071,7 @@ function NewSessionSheet({
   open,
   clientName,
   clientProjects,
+  presetProjectId,
   initial,
   initialDate,
   onClose,
@@ -11819,6 +12081,9 @@ function NewSessionSheet({
   clientName: string;
   // Проекты этого клиента — для опциональной привязки сессии (Этап 2).
   clientProjects: Project[];
+  // Предзаполняет «Проект» для новой сессии, созданной из просмотра проекта
+  // (Этап 3b) — игнорируется при редактировании существующей.
+  presetProjectId?: string | null;
   initial?: Session | null;
   // Prefills the date field for a brand-new session (e.g. started from a day
   // picked in the calendar) — ignored once `initial` is set (editing wins).
@@ -11882,7 +12147,7 @@ function NewSessionSheet({
       setPhotos(initial?.photos ?? []);
       setDone(initial ? initial.done : !initialDate);
       setHealed(initial?.healed ?? false);
-      setProjectId(initial?.projectId ?? null);
+      setProjectId(initial?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -12175,6 +12440,153 @@ function AddChoiceSheet({
   );
 }
 
+// Мастерская's own «Создать»: «Новый проект» (бриф-карточка, как раньше) или
+// «Сессия» без клиента (сразу просит выбрать/создать проект — см.
+// ProjectSessionPickerSheet ниже), Этап 3b-доп.
+function WorkshopCreateChoiceSheet({
+  open,
+  onClose,
+  onPickProject,
+  onPickSession,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPickProject: () => void;
+  onPickSession: () => void;
+}) {
+  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
+    <div
+      onClick={onClick}
+      role="button"
+      aria-label={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        border: '1px solid rgba(var(--gold-rgb),0.25)',
+        borderRadius: 2,
+        padding: '16px',
+        cursor: 'pointer',
+        background: 'rgba(var(--gold-rgb),0.03)',
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          color: 'var(--gold)',
+        }}
+      >
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <BottomSheet open={open} heightPct={34}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Что добавить?</div>
+        <SheetStarDivider />
+      </div>
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {choice(
+          'Новый проект',
+          'Бриф: тип, место, стиль, референсы...',
+          onPickProject,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>,
+        )}
+        {choice(
+          'Сессия',
+          'Без клиента — привяжете позже',
+          onPickSession,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="4.5" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
+            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.2" />
+            <line x1="6.5" y1="2.5" x2="6.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="13.5" y1="2.5" x2="13.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>,
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
+// Пикер «в какой проект» для сессии без клиента — список проектов БЕЗ
+// клиента (у клиентских проектов сессия создаётся из вкладки клиента, там
+// её и разместим). Пусто → сразу предлагает создать первый проект.
+function ProjectSessionPickerSheet({
+  open,
+  projects,
+  onClose,
+  onPick,
+  onCreateProject,
+}: {
+  open: boolean;
+  projects: Project[];
+  onClose: () => void;
+  onPick: (project: Project) => void;
+  onCreateProject: () => void;
+}) {
+  const clientless = projects.filter((p) => !p.clientId);
+  return (
+    <BottomSheet open={open} heightPct={50}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>В какой проект?</div>
+        <SheetStarDivider />
+      </div>
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {clientless.length === 0 ? (
+          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+            Пока нет проектов без клиента — создайте первый.
+          </div>
+        ) : (
+          clientless.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => onPick(p)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '11px 13px',
+                borderRadius: 2,
+                cursor: 'pointer',
+                border: '1px solid rgba(var(--gold-rgb),0.2)',
+                background: 'rgba(var(--surface-rgb),0.018)',
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+              <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.title || 'Без названия'}
+              </span>
+            </div>
+          ))
+        )}
+        <div
+          onClick={onCreateProject}
+          style={{ textAlign: 'center', padding: '10px 0', color: COLORS.gold, fontSize: fs(13), letterSpacing: '0.5px', cursor: 'pointer', marginTop: 4 }}
+        >
+          + Новый проект
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
 // ===================== CALENDAR CREATION WALK: CLIENT KIND =====================
 // Second step after picking Сессия/Консультация from the calendar — same
 // two-card look as AddChoiceSheet, choosing between an existing client and a
@@ -12434,6 +12846,7 @@ function NewConsultationSheet({
   clientName,
   client,
   clientProjects,
+  presetProjectId,
   initial,
   initialDate,
   onClose,
@@ -12444,6 +12857,8 @@ function NewConsultationSheet({
   client: Client | null;
   // Проекты этого клиента — для опциональной привязки консультации (Этап 2).
   clientProjects: Project[];
+  // Предзаполняет «Проект» для новой консультации из просмотра проекта (3b).
+  presetProjectId?: string | null;
   initial?: Consultation | null;
   // Prefills the date field for a brand-new consultation (e.g. started from a
   // day picked in the calendar) — ignored once `initial` is set.
@@ -12491,7 +12906,7 @@ function NewConsultationSheet({
       setInspirationSources(initial?.inspirationSources ?? '');
       setUrgency(initial?.urgency ?? 'important');
       setPhotos(initial?.photos ?? []);
-      setProjectId(initial?.projectId ?? null);
+      setProjectId(initial?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -12686,6 +13101,7 @@ function ProjectViewSheet({
   onClose,
   onEdit,
   onOpenEntry,
+  onEditProjectSession,
 }: {
   open: boolean;
   project: Project | null;
@@ -12693,11 +13109,17 @@ function ProjectViewSheet({
   onClose: () => void;
   onEdit: (project: Project) => void;
   onOpenEntry: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
+  // Тап по «сессии без клиента» в списке записей — открыть её на
+  // редактирование. Создание новых записей теперь только через главную
+  // кнопку «Создать» (остаётся видна поверх этого просмотра — см. onCreate
+  // у NavFab), отдельных кнопок создания здесь больше нет.
+  onEditProjectSession: (projectId: string, session: Session) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
   const linkedSessions = linkedClient && project ? linkedClient.sessions.filter((s) => s.projectId === project.id) : [];
   const linkedConsults = linkedClient && project ? linkedClient.consultations.filter((c) => c.projectId === project.id) : [];
+  const ownSessions = project && !linkedClient ? project.sessions : [];
 
   const chipStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -12721,6 +13143,7 @@ function ProjectViewSheet({
   return (
     <BottomSheet open={open} heightPct={90}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        {project && <SheetEditButton onClick={() => onEdit(project)} />}
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>
           {clientName ?? 'Мастерская'}
@@ -12764,7 +13187,7 @@ function ProjectViewSheet({
             <ViewField label="Креатив" value={project.creative} />
             <ViewField label="Источники вдохновения" value={project.inspirationSources} />
 
-            {(linkedSessions.length > 0 || linkedConsults.length > 0) && (
+            {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0) && (
               <div>
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Записи проекта</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -12790,15 +13213,20 @@ function ProjectViewSheet({
                       </span>
                     </div>
                   ))}
+                  {ownSessions.map((s) => (
+                    <div key={`os-${s.id}`} onClick={() => project && onEditProjectSession(project.id, s)} style={entryRowStyle}>
+                      <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Сессия · без клиента</span>
+                      <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {s.name || s.area || '—'}
+                      </span>
+                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
+                        {s.date ? formatDate(s.date).replace(/ \d{4}$/, '') : ''}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
-
-            <div className="inka-submit" onClick={() => onEdit(project)} style={{ ...SUBMIT_STYLE, marginTop: 8 }}>
-              <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
-                Редактировать
-              </span>
-            </div>
           </>
         )}
       </div>
@@ -12868,6 +13296,9 @@ function NewProjectSheet({
   const [inspirationSources, setInspirationSources] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // See NewSessionSheet's justSaved — same «крестик превращается в зелёную
+  // галочку» подтверждение, единообразно для всех форм редактирования.
+  const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -12889,6 +13320,7 @@ function NewProjectSheet({
       setInspirationSources(initial?.inspirationSources ?? '');
       setPhotos(initial?.photos ?? []);
       setConfirmingDelete(false);
+      setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -12896,7 +13328,7 @@ function NewProjectSheet({
   return (
     <BottomSheet open={open} heightPct={85}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        <SheetCloseButton onClose={onClose} />
+        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>Мастерская</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
           {isEdit ? 'Редактировать проект' : 'Новый проект'}
@@ -13061,8 +13493,8 @@ function NewProjectSheet({
       <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div
           className="inka-submit"
-          onClick={() =>
-            onAdd({
+          onClick={() => {
+            const data = {
               title,
               color,
               category,
@@ -13080,8 +13512,14 @@ function NewProjectSheet({
               creative,
               inspirationSources,
               photos,
-            })
-          }
+            };
+            if (isEdit) {
+              setJustSaved(true);
+              setTimeout(() => onAdd(data), 700);
+            } else {
+              onAdd(data);
+            }
+          }}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
