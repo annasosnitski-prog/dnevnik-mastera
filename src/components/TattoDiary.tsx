@@ -365,11 +365,59 @@ const PROJECT_CATEGORIES: { key: ProjectCategory; label: string }[] = [
   { key: 'other', label: 'Другое' },
 ];
 
+// Три независимых параметра статуса вместо одной длинной строки-enum
+// (вроде "planning_waiting_client_photo_overdue") — где проект находится,
+// может ли он сейчас двигаться, и кто должен действовать, читаются по
+// отдельности и комбинируются свободно.
+type ProjectStage = 'idea' | 'inquiry' | 'planning' | 'booked' | 'in_progress' | 'healing' | 'completed';
+type ProjectState = 'active' | 'paused' | 'cancelled' | 'archived';
+type ProjectWaitingFor = 'master' | 'client' | 'external' | 'none';
+type ProjectPriority = 'urgent' | 'important' | 'normal';
+
+const PROJECT_STAGES: { key: ProjectStage; label: string }[] = [
+  { key: 'idea', label: 'Идея' },
+  { key: 'inquiry', label: 'Запрос' },
+  { key: 'planning', label: 'Подготовка' },
+  { key: 'booked', label: 'Записан' },
+  { key: 'in_progress', label: 'В работе' },
+  { key: 'healing', label: 'Заживление' },
+  { key: 'completed', label: 'Завершён' },
+];
+
+const PROJECT_STATES: { key: ProjectState; label: string }[] = [
+  { key: 'active', label: 'Активен' },
+  { key: 'paused', label: 'Пауза' },
+  { key: 'cancelled', label: 'Отменён' },
+  { key: 'archived', label: 'Архив' },
+];
+
+const PROJECT_WAITING_FOR: { key: ProjectWaitingFor; label: string }[] = [
+  { key: 'master', label: 'Мастера' },
+  { key: 'client', label: 'Клиента' },
+  { key: 'external', label: 'Внешнего' },
+  { key: 'none', label: 'Никого' },
+];
+
+const PROJECT_PRIORITIES: { key: ProjectPriority; label: string }[] = [
+  { key: 'urgent', label: 'Срочно' },
+  { key: 'important', label: 'Важно' },
+  { key: 'normal', label: 'Обычный' },
+];
+
 interface Project {
   id: string;
   title: string; // project name, e.g. "Дракон в стиле джапан"
   color: string; // marker colour, chosen at creation — see MarkerColorPalette
   category: ProjectCategory;
+  // null = идея без клиента ("мастерская", независимо от одноимённого
+  // clientId===null на ContentEntry — те две вещи не связаны).
+  clientId: string | null;
+  stage: ProjectStage;
+  state: ProjectState;
+  waitingFor: ProjectWaitingFor;
+  nextActionText: string;
+  nextActionDate: string | null; // ISO yyyy-mm-dd
+  priority: ProjectPriority;
   area: string; // "Место" — intended placement, if already decided
   style: string; // "Техника и стиль"
   generalNotes: string; // "Общие заметки"
@@ -891,6 +939,13 @@ function normalizeProject(raw: any, index: number): Project {
     title: raw?.title ?? '',
     color: raw?.color ?? MARKER_COLORS[index % MARKER_COLORS.length],
     category: PROJECT_CATEGORIES.some((c) => c.key === raw?.category) ? raw.category : 'tattoo',
+    clientId: raw?.clientId ?? null,
+    stage: PROJECT_STAGES.some((s) => s.key === raw?.stage) ? raw.stage : 'idea',
+    state: PROJECT_STATES.some((s) => s.key === raw?.state) ? raw.state : 'active',
+    waitingFor: PROJECT_WAITING_FOR.some((w) => w.key === raw?.waitingFor) ? raw.waitingFor : 'none',
+    nextActionText: raw?.nextActionText ?? '',
+    nextActionDate: raw?.nextActionDate ?? null,
+    priority: PROJECT_PRIORITIES.some((p) => p.key === raw?.priority) ? raw.priority : 'normal',
     area: raw?.area ?? '',
     style: raw?.style ?? '',
     generalNotes: raw?.generalNotes ?? '',
@@ -2404,6 +2459,13 @@ export default function TattoDiary() {
     title: string;
     color: string;
     category: ProjectCategory;
+    clientId: string | null;
+    stage: ProjectStage;
+    state: ProjectState;
+    waitingFor: ProjectWaitingFor;
+    nextActionText: string;
+    nextActionDate: string | null;
+    priority: ProjectPriority;
     area: string;
     style: string;
     generalNotes: string;
@@ -3147,6 +3209,11 @@ export default function TattoDiary() {
         {screen === 'summary' && (
           <SummaryScreen
             clients={clients}
+            projects={projects}
+            onOpenProject={(project) => {
+              setEditProject(project);
+              setShowNewProjectForm(true);
+            }}
             masterNotes={masterInfo.notes}
             onToggleDone={(clientId, note) => upsertNote(clientId, note)}
             onEditNote={(clientId, note) => upsertNote(clientId, note)}
@@ -3281,6 +3348,7 @@ export default function TattoDiary() {
           <WorkshopScreen
             projects={projects}
             projectsLoaded={projectsLoaded}
+            clients={clients}
             onOpenProject={(project) => {
               setEditProject(project);
               setShowNewProjectForm(true);
@@ -3444,6 +3512,7 @@ export default function TattoDiary() {
       <NewProjectSheet
         open={showNewProjectForm}
         initial={editProject}
+        clients={clients}
         onClose={() => {
           setShowNewProjectForm(false);
           setEditProject(null);
@@ -4603,7 +4672,13 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
 // stripes + gem corner + drop-cap title), just built from a Project instead
 // of a Client — see ClientGridCard above for the shared decoration helpers
 // (TopStripe/RightStripe/GemCorner).
-function ProjectCard({ project, onClick }: { project: Project; onClick: () => void }) {
+function clientNameFor(clients: Client[], clientId: string | null): string | null {
+  if (!clientId) return null;
+  const c = clients.find((x) => x.id === clientId);
+  return c ? `${c.name} ${c.surname}`.trim() : null;
+}
+
+function ProjectCard({ project, clientName, onClick }: { project: Project; clientName: string | null; onClick: () => void }) {
   return (
     <div
       className="inka-card"
@@ -4710,6 +4785,45 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
           </div>
         </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+          <span
+            style={{
+              fontSize: fs(10.5),
+              color: COLORS.textFaint,
+              border: '0.5px solid rgba(var(--gold-rgb),0.3)',
+              padding: '2px 7px',
+              borderRadius: 1,
+              letterSpacing: '0.5px',
+            }}
+          >
+            {PROJECT_STAGES.find((s) => s.key === project.stage)?.label ?? project.stage}
+          </span>
+          {clientName && (
+            <span style={{ fontSize: fs(11), color: COLORS.textSecondary, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {clientName}
+            </span>
+          )}
+        </div>
+
+        {project.nextActionText && (
+          <div style={{ marginBottom: 6, minWidth: 0 }}>
+            <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Следующий шаг</div>
+            <div
+              style={{
+                fontSize: fs(12),
+                color: COLORS.textSecondary,
+                marginTop: 2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {project.nextActionText}
+              {project.nextActionDate ? ` · ${project.nextActionDate}` : ''}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {project.style ? (
             <span
@@ -4741,10 +4855,12 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
 function WorkshopScreen({
   projects,
   projectsLoaded,
+  clients,
   onOpenProject,
 }: {
   projects: Project[];
   projectsLoaded: boolean;
+  clients: Client[];
   onOpenProject: (project: Project) => void;
 }) {
   const [categoryFilter, setCategoryFilter] = useState<'all' | ProjectCategory>('all');
@@ -4849,7 +4965,7 @@ function WorkshopScreen({
         }}
       >
         {filtered.map((project) => (
-          <ProjectCard key={project.id} project={project} onClick={() => onOpenProject(project)} />
+          <ProjectCard key={project.id} project={project} clientName={clientNameFor(clients, project.clientId)} onClick={() => onOpenProject(project)} />
         ))}
       </div>
 
@@ -6945,6 +7061,8 @@ function SettingsScreen({
 // (🍀) notes; toggling done fades a note out.
 function SummaryScreen({
   clients,
+  projects,
+  onOpenProject,
   masterNotes,
   onToggleDone,
   onEditNote,
@@ -6962,6 +7080,11 @@ function SummaryScreen({
   onFilterChange,
 }: {
   clients: Client[];
+  // Active projects (Мастерская/клиентские) whose next action is due today
+  // or overdue — surfaced here independently of the sessions/consultations
+  // feed above, see «Активные проекты» below.
+  projects: Project[];
+  onOpenProject: (project: Project) => void;
   masterNotes: ClientNote[];
   onToggleDone: (clientId: string, note: ClientNote) => void;
   onEditNote: (clientId: string, note: ClientNote) => void;
@@ -7001,6 +7124,14 @@ function SummaryScreen({
         .map((cs): PlannedItem => ({ kind: 'consultation', client: c, id: cs.id, date: cs.date, time: cs.time, label: cs.area })),
     ])
     .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
+
+  // Active projects (with or without a client) whose next action is due
+  // today or already overdue — independent of the sessions/consultations
+  // feed above, doesn't touch that aggregation at all.
+  const today = todayISO();
+  const dueProjects = projects
+    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today)
+    .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
 
   // Client notes + the master's own (client-less) notes, one flat list.
   type NoteEntry = { note: ClientNote; client: Client | null };
@@ -7180,6 +7311,43 @@ function SummaryScreen({
           </div>
         )}
       </div>
+
+      {dueProjects.length > 0 && (
+        <div style={{ padding: '2px 20px 16px', position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 8 }}>
+            Активные проекты
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {dueProjects.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => onOpenProject(p)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '9px 11px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: 'rgba(var(--surface-rgb),0.018)',
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>
+                  {p.nextActionText || p.title || '—'}
+                </span>
+                <span style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>
+                  {clientNameFor(clients, p.clientId) ?? 'Мастерская'}
+                </span>
+                <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
+                  {p.nextActionDate ? formatDate(p.nextActionDate).replace(/ \d{4}$/, '') : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1 }}>
         <StarDivider />
@@ -12168,17 +12336,26 @@ function NewConsultationSheet({
 function NewProjectSheet({
   open,
   initial,
+  clients,
   onClose,
   onAdd,
   onDelete,
 }: {
   open: boolean;
   initial?: Project | null;
+  clients: Client[];
   onClose: () => void;
   onAdd: (data: {
     title: string;
     color: string;
     category: ProjectCategory;
+    clientId: string | null;
+    stage: ProjectStage;
+    state: ProjectState;
+    waitingFor: ProjectWaitingFor;
+    nextActionText: string;
+    nextActionDate: string | null;
+    priority: ProjectPriority;
     area: string;
     style: string;
     generalNotes: string;
@@ -12194,6 +12371,13 @@ function NewProjectSheet({
   const [title, setTitle] = useState('');
   const [color, setColor] = useState(MARKER_COLORS[0]);
   const [category, setCategory] = useState<ProjectCategory>('tattoo');
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [stage, setStage] = useState<ProjectStage>('idea');
+  const [state, setState] = useState<ProjectState>('active');
+  const [waitingFor, setWaitingFor] = useState<ProjectWaitingFor>('none');
+  const [nextActionText, setNextActionText] = useState('');
+  const [nextActionDate, setNextActionDate] = useState('');
+  const [priority, setPriority] = useState<ProjectPriority>('normal');
   const [area, setArea] = useState('');
   const [style, setStyle] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
@@ -12208,6 +12392,13 @@ function NewProjectSheet({
       setTitle(initial?.title ?? '');
       setColor(initial?.color ?? MARKER_COLORS[0]);
       setCategory(initial?.category ?? 'tattoo');
+      setClientId(initial?.clientId ?? null);
+      setStage(initial?.stage ?? 'idea');
+      setState(initial?.state ?? 'active');
+      setWaitingFor(initial?.waitingFor ?? 'none');
+      setNextActionText(initial?.nextActionText ?? '');
+      setNextActionDate(initial?.nextActionDate ?? '');
+      setPriority(initial?.priority ?? 'normal');
       setArea(initial?.area ?? '');
       setStyle(initial?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
@@ -12253,6 +12444,78 @@ function NewProjectSheet({
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Тип</FieldLabel>
             <ProjectCategoryChips value={category} onPick={setCategory} />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Клиент</FieldLabel>
+            <select value={clientId ?? ''} onChange={(e) => setClientId(e.target.value || null)} style={INPUT_STYLE}>
+              <option value="">Мастерская (без клиента)</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {`${c.name} ${c.surname}`.trim()}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FieldLabel>Этап</FieldLabel>
+              <select value={stage} onChange={(e) => setStage(e.target.value as ProjectStage)} style={INPUT_STYLE}>
+                {PROJECT_STAGES.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FieldLabel>Состояние</FieldLabel>
+              <select value={state} onChange={(e) => setState(e.target.value as ProjectState)} style={INPUT_STYLE}>
+                {PROJECT_STATES.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FieldLabel>Ждём</FieldLabel>
+              <select value={waitingFor} onChange={(e) => setWaitingFor(e.target.value as ProjectWaitingFor)} style={INPUT_STYLE}>
+                {PROJECT_WAITING_FOR.map((w) => (
+                  <option key={w.key} value={w.key}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FieldLabel>Приоритет</FieldLabel>
+              <select value={priority} onChange={(e) => setPriority(e.target.value as ProjectPriority)} style={INPUT_STYLE}>
+                {PROJECT_PRIORITIES.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Следующий шаг</FieldLabel>
+            <input
+              value={nextActionText}
+              onChange={(e) => setNextActionText(e.target.value)}
+              placeholder="Уточнить размер, получить фото спины..."
+              style={{ ...INPUT_STYLE, marginBottom: 8 }}
+            />
+            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+              Дата (когда сделать)
+            </div>
+            <input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} style={INPUT_STYLE} />
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -12315,7 +12578,27 @@ function NewProjectSheet({
       <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div
           className="inka-submit"
-          onClick={() => onAdd({ title, color, category, area, style, generalNotes, feeling, creative, inspirationSources, photos })}
+          onClick={() =>
+            onAdd({
+              title,
+              color,
+              category,
+              clientId,
+              stage,
+              state,
+              waitingFor,
+              nextActionText,
+              nextActionDate: nextActionDate || null,
+              priority,
+              area,
+              style,
+              generalNotes,
+              feeling,
+              creative,
+              inspirationSources,
+              photos,
+            })
+          }
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
