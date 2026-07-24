@@ -89,3 +89,12 @@ export interface Client {
   notes: ClientNote[]; // structured notes/tasks with urgency markers
   createdDate: string;
 }
+
+// Styles as an array regardless of legacy shape; joined label for display.
+// Чистые аксессоры над формой клиента — перенесены сюда в PR 3, потому что от
+// clientStyles зависит агрегат mostUsedStyle (domain/plannerSelectors.ts);
+// оставь их в компоненте — получился бы циклический импорт.
+export const clientStyles = (c: { styles?: string[]; style?: string }): string[] =>
+  c.styles && c.styles.length ? c.styles : c.style ? [c.style] : [];
+export const stylesLabel = (c: { styles?: string[]; style?: string }): string =>
+  clientStyles(c).join(' · ');
