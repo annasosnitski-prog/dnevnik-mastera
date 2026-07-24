@@ -88,6 +88,10 @@ export async function sendToContent(params: {
   session: ContentSessionContext;
   media: { id: string; preview_data_url: string }[];
   masterInstruction?: string;
+  // Уже написанный черновик (при перегенерации кнопкой архетипа) — backend
+  // ищет в нём фразы/образы, которые стоит сохранить, вместо переписывания
+  // с нуля. Не передаётся при первой генерации — там его ещё нет.
+  previousDraft?: string;
 }): Promise<IngestResult> {
   const settings = readContentSyncSettings();
   if (!settings.endpoint || !settings.secret) {
@@ -108,6 +112,7 @@ export async function sendToContent(params: {
         session: params.session,
         media: params.media,
         master_instruction: params.masterInstruction ?? null,
+        previous_draft: params.previousDraft ?? null,
       }),
     });
   } catch {
