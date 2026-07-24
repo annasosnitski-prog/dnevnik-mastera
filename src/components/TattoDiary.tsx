@@ -2899,10 +2899,16 @@ export default function TattoDiary() {
     showAddChoice ||
     showWorkshopCreateChoice ||
     showProjectSessionPicker ||
+    showNewProjectForm ||
     !!viewEntry ||
-    !!viewProject ||
     showCalendar ||
     !!calendarWalkStep;
+
+  // Просмотр проекта — единственная шторка, поверх которой остаётся видна
+  // главная кнопка «Создать»: она же и есть точка входа для «+ Сессия» /
+  // «+ Консультация» в открытом проекте (см. onCreate у NavFab ниже), так
+  // что отдельных кнопок создания внутри самого просмотра не нужно.
+  const navFabHidden = sheetOpen && !viewProject;
 
   // Resolve the entry being viewed to its latest stored copy (so an edit made
   // from the viewer is reflected if it reopens).
@@ -3379,8 +3385,11 @@ export default function TattoDiary() {
       {/* Navigation — sibling of the screens so it pins to the shell bottom
           (never scrolls). Shown on every main screen, including the client
           Detail screen, hidden while a bottom sheet is open so it can't sit
-          over the sheet's controls. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop' || screen === 'content') && !sheetOpen && (
+          over the sheet's controls — EXCEPT the project viewer, which stays
+          underneath it on purpose: «Создать» is the only entry point for
+          adding a session/consultation to the open project (see onCreate
+          below), so the main button has to stay reachable over it. */}
+      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop' || screen === 'content') && !navFabHidden && (
         <NavFab
           active={screen}
           onNavigate={(s) => setScreen(s)}
@@ -3390,8 +3399,27 @@ export default function TattoDiary() {
           ]}
           // Contextual create — same action each screen's own «+» used to
           // trigger, now all reachable from one place. Мастер has none.
+          // Открытый просмотр проекта (viewProject) переопределяет экранную
+          // логику — «Создать» тут же заводит сессию/консультацию именно
+          // для этого проекта, а не то, что обычно делает текущий screen.
           onCreate={
-            screen === 'list' || screen === 'settings'
+            viewProject
+              ? () => {
+                  if (viewProject.clientId) {
+                    const client = clients.find((c) => c.id === viewProject.clientId);
+                    if (!client) return;
+                    setViewProject(null);
+                    setSelectedId(client.id);
+                    setPresetEntryProjectId(viewProject.id);
+                    setShowAddChoice(true);
+                  } else {
+                    setViewProject(null);
+                    setEditSession(null);
+                    setSessionTargetProjectId(viewProject.id);
+                    setShowNewSessionForm(true);
+                  }
+                }
+              : screen === 'list' || screen === 'settings'
               ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
               : screen === 'summary'
                 ? () => setShowSummaryComposer(true)
@@ -3836,27 +3864,6 @@ export default function TattoDiary() {
         onOpenEntry={(clientId, kind, id) => {
           setViewProject(null);
           setViewEntry({ kind, clientId, id });
-        }}
-        onAddEntry={(clientId, kind) => {
-          // Новая сессия/консультация из проекта: встаём на клиента, заранее
-          // привязываем проект, открываем нужную форму.
-          setViewProject(null);
-          setSelectedId(clientId);
-          setPresetEntryProjectId(viewProject?.id ?? null);
-          if (kind === 'session') {
-            setEditSession(null);
-            setShowNewSessionForm(true);
-          } else {
-            setEditConsultation(null);
-            setShowNewConsultationForm(true);
-          }
-        }}
-        onAddProjectSession={(projectId) => {
-          // Сессия без клиента — тот же проект и есть её единственный дом.
-          setViewProject(null);
-          setEditSession(null);
-          setSessionTargetProjectId(projectId);
-          setShowNewSessionForm(true);
         }}
         onEditProjectSession={(projectId, session) => {
           setViewProject(null);
@@ -11282,6 +11289,7 @@ function TimelineViewSheet({
   return (
     <BottomSheet open={open} heightPct={94}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetEditButton onClick={onEdit} />
         <SheetCloseButton onClose={onClose} />
         <div style={{ marginBottom: 5 }}>
           <InkaLogo height={fs(15)} />
@@ -11362,26 +11370,6 @@ function TimelineViewSheet({
             />
           </>
         ) : null}
-
-        <div
-          className="inka-submit"
-          onClick={onEdit}
-          style={{
-            border: '1px solid rgba(var(--gold-rgb),0.35)',
-            borderRadius: 2,
-            padding: '12px 0',
-            textAlign: 'center',
-            cursor: 'pointer',
-            background: 'rgba(var(--gold-rgb),0.05)',
-            fontSize: fs(13),
-            color: COLORS.gold,
-            letterSpacing: '2px',
-            textTransform: 'uppercase',
-            marginTop: 6,
-          }}
-        >
-          Редактировать
-        </div>
       </div>
     </BottomSheet>
   );
@@ -11435,6 +11423,21 @@ function SheetCloseButton({ onClose }: { onClose: () => void }) {
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
+// Тот же карандаш, что и «править» в шапке карточки клиента (см.
+// DetailScreen) — единый визуальный язык для «редактировать» по всему
+// приложению, вместо разнобоя из текстовых кнопок. Сидит слева от крестика
+// закрытия, в том же верхнем правом углу read-only просмотров (Timeline/
+// ProjectViewSheet), а не отдельной кнопкой внизу листа.
+function SheetEditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="inka-back" onClick={onClick} style={{ position: 'absolute', top: 17, right: 52, cursor: 'pointer', color: COLORS.gold, opacity: 0.85 }}>
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+        <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
       </svg>
     </div>
   );
@@ -13098,8 +13101,6 @@ function ProjectViewSheet({
   onClose,
   onEdit,
   onOpenEntry,
-  onAddEntry,
-  onAddProjectSession,
   onEditProjectSession,
 }: {
   open: boolean;
@@ -13108,12 +13109,10 @@ function ProjectViewSheet({
   onClose: () => void;
   onEdit: (project: Project) => void;
   onOpenEntry: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
-  // Создать новую сессию/консультацию прямо из проекта (Этап 3b) — только для
-  // проектов с клиентом.
-  onAddEntry: (clientId: string, kind: 'session' | 'consultation') => void;
-  // «Сессия без клиента» — для проектов БЕЗ клиента, живёт на самом проекте
-  // (Этап 3b-доп.) до тех пор, пока к проекту не привяжут клиента.
-  onAddProjectSession: (projectId: string) => void;
+  // Тап по «сессии без клиента» в списке записей — открыть её на
+  // редактирование. Создание новых записей теперь только через главную
+  // кнопку «Создать» (остаётся видна поверх этого просмотра — см. onCreate
+  // у NavFab), отдельных кнопок создания здесь больше нет.
   onEditProjectSession: (projectId: string, session: Session) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
@@ -13144,6 +13143,7 @@ function ProjectViewSheet({
   return (
     <BottomSheet open={open} heightPct={90}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        {project && <SheetEditButton onClick={() => onEdit(project)} />}
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>
           {clientName ?? 'Мастерская'}
@@ -13187,35 +13187,6 @@ function ProjectViewSheet({
             <ViewField label="Креатив" value={project.creative} />
             <ViewField label="Источники вдохновения" value={project.inspirationSources} />
 
-            {/* Добавить запись прямо из проекта. С клиентом — сессия/
-                консультация клиента; без клиента — «сессия без клиента»
-                живёт на самом проекте, пока клиента не привяжут (3b-доп.). */}
-            {linkedClient ? (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div
-                  onClick={() => onAddEntry(linkedClient.id, 'session')}
-                  style={{ flex: 1, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.3)', color: COLORS.gold, fontSize: fs(12), letterSpacing: '0.5px', cursor: 'pointer' }}
-                >
-                  + Сессия
-                </div>
-                <div
-                  onClick={() => onAddEntry(linkedClient.id, 'consultation')}
-                  style={{ flex: 1, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.3)', color: COLORS.gold, fontSize: fs(12), letterSpacing: '0.5px', cursor: 'pointer' }}
-                >
-                  + Консультация
-                </div>
-              </div>
-            ) : (
-              project && (
-                <div
-                  onClick={() => onAddProjectSession(project.id)}
-                  style={{ textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.3)', color: COLORS.gold, fontSize: fs(12), letterSpacing: '0.5px', cursor: 'pointer' }}
-                >
-                  + Сессия
-                </div>
-              )
-            )}
-
             {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0) && (
               <div>
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Записи проекта</div>
@@ -13256,12 +13227,6 @@ function ProjectViewSheet({
                 </div>
               </div>
             )}
-
-            <div className="inka-submit" onClick={() => onEdit(project)} style={{ ...SUBMIT_STYLE, marginTop: 8 }}>
-              <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
-                Редактировать
-              </span>
-            </div>
           </>
         )}
       </div>
@@ -13331,6 +13296,9 @@ function NewProjectSheet({
   const [inspirationSources, setInspirationSources] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // See NewSessionSheet's justSaved — same «крестик превращается в зелёную
+  // галочку» подтверждение, единообразно для всех форм редактирования.
+  const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -13352,6 +13320,7 @@ function NewProjectSheet({
       setInspirationSources(initial?.inspirationSources ?? '');
       setPhotos(initial?.photos ?? []);
       setConfirmingDelete(false);
+      setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -13359,7 +13328,7 @@ function NewProjectSheet({
   return (
     <BottomSheet open={open} heightPct={85}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        <SheetCloseButton onClose={onClose} />
+        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>Мастерская</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
           {isEdit ? 'Редактировать проект' : 'Новый проект'}
@@ -13524,8 +13493,8 @@ function NewProjectSheet({
       <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div
           className="inka-submit"
-          onClick={() =>
-            onAdd({
+          onClick={() => {
+            const data = {
               title,
               color,
               category,
@@ -13543,8 +13512,14 @@ function NewProjectSheet({
               creative,
               inspirationSources,
               photos,
-            })
-          }
+            };
+            if (isEdit) {
+              setJustSaved(true);
+              setTimeout(() => onAdd(data), 700);
+            } else {
+              onAdd(data);
+            }
+          }}
           style={SUBMIT_STYLE}
         >
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
