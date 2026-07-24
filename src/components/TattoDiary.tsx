@@ -2078,6 +2078,11 @@ export default function TattoDiary() {
   // «Творческая мастерская» — standalone projects, not tied to any client.
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
+  // Главная кнопка «Создать» на Мастерской спрашивает «Новый проект» или
+  // «Сессия без клиента» — держит открытость этого выбора и, для второго
+  // варианта, открытость пикера «в какой проект».
+  const [showWorkshopCreateChoice, setShowWorkshopCreateChoice] = useState(false);
+  const [showProjectSessionPicker, setShowProjectSessionPicker] = useState(false);
   // Read-only fullscreen viewer for a consultation or a session, opened by
   // tapping the card body (the pencil still edits). Holds the client id so the
   // viewer always reflects the latest stored copy even after an edit.
@@ -2892,6 +2897,8 @@ export default function TattoDiary() {
     showEditClientForm ||
     showNewConsultationForm ||
     showAddChoice ||
+    showWorkshopCreateChoice ||
+    showProjectSessionPicker ||
     !!viewEntry ||
     !!viewProject ||
     showCalendar ||
@@ -3393,7 +3400,7 @@ export default function TattoDiary() {
                   : screen === 'detail' && selectedClient
                     ? () => setShowAddChoice(true)
                     : screen === 'workshop'
-                      ? () => setShowNewProjectForm(true)
+                      ? () => setShowWorkshopCreateChoice(true)
                       : undefined
           }
         />
@@ -3751,6 +3758,39 @@ export default function TattoDiary() {
             setEditConsultation(null);
             setShowNewConsultationForm(true);
           });
+        }}
+      />
+
+      {/* ═══════════ МАСТЕРСКАЯ: «СОЗДАТЬ» → проект / сессия без клиента ═══════════ */}
+      <WorkshopCreateChoiceSheet
+        open={showWorkshopCreateChoice}
+        onClose={() => setShowWorkshopCreateChoice(false)}
+        onPickProject={() => {
+          setShowWorkshopCreateChoice(false);
+          setEditProject(null);
+          setNewProjectClientId(null);
+          setShowNewProjectForm(true);
+        }}
+        onPickSession={() => {
+          setShowWorkshopCreateChoice(false);
+          setShowProjectSessionPicker(true);
+        }}
+      />
+      <ProjectSessionPickerSheet
+        open={showProjectSessionPicker}
+        projects={projects}
+        onClose={() => setShowProjectSessionPicker(false)}
+        onPick={(project) => {
+          setShowProjectSessionPicker(false);
+          setEditSession(null);
+          setSessionTargetProjectId(project.id);
+          setShowNewSessionForm(true);
+        }}
+        onCreateProject={() => {
+          setShowProjectSessionPicker(false);
+          setEditProject(null);
+          setNewProjectClientId(null);
+          setShowNewProjectForm(true);
         }}
       />
 
@@ -12392,6 +12432,153 @@ function AddChoiceSheet({
             <path d="M3 14L8 10L11 12.5L14 9.5L17 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>,
         )}
+      </div>
+    </BottomSheet>
+  );
+}
+
+// Мастерская's own «Создать»: «Новый проект» (бриф-карточка, как раньше) или
+// «Сессия» без клиента (сразу просит выбрать/создать проект — см.
+// ProjectSessionPickerSheet ниже), Этап 3b-доп.
+function WorkshopCreateChoiceSheet({
+  open,
+  onClose,
+  onPickProject,
+  onPickSession,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPickProject: () => void;
+  onPickSession: () => void;
+}) {
+  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
+    <div
+      onClick={onClick}
+      role="button"
+      aria-label={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        border: '1px solid rgba(var(--gold-rgb),0.25)',
+        borderRadius: 2,
+        padding: '16px',
+        cursor: 'pointer',
+        background: 'rgba(var(--gold-rgb),0.03)',
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          color: 'var(--gold)',
+        }}
+      >
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <BottomSheet open={open} heightPct={34}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Что добавить?</div>
+        <SheetStarDivider />
+      </div>
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {choice(
+          'Новый проект',
+          'Бриф: тип, место, стиль, референсы...',
+          onPickProject,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>,
+        )}
+        {choice(
+          'Сессия',
+          'Без клиента — привяжете позже',
+          onPickSession,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="4.5" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
+            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.2" />
+            <line x1="6.5" y1="2.5" x2="6.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="13.5" y1="2.5" x2="13.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>,
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
+// Пикер «в какой проект» для сессии без клиента — список проектов БЕЗ
+// клиента (у клиентских проектов сессия создаётся из вкладки клиента, там
+// её и разместим). Пусто → сразу предлагает создать первый проект.
+function ProjectSessionPickerSheet({
+  open,
+  projects,
+  onClose,
+  onPick,
+  onCreateProject,
+}: {
+  open: boolean;
+  projects: Project[];
+  onClose: () => void;
+  onPick: (project: Project) => void;
+  onCreateProject: () => void;
+}) {
+  const clientless = projects.filter((p) => !p.clientId);
+  return (
+    <BottomSheet open={open} heightPct={50}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>В какой проект?</div>
+        <SheetStarDivider />
+      </div>
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {clientless.length === 0 ? (
+          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+            Пока нет проектов без клиента — создайте первый.
+          </div>
+        ) : (
+          clientless.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => onPick(p)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '11px 13px',
+                borderRadius: 2,
+                cursor: 'pointer',
+                border: '1px solid rgba(var(--gold-rgb),0.2)',
+                background: 'rgba(var(--surface-rgb),0.018)',
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+              <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.title || 'Без названия'}
+              </span>
+            </div>
+          ))
+        )}
+        <div
+          onClick={onCreateProject}
+          style={{ textAlign: 'center', padding: '10px 0', color: COLORS.gold, fontSize: fs(13), letterSpacing: '0.5px', cursor: 'pointer', marginTop: 4 }}
+        >
+          + Новый проект
+        </div>
       </div>
     </BottomSheet>
   );
