@@ -3898,6 +3898,7 @@ export default function TattoDiary() {
           if (viewEntry) reassignEntryProject(viewEntry.clientId, viewEntry.kind, viewEntry.id, projectId);
         }}
         onSaveContentEntry={saveContentEntry}
+        onDeleteContentEntry={deleteContentEntry}
       />
 
       {/* ═══════════ CALENDAR (month view, opened from «Ближайшая») ═══════════ */}
@@ -10738,17 +10739,22 @@ function ViewField({ label, value }: { label: string; value: string }) {
 // /api/ingest, см. contentSync.ts. Названы напрямую по семи архетипам
 // contentINKA (см. lib/prompts/archetypes.txt в contentinka), а не по
 // настроению («теплее»/«жёстче») — так кнопка сразу говорит, какой голос
-// перегенерирует текст. «Ещё вариант» остаётся отдельно как чистая
-// перегенерация без смены архетипа.
-const TONE_PRESETS: { label: string; instruction: string }[] = [
-  { label: 'Трикстер', instruction: 'перепиши в архетипе Трикстер — резче, прямее, с лёгкой дерзостью, без пафоса' },
-  { label: 'Женщина/Тепло', instruction: 'перепиши в архетипе Женщина/Тепло — теплее, мягче, телесно' },
-  { label: 'Исследователь', instruction: 'перепиши в архетипе Исследователь — через любопытство и процесс поиска' },
-  { label: 'Мудрец', instruction: 'перепиши в архетипе Мудрец — точнее, через понимание сути, без лекции' },
-  { label: 'Дурак', instruction: 'перепиши в архетипе Дурак — проще, легче, с сухим юмором' },
-  { label: 'Lover', instruction: 'перепиши в архетипе Lover — через чувственность и телесность, без цены' },
-  { label: 'Творец', instruction: 'перепиши в архетипе Творец — через форму, материал и рождение образа' },
-  { label: 'Ещё вариант', instruction: '' },
+// перегенерирует текст. Каждый пресет ставит выбранный архетип в роль
+// opens — ищет в уже написанном черновике фразы/образы, которые стоит
+// сохранить, вместо переписывания с нуля (см. regenerate ниже, шлёт
+// entry.textDraft как previous_draft, backend сам решает, что удержать).
+// Символ вместо полного имени — компактнее в ряд из 8 кнопок; полное имя
+// остаётся в title (подсказка при наведении/долгом тапе).
+// «Ещё вариант» остаётся отдельно как чистая перегенерация без смены архетипа.
+const TONE_PRESETS: { label: string; icon: string; instruction: string }[] = [
+  { label: 'Трикстер', icon: '🦊', instruction: 'открой материал в архетипе Трикстер — резче, прямее, с лёгкой дерзостью, без пафоса' },
+  { label: 'Женщина/Тепло', icon: '🤍', instruction: 'открой материал в архетипе Женщина/Тепло — теплее, мягче, телесно' },
+  { label: 'Исследователь', icon: '🧭', instruction: 'открой материал в архетипе Исследователь — через любопытство и процесс поиска' },
+  { label: 'Мудрец', icon: '🦉', instruction: 'открой материал в архетипе Мудрец — точнее, через понимание сути, без лекции' },
+  { label: 'Дурак', icon: '🃏', instruction: 'открой материал в архетипе Дурак — проще, легче, с сухим юмором' },
+  { label: 'Lover', icon: '🌹', instruction: 'открой материал в архетипе Lover — через чувственность и телесность, без цены' },
+  { label: 'Творец', icon: '🎨', instruction: 'открой материал в архетипе Творец — через форму, материал и рождение образа' },
+  { label: 'Ещё вариант', icon: '🔄', instruction: '' },
 ];
 
 // Полноценный рабочий интерфейс ContentINKA — отдельная страница
@@ -10866,6 +10872,7 @@ function ContentINKAScreen({
         session: entry.context,
         media: previews,
         masterInstruction: instruction || undefined,
+        previousDraft: entry.textDraft || undefined,
       });
       onSaveEntry({
         ...entry,
@@ -10993,17 +11000,20 @@ function ContentINKAScreen({
                 {TONE_PRESETS.map((preset) => (
                   <span
                     key={preset.label}
+                    title={preset.label}
+                    aria-label={preset.label}
                     onClick={() => regenerate(entry, preset.instruction)}
                     style={{
-                      fontSize: fs(11),
+                      fontSize: fs(15),
+                      lineHeight: 1,
                       color: COLORS.textPrimary,
                       border: '1px solid rgba(var(--gold-rgb),0.3)',
                       borderRadius: 2,
-                      padding: '5px 10px',
+                      padding: '6px 10px',
                       cursor: 'pointer',
                     }}
                   >
-                    {preset.label}
+                    {preset.icon}
                   </span>
                 ))}
               </div>
@@ -11035,6 +11045,7 @@ function ContentPanel({
   description,
   entries,
   onSaveEntry,
+  onDeleteEntry,
 }: {
   clientId: string | null;
   clientName: string;
@@ -11047,6 +11058,7 @@ function ContentPanel({
   description: string;
   entries: ContentEntry[];
   onSaveEntry: (entry: ContentEntry) => void;
+  onDeleteEntry: (id: string) => void;
 }) {
   const fullEntry = entries.find((e) => e.sourceType === sourceType && e.sourceId === sourceId && e.format === null) ?? null;
   const storyEntry = entries.find((e) => e.sourceType === sourceType && e.sourceId === sourceId && e.format === 'story') ?? null;
@@ -11219,6 +11231,9 @@ function ContentPanel({
                   >
                     Поделиться
                   </span>
+                  <span onClick={() => onDeleteEntry(fullEntry.id)} style={{ ...linkStyle, color: 'var(--urgent, #c0392b)' }}>
+                    Удалить
+                  </span>
                 </div>
               </div>
             )}
@@ -11245,6 +11260,9 @@ function ContentPanel({
                 <span onClick={() => shareContentEntry([], storyEntry.textDraft)} style={linkStyle}>
                   Поделиться
                 </span>
+                <span onClick={() => onDeleteEntry(storyEntry.id)} style={{ ...linkStyle, color: 'var(--urgent, #c0392b)' }}>
+                  Удалить
+                </span>
               </div>
             </div>
           )}
@@ -11268,6 +11286,7 @@ function TimelineViewSheet({
   onEdit,
   onReassignProject,
   onSaveContentEntry,
+  onDeleteContentEntry,
 }: {
   open: boolean;
   session: Session | null;
@@ -11282,6 +11301,7 @@ function TimelineViewSheet({
   onEdit: () => void;
   onReassignProject: (projectId: string | null) => void;
   onSaveContentEntry: (entry: ContentEntry) => void;
+  onDeleteContentEntry: (id: string) => void;
 }) {
   const isConsult = !!consultation;
   const dateLine = (() => {
@@ -11348,6 +11368,7 @@ function TimelineViewSheet({
                 .join('\n\n')}
               entries={contentEntries}
               onSaveEntry={onSaveContentEntry}
+              onDeleteEntry={onDeleteContentEntry}
             />
           </>
         ) : session ? (
@@ -11373,6 +11394,7 @@ function TimelineViewSheet({
               description={session.note}
               entries={contentEntries}
               onSaveEntry={onSaveContentEntry}
+              onDeleteEntry={onDeleteContentEntry}
             />
           </>
         ) : null}
