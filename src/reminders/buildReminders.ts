@@ -10,12 +10,14 @@
 
 import type { Client } from '../domain/client';
 import type { Project } from '../domain/project';
-import { ISO_DATE_RE } from '../utils/dates';
-import type { OverdueItem, HealingItem, UpcomingSoonItem } from './types';
+import { ISO_DATE_RE, isValidISODate } from '../utils/dates';
+import type { OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
 
 export const HEALING_REMINDER_DAYS = 30;
 export const SOON_REMINDER_MIN_HOURS = 36;
 export const SOON_REMINDER_MAX_HOURS = 48;
+
+const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 // Local (not UTC) yyyy-mm-dd for the given moment — идентично прежнему
 // todayISO(), но от переданного `now`, а не от new Date() внутри.
@@ -81,6 +83,43 @@ export function upcomingSoonReminders(clients: Client[], now: Date): UpcomingSoo
   for (const client of clients) {
     for (const session of client.sessions) consider(client, 'session', session.id, session.date, session.time, session.done, session.cancelled);
     for (const consultation of client.consultations) consider(client, 'consultation', consultation.id, consultation.date, consultation.time, consultation.done, consultation.cancelled);
+  }
+  return result.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+}
+
+// Sessions stored directly on projects without a client whose date has
+// passed. Client-linked projects are ignored because their reminders continue
+// to come exclusively from client.sessions.
+export function overdueProjectSessions(projects: Project[], now: Date): ProjectSessionReminderItem[] {
+  const today = localISO(now);
+  const result: ProjectSessionReminderItem[] = [];
+  for (const project of projects) {
+    if (project.clientId !== null) continue;
+    for (const session of project.sessions) {
+      if (session.done || session.cancelled || !isValidISODate(session.date) || session.date >= today) continue;
+      result.push({ project, sessionId: session.id, date: session.date, time: session.time });
+    }
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Sessions stored directly on projects without a client that start 36–48
+// hours from the supplied clock snapshot. Strict date/time validation keeps
+// malformed legacy values out of the countdown.
+export function upcomingSoonProjectSessions(projects: Project[], now: Date): ProjectSessionReminderItem[] {
+  const nowMs = now.getTime();
+  const result: ProjectSessionReminderItem[] = [];
+  for (const project of projects) {
+    if (project.clientId !== null) continue;
+    for (const session of project.sessions) {
+      if (session.done || session.cancelled || !isValidISODate(session.date) || !TIME_RE.test(session.time)) continue;
+      const at = new Date(`${session.date}T${session.time}`).getTime();
+      if (Number.isNaN(at)) continue;
+      const hoursUntil = (at - nowMs) / 3600000;
+      if (hoursUntil >= SOON_REMINDER_MIN_HOURS && hoursUntil <= SOON_REMINDER_MAX_HOURS) {
+        result.push({ project, sessionId: session.id, date: session.date, time: session.time });
+      }
+    }
   }
   return result.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 }

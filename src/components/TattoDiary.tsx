@@ -68,10 +68,24 @@ import {
 } from '../domain/plannerSelectors';
 // Логика напоминаний вынесена в src/reminders/* (PR 4 рефакторинга). Строители
 // теперь получают `now` аргументом; ключ проекта исправлен (см. reminderKeys).
-import type { OverdueItem, HealingItem, UpcomingSoonItem, TaskReminderItem } from '../reminders/types';
-import { overdueEntries, healingReminders, upcomingSoonReminders, overdueProjects } from '../reminders/buildReminders';
+import type { OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem, TaskReminderItem } from '../reminders/types';
+import {
+  overdueEntries,
+  healingReminders,
+  upcomingSoonReminders,
+  overdueProjectSessions,
+  upcomingSoonProjectSessions,
+  overdueProjects,
+} from '../reminders/buildReminders';
 import { taskReminderSources, taskReminders, filterVisibleTaskReminders } from '../reminders/buildTaskReminders';
-import { overdueReminderKey, healingReminderKey, soonReminderKey, projectReminderKey } from '../reminders/reminderKeys';
+import {
+  overdueReminderKey,
+  healingReminderKey,
+  soonReminderKey,
+  overdueProjectSessionReminderKey,
+  soonProjectSessionReminderKey,
+  projectReminderKey,
+} from '../reminders/reminderKeys';
 import {
   type ReminderState,
   loadReminderState,
@@ -2481,6 +2495,18 @@ export default function TattoDiary() {
   const visibleOverdue = filterVisibleReminders(overdueEntries(clients, remindersNow), overdueReminderKey, reminderState, remindersNow);
   const visibleHealing = filterVisibleReminders(healingReminders(clients, remindersNow), healingReminderKey, reminderState, remindersNow);
   const visibleSoon = filterVisibleReminders(upcomingSoonReminders(clients, remindersNow), soonReminderKey, reminderState, remindersNow);
+  const visibleOverdueProjectSessions = filterVisibleReminders(
+    overdueProjectSessions(projects, remindersNow),
+    overdueProjectSessionReminderKey,
+    reminderState,
+    remindersNow,
+  );
+  const visibleSoonProjectSessions = filterVisibleReminders(
+    upcomingSoonProjectSessions(projects, remindersNow),
+    soonProjectSessionReminderKey,
+    reminderState,
+    remindersNow,
+  );
   // Проекты с просроченным «следующим шагом» (Этап 3b) — в те же напоминания.
   const visibleDueProjects = filterVisibleReminders(overdueProjects(projects, remindersNow), projectReminderKey, reminderState, remindersNow);
   // Task-напоминания (ClientNote.dueDate) — поверх того же engine, оба
@@ -2966,8 +2992,10 @@ export default function TattoDiary() {
           adminBadges={[
             // Просроченная задача (task_overdue) — как urgent; задача на
             // сегодня (task_due) — как reminder, рядом с healing/soon/проекты.
-            ...(visibleOverdue.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_overdue') ? (['urgent'] as const) : []),
-            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleDueProjects.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_due')
+            ...(visibleOverdue.length > 0 || visibleOverdueProjectSessions.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_overdue')
+              ? (['urgent'] as const)
+              : []),
+            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleSoonProjectSessions.length > 0 || visibleDueProjects.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_due')
               ? (['reminder'] as const)
               : []),
           ]}
@@ -3161,6 +3189,8 @@ export default function TattoDiary() {
             overdue={visibleOverdue}
             healing={visibleHealing}
             soon={visibleSoon}
+            overdueProjectSessions={visibleOverdueProjectSessions}
+            soonProjectSessions={visibleSoonProjectSessions}
             dueProjects={visibleDueProjects}
             tasks={visibleTaskReminders}
             onOpenProject={(project) => setViewProject(project)}
@@ -5567,10 +5597,78 @@ function OverdueReminderCard({
     </div>
   );
 }
+function ProjectSessionReminderCard({
+  item,
+  rule,
+  onOpenProject,
+  onDismiss,
+  onSnooze,
+}: {
+  item: ProjectSessionReminderItem;
+  rule: 'overdue' | 'soon';
+  onOpenProject: () => void;
+  onDismiss: () => void;
+  onSnooze: (showAfter: string) => void;
+}) {
+  const isOverdue = rule === 'overdue';
+  const accent = isOverdue ? 'var(--urgent)' : COLORS.gold;
+  const chipStyle: React.CSSProperties = {
+    fontSize: fs(11),
+    color: COLORS.gold,
+    border: '1px solid rgba(var(--gold-rgb),0.3)',
+    borderRadius: 2,
+    padding: '4px 9px',
+    letterSpacing: '0.6px',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  };
+
+  return (
+    <SwipeDismissCard onSwipeComplete={onDismiss}>
+      {(flyOutThen) => (
+        <div
+          style={{
+            padding: '9px 10px',
+            borderRadius: 2,
+            border: isOverdue ? '1px solid rgba(224,102,90,0.35)' : '1px solid rgba(var(--gold-rgb),0.2)',
+            background: isOverdue ? 'rgba(224,102,90,0.06)' : 'rgba(var(--surface-rgb),0.018)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <div onClick={onOpenProject} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {item.project.title || 'Проект'}
+              </div>
+              <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>Сессия без клиента</div>
+              <div style={{ fontSize: fs(11), color: accent, marginTop: 2 }}>
+                {isOverdue ? 'Просрочена' : 'Скоро'} · {formatDate(item.date)}
+                {item.time && ` · ${item.time}`}
+              </div>
+            </div>
+            <ReminderMenuButton
+              onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeShowAfter(1)))}
+              onSnooze3Days={() => flyOutThen(() => onSnooze(snoozeShowAfter(3)))}
+              onHide={() => flyOutThen(onDismiss)}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+            <div onClick={onOpenProject} role="button" aria-label="Открыть проект" style={chipStyle}>
+              Открыть проект
+            </div>
+          </div>
+        </div>
+      )}
+    </SwipeDismissCard>
+  );
+}
+
 function RemindersSection({
   overdue,
   healing,
   soon,
+  overdueProjectSessions,
+  soonProjectSessions,
   dueProjects,
   tasks,
   onOpenProject,
@@ -5584,6 +5682,8 @@ function RemindersSection({
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon?: UpcomingSoonItem[];
+  overdueProjectSessions?: ProjectSessionReminderItem[];
+  soonProjectSessions?: ProjectSessionReminderItem[];
   dueProjects?: Project[];
   tasks?: TaskReminderItem[];
   onOpenProject?: (project: Project) => void;
@@ -5595,29 +5695,62 @@ function RemindersSection({
   onOpenTask?: (item: TaskReminderItem) => void;
 }) {
   const soonList = soon ?? [];
+  const overdueProjectSessionList = overdueProjectSessions ?? [];
+  const soonProjectSessionList = soonProjectSessions ?? [];
   const dueProjectsList = dueProjects ?? [];
   const taskList = tasks ?? [];
+  const overdueFeed: ({ source: 'client'; item: OverdueItem } | { source: 'project'; item: ProjectSessionReminderItem })[] = [
+    ...overdue.map((item) => ({ source: 'client' as const, item })),
+    ...overdueProjectSessionList.map((item) => ({ source: 'project' as const, item })),
+  ].sort((a, b) => a.item.date.localeCompare(b.item.date));
+  const soonFeed: ({ source: 'client'; item: UpcomingSoonItem } | { source: 'project'; item: ProjectSessionReminderItem })[] = [
+    ...soonList.map((item) => ({ source: 'client' as const, item })),
+    ...soonProjectSessionList.map((item) => ({ source: 'project' as const, item })),
+  ].sort((a, b) => `${a.item.date}T${a.item.time}`.localeCompare(`${b.item.date}T${b.item.time}`));
   // Which card's CopyMessageButton contacts popover is open, if any — that
   // card gets `raised` so its popover isn't trapped behind a later sibling's
   // own stacking context (see SwipeDismissCard's `raised` doc comment).
   const [raisedKey, setRaisedKey] = useState<string | null>(null);
-  if (overdue.length === 0 && healing.length === 0 && soonList.length === 0 && dueProjectsList.length === 0 && taskList.length === 0) return null;
+  if (
+    overdue.length === 0 &&
+    healing.length === 0 &&
+    soonList.length === 0 &&
+    overdueProjectSessionList.length === 0 &&
+    soonProjectSessionList.length === 0 &&
+    dueProjectsList.length === 0 &&
+    taskList.length === 0
+  ) return null;
   return (
     <div>
       <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
         Напоминания
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {overdue.map((it) => {
-          const key = overdueReminderKey(it);
+        {overdueFeed.map((entry) => {
+          if (entry.source === 'client') {
+            const it = entry.item;
+            const key = overdueReminderKey(it);
+            return (
+              <OverdueReminderCard
+                key={key}
+                item={it}
+                onReschedule={() => onOpenEntry(it.client.id, it.id, it.kind)}
+                onDismiss={() => onDismiss(key)}
+                onSnooze={(showAfter) => onSnooze(key, showAfter)}
+                onCancel={() => onCancel(it.client.id, it.id, it.kind)}
+              />
+            );
+          }
+          const it = entry.item;
+          const key = overdueProjectSessionReminderKey(it);
           return (
-            <OverdueReminderCard
+            <ProjectSessionReminderCard
               key={key}
               item={it}
-              onReschedule={() => onOpenEntry(it.client.id, it.id, it.kind)}
+              rule="overdue"
+              onOpenProject={() => onOpenProject?.(it.project)}
               onDismiss={() => onDismiss(key)}
               onSnooze={(showAfter) => onSnooze(key, showAfter)}
-              onCancel={() => onCancel(it.client.id, it.id, it.kind)}
             />
           );
         })}
@@ -5663,45 +5796,60 @@ function RemindersSection({
             </SwipeDismissCard>
           );
         })}
-        {soonList.map((it) => {
+        {soonFeed.map((entry) => {
+          if (entry.source === 'project') {
+            const it = entry.item;
+            const key = soonProjectSessionReminderKey(it);
+            return (
+              <ProjectSessionReminderCard
+                key={key}
+                item={it}
+                rule="soon"
+                onOpenProject={() => onOpenProject?.(it.project)}
+                onDismiss={() => onDismiss(key)}
+                onSnooze={(showAfter) => onSnooze(key, showAfter)}
+              />
+            );
+          }
+          const it = entry.item;
           const key = soonReminderKey(it);
           return (
             <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
               {(flyOutThen) => (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                  padding: '9px 10px',
-                  borderRadius: 2,
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  background: 'rgba(var(--surface-rgb),0.018)',
-                }}
-              >
-                <div onClick={() => onOpenEntry(it.client.id, it.id, it.kind)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-                  <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {it.client.name || '—'}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    padding: '9px 10px',
+                    borderRadius: 2,
+                    border: '1px solid rgba(var(--gold-rgb),0.2)',
+                    background: 'rgba(var(--surface-rgb),0.018)',
+                  }}
+                >
+                  <div onClick={() => onOpenEntry(it.client.id, it.id, it.kind)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                    <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {it.client.name || '—'}
+                    </div>
+                    <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2 }}>
+                      Скоро: {it.kind === 'session' ? 'сессия' : 'консультация'} · {formatDate(it.date)}
+                      {it.time && ` · ${it.time}`}
+                    </div>
                   </div>
-                  <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2 }}>
-                    Скоро: {it.kind === 'session' ? 'сессия' : 'консультация'} · {formatDate(it.date)}
-                    {it.time && ` · ${it.time}`}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <CopyMessageButton
+                      text={soonReminderMessage(it)}
+                      client={it.client}
+                      onOpenChange={(open) => setRaisedKey(open ? key : null)}
+                    />
+                    <ReminderMenuButton
+                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
+                      onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
+                      onHide={() => flyOutThen(() => onDismiss(key))}
+                    />
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <CopyMessageButton
-                    text={soonReminderMessage(it)}
-                    client={it.client}
-                    onOpenChange={(open) => setRaisedKey(open ? key : null)}
-                  />
-                  <ReminderMenuButton
-                    onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
-                    onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
-                    onHide={() => flyOutThen(() => onDismiss(key))}
-                  />
-                </div>
-              </div>
               )}
             </SwipeDismissCard>
           );
@@ -5888,6 +6036,8 @@ function AdminDashboardScreen({
   overdue,
   healing,
   soon,
+  overdueProjectSessions,
+  soonProjectSessions,
   dueProjects,
   tasks,
   onOpenProject,
@@ -5914,6 +6064,8 @@ function AdminDashboardScreen({
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon: UpcomingSoonItem[];
+  overdueProjectSessions: ProjectSessionReminderItem[];
+  soonProjectSessions: ProjectSessionReminderItem[];
   // Проекты с просроченным «следующим шагом» — в напоминания (Этап 3b).
   dueProjects: Project[];
   // Task-напоминания (ClientNote.dueDate) — поверх того же engine.
@@ -6056,6 +6208,8 @@ function AdminDashboardScreen({
           overdue={overdue}
           healing={healing}
           soon={soon}
+          overdueProjectSessions={overdueProjectSessions}
+          soonProjectSessions={soonProjectSessions}
           dueProjects={dueProjects}
           tasks={tasks}
           onOpenProject={onOpenProject}
