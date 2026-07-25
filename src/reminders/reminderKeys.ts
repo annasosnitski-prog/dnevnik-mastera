@@ -8,6 +8,24 @@
 import type { Project } from '../domain/project';
 import type { OverdueItem, HealingItem, UpcomingSoonItem } from './types';
 
+// Полный id Task-напоминания (reminder.id) — им же ключуется «скрыть» (hide):
+// зависит от sourceId (client/master + конкретная задача), rule и dueDate.
+// Rule в ключе — намеренно: скрыть задачу «на сегодня» (task_due) закрывает
+// именно ЭТОТ экземпляр; когда завтра та же задача становится просроченной
+// (task_overdue), id меняется, и overdue-напоминание появляется заново.
+export function taskReminderKey(params: { sourceId: string; rule: string; dueDate: string }): string {
+  return `task:${params.sourceId}:${params.rule}:${params.dueDate}`;
+}
+
+// Устойчивый action-key задачи — им ключуется «отложить» (snooze). В отличие
+// от reminder.id, НЕ зависит от rule: задача, отложенная «на сегодня», не
+// должна вынырнуть завтра только из-за перехода task_due → task_overdue.
+// Зависит от sourceId (scope + конкретная задача) и dueDate — смена срока
+// мастером = новое обязательство, откладывание при этом сбрасывается.
+export function taskReminderActionKey(params: { sourceId: string; dueDate: string }): string {
+  return `task-action:${params.sourceId}:${params.dueDate}`;
+}
+
 export function overdueReminderKey(it: OverdueItem): string {
   return `overdue:${it.kind}:${it.id}`;
 }

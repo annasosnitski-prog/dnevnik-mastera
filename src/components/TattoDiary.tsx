@@ -68,8 +68,9 @@ import {
 } from '../domain/plannerSelectors';
 // Логика напоминаний вынесена в src/reminders/* (PR 4 рефакторинга). Строители
 // теперь получают `now` аргументом; ключ проекта исправлен (см. reminderKeys).
-import type { OverdueItem, HealingItem, UpcomingSoonItem } from '../reminders/types';
+import type { OverdueItem, HealingItem, UpcomingSoonItem, TaskReminderItem } from '../reminders/types';
 import { overdueEntries, healingReminders, upcomingSoonReminders, overdueProjects } from '../reminders/buildReminders';
+import { taskReminderSources, taskReminders, filterVisibleTaskReminders } from '../reminders/buildTaskReminders';
 import { overdueReminderKey, healingReminderKey, soonReminderKey, projectReminderKey } from '../reminders/reminderKeys';
 import {
   type ReminderState,
@@ -2308,6 +2309,41 @@ export default function TattoDiary() {
     setShowNewSessionForm(true);
   };
 
+  // «Выполнить» на Task-напоминании — ставит done в ТОМ хранилище, откуда
+  // задача пришла (scope), не трогая одноимённую задачу в другом. Само
+  // напоминание после этого уходит через фильтр done в taskReminders(), без
+  // отдельной записи в dismissedIds.
+  const completeTaskReminder = (item: TaskReminderItem) => {
+    if (item.scope === 'client') {
+      const client = clients.find((c) => c.id === item.clientId);
+      const task = client?.notes.find((n) => n.id === item.taskId);
+      if (!client || !task) return;
+      upsertNote(client.id, { ...task, done: true });
+    } else {
+      setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === item.taskId ? { ...n, done: true } : n)) });
+    }
+  };
+
+  // «Открыть» — проект, если задача к нему привязана; иначе клиент (для
+  // клиентской задачи) или существующий экран «Сводка» с мастерскими
+  // задачами (для задачи без клиента) — новый экран не заводим.
+  const openTaskReminder = (item: TaskReminderItem) => {
+    if (item.projectId) {
+      const project = projects.find((p) => p.id === item.projectId);
+      if (project) {
+        setViewProject(project);
+        return;
+      }
+    }
+    if (item.scope === 'client' && item.clientId) {
+      setSelectedId(item.clientId);
+      setActiveTab('extra');
+      setScreen('detail');
+      return;
+    }
+    setScreen('summary');
+  };
+
   const handleCreateClient = (data: {
     name: string;
     surname: string;
@@ -2448,6 +2484,16 @@ export default function TattoDiary() {
   const visibleSoon = filterVisibleReminders(upcomingSoonReminders(clients, remindersNow), soonReminderKey, reminderState, remindersNow);
   // Проекты с просроченным «следующим шагом» (Этап 3b) — в те же напоминания.
   const visibleDueProjects = filterVisibleReminders(overdueProjects(projects, remindersNow), projectReminderKey, reminderState, remindersNow);
+  // Task-напоминания (ClientNote.dueDate) — поверх того же engine, оба
+  // источника задач (client.notes + masterInfo.notes), не объединяя их.
+  // Свой фильтр видимости: скрытие ключуется по reminder.id (с rule),
+  // откладывание — по устойчивому actionKey (без rule), см.
+  // filterVisibleTaskReminders.
+  const visibleTaskReminders = filterVisibleTaskReminders(
+    taskReminders(taskReminderSources(clients, masterInfo.notes), remindersNow),
+    reminderState,
+    remindersNow,
+  );
 
   // Set the text-size multiplier for this render pass before any child renders.
   TEXT_SCALE = prefs.textScale;
@@ -2919,8 +2965,12 @@ export default function TattoDiary() {
           active={screen}
           onNavigate={(s) => setScreen(s)}
           adminBadges={[
-            ...(visibleOverdue.length > 0 ? (['urgent'] as const) : []),
-            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleDueProjects.length > 0 ? (['reminder'] as const) : []),
+            // Просроченная задача (task_overdue) — как urgent; задача на
+            // сегодня (task_due) — как reminder, рядом с healing/soon/проекты.
+            ...(visibleOverdue.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_overdue') ? (['urgent'] as const) : []),
+            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleDueProjects.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_due')
+              ? (['reminder'] as const)
+              : []),
           ]}
           // Contextual create — same action each screen's own «+» used to
           // trigger, now all reachable from one place. Мастер has none.
@@ -3113,11 +3163,14 @@ export default function TattoDiary() {
             healing={visibleHealing}
             soon={visibleSoon}
             dueProjects={visibleDueProjects}
+            tasks={visibleTaskReminders}
             onOpenProject={(project) => setViewProject(project)}
             onOpenEntry={openEntryForEdit}
             onDismissReminder={handleDismissReminder}
             onSnoozeReminder={handleSnoozeReminder}
             onCancelEntry={markEntryCancelled}
+            onCompleteTask={completeTaskReminder}
+            onOpenTask={openTaskReminder}
             onOpenNotes={(urgency) => {
               setSummaryFilter(urgency);
               setScreen('summary');
@@ -5520,29 +5573,36 @@ function RemindersSection({
   healing,
   soon,
   dueProjects,
+  tasks,
   onOpenProject,
   onOpenEntry,
   onDismiss,
   onSnooze,
   onCancel,
+  onCompleteTask,
+  onOpenTask,
 }: {
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon?: UpcomingSoonItem[];
   dueProjects?: Project[];
+  tasks?: TaskReminderItem[];
   onOpenProject?: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismiss: (key: string) => void;
   onSnooze: (key: string, showAfter: string) => void;
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  onCompleteTask?: (item: TaskReminderItem) => void;
+  onOpenTask?: (item: TaskReminderItem) => void;
 }) {
   const soonList = soon ?? [];
   const dueProjectsList = dueProjects ?? [];
+  const taskList = tasks ?? [];
   // Which card's CopyMessageButton contacts popover is open, if any — that
   // card gets `raised` so its popover isn't trapped behind a later sibling's
   // own stacking context (see SwipeDismissCard's `raised` doc comment).
   const [raisedKey, setRaisedKey] = useState<string | null>(null);
-  if (overdue.length === 0 && healing.length === 0 && soonList.length === 0 && dueProjectsList.length === 0) return null;
+  if (overdue.length === 0 && healing.length === 0 && soonList.length === 0 && dueProjectsList.length === 0 && taskList.length === 0) return null;
   return (
     <div>
       <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>
@@ -5685,6 +5745,66 @@ function RemindersSection({
             </SwipeDismissCard>
           );
         })}
+        {taskList.map((it) => {
+          // Скрыть → reminder.id (с rule); отложить → actionKey (без rule),
+          // чтобы откладывание пережило переход due→overdue (см. reminderKeys).
+          const dismissKey = it.id;
+          const snoozeKey = it.actionKey;
+          const chipStyle: React.CSSProperties = {
+            fontSize: fs(11),
+            color: COLORS.textFaint,
+            border: '1px solid rgba(var(--gold-rgb),0.2)',
+            borderRadius: 2,
+            padding: '4px 9px',
+            letterSpacing: '0.6px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          };
+          return (
+            <SwipeDismissCard key={it.id} onSwipeComplete={() => onDismiss(dismissKey)} raised={raisedKey === it.id}>
+              {(flyOutThen) => (
+                <div
+                  style={{
+                    padding: '9px 10px',
+                    borderRadius: 2,
+                    border: it.rule === 'task_overdue' ? '1px solid rgba(224,102,90,0.35)' : '1px solid rgba(var(--gold-rgb),0.2)',
+                    background: it.rule === 'task_overdue' ? 'rgba(224,102,90,0.06)' : 'rgba(var(--surface-rgb),0.018)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <div onClick={() => onOpenTask?.(it)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                      <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {it.text || 'Задача'}
+                      </div>
+                      <div style={{ fontSize: fs(11), color: it.rule === 'task_overdue' ? 'var(--urgent)' : COLORS.gold, marginTop: 2 }}>
+                        {it.rule === 'task_overdue' ? 'Просрочена' : 'Срок сегодня'} · {formatDate(it.dueDate)}
+                      </div>
+                    </div>
+                    <ReminderMenuButton
+                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfter(1)))}
+                      onSnooze3Days={() => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfter(3)))}
+                      onHide={() => flyOutThen(() => onDismiss(dismissKey))}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+                    <div onClick={() => flyOutThen(() => onCompleteTask?.(it))} role="button" aria-label="Выполнить" style={chipStyle}>
+                      Выполнить
+                    </div>
+                    <div
+                      onClick={() => onOpenTask?.(it)}
+                      role="button"
+                      aria-label="Открыть"
+                      style={{ ...chipStyle, color: COLORS.gold, border: '1px solid rgba(var(--gold-rgb),0.4)' }}
+                    >
+                      Открыть
+                    </div>
+                  </div>
+                </div>
+              )}
+            </SwipeDismissCard>
+          );
+        })}
       </div>
     </div>
   );
@@ -5770,11 +5890,14 @@ function AdminDashboardScreen({
   healing,
   soon,
   dueProjects,
+  tasks,
   onOpenProject,
   onOpenEntry,
   onDismissReminder,
   onSnoozeReminder,
   onCancelEntry,
+  onCompleteTask,
+  onOpenTask,
   calendarSync,
   onOpenNotes,
   onMigrateRecords,
@@ -5794,11 +5917,15 @@ function AdminDashboardScreen({
   soon: UpcomingSoonItem[];
   // Проекты с просроченным «следующим шагом» — в напоминания (Этап 3b).
   dueProjects: Project[];
+  // Task-напоминания (ClientNote.dueDate) — поверх того же engine.
+  tasks: TaskReminderItem[];
   onOpenProject: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
   onSnoozeReminder: (key: string, showAfter: string) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
+  onCompleteTask: (item: TaskReminderItem) => void;
+  onOpenTask: (item: TaskReminderItem) => void;
   calendarSync: CalendarSyncSettings;
   // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
@@ -5924,7 +6051,20 @@ function AdminDashboardScreen({
 
         {/* Уведомления и напоминания идут наверх, над блоком предстоящих
             сессий — это то, что требует внимания мастера в первую очередь. */}
-        <RemindersSection overdue={overdue} healing={healing} soon={soon} dueProjects={dueProjects} onOpenProject={onOpenProject} onOpenEntry={onOpenEntry} onDismiss={onDismissReminder} onSnooze={onSnoozeReminder} onCancel={onCancelEntry} />
+        <RemindersSection
+          overdue={overdue}
+          healing={healing}
+          soon={soon}
+          dueProjects={dueProjects}
+          tasks={tasks}
+          onOpenProject={onOpenProject}
+          onOpenEntry={onOpenEntry}
+          onDismiss={onDismissReminder}
+          onSnooze={onSnoozeReminder}
+          onCancel={onCancelEntry}
+          onCompleteTask={onCompleteTask}
+          onOpenTask={onOpenTask}
+        />
 
         {/* Upcoming sessions, with a master-configurable lookahead window —
             same period picker as the stats grid below, so the two controls
