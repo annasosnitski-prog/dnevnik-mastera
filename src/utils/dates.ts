@@ -6,6 +6,20 @@ export const MONTHS_RU = ['янв', 'фев', 'мар', 'апр', 'мая', 'и�
 
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Строгая проверка ISO yyyy-mm-dd: формат ISO_DATE_RE недостаточен сам по
+// себе — «2026-02-31» ему соответствует, хотя такой календарной даты не
+// существует. Здесь дополнительно проверяем, что y/m/d, собранные обратно
+// через Date, дают ТЕ ЖЕ y/m/d — JS Date молча переносит переполнение
+// (31 февраля → 3 марта), несовпадение после сборки и означает невалидную
+// дату. 29 февраля пропускает только високосные годы естественным образом
+// (Date сам это учитывает).
+export function isValidISODate(value: unknown): value is string {
+  if (typeof value !== 'string' || !ISO_DATE_RE.test(value)) return false;
+  const [y, mo, d] = value.split('-').map(Number);
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+}
+
 // Formats an ISO yyyy-mm-dd as "24 мая 2026"; leaves legacy free-text as-is.
 export function formatDate(value: string): string {
   if (!value) return '';

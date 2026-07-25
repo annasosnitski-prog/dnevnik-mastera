@@ -47,7 +47,7 @@ import {
 } from '../domain/client';
 // Чистые выборки/сортировки/агрегаты вынесены в domain/*Selectors и
 // utils/dates (PR 3 рефакторинга). Алгоритмы и результаты не менялись.
-import { ISO_DATE_RE, formatDate, dateParts, todayISO } from '../utils/dates';
+import { ISO_DATE_RE, formatDate, dateParts, todayISO, isValidISODate } from '../utils/dates';
 import {
   getProjectById,
   getProjectsByClientId,
@@ -472,7 +472,7 @@ function normalizeClient(raw: any, index: number): Client {
           createdDate: n?.createdDate ?? new Date().toISOString(),
           photos: Array.isArray(n?.photos) ? n.photos : [],
           projectId: n?.projectId ?? null,
-          dueDate: typeof n?.dueDate === 'string' && ISO_DATE_RE.test(n.dueDate) ? n.dueDate : null,
+          dueDate: isValidISODate(n?.dueDate) ? n.dueDate : null,
         }))
       : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
@@ -1479,7 +1479,7 @@ function readInitialMasterInfo(): MasterInfo {
               createdDate: n?.createdDate ?? new Date().toISOString(),
               photos: Array.isArray(n?.photos) ? n.photos : [],
               projectId: n?.projectId ?? null,
-              dueDate: typeof n?.dueDate === 'string' && ISO_DATE_RE.test(n.dueDate) ? n.dueDate : null,
+              dueDate: isValidISODate(n?.dueDate) ? n.dueDate : null,
             }))
           : [],
       };
