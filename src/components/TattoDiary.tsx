@@ -413,6 +413,22 @@ function normalizeSession(s: any, i: number): Session {
   };
 }
 
+// Единая нормализация ClientNote для клиентских и мастерских задач, включая
+// импорт старых/повреждённых данных. idPrefix сохраняет прежние fallback-id:
+// `n` для client.notes и `m` для masterInfo.notes.
+function normalizeClientNote(raw: any, index: number, idPrefix: 'n' | 'm' = 'n'): ClientNote {
+  return {
+    id: String(raw?.id ?? `${Date.now()}-${idPrefix}${index}`),
+    text: raw?.text ?? '',
+    urgency: URGENCY.some((u) => u.key === raw?.urgency) ? raw.urgency : LEGACY_URGENCY_MAP[raw?.urgency] ?? 'normal',
+    done: Boolean(raw?.done),
+    createdDate: raw?.createdDate ?? new Date().toISOString(),
+    photos: Array.isArray(raw?.photos) ? raw.photos : [],
+    projectId: raw?.projectId ?? null,
+    dueDate: isValidISODate(raw?.dueDate) ? raw.dueDate : null,
+  };
+}
+
 function normalizeClient(raw: any, index: number): Client {
   const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
 
@@ -464,18 +480,7 @@ function normalizeClient(raw: any, index: number): Client {
         }))
       : [],
     documents: Array.isArray(raw?.documents) ? raw.documents : [],
-    notes: Array.isArray(raw?.notes)
-      ? raw.notes.map((n: any, i: number): ClientNote => ({
-          id: String(n?.id ?? `${Date.now()}-n${i}`),
-          text: n?.text ?? '',
-          urgency: URGENCY.some((u) => u.key === n?.urgency) ? n.urgency : LEGACY_URGENCY_MAP[n?.urgency] ?? 'normal',
-          done: Boolean(n?.done),
-          createdDate: n?.createdDate ?? new Date().toISOString(),
-          photos: Array.isArray(n?.photos) ? n.photos : [],
-          projectId: n?.projectId ?? null,
-          dueDate: isValidISODate(n?.dueDate) ? n.dueDate : null,
-        }))
-      : [],
+    notes: Array.isArray(raw?.notes) ? raw.notes.map((n: any, i: number) => normalizeClientNote(n, i, 'n')) : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
   };
 }
@@ -1471,18 +1476,7 @@ function readInitialMasterInfo(): MasterInfo {
         telegramBotLink: typeof p.telegramBotLink === 'string' ? p.telegramBotLink : '',
         chatLinks,
         colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
-        notes: Array.isArray(p.notes)
-          ? p.notes.map((n: any, i: number): ClientNote => ({
-              id: String(n?.id ?? `${Date.now()}-m${i}`),
-              text: n?.text ?? '',
-              urgency: URGENCY.some((u) => u.key === n?.urgency) ? n.urgency : LEGACY_URGENCY_MAP[n?.urgency] ?? 'normal',
-              done: Boolean(n?.done),
-              createdDate: n?.createdDate ?? new Date().toISOString(),
-              photos: Array.isArray(n?.photos) ? n.photos : [],
-              projectId: n?.projectId ?? null,
-              dueDate: isValidISODate(n?.dueDate) ? n.dueDate : null,
-            }))
-          : [],
+        notes: Array.isArray(p.notes) ? p.notes.map((n: any, i: number) => normalizeClientNote(n, i, 'm')) : [],
       };
     }
   } catch {
@@ -1840,18 +1834,20 @@ export default function TattoDiary() {
     tx.onerror = () => setDbError('Не удалось удалить клиента.');
   };
 
-  // Импорт полного бэкапа (Этап 2): clients + опционально projects и
-  // contentEntries. Стор трогаем ТОЛЬКО если соответствующий массив есть в
-  // файле — старый бэкап (только clients) не затирает проекты/контент.
+  // Импорт полного бэкапа: clients + опционально projects/contentEntries и
+  // masterNotes. Старые бэкапы без опциональных массивов не стирают текущие
+  // данные. masterNotes применяются только после успешной IDB-транзакции.
   const replaceAllData = (bundle: {
     clients: Client[];
     projects?: Project[];
     contentEntries?: ContentEntry[];
+    masterNotes?: ClientNote[];
   }) => {
     if (!db) {
       setDbError('Хранилище недоступно — импорт не выполнен.');
       return;
     }
+    const importedMasterNotes = bundle.masterNotes;
     const stores = ['clients'];
     if (bundle.projects) stores.push('projects');
     if (bundle.contentEntries) stores.push('contentEntries');
@@ -1873,6 +1869,9 @@ export default function TattoDiary() {
       loadClients(db);
       if (bundle.projects) loadProjects(db);
       if (bundle.contentEntries) loadContentEntries(db);
+      if (importedMasterNotes !== undefined) {
+        setMasterInfo((prev) => ({ ...prev, notes: importedMasterNotes }));
+      }
     };
     tx.onerror = () => setDbError('Не удалось импортировать данные.');
   };
@@ -5907,9 +5906,9 @@ function AdminDashboardScreen({
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
-  // Импорт полного бэкапа: clients + опционально projects/contentEntries.
-  onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[] }) => void;
-  // Нужны для экспорта в бэкап (Этап 2 — раньше выгружались только clients).
+  // Импорт полного бэкапа: clients + опционально projects/contentEntries/masterNotes.
+  onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[]; masterNotes?: ClientNote[] }) => void;
+  // Нужны для полного экспорта в backup.
   projects: Project[];
   contentEntries: ContentEntry[];
   overdue: OverdueItem[];
@@ -5946,12 +5945,13 @@ function AdminDashboardScreen({
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   // Parsed and normalized, waiting on the inline «Да/Нет» confirm below —
   // replaces window.confirm() so the prompt matches the app's own dialogs.
-  // projects/contentEntries присутствуют только у бэкапов версии 2; у старых
-  // (только clients) они undefined и соответствующие сторы не трогаются.
+  // Опциональные поля отсутствуют в старых backup и тогда текущие данные
+  // соответствующих хранилищ не меняются.
   const [pendingImport, setPendingImport] = useState<{
     clients: Client[];
     projects?: Project[];
     contentEntries?: ContentEntry[];
+    masterNotes?: ClientNote[];
   } | null>(null);
   // Миграция «Собрать старые записи в проекты» — двухшаговое подтверждение
   // (сначала напоминаем про бэкап) + сообщение о результате.
@@ -5962,10 +5962,9 @@ function AdminDashboardScreen({
   );
 
   const handleExport = async () => {
-    // Версия 2: кроме clients выгружаем projects и contentEntries, чтобы
-    // проекты (в т.ч. корзины миграции) и черновики контента переживали
-    // восстановление. Старые бэкапы (version 1, только clients) читаются.
-    const payload = { version: 2, exportedAt: new Date().toISOString(), clients, projects, contentEntries };
+    // Версия 3 добавляет только задачи мастера. Остальные поля masterInfo
+    // намеренно не экспортируются. Backup version 1/2 продолжают читаться.
+    const payload = { version: 3, exportedAt: new Date().toISOString(), clients, projects, contentEntries, masterNotes };
     const json = JSON.stringify(payload, null, 2);
     const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
     await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');
@@ -5983,9 +5982,11 @@ function AdminDashboardScreen({
         setPendingImport({
           clients: rawClients.map((c: any, i: number) => normalizeClient(c, i)),
           // Только если ключ реально есть в файле — иначе оставляем undefined,
-          // чтобы импорт старого бэкапа не стёр текущие проекты/контент.
+          // чтобы импорт старого бэкапа не стёр текущие данные. Повреждённое
+          // masterNotes тоже считается отсутствующим; [] остаётся валидным.
           projects: Array.isArray(parsed?.projects) ? parsed.projects.map((p: any, i: number) => normalizeProject(p, i)) : undefined,
           contentEntries: Array.isArray(parsed?.contentEntries) ? (parsed.contentEntries as ContentEntry[]) : undefined,
+          masterNotes: Array.isArray(parsed?.masterNotes) ? parsed.masterNotes.map((n: any, i: number) => normalizeClientNote(n, i, 'm')) : undefined,
         });
       } catch {
         setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
