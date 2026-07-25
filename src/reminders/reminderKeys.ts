@@ -6,7 +6,7 @@
 // см. actionSignature ниже.
 
 import type { Project } from '../domain/project';
-import type { OverdueItem, HealingItem, UpcomingSoonItem } from './types';
+import type { OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
 
 // Полный id Task-напоминания (reminder.id) — им же ключуется «скрыть» (hide):
 // зависит от sourceId (client/master + конкретная задача), rule и dueDate.
@@ -36,6 +36,14 @@ export function healingReminderKey(it: HealingItem): string {
 
 export function soonReminderKey(it: UpcomingSoonItem): string {
   return `soon:${it.kind}:${it.id}`;
+}
+
+export function overdueProjectSessionReminderKey(it: ProjectSessionReminderItem): string {
+  return `project-session:overdue:${it.project.id}:${it.sessionId}`;
+}
+
+export function soonProjectSessionReminderKey(it: ProjectSessionReminderItem): string {
+  return `project-session:soon:${it.project.id}:${it.sessionId}`;
 }
 
 // Нормализация свободного текста действия перед построением подписи: убрать

@@ -2,6 +2,7 @@
 // (PR 4 рефакторинга) — те же поля, что и раньше.
 
 import type { Client } from '../domain/client';
+import type { Project } from '../domain/project';
 import type { ClientNote } from '../domain/task';
 import type { UrgencyKey } from '../domain/urgency';
 
@@ -17,6 +18,11 @@ export type HealingItem = { client: Client; sessionId: string; date: string };
 // Sessions/consultations starting 36–48 hours from now — a heads-up to prep
 // materials before the client arrives.
 export type UpcomingSoonItem = { client: Client; kind: 'session' | 'consultation'; id: string; date: string; time: string };
+
+// A session stored directly on a project without a client. It deliberately
+// carries its Project instead of fabricating a Client, so opening the reminder
+// can route straight to the existing project viewer.
+export type ProjectSessionReminderItem = { project: Project; sessionId: string; date: string; time: string };
 
 // A ClientNote (Task = ClientNote, см. TECH_REFACTOR_AUDIT.md), normalized
 // with where it physically lives — client.notes (IndexedDB) or
