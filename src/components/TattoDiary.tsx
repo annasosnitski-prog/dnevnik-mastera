@@ -472,6 +472,7 @@ function normalizeClient(raw: any, index: number): Client {
           createdDate: n?.createdDate ?? new Date().toISOString(),
           photos: Array.isArray(n?.photos) ? n.photos : [],
           projectId: n?.projectId ?? null,
+          dueDate: typeof n?.dueDate === 'string' && ISO_DATE_RE.test(n.dueDate) ? n.dueDate : null,
         }))
       : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
@@ -1478,6 +1479,7 @@ function readInitialMasterInfo(): MasterInfo {
               createdDate: n?.createdDate ?? new Date().toISOString(),
               photos: Array.isArray(n?.photos) ? n.photos : [],
               projectId: n?.projectId ?? null,
+              dueDate: typeof n?.dueDate === 'string' && ISO_DATE_RE.test(n.dueDate) ? n.dueDate : null,
             }))
           : [],
       };
@@ -3015,12 +3017,12 @@ export default function TattoDiary() {
               setViewEntry({ kind: 'consultation', clientId, id: consultationId });
             }}
             onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
-            onAddMasterNote={(text, urgency, photos) =>
+            onAddMasterNote={(text, urgency, photos, dueDate) =>
               setMasterInfo({
                 ...masterInfo,
                 notes: [
                   ...masterInfo.notes,
-                  { id: Date.now().toString(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId: null },
+                  { id: Date.now().toString(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId: null, dueDate },
                 ],
               })
             }
@@ -3217,7 +3219,7 @@ export default function TattoDiary() {
             // before anything is typed) could eat a task the master already
             // wrote if they dismissed the game — leaving some clients missing
             // tasks they thought they'd saved. Notes always save immediately.
-            onAddNote={(text, urgency, photos) =>
+            onAddNote={(text, urgency, photos, dueDate) =>
               upsertNote(selectedClient.id, {
                 id: Date.now().toString(),
                 text,
@@ -3226,6 +3228,7 @@ export default function TattoDiary() {
                 createdDate: new Date().toISOString(),
                 photos,
                 projectId: null,
+                dueDate,
               })
             }
             onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
@@ -7254,7 +7257,7 @@ function SummaryScreen({
   onOpenClient: (id: string) => void;
   onOpenConsultation: (clientId: string, consultationId: string) => void;
   onOpenSession: (clientId: string, sessionId: string) => void;
-  onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
+  onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
   onDeleteMasterNote: (noteId: string) => void;
@@ -7538,8 +7541,8 @@ function SummaryScreen({
                 <ReminderCloseButton onClick={() => onShowComposerChange(false)} />
               </div>
               <NoteComposer
-                onAdd={(text, urgency, photos) => {
-                  onAddMasterNote(text, urgency, photos);
+                onAdd={(text, urgency, photos, dueDate) => {
+                  onAddMasterNote(text, urgency, photos, dueDate);
                   onShowComposerChange(false);
                 }}
               />
@@ -7556,7 +7559,7 @@ function SummaryScreen({
                 note={note}
                 projects={clientlessProjects}
                 onToggleDone={() => onToggleMasterDone({ ...note, done: !note.done })}
-                onEdit={(text, urgency, projectId) => onEditMasterNote({ ...note, text, urgency, projectId })}
+                onEdit={(text, urgency, projectId, dueDate) => onEditMasterNote({ ...note, text, urgency, projectId, dueDate })}
                 onDelete={() => onDeleteMasterNote(note.id)}
               />
             ))
@@ -7580,7 +7583,7 @@ function SummaryScreen({
                   client={client!}
                   projects={getProjectsByClientId(projects, client!.id)}
                   onToggleDone={() => onToggleDone(client!.id, { ...note, done: !note.done })}
-                  onEdit={(text, urgency, projectId) => onEditNote(client!.id, { ...note, text, urgency, projectId })}
+                  onEdit={(text, urgency, projectId, dueDate) => onEditNote(client!.id, { ...note, text, urgency, projectId, dueDate })}
                   onDelete={() => onDeleteNote(client!.id, note.id)}
                 />
               </div>
@@ -7779,7 +7782,7 @@ function DetailScreen({
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
+  onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
   onDeleteNote: (noteId: string) => void;
   // Merge-import (add/update, never clears) — the counterpart to this same
   // screen's client export, so a single exported client's file can be
@@ -9927,7 +9930,7 @@ function NoteItem({
   onToggleDone: () => void;
   onDelete?: () => void;
   onUpdatePhotos?: (photos: string[]) => void;
-  onEdit?: (text: string, urgency: UrgencyKey, projectId: string | null) => void;
+  onEdit?: (text: string, urgency: UrgencyKey, projectId: string | null, dueDate: string | null) => void;
   client?: Client;
   // Candidate projects this note could be tied to — a client note only
   // offers that client's own projects, a master (client-less) note only
@@ -9939,6 +9942,7 @@ function NoteItem({
   const [draftText, setDraftText] = useState(note.text);
   const [draftUrgency, setDraftUrgency] = useState<UrgencyKey>(note.urgency);
   const [draftProjectId, setDraftProjectId] = useState<string | null>(note.projectId);
+  const [draftDueDate, setDraftDueDate] = useState(note.dueDate ?? '');
   // Actions (Выполнено/Изменить/Удалить) live behind a «⋮» overflow menu —
   // only the urgency symbol stays visible at rest, mirroring the filter bar.
   const [showActions, setShowActions] = useState(false);
@@ -9954,12 +9958,13 @@ function NoteItem({
     setDraftText(note.text);
     setDraftUrgency(note.urgency);
     setDraftProjectId(note.projectId);
+    setDraftDueDate(note.dueDate ?? '');
     setEditing(true);
     setShowActions(false);
   };
   const saveEdit = () => {
     const trimmed = draftText.trim();
-    if (trimmed && onEdit) onEdit(trimmed, draftUrgency, draftProjectId);
+    if (trimmed && onEdit) onEdit(trimmed, draftUrgency, draftProjectId, draftDueDate || null);
     setEditing(false);
   };
 
@@ -10038,6 +10043,12 @@ function NoteItem({
                 ))}
               </select>
             )}
+            <input
+              type="date"
+              value={draftDueDate}
+              onChange={(e) => setDraftDueDate(e.target.value)}
+              style={{ ...INPUT_STYLE, marginTop: 8 }}
+            />
           </div>
         ) : (
           <div
@@ -10052,6 +10063,11 @@ function NoteItem({
             }}
           >
             {note.text}
+          </div>
+        )}
+        {note.dueDate && !editing && (
+          <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '0.5px', marginTop: 4 }}>
+            Срок: {formatDate(note.dueDate)}
           </div>
         )}
         {!client && !editing && (
@@ -10224,17 +10240,19 @@ function NoteItem({
 
 // Compose a new note: text + urgency marker + any photos, all attached before
 // the note is saved (photos live on the note from the moment it's created).
-function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey, photos: string[]) => void }) {
+function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void }) {
   const [text, setText] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
+  const [dueDate, setDueDate] = useState('');
   const submit = () => {
     const t = text.trim();
     if (!t) return;
-    onAdd(t, urgency, photos);
+    onAdd(t, urgency, photos, dueDate || null);
     setText('');
     setUrgency('important');
     setPhotos([]);
+    setDueDate('');
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -10260,6 +10278,12 @@ function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey, ph
         }}
       />
       <UrgencyChips value={urgency} onPick={setUrgency} />
+      <div>
+        <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+          Срок (необязательно)
+        </div>
+        <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={INPUT_STYLE} />
+      </div>
       {/* Attach photos to the note up front — button first so it reads as an
           action even before any thumbnails exist. */}
       <SessionPhotos photos={photos} onChange={setPhotos} allowDelete buttonFirst />
@@ -10299,7 +10323,7 @@ function AdditionalTab({
   // This client's own projects — candidates a note/task can be tied to.
   projects: Project[];
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey, photos: string[]) => void;
+  onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
   const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
@@ -10325,7 +10349,7 @@ function AdditionalTab({
               onToggleDone={() => toggleDone(n)}
               onDelete={() => onDeleteNote(n.id)}
               onUpdatePhotos={(photos) => onUpsertNote({ ...n, photos })}
-              onEdit={(text, urgency, projectId) => onUpsertNote({ ...n, text, urgency, projectId })}
+              onEdit={(text, urgency, projectId, dueDate) => onUpsertNote({ ...n, text, urgency, projectId, dueDate })}
             />
           ))}
         </div>

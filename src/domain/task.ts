@@ -1,7 +1,5 @@
 // Доменный тип задачи/заметки. В коде исторически называется ClientNote
 // (аудит: Task = ClientNote). Вынесено из TattoDiary.tsx без изменений (PR 2).
-// Примечание: поля срока (dueDate) у задачи сейчас НЕТ — его добавление —
-// отдельный будущий PR (см. docs/TECH_REFACTOR_AUDIT.md), не в рамках PR 2.
 
 import type { UrgencyKey } from './urgency';
 
@@ -16,4 +14,9 @@ export interface ClientNote {
   createdDate: string;
   photos: string[];
   projectId: string | null;
+  // Необязательный срок, формат ISO yyyy-mm-dd (см. ISO_DATE_RE в
+  // utils/dates.ts). Не связан с urgency, не выводится автоматически из
+  // createdDate — задаётся мастером явно. Задел на будущий слой Task-
+  // напоминаний (см. docs/TECH_REFACTOR_AUDIT.md); сам слой — другой PR.
+  dueDate: string | null;
 }
