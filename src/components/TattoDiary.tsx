@@ -24,6 +24,7 @@ import {
   type ContentSessionContext,
 } from '../lib/contentSync';
 import { downsizeToPreview } from '../lib/imagePreview';
+import { createContentRefreshRunner } from '../lib/contentRefresh';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
@@ -10768,7 +10769,7 @@ function ViewField({ label, value }: { label: string; value: string }) {
   );
 }
 
-// Пресеты тона — под капотом просто master_instruction в тот же
+// Архетипные chips — под капотом тот же master_instruction в /api/ingest.
 // /api/ingest, см. contentSync.ts. Названы напрямую по семи архетипам
 // contentINKA (см. lib/prompts/archetypes.txt в contentinka), а не по
 // настроению («теплее»/«жёстче») — так кнопка сразу говорит, какой голос
@@ -10776,18 +10777,16 @@ function ViewField({ label, value }: { label: string; value: string }) {
 // opens — ищет в уже написанном черновике фразы/образы, которые стоит
 // сохранить, вместо переписывания с нуля (см. regenerate ниже, шлёт
 // entry.textDraft как previous_draft, backend сам решает, что удержать).
-// Символ вместо полного имени — компактнее в ряд из 8 кнопок; полное имя
-// остаётся в title (подсказка при наведении/долгом тапе).
-// «Ещё вариант» остаётся отдельно как чистая перегенерация без смены архетипа.
-const TONE_PRESETS: { label: string; icon: string; instruction: string }[] = [
-  { label: 'Трикстер', icon: '🦊', instruction: 'открой материал в архетипе Трикстер — резче, прямее, с лёгкой дерзостью, без пафоса' },
-  { label: 'Женщина/Тепло', icon: '🤍', instruction: 'открой материал в архетипе Женщина/Тепло — теплее, мягче, телесно' },
-  { label: 'Исследователь', icon: '🧭', instruction: 'открой материал в архетипе Исследователь — через любопытство и процесс поиска' },
-  { label: 'Мудрец', icon: '🦉', instruction: 'открой материал в архетипе Мудрец — точнее, через понимание сути, без лекции' },
-  { label: 'Дурак', icon: '🃏', instruction: 'открой материал в архетипе Дурак — проще, легче, с сухим юмором' },
-  { label: 'Lover', icon: '🌹', instruction: 'открой материал в архетипе Lover — через чувственность и телесность, без цены' },
-  { label: 'Творец', icon: '🎨', instruction: 'открой материал в архетипе Творец — через форму, материал и рождение образа' },
-  { label: 'Ещё вариант', icon: '🔄', instruction: '' },
+// Названия и инструкции сохранены без изменений; отдельный refresh вынесен
+// из этого набора ниже в действие «Обновить черновик».
+const ARCHETYPE_CHIPS: { label: string; instruction: string }[] = [
+  { label: 'Трикстер', instruction: 'открой материал в архетипе Трикстер — резче, прямее, с лёгкой дерзостью, без пафоса' },
+  { label: 'Женщина/Тепло', instruction: 'открой материал в архетипе Женщина/Тепло — теплее, мягче, телесно' },
+  { label: 'Исследователь', instruction: 'открой материал в архетипе Исследователь — через любопытство и процесс поиска' },
+  { label: 'Мудрец', instruction: 'открой материал в архетипе Мудрец — точнее, через понимание сути, без лекции' },
+  { label: 'Дурак', instruction: 'открой материал в архетипе Дурак — проще, легче, с сухим юмором' },
+  { label: 'Lover', instruction: 'открой материал в архетипе Lover — через чувственность и телесность, без цены' },
+  { label: 'Творец', instruction: 'открой материал в архетипе Творец — через форму, материал и рождение образа' },
 ];
 
 // Полноценный рабочий интерфейс ContentINKA — отдельная страница
@@ -10815,6 +10814,13 @@ function ContentINKAScreen({
   const [composerPhotos, setComposerPhotos] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshRunner = useMemo(() => createContentRefreshRunner(), []);
+  const [refreshingEntryIds, setRefreshingEntryIds] = useState<Set<string>>(() => new Set());
+  const [selectedArchetypeByEntry, setSelectedArchetypeByEntry] = useState<Record<string, string>>({});
+  const [refreshFeedbackByEntry, setRefreshFeedbackByEntry] = useState<Record<string, {
+    kind: 'success' | 'error';
+    message: string;
+  }>>({});
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
 
   const composerClient = clients.find((c) => c.id === composerClientId) ?? null;
@@ -10893,29 +10899,59 @@ function ContentINKAScreen({
     }
   };
 
-  const regenerate = async (entry: ContentEntry, instruction: string) => {
+  const regenerate = async (entry: ContentEntry, instruction: string, selectedArchetype?: string) => {
+    if (refreshRunner.isRunning(entry.id)) return;
     setError(null);
+    setRefreshingEntryIds((current) => {
+      const next = new Set(current);
+      next.add(entry.id);
+      return next;
+    });
+    setRefreshFeedbackByEntry((current) => {
+      const next = { ...current };
+      delete next[entry.id];
+      return next;
+    });
     try {
-      const previews = await Promise.all(
-        entry.photos.map(async (photo, i) => ({ id: `${entry.id}-${i}`, preview_data_url: await downsizeToPreview(photo) })),
-      );
-      const result = await sendToContent({
-        sessionId: entry.sourceId ?? entry.id,
-        sourceType: entry.sourceType,
-        session: entry.context,
-        media: previews,
-        masterInstruction: instruction || undefined,
-        previousDraft: entry.textDraft || undefined,
+      const outcome = await refreshRunner.run({
+        entry,
+        request: async () => {
+          const previews = await Promise.all(
+            entry.photos.map(async (photo, i) => ({ id: `${entry.id}-${i}`, preview_data_url: await downsizeToPreview(photo) })),
+          );
+          return sendToContent({
+            sessionId: entry.sourceId ?? entry.id,
+            sourceType: entry.sourceType,
+            session: entry.context,
+            media: previews,
+            masterInstruction: instruction || undefined,
+            previousDraft: entry.textDraft || undefined,
+          });
+        },
+        save: onSaveEntry,
       });
-      onSaveEntry({
-        ...entry,
-        contentDraft: result.media,
-        visualArchetype: result.visual_archetype,
-        textTriad: result.text_triad,
-        textDraft: result.text_draft,
-      });
+      if (outcome.status === 'ignored') return;
+      if (selectedArchetype) {
+        setSelectedArchetypeByEntry((current) => ({ ...current, [entry.id]: selectedArchetype }));
+      }
+      setRefreshFeedbackByEntry((current) => ({
+        ...current,
+        [entry.id]: { kind: 'success', message: 'Черновик обновлён' },
+      }));
     } catch (err) {
-      setError(err instanceof ContentSyncError ? err.message : 'Не удалось перегенерировать.');
+      setRefreshFeedbackByEntry((current) => ({
+        ...current,
+        [entry.id]: {
+          kind: 'error',
+          message: err instanceof ContentSyncError ? err.message : 'Не удалось обновить черновик. Попробуйте ещё раз.',
+        },
+      }));
+    } finally {
+      setRefreshingEntryIds((current) => {
+        const next = new Set(current);
+        next.delete(entry.id);
+        return next;
+      });
     }
   };
 
@@ -11029,26 +11065,55 @@ function ContentINKAScreen({
                   {entry.textDraft}
                 </div>
               )}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                {TONE_PRESETS.map((preset) => (
-                  <span
-                    key={preset.label}
-                    title={preset.label}
-                    aria-label={preset.label}
-                    onClick={() => regenerate(entry, preset.instruction)}
-                    style={{
-                      fontSize: fs(15),
-                      lineHeight: 1,
-                      color: COLORS.textPrimary,
-                      border: '1px solid rgba(var(--gold-rgb),0.3)',
-                      borderRadius: 2,
-                      padding: '6px 10px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {preset.icon}
+              {(entry.visualArchetype || entry.textTriad) && (
+                <div className="content-archetype-context">
+                  {entry.visualArchetype && <div>Визуальный архетип · {entry.visualArchetype}</div>}
+                  {entry.textTriad && (
+                    <div>
+                      Текстовая триада · {entry.textTriad.opens} · {entry.textTriad.leads} · {entry.textTriad.closes}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="content-archetype-label">Голос текста</div>
+              <div className="content-archetype-chips">
+                {ARCHETYPE_CHIPS.map((preset) => {
+                  const isRefreshing = refreshingEntryIds.has(entry.id);
+                  const isSelected = selectedArchetypeByEntry[entry.id] === preset.label;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      className={`content-archetype-chip${isSelected ? ' is-selected' : ''}`}
+                      aria-pressed={isSelected}
+                      disabled={isRefreshing}
+                      onClick={() => regenerate(entry, preset.instruction, preset.label)}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="content-refresh-row">
+                <button
+                  type="button"
+                  className="content-refresh-action"
+                  disabled={refreshingEntryIds.has(entry.id)}
+                  onClick={() => regenerate(entry, '')}
+                >
+                  <span className={refreshingEntryIds.has(entry.id) ? 'is-spinning' : ''} aria-hidden="true">
+                    ↻
                   </span>
-                ))}
+                  {refreshingEntryIds.has(entry.id) ? 'Обновляю…' : 'Обновить черновик'}
+                </button>
+                {refreshFeedbackByEntry[entry.id] && (
+                  <div
+                    className={`content-refresh-feedback is-${refreshFeedbackByEntry[entry.id].kind}`}
+                    role={refreshFeedbackByEntry[entry.id].kind === 'error' ? 'alert' : 'status'}
+                  >
+                    {refreshFeedbackByEntry[entry.id].message}
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 16 }}>
                 <span onClick={() => shareContentEntry(entry.photos, entry.textDraft)} style={{ fontSize: fs(12), color: COLORS.textGhost, cursor: 'pointer', textDecoration: 'underline' }}>
