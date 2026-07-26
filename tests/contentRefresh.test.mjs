@@ -257,7 +257,7 @@ test('refresh UI keeps loading and feedback local to each entry', () => {
   assert.doesNotMatch(refreshCatch, /setError\(/);
   assert.match(source, /useState<Set<string>>/);
   assert.match(source, /useState<Record<string, \{/);
-  assert.match(source, /disabled=\{refreshingEntryIds\.has\(entry\.id\)\}/);
+  assert.match(source, /disabled=\{refreshingEntryIds\.has\(entry\.id\) \|\| hasUnsavedTextEdit\(entry\)\}/);
   assert.match(source, /refreshFeedbackByEntry\[entry\.id\]/);
   assert.match(source, /Обновляю…/);
   assert.match(source, /Обновить черновик/);
