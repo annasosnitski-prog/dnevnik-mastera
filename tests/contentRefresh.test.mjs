@@ -105,6 +105,9 @@ test('updates the existing entry text without changing its other data', async ()
     visualArchetype: 'creator',
     textTriad: { opens: 'creator', leads: 'sage', closes: 'lover' },
     textDraft: 'Предыдущий текст',
+    translations: {
+      en: { sourceText: 'Предыдущий текст', translatedText: 'Previous text', translatedAt: '2026-07-26T10:05:00.000Z' },
+    },
     status: 'draft',
   };
   const saved = [];

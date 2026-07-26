@@ -2,10 +2,11 @@
 // ДНЕВНИК МАСТЕРА — синхронизация с ContentINKA
 // (мост Дневник → ContentINKA, по образцу calendarSync.ts)
 //
-// Единственный эндпоинт — POST /api/ingest. source_type: session/
+// Генерация использует POST /api/ingest. source_type: session/
 // consultation/freeform; freeform допускает пустой media, если есть
 // непустой session.description. Перегенерация с инструкцией мастера — тот
-// же вызов, с полем master_instruction.
+// же вызов, с полем master_instruction. Готовый текст отдельно переводится
+// через POST /api/translate без повторного ingest и анализа фотографий.
 //
 // БЕЗОПАСНОСТЬ: свой секрет, отдельный от inka-calendar-sync — хранится в
 // своём ключе localStorage, не в бэкапе (тот же принцип, что у секрета
@@ -76,6 +77,67 @@ export interface IngestResult {
 }
 
 export class ContentSyncError extends Error {}
+
+export type ContentTranslationLanguage = 'he' | 'en';
+
+export interface ContentTranslationResult {
+  targetLanguage: ContentTranslationLanguage;
+  translatedText: string;
+}
+
+export interface ContentTranslationEnvironment {
+  readSettings?: () => ContentSyncSettings;
+  fetch?: typeof fetch;
+}
+
+// Отдельная операция над уже готовым textDraft. Использует те же endpoint и
+// secret, что ingest, но никогда не вызывает /api/ingest и не передаёт фото,
+// архетипы или prompt генерации.
+export async function translateContentText(
+  params: { sourceText: string; targetLanguage: ContentTranslationLanguage },
+  environment: ContentTranslationEnvironment = {},
+): Promise<ContentTranslationResult> {
+  if (!params.sourceText.trim()) throw new ContentSyncError('Не удалось перевести текст.');
+
+  const settings = (environment.readSettings ?? readContentSyncSettings)();
+  if (!settings.endpoint || !settings.secret) {
+    throw new ContentSyncError('ContentINKA не настроен.');
+  }
+
+  let response: Response;
+  try {
+    response = await (environment.fetch ?? fetch)(`${settings.endpoint.replace(/\/$/, '')}/api/translate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${settings.secret}`,
+      },
+      body: JSON.stringify({
+        source_text: params.sourceText,
+        target_language: params.targetLanguage,
+      }),
+    });
+  } catch {
+    throw new ContentSyncError('Не удалось связаться с ContentINKA.');
+  }
+
+  if (!response.ok) throw new ContentSyncError('ContentINKA ответил ошибкой.');
+
+  const data = await response.json().catch(() => null);
+  if (
+    !data ||
+    data.target_language !== params.targetLanguage ||
+    typeof data.translated_text !== 'string' ||
+    !data.translated_text.trim()
+  ) {
+    throw new ContentSyncError('Не удалось перевести текст.');
+  }
+
+  return {
+    targetLanguage: params.targetLanguage,
+    translatedText: data.translated_text,
+  };
+}
 
 // media — уже сжатые превью (data URL), не оригиналы; см. downsizeToPreview
 // в src/lib/imagePreview.ts. Может быть пустым массивом только при
