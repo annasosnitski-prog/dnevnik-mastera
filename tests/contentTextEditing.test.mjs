@@ -14,6 +14,7 @@ const draftEntry = {
   id: 'entry-1',
   status: 'draft',
   textDraft: 'Первый абзац\n\nВторой абзац',
+  textArchetype: 'Творец',
   photos: ['original-photo'],
   photoIds: ['photo-id'],
   contentDraft: [{ id: 'photo-id', technical_status: 'kept', selected: true, selection_role: 'cover' }],

@@ -274,6 +274,7 @@ interface ContentEntry {
   format: 'post' | 'story' | null; // прицельный формат («текст для сторис»), если запрашивался
   text: string; // ввод мастера — тема/инструкция, не результат
   context: ContentSessionContext; // снимок на момент генерации — перегенерация не бегает за живой сессией
+  textArchetype?: string | null; // выбранный основной голос; null = Инка выбирает сама
   photos: string[]; // оригиналы (не превью) — те же data URL, что и в Session.photos
   photoIds?: string[]; // стабильные ID в том же порядке, что и photos
   contentDraft: ContentDraftMedia[] | null; // per-photo разметка (role/format/...), если есть фото
@@ -11039,6 +11040,7 @@ function ContentINKAScreen({
   const [composerClientId, setComposerClientId] = useState<string | null>(null); // null = мастерская
   const [composerItemKey, setComposerItemKey] = useState<string>(''); // '' | 's:<id>' | 'c:<id>'
   const [composerText, setComposerText] = useState('');
+  const [composerTextArchetype, setComposerTextArchetype] = useState('');
   const [composerPhotos, setComposerPhotos] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -11246,6 +11248,7 @@ function ContentINKAScreen({
               .join('\n\n')
         : '';
       setComposerText(sourceText);
+      setComposerTextArchetype('');
       setComposerPhotos(sourceItem ? [...sourceItem.photos] : []);
     } else {
       setFocusedSource(source);
@@ -11257,6 +11260,7 @@ function ContentINKAScreen({
 
   const resetComposer = () => {
     setComposerText('');
+    setComposerTextArchetype('');
     setComposerPhotos([]);
   };
 
@@ -11289,6 +11293,7 @@ function ContentINKAScreen({
       const description = composerText.trim() || noteFallback;
       const photos = composerPhotos.length > 0 ? composerPhotos : linkedItem?.photos ?? [];
       const photoIds = createContentPhotoIds(photos.length);
+      const selectedTextArchetype = ARCHETYPE_CHIPS.find((preset) => preset.label === composerTextArchetype);
 
       const previews = await Promise.all(
         photos.map(async (photo, i) => ({ id: photoIds[i], preview_data_url: await downsizeToPreview(photo) })),
@@ -11298,6 +11303,7 @@ function ContentINKAScreen({
         sourceType,
         session: { client: clientName, work, zone, style, description },
         media: previews,
+        masterInstruction: selectedTextArchetype?.instruction,
       });
       saveEntryInWorkspace(createDraftContentEntry({
         createdDate: new Date().toISOString(),
@@ -11307,6 +11313,7 @@ function ContentINKAScreen({
         format: null,
         text: composerText,
         context: { client: clientName, work, zone, style, description },
+        textArchetype: selectedTextArchetype?.label ?? null,
         photos,
         photoIds,
         contentDraft: result.media,
@@ -11342,6 +11349,7 @@ function ContentINKAScreen({
         getCurrentEntry: () =>
           contentEntriesRef.current.find((candidate) => candidate.id === currentEntry.id) ?? currentEntry,
         request: async () => {
+          const primaryTextArchetype = ARCHETYPE_CHIPS.find((preset) => preset.label === currentEntry.textArchetype);
           const requestPhotoIds =
             currentEntry.photoIds?.length === currentEntry.photos.length
               ? currentEntry.photoIds
@@ -11356,7 +11364,7 @@ function ContentINKAScreen({
             sourceType: currentEntry.sourceType,
             session: currentEntry.context,
             media: previews,
-            masterInstruction: instruction || undefined,
+            masterInstruction: instruction || primaryTextArchetype?.instruction,
             previousDraft: currentEntry.textDraft || undefined,
           });
         },
@@ -11553,6 +11561,20 @@ function ContentINKAScreen({
 
           <SessionPhotos photos={composerPhotos} onChange={setComposerPhotos} allowDelete buttonFirst />
 
+          <label className="content-primary-archetype-field">
+            <span>Основной текстовый архетип</span>
+            <select
+              value={composerTextArchetype}
+              onChange={(event) => setComposerTextArchetype(event.target.value)}
+              style={INPUT_STYLE}
+            >
+              <option value="">Инка выберет сама</option>
+              {ARCHETYPE_CHIPS.map((preset) => (
+                <option key={preset.label} value={preset.label}>{preset.label}</option>
+              ))}
+            </select>
+          </label>
+
           <div
             className="inka-submit"
             onClick={sending ? undefined : handleGenerate}
@@ -11741,8 +11763,9 @@ function ContentINKAScreen({
                   </div>
                 );
               })}
-              {(entry.visualArchetype || entry.textTriad) && (
+              {(entry.textArchetype || entry.visualArchetype || entry.textTriad) && (
                 <div className="content-archetype-context">
+                  {entry.textArchetype && <div>Основной текстовый архетип · {entry.textArchetype}</div>}
                   {entry.visualArchetype && <div>Визуальный архетип · {entry.visualArchetype}</div>}
                   {entry.textTriad && (
                     <div>

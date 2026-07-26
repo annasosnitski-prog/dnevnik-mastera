@@ -816,6 +816,19 @@ input[type='date'] {
   font-style: italic;
 }
 
+.content-primary-archetype-field {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.content-primary-archetype-field > span {
+  color: var(--text-ghost);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
 .content-archetype-context {
   display: grid;
   gap: 3px;
