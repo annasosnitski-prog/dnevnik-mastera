@@ -621,6 +621,74 @@ input[type='date'] {
   border-color: rgba(var(--gold-rgb), 0.6);
 }
 
+.content-approval-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.content-approve-action,
+.content-exemplar-toggle {
+  appearance: none;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid rgba(var(--gold-rgb), 0.42);
+  border-radius: 3px;
+  background: rgba(var(--gold-rgb), 0.025);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.content-approve-action {
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.content-approve-action:hover:not(:disabled) {
+  border-color: rgba(var(--gold-rgb), 0.72);
+  background: rgba(var(--gold-rgb), 0.09);
+}
+
+.content-approve-action:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+.content-approve-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.content-approved-status {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.content-exemplar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-ghost);
+  cursor: pointer;
+}
+
+.content-exemplar-toggle input {
+  margin: 0;
+  accent-color: var(--gold);
+}
+
+.content-exemplar-toggle.is-active {
+  border-color: rgba(var(--gold-rgb), 0.72);
+  background: rgba(var(--gold-rgb), 0.12);
+  color: var(--text);
+}
+
 .content-archetype-context {
   display: grid;
   gap: 3px;
@@ -678,6 +746,12 @@ input[type='date'] {
 
 .content-archetype-chip.is-selected {
   box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.18);
+}
+
+.content-archetype-chip.is-static {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.72;
 }
 
 .content-refresh-row {

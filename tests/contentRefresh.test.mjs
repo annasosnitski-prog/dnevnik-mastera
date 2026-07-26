@@ -4,6 +4,73 @@ import test from 'node:test';
 
 import { createContentRefreshRunner } from '../.test-dist/src/lib/contentRefresh.js';
 
+test('locks a confirmed entry before request or save and leaves its text unchanged', async () => {
+  const runner = createContentRefreshRunner();
+  const entry = {
+    id: 'confirmed-entry',
+    status: 'confirmed',
+    contentDraft: [],
+    visualArchetype: 'creator',
+    textTriad: null,
+    textDraft: 'Одобренный текст',
+  };
+  let requestCount = 0;
+  let saveCount = 0;
+
+  const outcome = await runner.run({
+    entry,
+    request: async () => {
+      requestCount += 1;
+      return { text_draft: 'Нельзя сохранить' };
+    },
+    save: () => {
+      saveCount += 1;
+    },
+  });
+
+  assert.deepEqual(outcome, { status: 'locked' });
+  assert.equal(requestCount, 0);
+  assert.equal(saveCount, 0);
+  assert.equal(entry.textDraft, 'Одобренный текст');
+  assert.equal(runner.isRunning(entry.id), false);
+});
+
+test('does not save a refresh if the entry is confirmed while the request is in flight', async () => {
+  const runner = createContentRefreshRunner();
+  const entry = {
+    id: 'entry-1',
+    status: 'draft',
+    contentDraft: [],
+    visualArchetype: null,
+    textTriad: null,
+    textDraft: 'Исходный текст',
+  };
+  let currentEntry = entry;
+  let releaseRequest;
+  const pending = new Promise((resolve) => {
+    releaseRequest = resolve;
+  });
+  let saveCount = 0;
+
+  const run = runner.run({
+    entry,
+    getCurrentEntry: () => currentEntry,
+    request: async () => {
+      await pending;
+      return { text_draft: 'Новая версия' };
+    },
+    save: () => {
+      saveCount += 1;
+    },
+  });
+  currentEntry = { ...entry, status: 'confirmed' };
+  releaseRequest();
+
+  assert.deepEqual(await run, { status: 'locked' });
+  assert.equal(saveCount, 0);
+  assert.equal(currentEntry.textDraft, 'Исходный текст');
+});
+
 test('blocks a second refresh while the same entry is in flight', async () => {
   const runner = createContentRefreshRunner();
   const entry = {
@@ -175,7 +242,9 @@ test('refresh UI keeps loading and feedback local to each entry', () => {
   const refreshImplementation = source.slice(source.indexOf('const regenerate ='), source.indexOf('const visibleEntries'));
   const refreshCatch = refreshImplementation.slice(refreshImplementation.indexOf('} catch (err)'), refreshImplementation.indexOf('} finally'));
 
-  assert.match(refreshImplementation, /refreshRunner\.isRunning\(entry\.id\)/);
+  assert.match(refreshImplementation, /currentEntry\.status === 'confirmed'/);
+  assert.match(refreshImplementation, /refreshRunner\.isRunning\(currentEntry\.id\)/);
+  assert.match(refreshImplementation, /getCurrentEntry:/);
   assert.match(refreshImplementation, /setError\(null\)/);
   assert.match(refreshImplementation, /setRefreshingEntryIds/);
   assert.match(refreshImplementation, /next\.add\(entry\.id\)/);
