@@ -27,6 +27,12 @@ import {
 } from '../lib/contentSync';
 import { downsizeToPreview } from '../lib/imagePreview';
 import { createContentRefreshRunner } from '../lib/contentRefresh';
+import {
+  confirmContentEntry,
+  createDraftContentEntry,
+  normalizeContentEntry,
+  setContentEntryExemplar,
+} from '../lib/contentApproval';
 import { copyTextToClipboard, createCopyFeedbackController, type CopyFeedback } from '../lib/clipboard';
 import {
   contentTranslationKey,
@@ -260,6 +266,7 @@ interface ContentEntry {
   textTriad: { opens: string; leads: string; closes: string } | null;
   textDraft: string; // черновик текста — то, ради чего всё
   status: 'draft' | 'confirmed';
+  isExemplar: boolean;
   translations?: ContentTranslations;
 }
 
@@ -1803,7 +1810,7 @@ export default function TattoDiary() {
   const loadContentEntries = (database: IDBDatabase) => {
     const tx = database.transaction('contentEntries', 'readonly');
     const request = tx.objectStore('contentEntries').getAll();
-    request.onsuccess = () => setContentEntries(request.result || []);
+    request.onsuccess = () => setContentEntries((request.result || []).map((entry) => normalizeContentEntry(entry)));
     request.onerror = () => setDbError('Не удалось загрузить черновики контента.');
   };
 
@@ -1815,10 +1822,14 @@ export default function TattoDiary() {
       setDbError('Хранилище недоступно — изменения не сохранены.');
       return;
     }
+    setContentEntries((current) => [entry, ...current.filter((candidate) => candidate.id !== entry.id)]);
     const tx = db.transaction('contentEntries', 'readwrite');
     tx.objectStore('contentEntries').put(entry);
     tx.oncomplete = () => loadContentEntries(db);
-    tx.onerror = () => setDbError('Не удалось сохранить черновик контента.');
+    tx.onerror = () => {
+      setDbError('Не удалось сохранить черновик контента.');
+      loadContentEntries(db);
+    };
   };
 
   const deleteContentEntry = (id: string) => {
@@ -10941,6 +10952,16 @@ function ContentINKAScreen({
     contentEntriesRef.current = [entry, ...contentEntriesRef.current.filter((candidate) => candidate.id !== entry.id)];
     onSaveEntry(entry);
   };
+  const approveEntry = (entry: ContentEntry) => {
+    const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
+    if (currentEntry.status === 'confirmed') return;
+    saveEntryInWorkspace(confirmContentEntry(currentEntry));
+  };
+  const updateExemplar = (entry: ContentEntry, isExemplar: boolean) => {
+    const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
+    if (currentEntry.status !== 'confirmed') return;
+    saveEntryInWorkspace(setContentEntryExemplar(currentEntry, isExemplar));
+  };
   const contentTranslationsMountedRef = useRef(false);
   const knownContentEntryIds = useRef(new Set(contentEntries.map((entry) => entry.id)));
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
@@ -11061,8 +11082,7 @@ function ContentINKAScreen({
         session: { client: clientName, work, zone, style, description },
         media: previews,
       });
-      saveEntryInWorkspace({
-        id: Date.now().toString(),
+      saveEntryInWorkspace(createDraftContentEntry({
         createdDate: new Date().toISOString(),
         clientId: composerClientId,
         sourceType,
@@ -11075,8 +11095,7 @@ function ContentINKAScreen({
         visualArchetype: result.visual_archetype,
         textTriad: result.text_triad,
         textDraft: result.text_draft,
-        status: 'draft',
-      });
+      }, contentEntriesRef.current));
       resetComposer();
     } catch (err) {
       setError(err instanceof ContentSyncError ? err.message : 'Не удалось сгенерировать контент.');
@@ -11086,7 +11105,8 @@ function ContentINKAScreen({
   };
 
   const regenerate = async (entry: ContentEntry, instruction: string, selectedArchetype?: string) => {
-    if (refreshRunner.isRunning(entry.id)) return;
+    const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
+    if (currentEntry.status === 'confirmed' || refreshRunner.isRunning(currentEntry.id)) return;
     setError(null);
     setRefreshingEntryIds((current) => {
       const next = new Set(current);
@@ -11100,26 +11120,32 @@ function ContentINKAScreen({
     });
     try {
       const outcome = await refreshRunner.run({
-        entry,
+        entry: currentEntry,
+        getCurrentEntry: () =>
+          contentEntriesRef.current.find((candidate) => candidate.id === currentEntry.id) ?? currentEntry,
         request: async () => {
           const previews = await Promise.all(
-            entry.photos.map(async (photo, i) => ({ id: `${entry.id}-${i}`, preview_data_url: await downsizeToPreview(photo) })),
+            currentEntry.photos.map(async (photo, i) => ({ id: `${currentEntry.id}-${i}`, preview_data_url: await downsizeToPreview(photo) })),
           );
           return sendToContent({
-            sessionId: entry.sourceId ?? entry.id,
-            sourceType: entry.sourceType,
-            session: entry.context,
+            sessionId: currentEntry.sourceId ?? currentEntry.id,
+            sourceType: currentEntry.sourceType,
+            session: currentEntry.context,
             media: previews,
             masterInstruction: instruction || undefined,
-            previousDraft: entry.textDraft || undefined,
+            previousDraft: currentEntry.textDraft || undefined,
           });
         },
-        save: (refreshedEntry) => {
-          const latestEntry = contentEntriesRef.current.find((candidate) => candidate.id === refreshedEntry.id) ?? refreshedEntry;
-          saveEntryInWorkspace({ ...latestEntry, textDraft: refreshedEntry.textDraft });
-        },
+        save: saveEntryInWorkspace,
       });
       if (outcome.status === 'ignored') return;
+      if (outcome.status === 'locked') {
+        setRefreshFeedbackByEntry((current) => ({
+          ...current,
+          [entry.id]: { kind: 'success', message: 'Одобренный текст защищён' },
+        }));
+        return;
+      }
       if (selectedArchetype) {
         setSelectedArchetypeByEntry((current) => ({ ...current, [entry.id]: selectedArchetype }));
       }
@@ -11348,6 +11374,30 @@ function ContentINKAScreen({
                 {clientLabel(entry.clientId)}
                 {entry.format === 'story' ? ' · сторис' : ''}
               </div>
+              <div className="content-approval-row">
+                {entry.status === 'confirmed' ? (
+                  <>
+                    <span className="content-approved-status">Одобрено</span>
+                    <label className={`content-exemplar-toggle${entry.isExemplar ? ' is-active' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={entry.isExemplar}
+                        onChange={(event) => updateExemplar(entry, event.target.checked)}
+                      />
+                      <span>Эталон</span>
+                    </label>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="content-approve-action"
+                    disabled={!entry.textDraft.trim()}
+                    onClick={() => approveEntry(entry)}
+                  >
+                    Одобрить текст
+                  </button>
+                )}
+              </div>
               {entry.photos.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                   {entry.photos.map((p, i) => (
@@ -11421,6 +11471,13 @@ function ContentINKAScreen({
                 {ARCHETYPE_CHIPS.map((preset) => {
                   const isRefreshing = refreshingEntryIds.has(entry.id);
                   const isSelected = selectedArchetypeByEntry[entry.id] === preset.label;
+                  if (entry.status === 'confirmed') {
+                    return (
+                      <span key={preset.label} className="content-archetype-chip is-static">
+                        {preset.label}
+                      </span>
+                    );
+                  }
                   return (
                     <button
                       key={preset.label}
@@ -11435,27 +11492,29 @@ function ContentINKAScreen({
                   );
                 })}
               </div>
-              <div className="content-refresh-row">
-                <button
-                  type="button"
-                  className="content-refresh-action"
-                  disabled={refreshingEntryIds.has(entry.id)}
-                  onClick={() => regenerate(entry, '')}
-                >
-                  <span className={refreshingEntryIds.has(entry.id) ? 'is-spinning' : ''} aria-hidden="true">
-                    ↻
-                  </span>
-                  {refreshingEntryIds.has(entry.id) ? 'Обновляю…' : 'Обновить черновик'}
-                </button>
-                {refreshFeedbackByEntry[entry.id] && (
-                  <div
-                    className={`content-refresh-feedback is-${refreshFeedbackByEntry[entry.id].kind}`}
-                    role={refreshFeedbackByEntry[entry.id].kind === 'error' ? 'alert' : 'status'}
+              {entry.status === 'draft' && (
+                <div className="content-refresh-row">
+                  <button
+                    type="button"
+                    className="content-refresh-action"
+                    disabled={refreshingEntryIds.has(entry.id)}
+                    onClick={() => regenerate(entry, '')}
                   >
-                    {refreshFeedbackByEntry[entry.id].message}
-                  </div>
-                )}
-              </div>
+                    <span className={refreshingEntryIds.has(entry.id) ? 'is-spinning' : ''} aria-hidden="true">
+                      ↻
+                    </span>
+                    {refreshingEntryIds.has(entry.id) ? 'Обновляю…' : 'Обновить черновик'}
+                  </button>
+                  {refreshFeedbackByEntry[entry.id] && (
+                    <div
+                      className={`content-refresh-feedback is-${refreshFeedbackByEntry[entry.id].kind}`}
+                      role={refreshFeedbackByEntry[entry.id].kind === 'error' ? 'alert' : 'status'}
+                    >
+                      {refreshFeedbackByEntry[entry.id].message}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="content-card-actions">
                 <button
                   type="button"

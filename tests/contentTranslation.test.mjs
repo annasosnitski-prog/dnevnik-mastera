@@ -179,6 +179,29 @@ test('updating a stale translation stores the new sourceText without replacing t
   });
 });
 
+test('a confirmed entry can still be translated', async () => {
+  const entry = {
+    id: 'confirmed-entry',
+    status: 'confirmed',
+    isExemplar: true,
+    textDraft: 'Одобренный оригинал',
+  };
+  const saved = [];
+  const outcome = await createContentTranslationRunner().run({
+    entry,
+    language: 'he',
+    request: async () => ({ targetLanguage: 'he', translatedText: 'תרגום מאושר' }),
+    save: (updated) => saved.push(updated),
+    now: () => 'now',
+  });
+
+  assert.equal(outcome.status, 'updated');
+  assert.equal(saved[0].status, 'confirmed');
+  assert.equal(saved[0].isExemplar, true);
+  assert.equal(saved[0].textDraft, 'Одобренный оригинал');
+  assert.equal(saved[0].translations.he.translatedText, 'תרגום מאושר');
+});
+
 test('a current saved translation skips another API request', async () => {
   const entry = {
     id: 'entry-1',
