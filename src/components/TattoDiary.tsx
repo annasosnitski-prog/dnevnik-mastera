@@ -26,6 +26,13 @@ import {
 import { downsizeToPreview } from '../lib/imagePreview';
 import { createContentRefreshRunner } from '../lib/contentRefresh';
 import { copyTextToClipboard, createCopyFeedbackController, type CopyFeedback } from '../lib/clipboard';
+import {
+  contentComposerItemKey,
+  findLinkedContentEntries,
+  selectContentWorkspaceEntries,
+  type ContentSourceRef,
+  type ContentWorkspaceNavigation,
+} from '../lib/contentWorkspace';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
@@ -226,9 +233,9 @@ const DONE_EMOJI = '🍀';
 // Единая сущность для всё, что проходит через ContentINKA — сессия,
 // консультация или свободная заметка («мастерская», если clientId=null),
 // с фото или без. Живёт в своём IndexedDB store ('contentEntries'), не
-// внутри Client — поэтому доступна с любой точки входа (страница
-// ContentINKA, вкладка «Контент» клиента, просмотр сессии/консультации)
-// как одни и те же данные, не три разных хранилища.
+// внутри Client — поэтому ContentINKA остаётся единственным рабочим экраном,
+// а вкладка клиента и просмотр сессии/консультации только находят эти же
+// записи по источнику и передают управление туда.
 interface ContentEntry {
   id: string;
   createdDate: string;
@@ -1586,8 +1593,9 @@ export default function TattoDiary() {
   const handleSnoozeReminder = (key: string, showAfter: string) => setReminderState((prev) => snoozeReminder(prev, key, showAfter));
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
+  const [contentNavigation, setContentNavigation] = useState<ContentWorkspaceNavigation | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'extra'>('sessions');
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'content' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorFilter, setColorFilter] = useState<string>('all');
@@ -1928,6 +1936,12 @@ export default function TattoDiary() {
   };
 
   const goBack = () => setScreen('list');
+
+  const openContentWorkspace = (navigation: ContentWorkspaceNavigation) => {
+    setContentNavigation(navigation);
+    setViewEntry(null);
+    setScreen('content');
+  };
 
   const closeNewClient = () => setShowNewClientForm(false);
   const closeNewSession = () => {
@@ -3159,6 +3173,8 @@ export default function TattoDiary() {
           <ContentINKAScreen
             clients={clients}
             contentEntries={contentEntries}
+            navigation={contentNavigation}
+            onNavigationApplied={() => setContentNavigation(null)}
             onSaveEntry={saveContentEntry}
             onDeleteEntry={deleteContentEntry}
           />
@@ -3316,6 +3332,8 @@ export default function TattoDiary() {
               })
             }
             onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
+            contentEntries={contentEntries}
+            onOpenContent={openContentWorkspace}
             onImportClients={importClients}
           />
         )}
@@ -3498,8 +3516,7 @@ export default function TattoDiary() {
         open={!!viewEntry && (!!viewedSession || !!viewedConsultation)}
         session={viewedSession}
         consultation={viewedConsultation}
-        clientId={viewClient?.id ?? null}
-        clientName={viewClient ? `${viewClient.name} ${viewClient.surname}`.trim() : ''}
+        clientId={viewClient?.id ?? ''}
         clientProjects={viewClient ? getProjectsByClientId(projects, viewClient.id) : []}
         contentEntries={contentEntries}
         onClose={() => setViewEntry(null)}
@@ -3517,8 +3534,7 @@ export default function TattoDiary() {
         onReassignProject={(projectId) => {
           if (viewEntry) reassignEntryProject(viewEntry.clientId, viewEntry.kind, viewEntry.id, projectId);
         }}
-        onSaveContentEntry={saveContentEntry}
-        onDeleteContentEntry={deleteContentEntry}
+        onOpenContent={openContentWorkspace}
       />
 
       {/* ═══════════ CALENDAR (month view, opened from «Ближайшая») ═══════════ */}
@@ -8057,14 +8073,16 @@ function DetailScreen({
   onUpsertNote,
   onAddNote,
   onDeleteNote,
+  contentEntries,
+  onOpenContent,
   onImportClients,
   projects,
   onOpenProject,
   onCreateProject,
 }: {
   client: Client;
-  activeTab: 'info' | 'sessions' | 'consultations' | 'extra';
-  onTab: (t: 'info' | 'sessions' | 'consultations' | 'extra') => void;
+  activeTab: 'info' | 'sessions' | 'consultations' | 'content' | 'extra';
+  onTab: (t: 'info' | 'sessions' | 'consultations' | 'content' | 'extra') => void;
   onBack: () => void;
   onSave: (client: Client) => void;
   onEditClient: () => void;
@@ -8081,6 +8099,8 @@ function DetailScreen({
   onUpsertNote: (note: ClientNote) => void;
   onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
   onDeleteNote: (noteId: string) => void;
+  contentEntries: ContentEntry[];
+  onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
   // Merge-import (add/update, never clears) — the counterpart to this same
   // screen's client export, so a single exported client's file can be
   // brought back in without wiping the rest of the roster.
@@ -8093,8 +8113,8 @@ function DetailScreen({
     flex: 1,
     textAlign: 'center',
     padding: '11px 0',
-    fontSize: fs(13),
-    letterSpacing: '1.5px',
+    fontSize: fs(11),
+    letterSpacing: '1px',
     textTransform: 'uppercase',
     color: activeTab === tab ? COLORS.gold : 'var(--ink-faint)',
     borderBottom: activeTab === tab ? `1px solid ${COLORS.gold}` : '1px solid transparent',
@@ -8358,6 +8378,9 @@ function DetailScreen({
         <div onClick={() => onTab('consultations')} style={tabStyle('consultations')}>
           Консультации
         </div>
+        <div onClick={() => onTab('content')} style={tabStyle('content')}>
+          Контент
+        </div>
         <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
           Заметки
         </div>
@@ -8429,8 +8452,58 @@ function DetailScreen({
             onDeleteNote={onDeleteNote}
           />
         )}
+        {activeTab === 'content' && (
+          <ClientContentTab client={client} entries={contentEntries} onOpenContent={onOpenContent} />
+        )}
       </div>
     </>
+  );
+}
+
+function ClientContentTab({
+  client,
+  entries,
+  onOpenContent,
+}: {
+  client: Client;
+  entries: ContentEntry[];
+  onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
+}) {
+  const sources = [
+    ...client.sessions.map((session) => ({
+      sourceType: 'session' as const,
+      sourceId: session.id,
+      date: session.date,
+      label: session.name || 'Сессия',
+    })),
+    ...client.consultations.map((consultation) => ({
+      sourceType: 'consultation' as const,
+      sourceId: consultation.id,
+      date: consultation.date,
+      label: 'Консультация',
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+
+  if (sources.length === 0) {
+    return <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Сначала добавьте сессию или консультацию.</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {sources.map((source) => (
+        <GoldFrame key={`${source.sourceType}:${source.sourceId}`} plain style={{ padding: '14px 16px' }}>
+          <div style={{ fontSize: fs(13), color: COLORS.textPrimary, marginBottom: 4 }}>{source.label}</div>
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginBottom: 12 }}>{formatDate(source.date) || 'Дата не указана'}</div>
+          <ContentPanel
+            clientId={client.id}
+            sourceType={source.sourceType}
+            sourceId={source.sourceId}
+            entries={entries}
+            onOpenContent={onOpenContent}
+          />
+        </GoldFrame>
+      ))}
+    </div>
   );
 }
 
@@ -10791,21 +10864,22 @@ const ARCHETYPE_CHIPS: { label: string; instruction: string }[] = [
 ];
 
 // Полноценный рабочий интерфейс ContentINKA — отдельная страница
-// (NavFab → «Контент»). В отличие от ленивых точек входа (ContentPanel в
-// TimelineViewSheet, вкладка клиента), отсюда можно: собрать материал с
-// нуля (клиент/мастерская, тема, фото — без обязательной привязки к
-// сессии), подтянуть в работу любую сессию/консультацию любого клиента, и
-// применить полный набор действий (тон, перегенерация, поделиться,
-// удалить) к любой уже созданной записи. Все три поверхности читают и
-// пишут в один и тот же contentEntries — не разные хранилища.
+// (NavFab → «Контент»). Здесь собирается материал с нуля или из выбранной
+// сессии/консультации и применяются все действия к черновику. Остальные
+// поверхности показывают только компактный статус и переходят сюда; данные
+// по-прежнему читаются и пишутся через единственный contentEntries store.
 function ContentINKAScreen({
   clients,
   contentEntries,
+  navigation,
+  onNavigationApplied,
   onSaveEntry,
   onDeleteEntry,
 }: {
   clients: Client[];
   contentEntries: ContentEntry[];
+  navigation: ContentWorkspaceNavigation | null;
+  onNavigationApplied: () => void;
   onSaveEntry: (entry: ContentEntry) => void;
   onDeleteEntry: (id: string) => void;
 }) {
@@ -10829,6 +10903,8 @@ function ContentINKAScreen({
   );
   const knownContentEntryIds = useRef(new Set(contentEntries.map((entry) => entry.id)));
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
+  const [focusedSource, setFocusedSource] = useState<ContentSourceRef | null>(null);
+  const entriesListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const currentEntryIds = new Set(contentEntries.map((entry) => entry.id));
@@ -10843,11 +10919,50 @@ function ContentINKAScreen({
   const composerClient = clients.find((c) => c.id === composerClientId) ?? null;
   const composerItem = (() => {
     if (!composerClient || !composerItemKey) return null;
-    const [kind, id] = composerItemKey.split(':');
+    const kind = composerItemKey.slice(0, 1);
+    const id = composerItemKey.slice(2);
     if (kind === 's') return { kind: 'session' as const, item: composerClient.sessions.find((s) => s.id === id) };
     if (kind === 'c') return { kind: 'consultation' as const, item: composerClient.consultations.find((c) => c.id === id) };
     return null;
   })();
+
+  useEffect(() => {
+    if (!navigation) return;
+
+    const source = { sourceType: navigation.sourceType, sourceId: navigation.sourceId };
+    const client = clients.find((candidate) => candidate.id === navigation.clientId) ?? null;
+    const sourceItem =
+      navigation.sourceType === 'session'
+        ? client?.sessions.find((session) => session.id === navigation.sourceId) ?? null
+        : client?.consultations.find((consultation) => consultation.id === navigation.sourceId) ?? null;
+
+    setComposerClientId(client?.id ?? navigation.clientId);
+    setComposerItemKey(contentComposerItemKey(source));
+    setFilterClientId(client?.id ?? 'all');
+
+    if (navigation.mode === 'compose') {
+      setFocusedSource(null);
+      const sourceText = sourceItem
+        ? navigation.sourceType === 'session'
+          ? (sourceItem as Session).note
+          : [
+              (sourceItem as Consultation).generalNotes,
+              (sourceItem as Consultation).feeling,
+              (sourceItem as Consultation).creative,
+              (sourceItem as Consultation).inspirationSources,
+            ]
+              .filter(Boolean)
+              .join('\n\n')
+        : '';
+      setComposerText(sourceText);
+      setComposerPhotos(sourceItem ? [...sourceItem.photos] : []);
+    } else {
+      setFocusedSource(source);
+      requestAnimationFrame(() => entriesListRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    }
+
+    onNavigationApplied();
+  }, [clients, navigation, onNavigationApplied]);
 
   const resetComposer = () => {
     setComposerText('');
@@ -10988,9 +11103,11 @@ function ContentINKAScreen({
     onDeleteEntry(entryId);
   };
 
-  const visibleEntries = contentEntries
-    .filter((e) => (filterClientId === 'all' ? true : filterClientId === 'studio' ? e.clientId === null : e.clientId === filterClientId))
-    .sort((a, b) => b.createdDate.localeCompare(a.createdDate));
+  const visibleEntries = selectContentWorkspaceEntries({
+    entries: contentEntries,
+    clientFilter: filterClientId,
+    focusedSource,
+  });
 
   const clientLabel = (clientId: string | null) => {
     if (clientId === null) return 'Мастерская';
@@ -11065,7 +11182,14 @@ function ContentINKAScreen({
         </GoldFrame>
 
         {/* ── Filter ── */}
-        <select value={filterClientId} onChange={(e) => setFilterClientId(e.target.value)} style={INPUT_STYLE}>
+        <select
+          value={filterClientId}
+          onChange={(e) => {
+            setFocusedSource(null);
+            setFilterClientId(e.target.value);
+          }}
+          style={INPUT_STYLE}
+        >
           <option value="all">Все записи</option>
           <option value="studio">Мастерская</option>
           {clients.map((c) => (
@@ -11076,7 +11200,15 @@ function ContentINKAScreen({
         </select>
 
         {/* ── List ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div ref={entriesListRef} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {focusedSource && (
+            <div className="content-linked-heading">
+              <span>Связанные черновики · {visibleEntries.length}</span>
+              <button type="button" onClick={() => setFocusedSource(null)}>
+                Показать все
+              </button>
+            </div>
+          )}
           {visibleEntries.length === 0 && (
             <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока пусто.</div>
           )}
@@ -11180,241 +11312,40 @@ function ContentINKAScreen({
 
 function ContentPanel({
   clientId,
-  clientName,
   sourceType,
   sourceId,
-  photos,
-  work,
-  zone,
-  style,
-  description,
   entries,
-  onSaveEntry,
-  onDeleteEntry,
+  onOpenContent,
 }: {
-  clientId: string | null;
-  clientName: string;
+  clientId: string;
   sourceType: 'session' | 'consultation';
   sourceId: string;
-  photos: string[];
-  work?: string;
-  zone: string;
-  style: string;
-  description: string;
   entries: ContentEntry[];
-  onSaveEntry: (entry: ContentEntry) => void;
-  onDeleteEntry: (id: string) => void;
+  onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
 }) {
-  const fullEntry = entries.find((e) => e.sourceType === sourceType && e.sourceId === sourceId && e.format === null) ?? null;
-  const storyEntry = entries.find((e) => e.sourceType === sourceType && e.sourceId === sourceId && e.format === 'story') ?? null;
+  const linkedEntries = findLinkedContentEntries(entries, { sourceType, sourceId });
+  const hasLinkedEntries = linkedEntries.length > 0;
 
-  const [sendingFull, setSendingFull] = useState(false);
-  const [sendingStory, setSendingStory] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (photos.length === 0 && !fullEntry && !storyEntry) return null;
-
-  // Фолбэк на work/zone/style, если заметка пустая — «текст для сторис»
-  // шлётся как freeform с media: [], а бэкенд требует непустой description.
-  const richDescription = description.trim() || [work, zone, style].filter(Boolean).join(', ');
-
-  const handleSendFull = async () => {
-    if (photos.length === 0) return;
-    setSendingFull(true);
-    setError(null);
-    try {
-      const previews = await Promise.all(
-        photos.map(async (photo, i) => ({
-          id: `${sourceId}-${i}`,
-          preview_data_url: await downsizeToPreview(photo),
-        })),
-      );
-      const result = await sendToContent({
-        sessionId: sourceId,
-        sourceType,
-        session: { client: clientName, work, zone, style, description },
-        media: previews,
-      });
-      onSaveEntry({
-        id: fullEntry?.id ?? `${sourceId}-full`,
-        createdDate: fullEntry?.createdDate ?? new Date().toISOString(),
-        clientId,
-        sourceType,
-        sourceId,
-        format: null,
-        text: '',
-        context: { client: clientName, work, zone, style, description },
-        photos,
-        contentDraft: result.media,
-        visualArchetype: result.visual_archetype,
-        textTriad: result.text_triad,
-        textDraft: result.text_draft,
-        status: 'draft',
-      });
-    } catch (err) {
-      setError(err instanceof ContentSyncError ? err.message : 'Не удалось отправить в контент.');
-    } finally {
-      setSendingFull(false);
-    }
-  };
-
-  const handleQuickStory = async () => {
-    setSendingStory(true);
-    setError(null);
-    try {
-      const result = await sendToContent({
-        sessionId: `${sourceId}-story`,
-        sourceType: 'freeform',
-        session: { client: clientName, work, zone, style, description: richDescription },
-        media: [],
-        masterInstruction: 'нужен короткий текст для формата сторис — не полный разбор, просто живая строка-две',
-      });
-      onSaveEntry({
-        id: storyEntry?.id ?? `${sourceId}-story`,
-        createdDate: storyEntry?.createdDate ?? new Date().toISOString(),
-        clientId,
-        sourceType,
-        sourceId,
-        format: 'story',
-        text: '',
-        context: { client: clientName, work, zone, style, description: richDescription },
-        photos: [],
-        contentDraft: null,
-        visualArchetype: result.visual_archetype,
-        textTriad: result.text_triad,
-        textDraft: result.text_draft,
-        status: 'draft',
-      });
-    } catch (err) {
-      setError(err instanceof ContentSyncError ? err.message : 'Не удалось сгенерировать текст.');
-    } finally {
-      setSendingStory(false);
-    }
-  };
-
-  const photoByIndexId = (id: string): string | undefined => {
-    const idx = Number(id.slice(sourceId.length + 1));
-    return Number.isFinite(idx) ? photos[idx] : undefined;
-  };
-
-  const linkStyle: React.CSSProperties = { fontSize: fs(12), color: COLORS.textGhost, cursor: 'pointer', textDecoration: 'underline' };
-  const buttonStyle = (busy: boolean): React.CSSProperties => ({
-    border: '1px solid rgba(var(--gold-rgb),0.35)',
-    borderRadius: 2,
-    padding: '10px 0',
-    textAlign: 'center',
-    fontSize: fs(13),
-    letterSpacing: '1px',
-    textTransform: 'uppercase',
-    color: COLORS.textPrimary,
-    opacity: busy ? 0.6 : 1,
-    cursor: busy ? 'default' : 'pointer',
-  });
+  const navigate = () =>
+    onOpenContent({
+      sourceType,
+      sourceId,
+      clientId,
+      mode: hasLinkedEntries ? 'open-linked' : 'compose',
+    });
 
   return (
-    <div>
-      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 8 }}>
-        Контент
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {photos.length > 0 && (
-          <div>
-            {!fullEntry ? (
-              <div className="inka-submit" onClick={sendingFull ? undefined : handleSendFull} style={buttonStyle(sendingFull)}>
-                {sendingFull ? 'Отправляю…' : 'Отправить в контент'}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {fullEntry.textDraft && (
-                  <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                    {fullEntry.textDraft}
-                  </div>
-                )}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {(fullEntry.contentDraft ?? [])
-                    .filter((m) => m.technical_status === 'kept')
-                    .map((m) => {
-                      const src = photoByIndexId(m.id);
-                      return (
-                        <div key={m.id} style={{ width: 92 }}>
-                          {src && (
-                            <img
-                              src={src}
-                              alt=""
-                              style={{
-                                width: 92,
-                                height: 92,
-                                objectFit: 'cover',
-                                borderRadius: 2,
-                                border: m.cover_candidate ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                                display: 'block',
-                              }}
-                            />
-                          )}
-                          {(m.role || m.format) && (
-                            <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, marginTop: 4, textAlign: 'center', letterSpacing: '0.3px' }}>
-                              {[m.role, m.format].filter(Boolean).join(' · ')}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <span onClick={sendingFull ? undefined : handleSendFull} style={linkStyle}>
-                    {sendingFull ? 'Отправляю…' : 'Отправить заново'}
-                  </span>
-                  <span
-                    onClick={() =>
-                      shareContentEntry(
-                        photos.filter((_, i) => (fullEntry.contentDraft ?? []).some((m) => m.id === `${sourceId}-${i}` && m.technical_status === 'kept')),
-                        fullEntry.textDraft,
-                      )
-                    }
-                    style={linkStyle}
-                  >
-                    Поделиться
-                  </span>
-                  <span onClick={() => onDeleteEntry(fullEntry.id)} style={{ ...linkStyle, color: 'var(--urgent, #c0392b)' }}>
-                    Удалить
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div>
-          {!storyEntry ? (
-            <span onClick={sendingStory ? undefined : handleQuickStory} style={linkStyle}>
-              {sendingStory ? 'Генерирую…' : 'Текст для сторис'}
-            </span>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase' }}>Сторис</div>
-              {storyEntry.textDraft && (
-                <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                  {storyEntry.textDraft}
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: 16 }}>
-                <span onClick={sendingStory ? undefined : handleQuickStory} style={linkStyle}>
-                  {sendingStory ? 'Генерирую…' : 'Ещё вариант'}
-                </span>
-                <span onClick={() => shareContentEntry([], storyEntry.textDraft)} style={linkStyle}>
-                  Поделиться
-                </span>
-                <span onClick={() => onDeleteEntry(storyEntry.id)} style={{ ...linkStyle, color: 'var(--urgent, #c0392b)' }}>
-                  Удалить
-                </span>
-              </div>
-            </div>
-          )}
+    <div className="content-source-panel">
+      <div className="content-source-panel__heading">Контент</div>
+      {hasLinkedEntries && (
+        <div className="content-source-panel__status">
+          <span>В ContentINKA</span>
+          {linkedEntries.length > 1 && <span>{linkedEntries.length} черновика</span>}
         </div>
-      </div>
-
-      {error && <div style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', marginTop: 8 }}>{error}</div>}
+      )}
+      <button type="button" className="content-source-panel__action" onClick={navigate}>
+        {hasLinkedEntries ? 'Открыть в ContentINKA' : 'Передать в ContentINKA'}
+      </button>
     </div>
   );
 }
@@ -11424,20 +11355,17 @@ function TimelineViewSheet({
   session,
   consultation,
   clientId,
-  clientName,
   clientProjects,
   contentEntries,
   onClose,
   onEdit,
   onReassignProject,
-  onSaveContentEntry,
-  onDeleteContentEntry,
+  onOpenContent,
 }: {
   open: boolean;
   session: Session | null;
   consultation: Consultation | null;
-  clientId: string | null;
-  clientName: string;
+  clientId: string;
   // Проекты этого клиента — для быстрой смены проекта записи без захода в
   // полную форму редактирования (Этап 3a).
   clientProjects: Project[];
@@ -11445,8 +11373,7 @@ function TimelineViewSheet({
   onClose: () => void;
   onEdit: () => void;
   onReassignProject: (projectId: string | null) => void;
-  onSaveContentEntry: (entry: ContentEntry) => void;
-  onDeleteContentEntry: (id: string) => void;
+  onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
 }) {
   const isConsult = !!consultation;
   const dateLine = (() => {
@@ -11502,18 +11429,10 @@ function TimelineViewSheet({
             {urgency && <ViewField label="Срочность" value={`${urgency.emoji} ${urgency.label}`} />}
             <ContentPanel
               clientId={clientId}
-              clientName={clientName}
               sourceType="consultation"
               sourceId={consultation.id}
-              photos={consultation.photos}
-              zone={consultation.area}
-              style={consultation.style}
-              description={[consultation.generalNotes, consultation.feeling, consultation.creative, consultation.inspirationSources]
-                .filter(Boolean)
-                .join('\n\n')}
               entries={contentEntries}
-              onSaveEntry={onSaveContentEntry}
-              onDeleteEntry={onDeleteContentEntry}
+              onOpenContent={onOpenContent}
             />
           </>
         ) : session ? (
@@ -11529,17 +11448,10 @@ function TimelineViewSheet({
             <ViewField label="Реакция кожи" value={session.skinReaction} />
             <ContentPanel
               clientId={clientId}
-              clientName={clientName}
               sourceType="session"
               sourceId={session.id}
-              photos={session.photos}
-              work={session.name}
-              zone={session.area}
-              style={session.style}
-              description={session.note}
               entries={contentEntries}
-              onSaveEntry={onSaveContentEntry}
-              onDeleteEntry={onDeleteContentEntry}
+              onOpenContent={onOpenContent}
             />
           </>
         ) : null}
