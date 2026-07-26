@@ -25,6 +25,7 @@ import {
 } from '../lib/contentSync';
 import { downsizeToPreview } from '../lib/imagePreview';
 import { createContentRefreshRunner } from '../lib/contentRefresh';
+import { copyTextToClipboard, createCopyFeedbackController, type CopyFeedback } from '../lib/clipboard';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
@@ -10821,7 +10822,23 @@ function ContentINKAScreen({
     kind: 'success' | 'error';
     message: string;
   }>>({});
+  const [copyFeedbackByEntry, setCopyFeedbackByEntry] = useState<Record<string, CopyFeedback>>({});
+  const copyFeedbackController = useMemo(
+    () => createCopyFeedbackController({ onChange: setCopyFeedbackByEntry }),
+    [],
+  );
+  const knownContentEntryIds = useRef(new Set(contentEntries.map((entry) => entry.id)));
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
+
+  useEffect(() => {
+    const currentEntryIds = new Set(contentEntries.map((entry) => entry.id));
+    for (const entryId of knownContentEntryIds.current) {
+      if (!currentEntryIds.has(entryId)) copyFeedbackController.clear(entryId);
+    }
+    knownContentEntryIds.current = currentEntryIds;
+  }, [contentEntries, copyFeedbackController]);
+
+  useEffect(() => () => copyFeedbackController.dispose(), [copyFeedbackController]);
 
   const composerClient = clients.find((c) => c.id === composerClientId) ?? null;
   const composerItem = (() => {
@@ -10953,6 +10970,22 @@ function ContentINKAScreen({
         return next;
       });
     }
+  };
+
+  const copyContentDraft = async (entry: ContentEntry) => {
+    if (!entry.textDraft.trim()) return;
+    const attempt = copyFeedbackController.begin(entry.id);
+    try {
+      const copied = await copyTextToClipboard(entry.textDraft);
+      if (copied) copyFeedbackController.finish(entry.id, attempt, 'success');
+    } catch {
+      copyFeedbackController.finish(entry.id, attempt, 'error');
+    }
+  };
+
+  const deleteContentEntry = (entryId: string) => {
+    copyFeedbackController.clear(entryId);
+    onDeleteEntry(entryId);
   };
 
   const visibleEntries = contentEntries
@@ -11115,11 +11148,25 @@ function ContentINKAScreen({
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 16 }}>
+              <div className="content-card-actions">
+                <button
+                  type="button"
+                  className={`content-copy-action${copyFeedbackByEntry[entry.id] ? ` is-${copyFeedbackByEntry[entry.id]}` : ''}`}
+                  aria-label="Копировать текст публикации"
+                  aria-live="polite"
+                  disabled={!entry.textDraft.trim()}
+                  onClick={() => copyContentDraft(entry)}
+                >
+                  {copyFeedbackByEntry[entry.id] === 'success'
+                    ? 'Скопировано'
+                    : copyFeedbackByEntry[entry.id] === 'error'
+                      ? 'Не удалось скопировать'
+                      : 'Копировать текст'}
+                </button>
                 <span onClick={() => shareContentEntry(entry.photos, entry.textDraft)} style={{ fontSize: fs(12), color: COLORS.textGhost, cursor: 'pointer', textDecoration: 'underline' }}>
                   Поделиться
                 </span>
-                <span onClick={() => onDeleteEntry(entry.id)} style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', cursor: 'pointer', textDecoration: 'underline' }}>
+                <span onClick={() => deleteContentEntry(entry.id)} style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', cursor: 'pointer', textDecoration: 'underline' }}>
                   Удалить
                 </span>
               </div>

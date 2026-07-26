@@ -737,6 +737,55 @@ input[type='date'] {
   color: var(--urgent, #c0392b);
 }
 
+.content-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px 16px;
+}
+
+.content-copy-action {
+  appearance: none;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid rgba(var(--gold-rgb), 0.4);
+  border-radius: 3px;
+  background: rgba(var(--gold-rgb), 0.025);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.content-copy-action:hover:not(:disabled) {
+  border-color: rgba(var(--gold-rgb), 0.72);
+  background: rgba(var(--gold-rgb), 0.09);
+}
+
+.content-copy-action:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+  background: rgba(var(--gold-rgb), 0.16);
+}
+
+.content-copy-action.is-success {
+  border-color: rgba(var(--gold-rgb), 0.78);
+  background: rgba(var(--gold-rgb), 0.14);
+  color: var(--text);
+}
+
+.content-copy-action.is-error {
+  border-color: var(--urgent, #c0392b);
+  background: rgba(192, 57, 43, 0.08);
+  color: var(--urgent, #c0392b);
+}
+
+.content-copy-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 @keyframes content-refresh-spin {
   to {
     transform: rotate(360deg);
