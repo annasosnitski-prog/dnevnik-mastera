@@ -10815,13 +10815,12 @@ function ContentINKAScreen({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshRunner = useMemo(() => createContentRefreshRunner(), []);
-  const [refreshingEntryId, setRefreshingEntryId] = useState<string | null>(null);
+  const [refreshingEntryIds, setRefreshingEntryIds] = useState<Set<string>>(() => new Set());
   const [selectedArchetypeByEntry, setSelectedArchetypeByEntry] = useState<Record<string, string>>({});
-  const [refreshFeedback, setRefreshFeedback] = useState<{
-    entryId: string;
+  const [refreshFeedbackByEntry, setRefreshFeedbackByEntry] = useState<Record<string, {
     kind: 'success' | 'error';
     message: string;
-  } | null>(null);
+  }>>({});
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
 
   const composerClient = clients.find((c) => c.id === composerClientId) ?? null;
@@ -10902,8 +10901,17 @@ function ContentINKAScreen({
 
   const regenerate = async (entry: ContentEntry, instruction: string, selectedArchetype?: string) => {
     if (refreshRunner.isRunning(entry.id)) return;
-    setRefreshingEntryId(entry.id);
-    setRefreshFeedback(null);
+    setError(null);
+    setRefreshingEntryIds((current) => {
+      const next = new Set(current);
+      next.add(entry.id);
+      return next;
+    });
+    setRefreshFeedbackByEntry((current) => {
+      const next = { ...current };
+      delete next[entry.id];
+      return next;
+    });
     try {
       const outcome = await refreshRunner.run({
         entry,
@@ -10926,15 +10934,24 @@ function ContentINKAScreen({
       if (selectedArchetype) {
         setSelectedArchetypeByEntry((current) => ({ ...current, [entry.id]: selectedArchetype }));
       }
-      setRefreshFeedback({ entryId: entry.id, kind: 'success', message: 'Черновик обновлён' });
+      setRefreshFeedbackByEntry((current) => ({
+        ...current,
+        [entry.id]: { kind: 'success', message: 'Черновик обновлён' },
+      }));
     } catch (err) {
-      setRefreshFeedback({
-        entryId: entry.id,
-        kind: 'error',
-        message: err instanceof ContentSyncError ? err.message : 'Не удалось обновить черновик. Попробуйте ещё раз.',
-      });
+      setRefreshFeedbackByEntry((current) => ({
+        ...current,
+        [entry.id]: {
+          kind: 'error',
+          message: err instanceof ContentSyncError ? err.message : 'Не удалось обновить черновик. Попробуйте ещё раз.',
+        },
+      }));
     } finally {
-      setRefreshingEntryId((current) => (current === entry.id ? null : current));
+      setRefreshingEntryIds((current) => {
+        const next = new Set(current);
+        next.delete(entry.id);
+        return next;
+      });
     }
   };
 
@@ -11061,7 +11078,7 @@ function ContentINKAScreen({
               <div className="content-archetype-label">Голос текста</div>
               <div className="content-archetype-chips">
                 {ARCHETYPE_CHIPS.map((preset) => {
-                  const isRefreshing = refreshingEntryId === entry.id;
+                  const isRefreshing = refreshingEntryIds.has(entry.id);
                   const isSelected = selectedArchetypeByEntry[entry.id] === preset.label;
                   return (
                     <button
@@ -11081,20 +11098,20 @@ function ContentINKAScreen({
                 <button
                   type="button"
                   className="content-refresh-action"
-                  disabled={refreshingEntryId === entry.id}
+                  disabled={refreshingEntryIds.has(entry.id)}
                   onClick={() => regenerate(entry, '')}
                 >
-                  <span className={refreshingEntryId === entry.id ? 'is-spinning' : ''} aria-hidden="true">
+                  <span className={refreshingEntryIds.has(entry.id) ? 'is-spinning' : ''} aria-hidden="true">
                     ↻
                   </span>
-                  {refreshingEntryId === entry.id ? 'Обновляю…' : 'Обновить черновик'}
+                  {refreshingEntryIds.has(entry.id) ? 'Обновляю…' : 'Обновить черновик'}
                 </button>
-                {refreshFeedback?.entryId === entry.id && (
+                {refreshFeedbackByEntry[entry.id] && (
                   <div
-                    className={`content-refresh-feedback is-${refreshFeedback.kind}`}
-                    role={refreshFeedback.kind === 'error' ? 'alert' : 'status'}
+                    className={`content-refresh-feedback is-${refreshFeedbackByEntry[entry.id].kind}`}
+                    role={refreshFeedbackByEntry[entry.id].kind === 'error' ? 'alert' : 'status'}
                   >
-                    {refreshFeedback.message}
+                    {refreshFeedbackByEntry[entry.id].message}
                   </div>
                 )}
               </div>

@@ -42,6 +42,56 @@ test('blocks a second refresh while the same entry is in flight', async () => {
   assert.equal(runner.isRunning(entry.id), false);
 });
 
+test('tracks parallel refreshes for different entries independently', async () => {
+  const runner = createContentRefreshRunner();
+  const firstEntry = {
+    id: 'entry-1',
+    contentDraft: [],
+    visualArchetype: null,
+    textTriad: null,
+    textDraft: 'Первый текст',
+  };
+  const secondEntry = { ...firstEntry, id: 'entry-2', textDraft: 'Второй текст' };
+
+  let releaseFirst;
+  let releaseSecond;
+  const firstPending = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  const secondPending = new Promise((resolve) => {
+    releaseSecond = resolve;
+  });
+
+  const firstRun = runner.run({
+    entry: firstEntry,
+    request: async () => {
+      await firstPending;
+      return { text_draft: 'Первый обновлён' };
+    },
+    save: () => undefined,
+  });
+  const secondRun = runner.run({
+    entry: secondEntry,
+    request: async () => {
+      await secondPending;
+      return { text_draft: 'Второй обновлён' };
+    },
+    save: () => undefined,
+  });
+
+  assert.equal(runner.isRunning(firstEntry.id), true);
+  assert.equal(runner.isRunning(secondEntry.id), true);
+
+  releaseFirst();
+  await firstRun;
+  assert.equal(runner.isRunning(firstEntry.id), false);
+  assert.equal(runner.isRunning(secondEntry.id), true);
+
+  releaseSecond();
+  await secondRun;
+  assert.equal(runner.isRunning(secondEntry.id), false);
+});
+
 test('updates the existing entry text without changing its other data', async () => {
   const runner = createContentRefreshRunner();
   const entry = {
@@ -117,14 +167,26 @@ test('keeps the previous text and unlocks refresh after a real error', async () 
   assert.equal(retry.status, 'updated');
 });
 
-test('refresh UI reports success locally and disables repeated actions while loading', () => {
+test('refresh UI keeps loading and feedback local to each entry', () => {
   const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
   const refreshImplementation = source.slice(source.indexOf('const regenerate ='), source.indexOf('const visibleEntries'));
+  const refreshCatch = refreshImplementation.slice(refreshImplementation.indexOf('} catch (err)'), refreshImplementation.indexOf('} finally'));
 
   assert.match(refreshImplementation, /refreshRunner\.isRunning\(entry\.id\)/);
+  assert.match(refreshImplementation, /setError\(null\)/);
+  assert.match(refreshImplementation, /setRefreshingEntryIds/);
+  assert.match(refreshImplementation, /next\.add\(entry\.id\)/);
+  assert.match(refreshImplementation, /next\.delete\(entry\.id\)/);
+  assert.match(refreshImplementation, /setRefreshFeedbackByEntry\(\(current\) => \(\{/);
+  assert.match(refreshImplementation, /\.\.\.current,\s*\[entry\.id\]: \{ kind: 'success'/s);
   assert.match(refreshImplementation, /kind: 'success', message: 'Черновик обновлён'/);
-  assert.doesNotMatch(refreshImplementation, /setError\(/);
-  assert.match(source, /disabled=\{refreshingEntryId === entry\.id\}/);
+  assert.match(refreshCatch, /setRefreshFeedbackByEntry/);
+  assert.match(refreshCatch, /kind: 'error'/);
+  assert.doesNotMatch(refreshCatch, /setError\(/);
+  assert.match(source, /useState<Set<string>>/);
+  assert.match(source, /useState<Record<string, \{/);
+  assert.match(source, /disabled=\{refreshingEntryIds\.has\(entry\.id\)\}/);
+  assert.match(source, /refreshFeedbackByEntry\[entry\.id\]/);
   assert.match(source, /Обновляю…/);
   assert.match(source, /Обновить черновик/);
 });
