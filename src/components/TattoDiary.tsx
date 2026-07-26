@@ -50,6 +50,12 @@ import {
   type ContentTranslations,
 } from '../lib/contentTranslation';
 import {
+  MAX_CONTENT_TEXT_CHARACTERS,
+  contentTextLength,
+  isContentTextDirty,
+  saveContentTextEdit,
+} from '../lib/contentTextEditing';
+import {
   contentComposerItemKey,
   findLinkedContentEntries,
   selectContentWorkspaceEntries,
@@ -10921,6 +10927,16 @@ type ContentTranslationFeedback = {
   sourceText: string;
 };
 
+type ContentTextEditorState = {
+  baseText: string;
+  editedText: string;
+};
+
+type ContentTextEditFeedback = {
+  kind: 'success' | 'error';
+  message: string;
+};
+
 function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
   const [viewerPhoto, setViewerPhoto] = useState<ResolvedContentPhoto | null>(null);
   const input = { photos: entry.photos, photoIds: entry.photoIds, contentDraft: entry.contentDraft };
@@ -11042,6 +11058,9 @@ function ContentINKAScreen({
   const [translationMenuEntryIds, setTranslationMenuEntryIds] = useState<Set<string>>(() => new Set());
   const [translationFeedbackByKey, setTranslationFeedbackByKey] = useState<Record<string, ContentTranslationFeedback>>({});
   const [translationCopyFeedbackByKey, setTranslationCopyFeedbackByKey] = useState<Record<string, CopyFeedback>>({});
+  const [textEditorsByEntry, setTextEditorsByEntry] = useState<Record<string, ContentTextEditorState>>({});
+  const [textEditFeedbackByEntry, setTextEditFeedbackByEntry] = useState<Record<string, ContentTextEditFeedback>>({});
+  const textEditFeedbackTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const translationCopyFeedbackController = useMemo(
     () => createCopyFeedbackController({ onChange: setTranslationCopyFeedbackByKey }),
     [],
@@ -11052,9 +11071,89 @@ function ContentINKAScreen({
     contentEntriesRef.current = [entry, ...contentEntriesRef.current.filter((candidate) => candidate.id !== entry.id)];
     onSaveEntry(entry);
   };
+  const hasUnsavedTextEdit = (entry: ContentEntry): boolean => {
+    const editor = textEditorsByEntry[entry.id];
+    return entry.status === 'draft' && !!editor && isContentTextDirty(entry.textDraft, editor.editedText);
+  };
+  const showTextEditFeedback = (entryId: string, feedback: ContentTextEditFeedback) => {
+    const currentTimer = textEditFeedbackTimers.current.get(entryId);
+    if (currentTimer) clearTimeout(currentTimer);
+    setTextEditFeedbackByEntry((current) => ({ ...current, [entryId]: feedback }));
+    const timer = setTimeout(() => {
+      textEditFeedbackTimers.current.delete(entryId);
+      setTextEditFeedbackByEntry((current) => {
+        const next = { ...current };
+        delete next[entryId];
+        return next;
+      });
+    }, 2200);
+    textEditFeedbackTimers.current.set(entryId, timer);
+  };
+  const startTextEdit = (entry: ContentEntry) => {
+    if (entry.status !== 'draft') return;
+    const currentTimer = textEditFeedbackTimers.current.get(entry.id);
+    if (currentTimer) clearTimeout(currentTimer);
+    textEditFeedbackTimers.current.delete(entry.id);
+    setTextEditorsByEntry((current) => ({
+      ...current,
+      [entry.id]: { baseText: entry.textDraft, editedText: entry.textDraft },
+    }));
+    setTextEditFeedbackByEntry((current) => {
+      const next = { ...current };
+      delete next[entry.id];
+      return next;
+    });
+  };
+  const cancelTextEdit = (entryId: string) => {
+    const currentTimer = textEditFeedbackTimers.current.get(entryId);
+    if (currentTimer) clearTimeout(currentTimer);
+    textEditFeedbackTimers.current.delete(entryId);
+    setTextEditorsByEntry((current) => {
+      const next = { ...current };
+      delete next[entryId];
+      return next;
+    });
+    setTextEditFeedbackByEntry((current) => {
+      const next = { ...current };
+      delete next[entryId];
+      return next;
+    });
+  };
+  const saveTextEdit = (entry: ContentEntry) => {
+    const editor = textEditorsByEntry[entry.id];
+    if (!editor) return;
+    const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
+    const outcome = saveContentTextEdit(currentEntry, {
+      baseText: editor.baseText,
+      editedText: editor.editedText,
+    });
+
+    if (outcome.status === 'saved') saveEntryInWorkspace(outcome.entry);
+    if (outcome.status === 'saved' || outcome.status === 'unchanged') {
+      cancelTextEdit(entry.id);
+      showTextEditFeedback(entry.id, { kind: 'success', message: 'Сохранено' });
+      return;
+    }
+    if (outcome.status === 'empty') {
+      showTextEditFeedback(entry.id, { kind: 'error', message: 'Текст не может быть пустым' });
+      return;
+    }
+    if (outcome.status === 'too_long') {
+      showTextEditFeedback(entry.id, { kind: 'error', message: 'Сократите текст вручную до 650 символов' });
+      return;
+    }
+
+    cancelTextEdit(entry.id);
+    showTextEditFeedback(entry.id, {
+      kind: 'error',
+      message: outcome.status === 'conflict'
+        ? 'Текст уже изменился. Откройте редактор заново.'
+        : 'Одобренный текст нельзя редактировать',
+    });
+  };
   const approveEntry = (entry: ContentEntry) => {
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
-    if (currentEntry.status === 'confirmed') return;
+    if (currentEntry.status === 'confirmed' || hasUnsavedTextEdit(currentEntry)) return;
     saveEntryInWorkspace(confirmContentEntry(currentEntry));
   };
   const updateExemplar = (entry: ContentEntry, isExemplar: boolean) => {
@@ -11073,6 +11172,19 @@ function ContentINKAScreen({
     for (const entryId of knownContentEntryIds.current) {
       if (!currentEntryIds.has(entryId)) {
         copyFeedbackController.clear(entryId);
+        const textEditTimer = textEditFeedbackTimers.current.get(entryId);
+        if (textEditTimer) clearTimeout(textEditTimer);
+        textEditFeedbackTimers.current.delete(entryId);
+        setTextEditorsByEntry((current) => {
+          const next = { ...current };
+          delete next[entryId];
+          return next;
+        });
+        setTextEditFeedbackByEntry((current) => {
+          const next = { ...current };
+          delete next[entryId];
+          return next;
+        });
         for (const option of CONTENT_TRANSLATION_OPTIONS) {
           translationCopyFeedbackController.clear(contentTranslationKey(entryId, option.language));
         }
@@ -11082,6 +11194,10 @@ function ContentINKAScreen({
   }, [contentEntries, copyFeedbackController, translationCopyFeedbackController]);
 
   useEffect(() => () => copyFeedbackController.dispose(), [copyFeedbackController]);
+  useEffect(() => () => {
+    for (const timer of textEditFeedbackTimers.current.values()) clearTimeout(timer);
+    textEditFeedbackTimers.current.clear();
+  }, []);
   useEffect(() => {
     contentTranslationsMountedRef.current = true;
     return () => {
@@ -11208,7 +11324,7 @@ function ContentINKAScreen({
 
   const regenerate = async (entry: ContentEntry, instruction: string, selectedArchetype?: string) => {
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
-    if (currentEntry.status === 'confirmed' || refreshRunner.isRunning(currentEntry.id)) return;
+    if (currentEntry.status === 'confirmed' || hasUnsavedTextEdit(currentEntry) || refreshRunner.isRunning(currentEntry.id)) return;
     setError(null);
     setRefreshingEntryIds((current) => {
       const next = new Set(current);
@@ -11290,6 +11406,8 @@ function ContentINKAScreen({
   };
 
   const toggleTranslationMenu = (entryId: string) => {
+    const entry = contentEntriesRef.current.find((candidate) => candidate.id === entryId);
+    if (entry && hasUnsavedTextEdit(entry)) return;
     setTranslationMenuEntryIds((current) => {
       const next = new Set(current);
       if (next.has(entryId)) next.delete(entryId);
@@ -11300,7 +11418,7 @@ function ContentINKAScreen({
 
   const translateEntry = async (entry: ContentEntry, language: ContentTranslationLanguage) => {
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
-    if (!currentEntry.textDraft.trim() || currentContentTranslation(currentEntry, language)) return;
+    if (hasUnsavedTextEdit(currentEntry) || !currentEntry.textDraft.trim() || currentContentTranslation(currentEntry, language)) return;
     if (translationRunner.isRunning(currentEntry.id, language)) return;
 
     const key = contentTranslationKey(currentEntry.id, language);
@@ -11499,17 +11617,82 @@ function ContentINKAScreen({
                   <button
                     type="button"
                     className="content-approve-action"
-                    disabled={!entry.textDraft.trim()}
+                    disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
                     onClick={() => approveEntry(entry)}
                   >
                     Одобрить текст
                   </button>
                 )}
               </div>
+              {hasUnsavedTextEdit(entry) && (
+                <div className="content-text-edit-guard">Сначала сохраните или отмените правки</div>
+              )}
               <ContentPhotoGallery entry={entry} />
-              {entry.textDraft && (
-                <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: 10 }}>
-                  {entry.textDraft}
+              {entry.status === 'draft' && textEditorsByEntry[entry.id] ? (
+                <div className="content-text-editor">
+                  <textarea
+                    value={textEditorsByEntry[entry.id].editedText}
+                    onChange={(event) => setTextEditorsByEntry((current) => ({
+                      ...current,
+                      [entry.id]: {
+                        baseText: current[entry.id]?.baseText ?? entry.textDraft,
+                        editedText: event.target.value,
+                      },
+                    }))}
+                    rows={8}
+                    dir="auto"
+                    autoFocus
+                    aria-label="Текст публикации"
+                    aria-invalid={contentTextLength(textEditorsByEntry[entry.id].editedText.trim()) > MAX_CONTENT_TEXT_CHARACTERS}
+                  />
+                  <div className="content-text-editor__meta">
+                    <span className={hasUnsavedTextEdit(entry) ? 'is-dirty' : ''}>
+                      {hasUnsavedTextEdit(entry) ? 'Не сохранено' : 'Без изменений'}
+                    </span>
+                    <span className={contentTextLength(textEditorsByEntry[entry.id].editedText.trim()) > MAX_CONTENT_TEXT_CHARACTERS ? 'is-over-limit' : ''}>
+                      {contentTextLength(textEditorsByEntry[entry.id].editedText.trim())} / {MAX_CONTENT_TEXT_CHARACTERS}
+                    </span>
+                  </div>
+                  {contentTextLength(textEditorsByEntry[entry.id].editedText.trim()) > MAX_CONTENT_TEXT_CHARACTERS && (
+                    <div className="content-text-edit-feedback is-error" role="alert">
+                      Сократите текст вручную до 650 символов
+                    </div>
+                  )}
+                  {textEditFeedbackByEntry[entry.id] && (
+                    <div className={`content-text-edit-feedback is-${textEditFeedbackByEntry[entry.id].kind}`} role="alert">
+                      {textEditFeedbackByEntry[entry.id].message}
+                    </div>
+                  )}
+                  <div className="content-text-editor__actions">
+                    <button
+                      type="button"
+                      className="content-text-save-action"
+                      disabled={
+                        !textEditorsByEntry[entry.id].editedText.trim() ||
+                        contentTextLength(textEditorsByEntry[entry.id].editedText.trim()) > MAX_CONTENT_TEXT_CHARACTERS
+                      }
+                      onClick={() => saveTextEdit(entry)}
+                    >
+                      Сохранить
+                    </button>
+                    <button type="button" className="content-text-cancel-action" onClick={() => cancelTextEdit(entry.id)}>
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              ) : entry.textDraft ? (
+                <div className="content-text-output">
+                  <div dir="auto" className="content-text-output__body">{entry.textDraft}</div>
+                  {entry.status === 'draft' && (
+                    <button type="button" className="content-text-edit-action" onClick={() => startTextEdit(entry)}>
+                      Редактировать
+                    </button>
+                  )}
+                </div>
+              ) : null}
+              {!textEditorsByEntry[entry.id] && textEditFeedbackByEntry[entry.id] && (
+                <div className={`content-text-edit-feedback is-${textEditFeedbackByEntry[entry.id].kind}`} role="status">
+                  {textEditFeedbackByEntry[entry.id].message}
                 </div>
               )}
               {CONTENT_TRANSLATION_OPTIONS.map((option) => {
@@ -11543,7 +11726,7 @@ function ContentINKAScreen({
                       {isStale && (
                         <button
                           type="button"
-                          disabled={feedback?.state === 'loading' || !entry.textDraft.trim()}
+                          disabled={feedback?.state === 'loading' || !entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
                           onClick={() => translateEntry(entry, option.language)}
                         >
                           {feedback?.state === 'loading' ? 'Перевожу…' : 'Обновить перевод'}
@@ -11586,7 +11769,7 @@ function ContentINKAScreen({
                       type="button"
                       className={`content-archetype-chip${isSelected ? ' is-selected' : ''}`}
                       aria-pressed={isSelected}
-                      disabled={isRefreshing}
+                      disabled={isRefreshing || hasUnsavedTextEdit(entry)}
                       onClick={() => regenerate(entry, preset.instruction, preset.label)}
                     >
                       {preset.label}
@@ -11599,7 +11782,7 @@ function ContentINKAScreen({
                   <button
                     type="button"
                     className="content-refresh-action"
-                    disabled={refreshingEntryIds.has(entry.id)}
+                    disabled={refreshingEntryIds.has(entry.id) || hasUnsavedTextEdit(entry)}
                     onClick={() => regenerate(entry, '')}
                   >
                     <span className={refreshingEntryIds.has(entry.id) ? 'is-spinning' : ''} aria-hidden="true">
@@ -11636,11 +11819,12 @@ function ContentINKAScreen({
                   type="button"
                   className="content-translate-action"
                   aria-expanded={translationMenuEntryIds.has(entry.id)}
-                  disabled={!entry.textDraft.trim()}
+                  disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
                   onClick={() => toggleTranslationMenu(entry.id)}
                 >
                   Перевести
                 </button>
+                {hasUnsavedTextEdit(entry) && <span className="content-text-edit-guard">Сначала сохраните текст</span>}
                 <span onClick={() => shareContentEntry(entry.photos, entry.textDraft)} style={{ fontSize: fs(12), color: COLORS.textGhost, cursor: 'pointer', textDecoration: 'underline' }}>
                   Поделиться
                 </span>
@@ -11658,7 +11842,7 @@ function ContentINKAScreen({
                       <div key={option.language} className="content-translation-menu__option">
                         <button
                           type="button"
-                          disabled={!entry.textDraft.trim() || feedback?.state === 'loading' || hasCurrentTranslation}
+                          disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry) || feedback?.state === 'loading' || hasCurrentTranslation}
                           onClick={() => translateEntry(entry, option.language)}
                         >
                           {feedback?.state === 'loading' ? 'Перевожу…' : option.actionLabel}
