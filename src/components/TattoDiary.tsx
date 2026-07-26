@@ -16,16 +16,25 @@ import {
 } from '../lib/calendarSync';
 import {
   sendToContent,
+  translateContentText,
   ContentSyncError,
   readContentSyncSettings,
   writeContentSyncSettings,
   type ContentDraftMedia,
   type ContentSyncSettings,
   type ContentSessionContext,
+  type ContentTranslationLanguage,
 } from '../lib/contentSync';
 import { downsizeToPreview } from '../lib/imagePreview';
 import { createContentRefreshRunner } from '../lib/contentRefresh';
 import { copyTextToClipboard, createCopyFeedbackController, type CopyFeedback } from '../lib/clipboard';
+import {
+  contentTranslationKey,
+  createContentTranslationRunner,
+  currentContentTranslation,
+  isContentTranslationStale,
+  type ContentTranslations,
+} from '../lib/contentTranslation';
 import {
   contentComposerItemKey,
   findLinkedContentEntries,
@@ -251,6 +260,7 @@ interface ContentEntry {
   textTriad: { opens: string; leads: string; closes: string } | null;
   textDraft: string; // черновик текста — то, ради чего всё
   status: 'draft' | 'confirmed';
+  translations?: ContentTranslations;
 }
 
 // Turns a raw input (phone, @handle, domain or full URL) into an openable link.
@@ -10863,6 +10873,22 @@ const ARCHETYPE_CHIPS: { label: string; instruction: string }[] = [
   { label: 'Творец', instruction: 'открой материал в архетипе Творец — через форму, материал и рождение образа' },
 ];
 
+const CONTENT_TRANSLATION_OPTIONS: {
+  language: ContentTranslationLanguage;
+  actionLabel: string;
+  title: string;
+  dir: 'rtl' | 'ltr';
+}[] = [
+  { language: 'he', actionLabel: 'На иврит', title: 'Иврит', dir: 'rtl' },
+  { language: 'en', actionLabel: 'На английский', title: 'Английский', dir: 'ltr' },
+];
+
+type ContentTranslationFeedback = {
+  state: 'loading' | 'success' | 'error';
+  message: string;
+  sourceText: string;
+};
+
 // Полноценный рабочий интерфейс ContentINKA — отдельная страница
 // (NavFab → «Контент»). Здесь собирается материал с нуля или из выбранной
 // сессии/консультации и применяются все действия к черновику. Остальные
@@ -10901,6 +10927,21 @@ function ContentINKAScreen({
     () => createCopyFeedbackController({ onChange: setCopyFeedbackByEntry }),
     [],
   );
+  const translationRunner = useMemo(() => createContentTranslationRunner(), []);
+  const [translationMenuEntryIds, setTranslationMenuEntryIds] = useState<Set<string>>(() => new Set());
+  const [translationFeedbackByKey, setTranslationFeedbackByKey] = useState<Record<string, ContentTranslationFeedback>>({});
+  const [translationCopyFeedbackByKey, setTranslationCopyFeedbackByKey] = useState<Record<string, CopyFeedback>>({});
+  const translationCopyFeedbackController = useMemo(
+    () => createCopyFeedbackController({ onChange: setTranslationCopyFeedbackByKey }),
+    [],
+  );
+  const contentEntriesRef = useRef(contentEntries);
+  contentEntriesRef.current = contentEntries;
+  const saveEntryInWorkspace = (entry: ContentEntry) => {
+    contentEntriesRef.current = [entry, ...contentEntriesRef.current.filter((candidate) => candidate.id !== entry.id)];
+    onSaveEntry(entry);
+  };
+  const contentTranslationsMountedRef = useRef(false);
   const knownContentEntryIds = useRef(new Set(contentEntries.map((entry) => entry.id)));
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
   const [focusedSource, setFocusedSource] = useState<ContentSourceRef | null>(null);
@@ -10909,12 +10950,25 @@ function ContentINKAScreen({
   useEffect(() => {
     const currentEntryIds = new Set(contentEntries.map((entry) => entry.id));
     for (const entryId of knownContentEntryIds.current) {
-      if (!currentEntryIds.has(entryId)) copyFeedbackController.clear(entryId);
+      if (!currentEntryIds.has(entryId)) {
+        copyFeedbackController.clear(entryId);
+        for (const option of CONTENT_TRANSLATION_OPTIONS) {
+          translationCopyFeedbackController.clear(contentTranslationKey(entryId, option.language));
+        }
+      }
     }
     knownContentEntryIds.current = currentEntryIds;
-  }, [contentEntries, copyFeedbackController]);
+  }, [contentEntries, copyFeedbackController, translationCopyFeedbackController]);
 
   useEffect(() => () => copyFeedbackController.dispose(), [copyFeedbackController]);
+  useEffect(() => {
+    contentTranslationsMountedRef.current = true;
+    return () => {
+      contentTranslationsMountedRef.current = false;
+      translationRunner.dispose();
+      translationCopyFeedbackController.dispose();
+    };
+  }, [translationCopyFeedbackController, translationRunner]);
 
   const composerClient = clients.find((c) => c.id === composerClientId) ?? null;
   const composerItem = (() => {
@@ -11007,7 +11061,7 @@ function ContentINKAScreen({
         session: { client: clientName, work, zone, style, description },
         media: previews,
       });
-      onSaveEntry({
+      saveEntryInWorkspace({
         id: Date.now().toString(),
         createdDate: new Date().toISOString(),
         clientId: composerClientId,
@@ -11060,7 +11114,10 @@ function ContentINKAScreen({
             previousDraft: entry.textDraft || undefined,
           });
         },
-        save: onSaveEntry,
+        save: (refreshedEntry) => {
+          const latestEntry = contentEntriesRef.current.find((candidate) => candidate.id === refreshedEntry.id) ?? refreshedEntry;
+          saveEntryInWorkspace({ ...latestEntry, textDraft: refreshedEntry.textDraft });
+        },
       });
       if (outcome.status === 'ignored') return;
       if (selectedArchetype) {
@@ -11098,8 +11155,81 @@ function ContentINKAScreen({
     }
   };
 
+  const toggleTranslationMenu = (entryId: string) => {
+    setTranslationMenuEntryIds((current) => {
+      const next = new Set(current);
+      if (next.has(entryId)) next.delete(entryId);
+      else next.add(entryId);
+      return next;
+    });
+  };
+
+  const translateEntry = async (entry: ContentEntry, language: ContentTranslationLanguage) => {
+    const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
+    if (!currentEntry.textDraft.trim() || currentContentTranslation(currentEntry, language)) return;
+    if (translationRunner.isRunning(currentEntry.id, language)) return;
+
+    const key = contentTranslationKey(currentEntry.id, language);
+    setTranslationFeedbackByKey((current) => ({
+      ...current,
+      [key]: { state: 'loading', message: 'Перевожу…', sourceText: currentEntry.textDraft },
+    }));
+
+    try {
+      const outcome = await translationRunner.run({
+        entry: currentEntry,
+        language,
+        request: () => translateContentText({ sourceText: currentEntry.textDraft, targetLanguage: language }),
+        getCurrentEntry: () => contentEntriesRef.current.find((candidate) => candidate.id === currentEntry.id) ?? currentEntry,
+        save: saveEntryInWorkspace,
+      });
+      if (outcome.status === 'ignored' || !contentTranslationsMountedRef.current) return;
+      setTranslationFeedbackByKey((current) => ({
+        ...current,
+        [key]: { state: 'success', message: 'Перевод готов', sourceText: currentEntry.textDraft },
+      }));
+    } catch (translationError) {
+      if (!contentTranslationsMountedRef.current) return;
+      setTranslationFeedbackByKey((current) => ({
+        ...current,
+        [key]: {
+          state: 'error',
+          message: translationError instanceof ContentSyncError ? translationError.message : 'Не удалось перевести текст.',
+          sourceText: currentEntry.textDraft,
+        },
+      }));
+    }
+  };
+
+  const copyContentTranslation = async (entry: ContentEntry, language: ContentTranslationLanguage) => {
+    const translation = entry.translations?.[language];
+    if (!translation?.translatedText.trim()) return;
+
+    const key = contentTranslationKey(entry.id, language);
+    const attempt = translationCopyFeedbackController.begin(key);
+    try {
+      const copied = await copyTextToClipboard(translation.translatedText);
+      if (copied && contentTranslationsMountedRef.current) {
+        translationCopyFeedbackController.finish(key, attempt, 'success');
+      }
+    } catch {
+      if (contentTranslationsMountedRef.current) {
+        translationCopyFeedbackController.finish(key, attempt, 'error');
+      }
+    }
+  };
+
   const deleteContentEntry = (entryId: string) => {
     copyFeedbackController.clear(entryId);
+    for (const option of CONTENT_TRANSLATION_OPTIONS) {
+      translationCopyFeedbackController.clear(contentTranslationKey(entryId, option.language));
+    }
+    setTranslationFeedbackByKey((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([key]) => !CONTENT_TRANSLATION_OPTIONS.some((option) => key === contentTranslationKey(entryId, option.language))),
+      ),
+    );
+    contentEntriesRef.current = contentEntriesRef.current.filter((entry) => entry.id !== entryId);
     onDeleteEntry(entryId);
   };
 
@@ -11230,6 +11360,52 @@ function ContentINKAScreen({
                   {entry.textDraft}
                 </div>
               )}
+              {CONTENT_TRANSLATION_OPTIONS.map((option) => {
+                const translation = entry.translations?.[option.language];
+                if (!translation) return null;
+                const key = contentTranslationKey(entry.id, option.language);
+                const isStale = isContentTranslationStale(entry, option.language);
+                const feedback = translationFeedbackByKey[key];
+                const copyFeedback = translationCopyFeedbackByKey[key];
+                return (
+                  <div key={option.language} className={`content-translation-block${isStale ? ' is-stale' : ''}`}>
+                    <div className="content-translation-block__heading">
+                      <span>{option.title}</span>
+                      {isStale && <span>Перевод предыдущей версии</span>}
+                    </div>
+                    <div
+                      className="content-translation-block__text"
+                      dir={option.dir}
+                      lang={option.language}
+                    >
+                      {translation.translatedText}
+                    </div>
+                    <div className="content-translation-block__actions">
+                      <button type="button" onClick={() => copyContentTranslation(entry, option.language)}>
+                        {copyFeedback === 'success'
+                          ? 'Скопировано'
+                          : copyFeedback === 'error'
+                            ? 'Не удалось скопировать'
+                            : 'Копировать перевод'}
+                      </button>
+                      {isStale && (
+                        <button
+                          type="button"
+                          disabled={feedback?.state === 'loading' || !entry.textDraft.trim()}
+                          onClick={() => translateEntry(entry, option.language)}
+                        >
+                          {feedback?.state === 'loading' ? 'Перевожу…' : 'Обновить перевод'}
+                        </button>
+                      )}
+                    </div>
+                    {isStale && feedback?.state === 'error' && (
+                      <div className="content-translation-feedback is-error" role="alert">
+                        {feedback.message}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {(entry.visualArchetype || entry.textTriad) && (
                 <div className="content-archetype-context">
                   {entry.visualArchetype && <div>Визуальный архетип · {entry.visualArchetype}</div>}
@@ -11295,6 +11471,15 @@ function ContentINKAScreen({
                       ? 'Не удалось скопировать'
                       : 'Копировать текст'}
                 </button>
+                <button
+                  type="button"
+                  className="content-translate-action"
+                  aria-expanded={translationMenuEntryIds.has(entry.id)}
+                  disabled={!entry.textDraft.trim()}
+                  onClick={() => toggleTranslationMenu(entry.id)}
+                >
+                  Перевести
+                </button>
                 <span onClick={() => shareContentEntry(entry.photos, entry.textDraft)} style={{ fontSize: fs(12), color: COLORS.textGhost, cursor: 'pointer', textDecoration: 'underline' }}>
                   Поделиться
                 </span>
@@ -11302,6 +11487,46 @@ function ContentINKAScreen({
                   Удалить
                 </span>
               </div>
+              {translationMenuEntryIds.has(entry.id) && (
+                <div className="content-translation-menu">
+                  {CONTENT_TRANSLATION_OPTIONS.map((option) => {
+                    const key = contentTranslationKey(entry.id, option.language);
+                    const feedback = translationFeedbackByKey[key];
+                    const hasCurrentTranslation = !!currentContentTranslation(entry, option.language);
+                    return (
+                      <div key={option.language} className="content-translation-menu__option">
+                        <button
+                          type="button"
+                          disabled={!entry.textDraft.trim() || feedback?.state === 'loading' || hasCurrentTranslation}
+                          onClick={() => translateEntry(entry, option.language)}
+                        >
+                          {feedback?.state === 'loading' ? 'Перевожу…' : option.actionLabel}
+                        </button>
+                        {hasCurrentTranslation && (
+                          <span className="content-translation-feedback is-success" role="status">
+                            {feedback?.state === 'success' ? feedback.message : 'Перевод актуален'}
+                          </span>
+                        )}
+                        {!hasCurrentTranslation && feedback?.state === 'error' && (
+                          <span
+                            className="content-translation-feedback is-error"
+                            role="alert"
+                          >
+                            {feedback.message}
+                          </span>
+                        )}
+                        {!hasCurrentTranslation &&
+                          feedback?.state === 'success' &&
+                          feedback.sourceText === entry.textDraft && (
+                            <span className="content-translation-feedback is-success" role="status">
+                              {feedback.message}
+                            </span>
+                          )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </GoldFrame>
           ))}
         </div>

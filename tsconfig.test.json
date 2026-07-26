@@ -6,5 +6,11 @@
     "outDir": ".test-dist",
     "rootDir": "."
   },
-  "include": ["src/lib/contentRefresh.ts", "src/lib/clipboard.ts", "src/lib/contentWorkspace.ts"]
+  "include": [
+    "src/lib/contentRefresh.ts",
+    "src/lib/clipboard.ts",
+    "src/lib/contentWorkspace.ts",
+    "src/lib/contentSync.ts",
+    "src/lib/contentTranslation.ts"
+  ]
 }
