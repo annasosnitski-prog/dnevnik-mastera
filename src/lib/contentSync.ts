@@ -51,6 +51,17 @@ export function writeContentSyncSettings(settings: ContentSyncSettings): void {
 // которые теперь приходят один раз на весь материал (см. IngestResult
 // ниже), не дублируются на каждый кадр. См. contentinka-diary-handoff.md
 // (inka-bot repo) для полного контракта.
+export type ContentSelectionRole =
+  | 'cover'
+  | 'placement'
+  | 'detail'
+  | 'before'
+  | 'after'
+  | 'process'
+  | 'transition'
+  | 'atmosphere'
+  | 'background';
+
 export interface ContentDraftMedia {
   id: string;
   technical_status: 'kept' | 'background' | 'rejected';
@@ -59,6 +70,9 @@ export interface ContentDraftMedia {
   cover_candidate?: boolean;
   format?: 'post' | 'story';
   order_index?: number;
+  selected?: boolean;
+  selection_role?: ContentSelectionRole;
+  duplicate_group?: string;
 }
 
 export interface ContentSessionContext {

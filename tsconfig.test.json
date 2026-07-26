@@ -8,6 +8,7 @@
   },
   "include": [
     "src/lib/contentRefresh.ts",
+    "src/lib/contentPhotoSelection.ts",
     "src/lib/contentApproval.ts",
     "src/lib/clipboard.ts",
     "src/lib/contentWorkspace.ts",

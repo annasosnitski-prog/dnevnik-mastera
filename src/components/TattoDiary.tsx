@@ -25,6 +25,14 @@ import {
   type ContentSessionContext,
   type ContentTranslationLanguage,
 } from '../lib/contentSync';
+import {
+  contentSelectionRoleLabel,
+  createContentPhotoIds,
+  hasContentPhotoSelectionContract,
+  resolveAllContentPhotos,
+  resolveContentPhotoSelection,
+  type ResolvedContentPhoto,
+} from '../lib/contentPhotoSelection';
 import { downsizeToPreview } from '../lib/imagePreview';
 import { createContentRefreshRunner } from '../lib/contentRefresh';
 import {
@@ -261,6 +269,7 @@ interface ContentEntry {
   text: string; // ввод мастера — тема/инструкция, не результат
   context: ContentSessionContext; // снимок на момент генерации — перегенерация не бегает за живой сессией
   photos: string[]; // оригиналы (не превью) — те же data URL, что и в Session.photos
+  photoIds?: string[]; // стабильные ID в том же порядке, что и photos
   contentDraft: ContentDraftMedia[] | null; // per-photo разметка (role/format/...), если есть фото
   visualArchetype: string | null;
   textTriad: { opens: string; leads: string; closes: string } | null;
@@ -6058,6 +6067,18 @@ async function shareContentEntry(photos: string[], text: string): Promise<void> 
   await navigator.clipboard?.writeText(text);
 }
 
+function contentPhotoExtension(dataUrl: string): 'jpeg' | 'png' | 'webp' {
+  const mime = /^data:image\/(jpeg|png|webp)[;,]/i.exec(dataUrl)?.[1]?.toLowerCase();
+  return mime === 'png' || mime === 'webp' ? mime : 'jpeg';
+}
+
+function downloadContentPhoto(entryId: string, photo: ResolvedContentPhoto): void {
+  const link = document.createElement('a');
+  link.href = photo.src;
+  link.download = `contentinka-${entryId}-${photo.originalIndex}.${contentPhotoExtension(photo.src)}`;
+  link.click();
+}
+
 // ===================== ADMIN DASHBOARD =====================
 // The control panel: every reminder, the upcoming-sessions lookahead, the
 // client/session/consultation stats (minus «Частый стиль», which stays a
@@ -10900,6 +10921,85 @@ type ContentTranslationFeedback = {
   sourceText: string;
 };
 
+function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
+  const [viewerPhoto, setViewerPhoto] = useState<ResolvedContentPhoto | null>(null);
+  const input = { photos: entry.photos, photoIds: entry.photoIds, contentDraft: entry.contentDraft };
+  const hasSelectionContract = hasContentPhotoSelectionContract(entry.contentDraft);
+  const selectedPhotos = resolveContentPhotoSelection(input);
+  const allPhotos = resolveAllContentPhotos(input);
+
+  const roleBadge = (photo: ResolvedContentPhoto) =>
+    photo.selectionRole ? (
+      <span className={`content-photo-role${photo.selectionRole === 'cover' ? ' is-cover' : ''}`}>
+        {contentSelectionRoleLabel(photo.selectionRole)}
+      </span>
+    ) : null;
+
+  const photoButton = (photo: ResolvedContentPhoto, className: string) => (
+    <button
+      key={photo.id}
+      type="button"
+      className={className}
+      onClick={() => setViewerPhoto(photo)}
+      aria-label={`Открыть фотографию ${photo.originalIndex + 1}`}
+    >
+      <img src={photo.src} alt="" />
+      {roleBadge(photo)}
+      {hasSelectionContract && !photo.selected && <span className="content-photo-not-selected">Не выбрано</span>}
+    </button>
+  );
+
+  return (
+    <>
+      {hasSelectionContract ? (
+        <div className="content-photo-output">
+          <div className="content-photo-output__title">Подборка Инки</div>
+          {selectedPhotos.length === 0 ? (
+            <div className="content-photo-output__empty">Инка не выбрала кадры для публикации</div>
+          ) : (
+            <div className="content-photo-selection">
+              {photoButton(selectedPhotos[0], 'content-photo-hero')}
+              {selectedPhotos.length > 1 && (
+                <div className="content-photo-grid">
+                  {selectedPhotos.slice(1).map((photo) => photoButton(photo, 'content-photo-tile'))}
+                </div>
+              )}
+            </div>
+          )}
+          <details className="content-photo-archive">
+            <summary>Все фотографии · {allPhotos.length}</summary>
+            {allPhotos.length > 0 && (
+              <div className="content-photo-archive__grid">
+                {allPhotos.map((photo) => photoButton(photo, 'content-photo-tile'))}
+              </div>
+            )}
+          </details>
+        </div>
+      ) : entry.photos.length > 0 ? (
+        <div className="content-photo-legacy">
+          {allPhotos.map((photo) => photoButton(photo, 'content-photo-legacy__tile'))}
+        </div>
+      ) : null}
+
+      {viewerPhoto &&
+        createPortal(
+          <div className="content-photo-viewer" role="dialog" aria-modal="true" aria-label="Просмотр фотографии" onClick={() => setViewerPhoto(null)}>
+            <button type="button" className="content-photo-viewer__close" aria-label="Закрыть" onClick={() => setViewerPhoto(null)}>
+              ×
+            </button>
+            <div className="content-photo-viewer__content" onClick={(event) => event.stopPropagation()}>
+              <img src={viewerPhoto.src} alt="" />
+              <button type="button" className="content-photo-viewer__download" onClick={() => downloadContentPhoto(entry.id, viewerPhoto)}>
+                Сохранить фото
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 // Полноценный рабочий интерфейс ContentINKA — отдельная страница
 // (NavFab → «Контент»). Здесь собирается материал с нуля или из выбранной
 // сессии/консультации и применяются все действия к черновику. Остальные
@@ -11072,9 +11172,10 @@ function ContentINKAScreen({
           : '';
       const description = composerText.trim() || noteFallback;
       const photos = composerPhotos.length > 0 ? composerPhotos : linkedItem?.photos ?? [];
+      const photoIds = createContentPhotoIds(photos.length);
 
       const previews = await Promise.all(
-        photos.map(async (photo, i) => ({ id: `new-${i}`, preview_data_url: await downsizeToPreview(photo) })),
+        photos.map(async (photo, i) => ({ id: photoIds[i], preview_data_url: await downsizeToPreview(photo) })),
       );
       const result = await sendToContent({
         sessionId: sourceId ?? `freeform-${Date.now()}`,
@@ -11091,6 +11192,7 @@ function ContentINKAScreen({
         text: composerText,
         context: { client: clientName, work, zone, style, description },
         photos,
+        photoIds,
         contentDraft: result.media,
         visualArchetype: result.visual_archetype,
         textTriad: result.text_triad,
@@ -11124,8 +11226,14 @@ function ContentINKAScreen({
         getCurrentEntry: () =>
           contentEntriesRef.current.find((candidate) => candidate.id === currentEntry.id) ?? currentEntry,
         request: async () => {
+          const requestPhotoIds =
+            currentEntry.photoIds?.length === currentEntry.photos.length
+              ? currentEntry.photoIds
+              : currentEntry.contentDraft?.length === currentEntry.photos.length
+                ? currentEntry.contentDraft.map((media) => media.id)
+                : currentEntry.photos.map((_, index) => `${currentEntry.id}-${index}`);
           const previews = await Promise.all(
-            currentEntry.photos.map(async (photo, i) => ({ id: `${currentEntry.id}-${i}`, preview_data_url: await downsizeToPreview(photo) })),
+            currentEntry.photos.map(async (photo, i) => ({ id: requestPhotoIds[i], preview_data_url: await downsizeToPreview(photo) })),
           );
           return sendToContent({
             sessionId: currentEntry.sourceId ?? currentEntry.id,
@@ -11398,13 +11506,7 @@ function ContentINKAScreen({
                   </button>
                 )}
               </div>
-              {entry.photos.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                  {entry.photos.map((p, i) => (
-                    <img key={i} src={p} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)' }} />
-                  ))}
-                </div>
-              )}
+              <ContentPhotoGallery entry={entry} />
               {entry.textDraft && (
                 <div dir="auto" style={{ fontSize: fs(14), color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: 10 }}>
                   {entry.textDraft}
