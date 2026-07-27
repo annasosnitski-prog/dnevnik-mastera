@@ -33,6 +33,14 @@ import {
   resolveContentPhotoSelection,
   type ResolvedContentPhoto,
 } from '../lib/contentPhotoSelection';
+import {
+  canShareInstagramContent,
+  contentPhotoExtension,
+  isShareAbortError,
+  prepareInstagramContentShare,
+  prepareStandardContentShare,
+  type ContentSharePhoto,
+} from '../lib/contentShare';
 import { downsizeToPreview } from '../lib/imagePreview';
 import { createContentRefreshRunner } from '../lib/contentRefresh';
 import {
@@ -6036,29 +6044,22 @@ async function shareOrDownloadJSON(json: string, filename: string, shareTitle: s
   URL.revokeObjectURL(url);
 }
 
-function dataUrlToFile(dataUrl: string, filename: string): File {
-  const m = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
-  const mime = m?.[1] ?? 'image/jpeg';
-  const bytes = atob(m?.[2] ?? '');
-  const arr = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-  return new File([arr], filename, { type: mime });
-}
-
-// «Поделиться» готовым материалом — системный шеринг телефона (как в
-// CapCut/Фото): передаём фото+текст, дальше пользователь сам выбирает
-// приложение (Instagram/TikTok/что угодно) в системном меню, оно уже само
-// открывается с этим контентом на экране редактирования. Мы не выбираем
-// конкретное приложение — этим управляет ОС.
-async function shareContentEntry(photos: string[], text: string): Promise<void> {
-  const files = photos.map((p, i) => dataUrlToFile(p, `content-${i}.jpg`));
+// Standard «Другие приложения» flow: keep sharing photos and text together,
+// with the same text-only and clipboard fallbacks used by the old button.
+async function shareContentEntry(entryId: string, photos: string[], text: string): Promise<void> {
+  const preparation = prepareStandardContentShare({
+    entryId,
+    savedText: text,
+    photos: photos.map((src, originalIndex) => ({ src, originalIndex })),
+  });
+  const { files, payload } = preparation;
   const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
   if (files.length > 0 && nav.canShare && nav.canShare({ files })) {
     try {
-      await nav.share({ files, text });
+      await nav.share(payload);
       return;
     } catch (err) {
-      if ((err as DOMException)?.name === 'AbortError') return;
+      if (isShareAbortError(err)) return;
     }
   }
   // Нет фото или платформа не поддерживает шеринг файлов — делимся хотя бы
@@ -6068,15 +6069,10 @@ async function shareContentEntry(photos: string[], text: string): Promise<void> 
       await nav.share({ text });
       return;
     } catch (err) {
-      if ((err as DOMException)?.name === 'AbortError') return;
+      if (isShareAbortError(err)) return;
     }
   }
-  await navigator.clipboard?.writeText(text);
-}
-
-function contentPhotoExtension(dataUrl: string): 'jpeg' | 'png' | 'webp' {
-  const mime = /^data:image\/(jpeg|png|webp)[;,]/i.exec(dataUrl)?.[1]?.toLowerCase();
-  return mime === 'png' || mime === 'webp' ? mime : 'jpeg';
+  await copyTextToClipboard(text).catch(() => false);
 }
 
 function downloadContentPhoto(entryId: string, photo: ResolvedContentPhoto): void {
@@ -10938,6 +10934,39 @@ type ContentTextEditFeedback = {
   message: string;
 };
 
+type ContentShareFeedback = {
+  kind: 'success' | 'error';
+  message: string;
+};
+
+function ContentShareSheet({
+  onInstagram,
+  onOtherApps,
+  onClose,
+}: {
+  onInstagram: () => void;
+  onOtherApps: () => void;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <div className="content-share-sheet-backdrop" onClick={onClose}>
+      <div
+        className="content-share-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Поделиться контентом"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="content-share-sheet__title">Поделиться</div>
+        <button type="button" onClick={onInstagram}>Instagram</button>
+        <button type="button" onClick={onOtherApps}>Другие приложения</button>
+        <button type="button" className="content-share-sheet__cancel" onClick={onClose}>Отмена</button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
   const [viewerPhoto, setViewerPhoto] = useState<ResolvedContentPhoto | null>(null);
   const input = { photos: entry.photos, photoIds: entry.photoIds, contentDraft: entry.contentDraft };
@@ -11062,6 +11091,8 @@ function ContentINKAScreen({
   const [translationCopyFeedbackByKey, setTranslationCopyFeedbackByKey] = useState<Record<string, CopyFeedback>>({});
   const [textEditorsByEntry, setTextEditorsByEntry] = useState<Record<string, ContentTextEditorState>>({});
   const [textEditFeedbackByEntry, setTextEditFeedbackByEntry] = useState<Record<string, ContentTextEditFeedback>>({});
+  const [shareMenuEntryId, setShareMenuEntryId] = useState<string | null>(null);
+  const [shareFeedbackByEntry, setShareFeedbackByEntry] = useState<Record<string, ContentShareFeedback>>({});
   const textEditFeedbackTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const translationCopyFeedbackController = useMemo(
     () => createCopyFeedbackController({ onChange: setTranslationCopyFeedbackByKey }),
@@ -11187,13 +11218,19 @@ function ContentINKAScreen({
           delete next[entryId];
           return next;
         });
+        if (shareMenuEntryId === entryId) setShareMenuEntryId(null);
+        setShareFeedbackByEntry((current) => {
+          const next = { ...current };
+          delete next[entryId];
+          return next;
+        });
         for (const option of CONTENT_TRANSLATION_OPTIONS) {
           translationCopyFeedbackController.clear(contentTranslationKey(entryId, option.language));
         }
       }
     }
     knownContentEntryIds.current = currentEntryIds;
-  }, [contentEntries, copyFeedbackController, translationCopyFeedbackController]);
+  }, [contentEntries, copyFeedbackController, shareMenuEntryId, translationCopyFeedbackController]);
 
   useEffect(() => () => copyFeedbackController.dispose(), [copyFeedbackController]);
   useEffect(() => () => {
@@ -11491,6 +11528,124 @@ function ContentINKAScreen({
     );
     contentEntriesRef.current = contentEntriesRef.current.filter((entry) => entry.id !== entryId);
     onDeleteEntry(entryId);
+  };
+
+  const contentSharePhotos = (entry: ContentEntry): ContentSharePhoto[] =>
+    resolveContentPhotoSelection({
+      photos: entry.photos,
+      photoIds: entry.photoIds,
+      contentDraft: entry.contentDraft,
+    }).map((photo) => ({ src: photo.src, originalIndex: photo.originalIndex }));
+
+  const openContentShareMenu = (entryId: string) => {
+    setShareFeedbackByEntry((current) => {
+      const next = { ...current };
+      delete next[entryId];
+      return next;
+    });
+    setShareMenuEntryId(entryId);
+  };
+
+  const shareContentToInstagram = async (entry: ContentEntry) => {
+    setShareMenuEntryId(null);
+    const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
+    const preparation = prepareInstagramContentShare({
+      entryId: currentEntry.id,
+      savedText: currentEntry.textDraft,
+      photos: contentSharePhotos(currentEntry),
+    });
+
+    if (preparation.status === 'no_photo') {
+      setShareFeedbackByEntry((current) => ({
+        ...current,
+        [entry.id]: { kind: 'error', message: 'Для Instagram нужна фотография из итоговой подборки' },
+      }));
+      return;
+    }
+    if (preparation.status === 'invalid_photo') {
+      setShareFeedbackByEntry((current) => ({
+        ...current,
+        [entry.id]: { kind: 'error', message: 'Не удалось подготовить исходное фото для Instagram' },
+      }));
+      return;
+    }
+
+    const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+    const canShareFile = canShareInstagramContent(
+      preparation,
+      nav.canShare ? (data) => nav.canShare?.(data) === true : undefined,
+    );
+    if (!canShareFile || typeof nav.share !== 'function') {
+      setShareFeedbackByEntry((current) => ({
+        ...current,
+        [entry.id]: { kind: 'error', message: 'Этот браузер не поддерживает передачу фото в системное меню' },
+      }));
+      return;
+    }
+
+    // Both permission-sensitive calls start in the same direct user gesture.
+    const copyPromise = copyTextToClipboard(preparation.clipboardText);
+    let sharePromise: Promise<void>;
+    try {
+      sharePromise = nav.share(preparation.payload);
+    } catch (shareError) {
+      const copied = await copyPromise.catch(() => false);
+      if (copied) {
+        setShareFeedbackByEntry((current) => ({
+          ...current,
+          [entry.id]: { kind: 'success', message: 'Текст скопирован — вставьте его в Instagram' },
+        }));
+      }
+      if (!isShareAbortError(shareError)) {
+        setShareFeedbackByEntry((current) => ({
+          ...current,
+          [entry.id]: {
+            kind: 'error',
+            message: copied
+              ? 'Текст скопирован — вставьте его в Instagram. Не удалось открыть системное меню фото.'
+              : 'Не удалось открыть системное меню Instagram',
+          },
+        }));
+      }
+      return;
+    }
+
+    let copied = false;
+    try {
+      copied = await copyPromise;
+      if (copied) {
+        setShareFeedbackByEntry((current) => ({
+          ...current,
+          [entry.id]: { kind: 'success', message: 'Текст скопирован — вставьте его в Instagram' },
+        }));
+      }
+    } catch {
+      setShareFeedbackByEntry((current) => ({
+        ...current,
+        [entry.id]: { kind: 'error', message: 'Фото готово, но текст не удалось скопировать' },
+      }));
+    }
+
+    try {
+      await sharePromise;
+    } catch (shareError) {
+      if (isShareAbortError(shareError)) return;
+      setShareFeedbackByEntry((current) => ({
+        ...current,
+        [entry.id]: {
+          kind: 'error',
+          message: copied
+            ? 'Текст скопирован — вставьте его в Instagram. Не удалось передать фото.'
+            : 'Не удалось передать фото в системное меню',
+        },
+      }));
+    }
+  };
+
+  const shareContentToOtherApps = async (entry: ContentEntry) => {
+    setShareMenuEntryId(null);
+    const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
+    await shareContentEntry(currentEntry.id, currentEntry.photos, currentEntry.textDraft);
   };
 
   const visibleEntries = selectContentWorkspaceEntries({
@@ -11848,13 +12003,28 @@ function ContentINKAScreen({
                   Перевести
                 </button>
                 {hasUnsavedTextEdit(entry) && <span className="content-text-edit-guard">Сначала сохраните текст</span>}
-                <span onClick={() => shareContentEntry(entry.photos, entry.textDraft)} style={{ fontSize: fs(12), color: COLORS.textGhost, cursor: 'pointer', textDecoration: 'underline' }}>
+                <button type="button" className="content-share-action" onClick={() => openContentShareMenu(entry.id)}>
                   Поделиться
-                </span>
+                </button>
                 <span onClick={() => deleteContentEntry(entry.id)} style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', cursor: 'pointer', textDecoration: 'underline' }}>
                   Удалить
                 </span>
               </div>
+              {shareFeedbackByEntry[entry.id] && (
+                <div
+                  className={`content-share-feedback is-${shareFeedbackByEntry[entry.id].kind}`}
+                  role={shareFeedbackByEntry[entry.id].kind === 'error' ? 'alert' : 'status'}
+                >
+                  {shareFeedbackByEntry[entry.id].message}
+                </div>
+              )}
+              {shareMenuEntryId === entry.id && (
+                <ContentShareSheet
+                  onInstagram={() => void shareContentToInstagram(entry)}
+                  onOtherApps={() => void shareContentToOtherApps(entry)}
+                  onClose={() => setShareMenuEntryId(null)}
+                />
+              )}
               {translationMenuEntryIds.has(entry.id) && (
                 <div className="content-translation-menu">
                   {CONTENT_TRANSLATION_OPTIONS.map((option) => {
