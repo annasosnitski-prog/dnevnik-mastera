@@ -1027,8 +1027,13 @@ input[type='date'] {
   cursor: pointer;
 }
 
-.content-share-sheet button:active {
+.content-share-sheet button:active:not(:disabled) {
   background: rgba(var(--gold-rgb), 0.17);
+}
+
+.content-share-sheet button:disabled {
+  opacity: 0.42;
+  cursor: default;
 }
 
 .content-share-sheet .content-share-sheet__cancel {
@@ -1056,6 +1061,22 @@ input[type='date'] {
   font-size: 12px;
   font-style: italic;
   line-height: 1.45;
+}
+
+.content-photo-publication-sets {
+  display: grid;
+  gap: 16px;
+}
+
+.content-photo-publication-set {
+  display: grid;
+  gap: 8px;
+}
+
+.content-photo-publication-set__title {
+  color: var(--text-soft);
+  font-size: 12px;
+  letter-spacing: 0.4px;
 }
 
 .content-photo-selection {
