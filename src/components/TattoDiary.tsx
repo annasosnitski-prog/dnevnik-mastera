@@ -67,6 +67,7 @@ import {
   contentComposerItemKey,
   findLinkedContentEntries,
   selectContentWorkspaceEntries,
+  resolveContentFocusEntry,
   type ContentSourceRef,
   type ContentWorkspaceNavigation,
 } from '../lib/contentWorkspace';
@@ -79,6 +80,7 @@ import {
   buildContentSessionOptions,
   type ContentEntryLink,
 } from '../lib/contentLink';
+import { getProjectContentEntries } from '../lib/contentProject';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
@@ -1652,6 +1654,11 @@ export default function TattoDiary() {
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
   const [contentNavigation, setContentNavigation] = useState<ContentWorkspaceNavigation | null>(null);
+  // Узкий navigation target «открыть вот эту запись» по entry.id — для
+  // клика по карточке в разделе «Контент» экрана проекта, где записи могут
+  // быть freeform/без клиента (ContentWorkspaceNavigation сюда не подходит).
+  // Так же транзиентно и не persisted, как contentNavigation.
+  const [contentFocusEntryId, setContentFocusEntryId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'content' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
@@ -3239,6 +3246,8 @@ export default function TattoDiary() {
             contentEntries={contentEntries}
             navigation={contentNavigation}
             onNavigationApplied={() => setContentNavigation(null)}
+            focusEntryId={contentFocusEntryId}
+            onFocusEntryApplied={() => setContentFocusEntryId(null)}
             onSaveEntry={saveContentEntry}
             onDeleteEntry={deleteContentEntry}
           />
@@ -3548,7 +3557,9 @@ export default function TattoDiary() {
       <ProjectViewSheet
         open={!!viewProject}
         project={viewProject ? getProjectById(projects, viewProject.id) ?? viewProject : null}
+        projects={projects}
         clients={clients}
+        contentEntries={contentEntries}
         masterNotes={masterInfo.notes}
         onClose={() => setViewProject(null)}
         onEdit={(project) => {
@@ -3572,6 +3583,14 @@ export default function TattoDiary() {
           } else {
             setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? { ...n, done: !n.done } : n)) });
           }
+        }}
+        onOpenContentEntry={(entry) => {
+          // Открывает уже существующий экран ContentINKA и раскрывает
+          // конкретную запись по её id (см. contentFocusEntryId ниже) —
+          // новый экран не создаётся, редактор не меняется.
+          setViewProject(null);
+          setContentFocusEntryId(entry.id);
+          setScreen('content');
         }}
       />
 
@@ -11127,6 +11146,8 @@ function ContentINKAScreen({
   contentEntries,
   navigation,
   onNavigationApplied,
+  focusEntryId,
+  onFocusEntryApplied,
   onSaveEntry,
   onDeleteEntry,
 }: {
@@ -11135,6 +11156,11 @@ function ContentINKAScreen({
   contentEntries: ContentEntry[];
   navigation: ContentWorkspaceNavigation | null;
   onNavigationApplied: () => void;
+  // Узкий target «раскрыть вот эту запись» по id (см. contentFocusEntryId в
+  // родителе) — независим от navigation/ContentWorkspaceNavigation, которая
+  // не подходит для freeform/безклиентских записей.
+  focusEntryId: string | null;
+  onFocusEntryApplied: () => void;
   onSaveEntry: (entry: ContentEntry) => void;
   onDeleteEntry: (id: string) => void;
 }) {
@@ -11283,6 +11309,10 @@ function ContentINKAScreen({
   const knownContentEntryIds = useRef(new Set(contentEntries.map((entry) => entry.id)));
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
   const [focusedSource, setFocusedSource] = useState<ContentSourceRef | null>(null);
+  // Кратковременная подсветка записи, раскрытой через focusEntryId (клик по
+  // карточке в разделе «Контент» экрана проекта) — гаснет сама, ничего не
+  // меняет в данных.
+  const [highlightedEntryId, setHighlightedEntryId] = useState<string | null>(null);
   const entriesListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -11379,6 +11409,29 @@ function ContentINKAScreen({
 
     onNavigationApplied();
   }, [clients, navigation, onNavigationApplied]);
+
+  // Раскрыть конкретную запись по entry.id (клик по карточке контента на
+  // экране проекта) — резолвится через ту же чистую функцию, что и её
+  // тесты (resolveContentFocusEntry), а не второй ad-hoc find() здесь.
+  useEffect(() => {
+    if (!focusEntryId) return;
+    const target = resolveContentFocusEntry(contentEntries, focusEntryId);
+    if (target) {
+      setFocusedSource(null);
+      setFilterClientId('all');
+      setHighlightedEntryId(target.id);
+      requestAnimationFrame(() => {
+        document.getElementById(`content-entry-${target.id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+    }
+    onFocusEntryApplied();
+  }, [contentEntries, focusEntryId, onFocusEntryApplied]);
+
+  useEffect(() => {
+    if (!highlightedEntryId) return;
+    const timer = setTimeout(() => setHighlightedEntryId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightedEntryId]);
 
   const resetComposer = () => {
     setComposerText('');
@@ -11870,7 +11923,16 @@ function ContentINKAScreen({
             <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока пусто.</div>
           )}
           {visibleEntries.map((entry) => (
-            <GoldFrame key={entry.id} plain style={{ padding: '14px 16px' }}>
+            <div
+              key={entry.id}
+              id={`content-entry-${entry.id}`}
+              style={
+                highlightedEntryId === entry.id
+                  ? { boxShadow: '0 0 0 2px var(--gold)', borderRadius: 3, transition: 'box-shadow 0.3s ease' }
+                  : undefined
+              }
+            >
+            <GoldFrame plain style={{ padding: '14px 16px' }}>
               <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '0.5px', marginBottom: 8 }}>
                 {clientLabel(entry.clientId)}
                 {entry.format === 'story' ? ' · сторис' : ''}
@@ -12173,6 +12235,7 @@ function ContentINKAScreen({
                 </div>
               )}
             </GoldFrame>
+            </div>
           ))}
         </div>
       </div>
@@ -14310,17 +14373,24 @@ function NewConsultationSheet({
 function ProjectViewSheet({
   open,
   project,
+  projects,
   clients,
+  contentEntries,
   masterNotes,
   onClose,
   onEdit,
   onOpenEntry,
   onEditProjectSession,
   onToggleTaskDone,
+  onOpenContentEntry,
 }: {
   open: boolean;
   project: Project | null;
+  // Полный список — resolveContentEntryProjectId (через getProjectContentEntries)
+  // должен уметь резолвить session-link на любой проект, не только текущий.
+  projects: Project[];
   clients: Client[];
+  contentEntries: ContentEntry[];
   // Master's own (client-less) tasks — a project without a client draws its
   // «Задачи» from here instead of a client's notes.
   masterNotes: ClientNote[];
@@ -14333,6 +14403,9 @@ function ProjectViewSheet({
   // у NavFab), отдельных кнопок создания здесь больше нет.
   onEditProjectSession: (projectId: string, session: Session) => void;
   onToggleTaskDone: (clientId: string | null, note: ClientNote) => void;
+  // Тап по карточке контента — открыть её в уже существующем ContentINKA,
+  // без нового экрана и без изменения самого редактора.
+  onOpenContentEntry: (entry: ContentEntry) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
@@ -14344,6 +14417,9 @@ function ProjectViewSheet({
       ? getTasksByProjectId(linkedClient.notes, project.id)
       : getTasksByProjectId(masterNotes, project.id)
     : [];
+  // Вся принадлежность записи проекту — уже в getProjectContentEntries
+  // (переиспользует resolveContentEntryProjectId, ничего не резолвится здесь).
+  const projectContentEntries = project ? getProjectContentEntries(contentEntries, project.id, projects, clients) : [];
 
   const chipStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -14483,10 +14559,66 @@ function ProjectViewSheet({
                 </div>
               </div>
             )}
+
+            <div>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Контент</div>
+              {projectContentEntries.length === 0 ? (
+                <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет привязанного контента.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {projectContentEntries.map((entry) => (
+                    <ProjectContentCard key={entry.id} entry={entry} onClick={() => onOpenContentEntry(entry)} />
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
     </BottomSheet>
+  );
+}
+
+// Компактная карточка одного материала ContentINKA внутри «Контент» на
+// экране проекта — только для просмотра, без редактирования (см. onClick,
+// открывает существующий ContentINKA, а не что-то новое).
+function ProjectContentCard({ entry, onClick }: { entry: ContentEntry; onClick: () => void }) {
+  const firstLine = (entry.textDraft || entry.text || '').split('\n')[0].trim();
+  const datePart = entry.createdDate.slice(0, 10);
+  const dateLabel = ISO_DATE_RE.test(datePart) ? formatDate(datePart) : entry.createdDate;
+
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '9px 11px',
+        borderRadius: 2,
+        cursor: 'pointer',
+        border: '1px solid rgba(var(--gold-rgb),0.15)',
+        background: 'rgba(var(--surface-rgb),0.018)',
+      }}
+    >
+      {entry.photos[0] ? (
+        <img src={entry.photos[0]} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
+      ) : (
+        <div style={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, background: 'rgba(var(--gold-rgb),0.08)' }} />
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          dir="auto"
+          style={{ fontSize: fs(13), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {firstLine || 'Без текста'}
+        </div>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
+          {dateLabel} · {entry.status === 'confirmed' ? 'Подтвержден' : 'Черновик'}
+        </div>
+      </div>
+    </div>
   );
 }
 
