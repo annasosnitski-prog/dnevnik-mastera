@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, memo, type SVGProps } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, memo, Fragment, type SVGProps } from 'react';
 import { createPortal } from 'react-dom';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
@@ -70,6 +70,15 @@ import {
   type ContentSourceRef,
   type ContentWorkspaceNavigation,
 } from '../lib/contentWorkspace';
+import {
+  normalizeContentEntryLink,
+  isContentEntryLinked,
+  resolveContentEntryLink,
+  setContentEntryLink,
+  buildContentProjectOptions,
+  buildContentSessionOptions,
+  type ContentEntryLink,
+} from '../lib/contentLink';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
@@ -295,6 +304,11 @@ interface ContentEntry {
   status: 'draft' | 'confirmed';
   isExemplar: boolean;
   translations?: ContentTranslations;
+  // Ручная привязка к проекту/сессии для будущего отображения контента
+  // внутри проекта — необязательна, независима от sourceType/sourceId (см.
+  // src/lib/contentLink.ts). null = осознанно оставлено без привязки;
+  // undefined (старые записи) нормализуется в null тем же модулем.
+  link?: ContentEntryLink | null;
 }
 
 // Turns a raw input (phone, @handle, domain or full URL) into an openable link.
@@ -1837,7 +1851,8 @@ export default function TattoDiary() {
   const loadContentEntries = (database: IDBDatabase) => {
     const tx = database.transaction('contentEntries', 'readonly');
     const request = tx.objectStore('contentEntries').getAll();
-    request.onsuccess = () => setContentEntries((request.result || []).map((entry) => normalizeContentEntry(entry)));
+    request.onsuccess = () =>
+      setContentEntries((request.result || []).map((entry) => normalizeContentEntry(entry)).map((entry) => normalizeContentEntryLink(entry)));
     request.onerror = () => setDbError('Не удалось загрузить черновики контента.');
   };
 
@@ -3220,6 +3235,7 @@ export default function TattoDiary() {
         {screen === 'content' && (
           <ContentINKAScreen
             clients={clients}
+            projects={projects}
             contentEntries={contentEntries}
             navigation={contentNavigation}
             onNavigationApplied={() => setContentNavigation(null)}
@@ -11107,6 +11123,7 @@ function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
 // по-прежнему читаются и пишутся через единственный contentEntries store.
 function ContentINKAScreen({
   clients,
+  projects,
   contentEntries,
   navigation,
   onNavigationApplied,
@@ -11114,6 +11131,7 @@ function ContentINKAScreen({
   onDeleteEntry,
 }: {
   clients: Client[];
+  projects: Project[];
   contentEntries: ContentEntry[];
   navigation: ContentWorkspaceNavigation | null;
   onNavigationApplied: () => void;
@@ -11135,6 +11153,10 @@ function ContentINKAScreen({
     message: string;
   }>>({});
   const [copyFeedbackByEntry, setCopyFeedbackByEntry] = useState<Record<string, CopyFeedback>>({});
+  // id записи, для которой сейчас открыт sheet «Куда сохранить контент?» —
+  // и после одобрения непривязанной записи (обязательный вопрос), и по
+  // ручному «Привязать»/«Изменить привязку» из карточки (тот же sheet).
+  const [linkPickerEntryId, setLinkPickerEntryId] = useState<string | null>(null);
   const copyFeedbackController = useMemo(
     () => createCopyFeedbackController({ onChange: setCopyFeedbackByEntry }),
     [],
@@ -11242,6 +11264,15 @@ function ContentINKAScreen({
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
     if (currentEntry.status === 'confirmed' || hasUnsavedTextEdit(currentEntry)) return;
     saveEntryInWorkspace(confirmContentEntry(currentEntry));
+    // Только после сохранения status: confirmed — и только если запись ещё
+    // не связана (включая уже связанные через sourceType==='session') —
+    // открываем обязательный вопрос «Куда сохранить контент?». confirmContentEntry
+    // чистая и идемпотентная — повторный вызов не создаёт новое состояние.
+    if (!isContentEntryLinked(confirmContentEntry(currentEntry))) setLinkPickerEntryId(currentEntry.id);
+  };
+  const updateEntryLink = (entry: ContentEntry, link: ContentEntryLink | null) => {
+    const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
+    saveEntryInWorkspace(setContentEntryLink(currentEntry, link));
   };
   const updateExemplar = (entry: ContentEntry, isExemplar: boolean) => {
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
@@ -11868,6 +11899,12 @@ function ContentINKAScreen({
                   </button>
                 )}
               </div>
+              <ContentLinkStatus
+                entry={entry}
+                projects={projects}
+                clients={clients}
+                onOpenPicker={() => setLinkPickerEntryId(entry.id)}
+              />
               {hasUnsavedTextEdit(entry) && (
                 <div className="content-text-edit-guard">Сначала сохраните или отмените правки</div>
               )}
@@ -12139,6 +12176,17 @@ function ContentINKAScreen({
           ))}
         </div>
       </div>
+      <ContentLinkPickerSheet
+        open={!!linkPickerEntryId}
+        entry={contentEntries.find((e) => e.id === linkPickerEntryId) ?? null}
+        projects={projects}
+        clients={clients}
+        onClose={() => setLinkPickerEntryId(null)}
+        onPick={(link) => {
+          const entry = contentEntries.find((e) => e.id === linkPickerEntryId);
+          if (entry) updateEntryLink(entry, link);
+        }}
+      />
     </div>
   );
 }
@@ -12372,6 +12420,253 @@ function SheetSavedCheck() {
         <path d="M2.5 8.3L6 11.8L13.5 4.3" stroke="#5E8C4A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </div>
+  );
+}
+
+// Компактная строка связи в карточке — название проекта, либо название/дату
+// сессии, либо «Не привязан»/«Связь не найдена». Вся логика вычисления — в
+// resolveContentEntryLink/isContentEntryLinked (src/lib/contentLink.ts).
+function ContentLinkStatus({
+  entry,
+  projects,
+  clients,
+  onOpenPicker,
+}: {
+  entry: ContentEntry;
+  projects: Project[];
+  clients: Client[];
+  onOpenPicker: () => void;
+}) {
+  const resolved = resolveContentEntryLink(entry, projects, clients);
+  const linked = isContentEntryLinked(entry);
+
+  let label: string;
+  if (resolved.kind === 'project') {
+    label = resolved.project.title || 'Без названия';
+  } else if (resolved.kind === 'session') {
+    const dateLabel = ISO_DATE_RE.test(resolved.session.date) ? formatDate(resolved.session.date) : resolved.session.date;
+    label = [resolved.session.name || 'Без названия', dateLabel].filter(Boolean).join(' · ');
+  } else if (resolved.kind === 'missing') {
+    label = 'Связь не найдена';
+  } else {
+    label = 'Не привязан';
+  }
+
+  return (
+    <div className="content-link-status" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '2px 0 8px' }}>
+      <span
+        style={{
+          fontSize: fs(12),
+          color: resolved.kind === 'none' || resolved.kind === 'missing' ? COLORS.textGhost : COLORS.textSecondary,
+          fontStyle: resolved.kind === 'none' ? 'italic' : 'normal',
+        }}
+      >
+        {label}
+      </span>
+      <span onClick={onOpenPicker} role="button" style={{ fontSize: fs(11), color: COLORS.gold, cursor: 'pointer', textDecoration: 'underline' }}>
+        {linked ? 'Изменить привязку' : 'Привязать'}
+      </span>
+    </div>
+  );
+}
+
+// Sheet «Куда сохранить контент?» — открывается либо автоматически один раз
+// после одобрения непривязанной записи, либо вручную из карточки
+// («Привязать»/«Изменить привязку»). Вся группировка/фильтрация проектов и
+// сессий — в src/lib/contentLink.ts (buildContentProjectOptions/
+// buildContentSessionOptions), здесь только раскладка списка по шагам.
+function ContentLinkPickerSheet({
+  open,
+  entry,
+  projects,
+  clients,
+  onClose,
+  onPick,
+}: {
+  open: boolean;
+  entry: ContentEntry | null;
+  projects: Project[];
+  clients: Client[];
+  onClose: () => void;
+  onPick: (link: ContentEntryLink | null) => void;
+}) {
+  const [step, setStep] = useState<'choice' | 'project' | 'session'>('choice');
+
+  useEffect(() => {
+    if (open) setStep('choice');
+  }, [open, entry?.id]);
+
+  const preferredClientId = entry?.clientId ?? null;
+  const projectOptions = entry ? buildContentProjectOptions(projects, preferredClientId) : [];
+  const sessionOptions = entry ? buildContentSessionOptions(clients, projects, preferredClientId) : [];
+
+  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
+    <div
+      onClick={onClick}
+      role="button"
+      aria-label={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        border: '1px solid rgba(var(--gold-rgb),0.25)',
+        borderRadius: 2,
+        padding: '16px',
+        cursor: 'pointer',
+        background: 'rgba(var(--gold-rgb),0.03)',
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          color: 'var(--gold)',
+        }}
+      >
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
+      </div>
+    </div>
+  );
+
+  const row = (key: string, title: string, subtitle: string | null, color: string, onClick: () => void) => (
+    <div
+      key={key}
+      onClick={onClick}
+      role="button"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '11px 13px',
+        borderRadius: 2,
+        cursor: 'pointer',
+        border: '1px solid rgba(var(--gold-rgb),0.2)',
+        background: 'rgba(var(--surface-rgb),0.018)',
+      }}
+    >
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0, marginTop: 2 }} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: fs(15), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
+        {subtitle && (
+          <div style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {subtitle}
+          </div>
+        )}
+      </span>
+    </div>
+  );
+
+  const groupLabel = (text: string) => (
+    <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', margin: '6px 0 0' }}>{text}</div>
+  );
+
+  return (
+    <BottomSheet open={open} heightPct={step === 'choice' ? 40 : 58}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        {step !== 'choice' && (
+          <div className="inka-back" onClick={() => setStep('choice')} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginBottom: 8 }}>
+            <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
+              <path d="M11 4L6 9L11 14" stroke={COLORS.gold} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span style={{ fontSize: fs(13), color: COLORS.gold, fontStyle: 'italic' }}>назад</span>
+          </div>
+        )}
+        <div style={{ fontSize: fs(20), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
+          {step === 'choice' ? 'Куда сохранить контент?' : step === 'project' ? 'Выбрать проект' : 'Выбрать сессию'}
+        </div>
+        <SheetStarDivider />
+      </div>
+
+      {step === 'choice' && (
+        <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {choice(
+            'Выбрать проект',
+            'Существующий проект — мастера или клиента',
+            () => setStep('project'),
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>,
+          )}
+          {choice(
+            'Выбрать сессию',
+            'Сессия, уже привязанная к проекту',
+            () => setStep('session'),
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <rect x="3" y="4.5" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
+              <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.2" />
+            </svg>,
+          )}
+          {choice(
+            'Оставить без привязки',
+            'Можно привязать позже из карточки',
+            () => {
+              onPick(null);
+              onClose();
+            },
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <line x1="5" y1="10" x2="15" y2="10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>,
+          )}
+        </div>
+      )}
+
+      {step === 'project' && (
+        <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '56vh', overflowY: 'auto' }}>
+          {projectOptions.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет проектов.</div>
+          ) : (
+            projectOptions.map((opt, i) => (
+              <Fragment key={opt.project.id}>
+                {i > 0 && projectOptions[i - 1].isPreferredClient && !opt.isPreferredClient && groupLabel('Все проекты')}
+                {row(
+                  opt.project.id,
+                  opt.project.title || 'Без названия',
+                  clientNameFor(clients, opt.project.clientId),
+                  opt.project.color,
+                  () => {
+                    onPick({ type: 'project', projectId: opt.project.id });
+                    onClose();
+                  },
+                )}
+              </Fragment>
+            ))
+          )}
+        </div>
+      )}
+
+      {step === 'session' && (
+        <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '56vh', overflowY: 'auto' }}>
+          {sessionOptions.length === 0 ? (
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет сессий, привязанных к проекту.</div>
+          ) : (
+            sessionOptions.map((opt, i) => {
+              const dateLabel = ISO_DATE_RE.test(opt.session.date) ? formatDate(opt.session.date) : opt.session.date;
+              const subtitle = [opt.project.title || 'Без названия', dateLabel].filter(Boolean).join(' · ');
+              return (
+                <Fragment key={opt.session.id}>
+                  {i > 0 && sessionOptions[i - 1].isPreferredClient && !opt.isPreferredClient && groupLabel('Все сессии')}
+                  {row(opt.session.id, opt.session.name || 'Без названия', subtitle, opt.project.color, () => {
+                    onPick({ type: 'session', sessionId: opt.session.id });
+                    onClose();
+                  })}
+                </Fragment>
+              );
+            })
+          )}
+        </div>
+      )}
+    </BottomSheet>
   );
 }
 
