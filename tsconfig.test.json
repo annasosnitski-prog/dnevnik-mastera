@@ -17,6 +17,7 @@
     "src/lib/contentSync.ts",
     "src/lib/contentTranslation.ts",
     "src/lib/contentLink.ts",
+    "src/lib/contentProject.ts",
     "src/domain/project.ts",
     "src/domain/projectSelectors.ts",
     "src/domain/client.ts",

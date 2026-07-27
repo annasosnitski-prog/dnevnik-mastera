@@ -79,6 +79,7 @@ import {
   buildContentSessionOptions,
   type ContentEntryLink,
 } from '../lib/contentLink';
+import { getProjectContentEntries } from '../lib/contentProject';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
@@ -3548,7 +3549,9 @@ export default function TattoDiary() {
       <ProjectViewSheet
         open={!!viewProject}
         project={viewProject ? getProjectById(projects, viewProject.id) ?? viewProject : null}
+        projects={projects}
         clients={clients}
+        contentEntries={contentEntries}
         masterNotes={masterInfo.notes}
         onClose={() => setViewProject(null)}
         onEdit={(project) => {
@@ -3572,6 +3575,12 @@ export default function TattoDiary() {
           } else {
             setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? { ...n, done: !n.done } : n)) });
           }
+        }}
+        onOpenContentEntry={() => {
+          // Открывает уже существующий экран ContentINKA (та же карточка,
+          // что и всегда) — новый экран не создаётся, редактор не меняется.
+          setViewProject(null);
+          setScreen('content');
         }}
       />
 
@@ -14310,17 +14319,24 @@ function NewConsultationSheet({
 function ProjectViewSheet({
   open,
   project,
+  projects,
   clients,
+  contentEntries,
   masterNotes,
   onClose,
   onEdit,
   onOpenEntry,
   onEditProjectSession,
   onToggleTaskDone,
+  onOpenContentEntry,
 }: {
   open: boolean;
   project: Project | null;
+  // Полный список — resolveContentEntryProjectId (через getProjectContentEntries)
+  // должен уметь резолвить session-link на любой проект, не только текущий.
+  projects: Project[];
   clients: Client[];
+  contentEntries: ContentEntry[];
   // Master's own (client-less) tasks — a project without a client draws its
   // «Задачи» from here instead of a client's notes.
   masterNotes: ClientNote[];
@@ -14333,6 +14349,9 @@ function ProjectViewSheet({
   // у NavFab), отдельных кнопок создания здесь больше нет.
   onEditProjectSession: (projectId: string, session: Session) => void;
   onToggleTaskDone: (clientId: string | null, note: ClientNote) => void;
+  // Тап по карточке контента — открыть её в уже существующем ContentINKA,
+  // без нового экрана и без изменения самого редактора.
+  onOpenContentEntry: (entry: ContentEntry) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
@@ -14344,6 +14363,9 @@ function ProjectViewSheet({
       ? getTasksByProjectId(linkedClient.notes, project.id)
       : getTasksByProjectId(masterNotes, project.id)
     : [];
+  // Вся принадлежность записи проекту — уже в getProjectContentEntries
+  // (переиспользует resolveContentEntryProjectId, ничего не резолвится здесь).
+  const projectContentEntries = project ? getProjectContentEntries(contentEntries, project.id, projects, clients) : [];
 
   const chipStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -14483,10 +14505,66 @@ function ProjectViewSheet({
                 </div>
               </div>
             )}
+
+            <div>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Контент</div>
+              {projectContentEntries.length === 0 ? (
+                <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет привязанного контента.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {projectContentEntries.map((entry) => (
+                    <ProjectContentCard key={entry.id} entry={entry} onClick={() => onOpenContentEntry(entry)} />
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
     </BottomSheet>
+  );
+}
+
+// Компактная карточка одного материала ContentINKA внутри «Контент» на
+// экране проекта — только для просмотра, без редактирования (см. onClick,
+// открывает существующий ContentINKA, а не что-то новое).
+function ProjectContentCard({ entry, onClick }: { entry: ContentEntry; onClick: () => void }) {
+  const firstLine = (entry.textDraft || entry.text || '').split('\n')[0].trim();
+  const datePart = entry.createdDate.slice(0, 10);
+  const dateLabel = ISO_DATE_RE.test(datePart) ? formatDate(datePart) : entry.createdDate;
+
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '9px 11px',
+        borderRadius: 2,
+        cursor: 'pointer',
+        border: '1px solid rgba(var(--gold-rgb),0.15)',
+        background: 'rgba(var(--surface-rgb),0.018)',
+      }}
+    >
+      {entry.photos[0] ? (
+        <img src={entry.photos[0]} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
+      ) : (
+        <div style={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, background: 'rgba(var(--gold-rgb),0.08)' }} />
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          dir="auto"
+          style={{ fontSize: fs(13), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {firstLine || 'Без текста'}
+        </div>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
+          {dateLabel} · {entry.status === 'confirmed' ? 'Подтвержден' : 'Черновик'}
+        </div>
+      </div>
+    </div>
   );
 }
 
