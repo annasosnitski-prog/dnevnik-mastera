@@ -1,11 +1,14 @@
 import type { ContentDraftMedia, ContentSelectionRole } from './contentSync';
 
+export type ContentPublicationFormat = 'post' | 'story';
+
 export interface ResolvedContentPhoto {
   id: string;
   src: string;
   originalIndex: number;
   selected: boolean;
   selectionRole?: ContentSelectionRole;
+  publicationFormat?: ContentPublicationFormat;
   orderIndex?: number;
   technicalStatus?: 'kept' | 'background' | 'rejected';
 }
@@ -14,6 +17,11 @@ export interface ContentPhotoSelectionInput {
   photos: readonly string[];
   photoIds?: readonly string[];
   contentDraft?: readonly ContentDraftMedia[] | null;
+}
+
+export interface ContentPhotoPublicationSets {
+  carousel: ResolvedContentPhoto[];
+  stories: ResolvedContentPhoto[];
 }
 
 const ROLE_LABELS: Record<ContentSelectionRole, string> = {
@@ -72,6 +80,7 @@ function resolvedPhoto(
     originalIndex,
     selected,
     selectionRole: media?.selection_role,
+    publicationFormat: media?.format,
     orderIndex: media?.order_index,
     technicalStatus: media?.technical_status,
   };
@@ -113,6 +122,20 @@ export function resolveContentPhotoSelection(input: ContentPhotoSelectionInput):
     const bOrder = b.orderIndex ?? Number.POSITIVE_INFINITY;
     return aOrder - bOrder || a.originalIndex - b.originalIndex;
   });
+}
+
+export function resolveContentPhotoPublicationSets(
+  input: ContentPhotoSelectionInput,
+): ContentPhotoPublicationSets {
+  const carousel: ResolvedContentPhoto[] = [];
+  const stories: ResolvedContentPhoto[] = [];
+
+  for (const photo of resolveContentPhotoSelection(input)) {
+    if (photo.publicationFormat === 'story') stories.push(photo);
+    else carousel.push(photo);
+  }
+
+  return { carousel, stories };
 }
 
 export function resolveAllContentPhotos(input: ContentPhotoSelectionInput): ResolvedContentPhoto[] {
