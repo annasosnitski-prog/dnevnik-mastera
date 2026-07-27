@@ -4,15 +4,15 @@ export interface ContentSharePhoto {
 }
 
 export interface InstagramSharePayload {
-  files: [File];
+  files: File[];
 }
 
 export type InstagramSharePreparation =
   | {
       status: 'ready';
       clipboardText: string;
-      file: File;
-      photo: ContentSharePhoto;
+      files: File[];
+      photos: ContentSharePhoto[];
       payload: InstagramSharePayload;
     }
   | { status: 'no_photo' }
@@ -72,19 +72,24 @@ export function prepareInstagramContentShare(params: {
   entryId: string;
   savedText: string;
   photos: readonly ContentSharePhoto[];
-  selectedPhoto?: ContentSharePhoto;
 }): InstagramSharePreparation {
-  const photo = params.selectedPhoto ?? params.photos[0];
-  if (!photo) return { status: 'no_photo' };
-  const file = createOriginalContentPhotoFile(photo, params.entryId);
-  if (!file) return { status: 'invalid_photo' };
+  if (params.photos.length === 0) return { status: 'no_photo' };
+
+  const photos = [...params.photos];
+  const files: File[] = [];
+  for (const photo of photos) {
+    const file = createOriginalContentPhotoFile(photo, params.entryId);
+    // All-or-nothing: never silently lose one photo from the final selection.
+    if (!file) return { status: 'invalid_photo' };
+    files.push(file);
+  }
 
   return {
     status: 'ready',
     clipboardText: params.savedText,
-    file,
-    photo,
-    payload: { files: [file] },
+    files,
+    photos,
+    payload: { files },
   };
 }
 
