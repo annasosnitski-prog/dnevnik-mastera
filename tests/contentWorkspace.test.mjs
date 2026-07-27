@@ -6,6 +6,7 @@ import {
   contentComposerItemKey,
   findLinkedContentEntries,
   selectContentWorkspaceEntries,
+  resolveContentFocusEntry,
 } from '../.test-dist/src/lib/contentWorkspace.js';
 
 const entries = [
@@ -81,6 +82,43 @@ test('compose and open-linked transitions are transient and applied by ContentIN
   assert.match(screen, /setFocusedSource\(source\)/);
   assert.match(screen, /onNavigationApplied\(\)/);
   assert.doesNotMatch(source, /localStorage\.setItem\([^\n]*contentNavigation|createObjectStore\(['"]contentNavigation/);
+});
+
+test('resolveContentFocusEntry finds the entry by id regardless of sourceType/clientId', () => {
+  const found = resolveContentFocusEntry(entries, 'freeform');
+  assert.equal(found?.id, 'freeform');
+});
+
+test('resolveContentFocusEntry returns null for a null focusEntryId (nothing requested)', () => {
+  assert.equal(resolveContentFocusEntry(entries, null), null);
+});
+
+test('resolveContentFocusEntry returns null for a deleted/missing entry id (safe fallback)', () => {
+  assert.equal(resolveContentFocusEntry(entries, 'entry-does-not-exist'), null);
+});
+
+test('resolveContentFocusEntry does not mutate the entries array', () => {
+  const snapshot = structuredClone(entries);
+  resolveContentFocusEntry(entries, 'session-old');
+  assert.deepEqual(entries, snapshot);
+});
+
+test('a click on a project-content card passes the entry.id as a focus target, and ContentINKAScreen applies it', () => {
+  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+
+  // ProjectViewSheet passes the clicked entry's own id, not just a generic
+  // "open the content screen" call.
+  assert.match(source, /onOpenContentEntry=\{\(entry\) => \{[\s\S]*?setContentFocusEntryId\(entry\.id\)/);
+  // ContentINKAScreen receives it, resolves it via the shared pure helper
+  // (not a second ad-hoc lookup), and clears it back to null once applied —
+  // same transient, non-persisted pattern as ContentWorkspaceNavigation.
+  assert.match(screen, /resolveContentFocusEntry\(contentEntries, focusEntryId\)/);
+  assert.match(screen, /onFocusEntryApplied\(\)/);
+  assert.match(source, /onFocusEntryApplied=\{\(\) => setContentFocusEntryId\(null\)\}/);
+  // The ordinary "open the ContentINKA section" entry points (dashboard,
+  // ContentPanel hand-off) are untouched — they still only flip the screen.
+  assert.match(source, /onOpenContent=\{\(\) => setScreen\('content'\)\}/);
 });
 
 test('client Content tab uses the same compact hand-off surface', () => {

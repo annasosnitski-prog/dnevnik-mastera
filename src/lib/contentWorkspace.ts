@@ -54,3 +54,17 @@ export function selectContentWorkspaceEntries<T extends LinkableContentEntry>(pa
 export function contentComposerItemKey(source: ContentSourceRef): string {
   return `${source.sourceType === 'session' ? 's' : 'c'}:${source.sourceId}`;
 }
+
+// Узкий navigation target «открыть вот эту конкретную запись» — по id, а не
+// по паре sourceType+sourceId, как ContentWorkspaceNavigation (та требует
+// клиента и session|consultation-источник, что не подходит для freeform-
+// записей и записей без клиента). Само значение живёт в React state так же
+// одноразово, как и ContentWorkspaceNavigation — не persisted нигде.
+// Отсутствующая (удалённая) запись безопасно даёт null, а не падает.
+export function resolveContentFocusEntry<T extends { id: string }>(
+  entries: readonly T[],
+  focusEntryId: string | null,
+): T | null {
+  if (!focusEntryId) return null;
+  return entries.find((entry) => entry.id === focusEntryId) ?? null;
+}

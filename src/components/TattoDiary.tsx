@@ -67,6 +67,7 @@ import {
   contentComposerItemKey,
   findLinkedContentEntries,
   selectContentWorkspaceEntries,
+  resolveContentFocusEntry,
   type ContentSourceRef,
   type ContentWorkspaceNavigation,
 } from '../lib/contentWorkspace';
@@ -1653,6 +1654,11 @@ export default function TattoDiary() {
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
   const [contentNavigation, setContentNavigation] = useState<ContentWorkspaceNavigation | null>(null);
+  // Узкий navigation target «открыть вот эту запись» по entry.id — для
+  // клика по карточке в разделе «Контент» экрана проекта, где записи могут
+  // быть freeform/без клиента (ContentWorkspaceNavigation сюда не подходит).
+  // Так же транзиентно и не persisted, как contentNavigation.
+  const [contentFocusEntryId, setContentFocusEntryId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'content' | 'extra'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
@@ -3240,6 +3246,8 @@ export default function TattoDiary() {
             contentEntries={contentEntries}
             navigation={contentNavigation}
             onNavigationApplied={() => setContentNavigation(null)}
+            focusEntryId={contentFocusEntryId}
+            onFocusEntryApplied={() => setContentFocusEntryId(null)}
             onSaveEntry={saveContentEntry}
             onDeleteEntry={deleteContentEntry}
           />
@@ -3576,10 +3584,12 @@ export default function TattoDiary() {
             setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? { ...n, done: !n.done } : n)) });
           }
         }}
-        onOpenContentEntry={() => {
-          // Открывает уже существующий экран ContentINKA (та же карточка,
-          // что и всегда) — новый экран не создаётся, редактор не меняется.
+        onOpenContentEntry={(entry) => {
+          // Открывает уже существующий экран ContentINKA и раскрывает
+          // конкретную запись по её id (см. contentFocusEntryId ниже) —
+          // новый экран не создаётся, редактор не меняется.
           setViewProject(null);
+          setContentFocusEntryId(entry.id);
           setScreen('content');
         }}
       />
@@ -11136,6 +11146,8 @@ function ContentINKAScreen({
   contentEntries,
   navigation,
   onNavigationApplied,
+  focusEntryId,
+  onFocusEntryApplied,
   onSaveEntry,
   onDeleteEntry,
 }: {
@@ -11144,6 +11156,11 @@ function ContentINKAScreen({
   contentEntries: ContentEntry[];
   navigation: ContentWorkspaceNavigation | null;
   onNavigationApplied: () => void;
+  // Узкий target «раскрыть вот эту запись» по id (см. contentFocusEntryId в
+  // родителе) — независим от navigation/ContentWorkspaceNavigation, которая
+  // не подходит для freeform/безклиентских записей.
+  focusEntryId: string | null;
+  onFocusEntryApplied: () => void;
   onSaveEntry: (entry: ContentEntry) => void;
   onDeleteEntry: (id: string) => void;
 }) {
@@ -11292,6 +11309,10 @@ function ContentINKAScreen({
   const knownContentEntryIds = useRef(new Set(contentEntries.map((entry) => entry.id)));
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
   const [focusedSource, setFocusedSource] = useState<ContentSourceRef | null>(null);
+  // Кратковременная подсветка записи, раскрытой через focusEntryId (клик по
+  // карточке в разделе «Контент» экрана проекта) — гаснет сама, ничего не
+  // меняет в данных.
+  const [highlightedEntryId, setHighlightedEntryId] = useState<string | null>(null);
   const entriesListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -11388,6 +11409,29 @@ function ContentINKAScreen({
 
     onNavigationApplied();
   }, [clients, navigation, onNavigationApplied]);
+
+  // Раскрыть конкретную запись по entry.id (клик по карточке контента на
+  // экране проекта) — резолвится через ту же чистую функцию, что и её
+  // тесты (resolveContentFocusEntry), а не второй ad-hoc find() здесь.
+  useEffect(() => {
+    if (!focusEntryId) return;
+    const target = resolveContentFocusEntry(contentEntries, focusEntryId);
+    if (target) {
+      setFocusedSource(null);
+      setFilterClientId('all');
+      setHighlightedEntryId(target.id);
+      requestAnimationFrame(() => {
+        document.getElementById(`content-entry-${target.id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+    }
+    onFocusEntryApplied();
+  }, [contentEntries, focusEntryId, onFocusEntryApplied]);
+
+  useEffect(() => {
+    if (!highlightedEntryId) return;
+    const timer = setTimeout(() => setHighlightedEntryId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightedEntryId]);
 
   const resetComposer = () => {
     setComposerText('');
@@ -11879,7 +11923,16 @@ function ContentINKAScreen({
             <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока пусто.</div>
           )}
           {visibleEntries.map((entry) => (
-            <GoldFrame key={entry.id} plain style={{ padding: '14px 16px' }}>
+            <div
+              key={entry.id}
+              id={`content-entry-${entry.id}`}
+              style={
+                highlightedEntryId === entry.id
+                  ? { boxShadow: '0 0 0 2px var(--gold)', borderRadius: 3, transition: 'box-shadow 0.3s ease' }
+                  : undefined
+              }
+            >
+            <GoldFrame plain style={{ padding: '14px 16px' }}>
               <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '0.5px', marginBottom: 8 }}>
                 {clientLabel(entry.clientId)}
                 {entry.format === 'story' ? ' · сторис' : ''}
@@ -12182,6 +12235,7 @@ function ContentINKAScreen({
                 </div>
               )}
             </GoldFrame>
+            </div>
           ))}
         </div>
       </div>
