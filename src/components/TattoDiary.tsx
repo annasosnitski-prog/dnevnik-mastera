@@ -30,7 +30,7 @@ import {
   createContentPhotoIds,
   hasContentPhotoSelectionContract,
   resolveAllContentPhotos,
-  resolveContentPhotoSelection,
+  resolveContentPhotoPublicationSets,
   type ResolvedContentPhoto,
 } from '../lib/contentPhotoSelection';
 import {
@@ -10940,11 +10940,17 @@ type ContentShareFeedback = {
 };
 
 function ContentShareSheet({
-  onInstagram,
+  carouselCount,
+  storiesCount,
+  onInstagramCarousel,
+  onInstagramStories,
   onOtherApps,
   onClose,
 }: {
-  onInstagram: () => void;
+  carouselCount: number;
+  storiesCount: number;
+  onInstagramCarousel: () => void;
+  onInstagramStories: () => void;
   onOtherApps: () => void;
   onClose: () => void;
 }) {
@@ -10958,7 +10964,12 @@ function ContentShareSheet({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="content-share-sheet__title">Поделиться</div>
-        <button type="button" onClick={onInstagram}>Instagram</button>
+        <button type="button" disabled={carouselCount === 0} onClick={onInstagramCarousel}>
+          Instagram · Карусель · {carouselCount}
+        </button>
+        <button type="button" disabled={storiesCount === 0} onClick={onInstagramStories}>
+          Instagram · Сториз · {storiesCount}
+        </button>
         <button type="button" onClick={onOtherApps}>Другие приложения</button>
         <button type="button" className="content-share-sheet__cancel" onClick={onClose}>Отмена</button>
       </div>
@@ -10971,7 +10982,8 @@ function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
   const [viewerPhoto, setViewerPhoto] = useState<ResolvedContentPhoto | null>(null);
   const input = { photos: entry.photos, photoIds: entry.photoIds, contentDraft: entry.contentDraft };
   const hasSelectionContract = hasContentPhotoSelectionContract(entry.contentDraft);
-  const selectedPhotos = resolveContentPhotoSelection(input);
+  const publicationSets = resolveContentPhotoPublicationSets(input);
+  const selectedPhotos = [...publicationSets.carousel, ...publicationSets.stories];
   const allPhotos = resolveAllContentPhotos(input);
 
   const roleBadge = (photo: ResolvedContentPhoto) =>
@@ -11003,12 +11015,32 @@ function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
           {selectedPhotos.length === 0 ? (
             <div className="content-photo-output__empty">Инка не выбрала кадры для публикации</div>
           ) : (
-            <div className="content-photo-selection">
-              {photoButton(selectedPhotos[0], 'content-photo-hero')}
-              {selectedPhotos.length > 1 && (
-                <div className="content-photo-grid">
-                  {selectedPhotos.slice(1).map((photo) => photoButton(photo, 'content-photo-tile'))}
-                </div>
+            <div className="content-photo-publication-sets">
+              {publicationSets.carousel.length > 0 && (
+                <section className="content-photo-publication-set" aria-label="Карусель">
+                  <div className="content-photo-publication-set__title">Карусель · {publicationSets.carousel.length}</div>
+                  <div className="content-photo-selection">
+                    {photoButton(publicationSets.carousel[0], 'content-photo-hero')}
+                    {publicationSets.carousel.length > 1 && (
+                      <div className="content-photo-grid">
+                        {publicationSets.carousel.slice(1).map((photo) => photoButton(photo, 'content-photo-tile'))}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+              {publicationSets.stories.length > 0 && (
+                <section className="content-photo-publication-set" aria-label="Сториз">
+                  <div className="content-photo-publication-set__title">Сториз · {publicationSets.stories.length}</div>
+                  <div className="content-photo-selection">
+                    {photoButton(publicationSets.stories[0], 'content-photo-hero')}
+                    {publicationSets.stories.length > 1 && (
+                      <div className="content-photo-grid">
+                        {publicationSets.stories.slice(1).map((photo) => photoButton(photo, 'content-photo-tile'))}
+                      </div>
+                    )}
+                  </div>
+                </section>
               )}
             </div>
           )}
@@ -11530,12 +11562,21 @@ function ContentINKAScreen({
     onDeleteEntry(entryId);
   };
 
-  const contentSharePhotos = (entry: ContentEntry): ContentSharePhoto[] =>
-    resolveContentPhotoSelection({
+  const contentPublicationSets = (entry: ContentEntry) =>
+    resolveContentPhotoPublicationSets({
       photos: entry.photos,
       photoIds: entry.photoIds,
       contentDraft: entry.contentDraft,
-    }).map((photo) => ({ src: photo.src, originalIndex: photo.originalIndex }));
+    });
+
+  const contentSharePhotos = (
+    entry: ContentEntry,
+    target: 'carousel' | 'stories',
+  ): ContentSharePhoto[] =>
+    contentPublicationSets(entry)[target].map((photo) => ({
+      src: photo.src,
+      originalIndex: photo.originalIndex,
+    }));
 
   const openContentShareMenu = (entryId: string) => {
     setShareFeedbackByEntry((current) => {
@@ -11546,19 +11587,23 @@ function ContentINKAScreen({
     setShareMenuEntryId(entryId);
   };
 
-  const shareContentToInstagram = async (entry: ContentEntry) => {
+  const shareContentToInstagram = async (
+    entry: ContentEntry,
+    target: 'carousel' | 'stories',
+  ) => {
     setShareMenuEntryId(null);
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
     const preparation = prepareInstagramContentShare({
       entryId: currentEntry.id,
       savedText: currentEntry.textDraft,
-      photos: contentSharePhotos(currentEntry),
+      photos: contentSharePhotos(currentEntry, target),
     });
 
     if (preparation.status === 'no_photo') {
+      const targetLabel = target === 'carousel' ? 'карусели' : 'сториз';
       setShareFeedbackByEntry((current) => ({
         ...current,
-        [entry.id]: { kind: 'error', message: 'Для Instagram нужна фотография из итоговой подборки' },
+        [entry.id]: { kind: 'error', message: 'В подборке для ' + targetLabel + ' нет фотографий' },
       }));
       return;
     }
@@ -12020,7 +12065,10 @@ function ContentINKAScreen({
               )}
               {shareMenuEntryId === entry.id && (
                 <ContentShareSheet
-                  onInstagram={() => void shareContentToInstagram(entry)}
+                  carouselCount={contentPublicationSets(entry).carousel.length}
+                  storiesCount={contentPublicationSets(entry).stories.length}
+                  onInstagramCarousel={() => void shareContentToInstagram(entry, 'carousel')}
+                  onInstagramStories={() => void shareContentToInstagram(entry, 'stories')}
                   onOtherApps={() => void shareContentToOtherApps(entry)}
                   onClose={() => setShareMenuEntryId(null)}
                 />
