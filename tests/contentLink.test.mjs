@@ -93,16 +93,19 @@ function makeEntry(overrides = {}) {
   };
 }
 
-test('an old entry without link normalizes to null', () => {
+test('an old entry without link normalizes to undefined, not null (legacy vs explicit "no link")', () => {
   const entry = makeEntry();
   delete entry.link;
-  assert.equal(normalizeContentEntryLink(entry).link, null);
+  assert.equal(normalizeContentEntryLink(entry).link, undefined);
 });
 
-test('a garbage/foreign link value normalizes to null', () => {
+test('an explicit link: null is preserved as null, not collapsed to undefined', () => {
+  assert.equal(normalizeContentEntryLink({ link: null }).link, null);
+});
+
+test('a garbage/foreign link value normalizes to explicit null (present but untrustworthy)', () => {
   assert.equal(normalizeContentEntryLink({ link: 'nonsense' }).link, null);
   assert.equal(normalizeContentEntryLink({ link: { type: 'unknown' } }).link, null);
-  assert.equal(normalizeContentEntryLink({ link: null }).link, null);
 });
 
 test('project-link stores only projectId, dropping any extra fields', () => {
@@ -125,8 +128,9 @@ test('the project for a session-link is computed through session.projectId', () 
   assert.equal(resolveContentEntryProjectId(entry, [project], [client]), project.id);
 });
 
-test('an entry created from an existing session is already considered linked', () => {
-  const entry = makeEntry({ sourceType: 'session', sourceId: 'session-1', link: null });
+test('an entry created from an existing session is already considered linked (link still undefined)', () => {
+  const entry = makeEntry({ sourceType: 'session', sourceId: 'session-1' });
+  delete entry.link;
   assert.equal(isContentEntryLinked(entry), true);
 });
 
@@ -179,8 +183,9 @@ test('a deleted/missing session gives a safe "missing" fallback, not data loss',
   assert.deepEqual(resolved, { kind: 'missing', link: { type: 'session', sessionId: 'ghost-session' } });
 });
 
-test('a dangling source-session (sourceType session, deleted session) also resolves as missing', () => {
-  const entry = makeEntry({ sourceType: 'session', sourceId: 'ghost-session', link: null });
+test('a dangling source-session (sourceType session, deleted session, link still undefined) also resolves as missing', () => {
+  const entry = makeEntry({ sourceType: 'session', sourceId: 'ghost-session' });
+  delete entry.link;
   const resolved = resolveContentEntryLink(entry, [], []);
   assert.deepEqual(resolved, { kind: 'missing', link: { type: 'session', sessionId: 'ghost-session' } });
 });
@@ -238,6 +243,76 @@ test('changing the link does not touch textDraft, photos, translations, status, 
   assert.equal(updated.isExemplar, entry.isExemplar);
   assert.equal(updated.sourceType, entry.sourceType);
   assert.equal(updated.sourceId, entry.sourceId);
+});
+
+test('resolveContentEntryProjectId falls back to the source session\'s projectId when link is undefined', () => {
+  const project = makeProject({ id: 'project-src' });
+  const session = makeSession({ id: 'session-src', projectId: project.id });
+  const client = makeClient({ sessions: [session] });
+  const entry = makeEntry({ sourceType: 'session', sourceId: session.id });
+  delete entry.link;
+
+  assert.equal(resolveContentEntryProjectId(entry, [project], [client]), project.id);
+});
+
+test('an explicit link: null on a source-session entry is treated as unlinked, not the source session', () => {
+  const project = makeProject({ id: 'project-src' });
+  const session = makeSession({ id: 'session-src', projectId: project.id });
+  const client = makeClient({ sessions: [session] });
+  const entry = makeEntry({ sourceType: 'session', sourceId: session.id, link: null });
+
+  assert.equal(isContentEntryLinked(entry), false);
+  assert.equal(resolveContentEntryProjectId(entry, [project], [client]), null);
+  assert.deepEqual(resolveContentEntryLink(entry, [project], [client]), { kind: 'none' });
+});
+
+test('"leave unlinked" (setContentEntryLink(entry, null)) on a source-session entry shows "not linked", not the source session', () => {
+  const project = makeProject({ id: 'project-src' });
+  const session = makeSession({ id: 'session-src', projectId: project.id });
+  const client = makeClient({ sessions: [session] });
+  const sourceLinkedEntry = makeEntry({ sourceType: 'session', sourceId: session.id });
+  delete sourceLinkedEntry.link;
+  assert.equal(isContentEntryLinked(sourceLinkedEntry), true); // before: fallback applies
+
+  const explicitlyUnlinked = setContentEntryLink(sourceLinkedEntry, null);
+  assert.equal(isContentEntryLinked(explicitlyUnlinked), false);
+  assert.deepEqual(resolveContentEntryLink(explicitlyUnlinked, [project], [client]), { kind: 'none' });
+});
+
+test('explicit null survives a persist/reload round-trip without reverting to the source-session fallback', () => {
+  const project = makeProject({ id: 'project-src' });
+  const session = makeSession({ id: 'session-src', projectId: project.id });
+  const client = makeClient({ sessions: [session] });
+  const entry = makeEntry({ sourceType: 'session', sourceId: session.id, link: null });
+
+  // Simulate an IndexedDB round-trip via JSON (structuredClone would keep
+  // `null` too, but JSON is what a real put()/getAll() pair effectively does
+  // for a plain-data record like this).
+  const reloaded = JSON.parse(JSON.stringify(entry));
+  const normalized = normalizeContentEntryLink(reloaded);
+
+  assert.equal(normalized.link, null);
+  assert.equal(isContentEntryLinked(reloaded), false);
+  assert.deepEqual(resolveContentEntryLink(reloaded, [project], [client]), { kind: 'none' });
+});
+
+test('an explicit project/session link takes priority over sourceType/sourceId', () => {
+  const sourceProject = makeProject({ id: 'project-source' });
+  const sourceSession = makeSession({ id: 'session-source', projectId: sourceProject.id });
+  const explicitProject = makeProject({ id: 'project-explicit' });
+  const client = makeClient({ sessions: [sourceSession] });
+
+  const entry = makeEntry({
+    sourceType: 'session',
+    sourceId: sourceSession.id,
+    link: { type: 'project', projectId: explicitProject.id },
+  });
+
+  const projects = [sourceProject, explicitProject];
+  assert.equal(resolveContentEntryProjectId(entry, projects, [client]), explicitProject.id);
+  const resolved = resolveContentEntryLink(entry, projects, [client]);
+  assert.equal(resolved.kind, 'project');
+  assert.equal(resolved.project.id, explicitProject.id);
 });
 
 test('a client\'s own projects/sessions are sorted first, without hiding the rest', () => {

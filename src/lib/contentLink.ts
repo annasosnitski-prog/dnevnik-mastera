@@ -16,12 +16,25 @@ export type ContentEntryLink =
   | { type: 'project'; projectId: string }
   | { type: 'session'; sessionId: string };
 
-// Старые записи без link, и записи с повреждённым/чужеродным значением —
-// всегда нормализуются в null, а не отбрасываются молча.
+// Три различных состояния, а не два:
+//  - undefined — ручная привязка ещё не задана (старая запись до появления
+//    link, или новая запись, которую никто ещё не трогал). Fallback на
+//    sourceType/sourceId (см. isContentEntryLinked/resolve*) допустим.
+//  - null — мастер явно нажал «Оставить без привязки». Осознанное решение,
+//    fallback на исходную сессию/консультацию больше НЕ применяется, даже
+//    если запись создана из существующей сессии.
+//  - ContentEntryLink — явная ручная привязка к проекту или сессии.
+// Повреждённое/чужеродное непустое значение нормализуется в explicit null —
+// оно уже не «нетронуто», но и не валидный указатель, которому можно
+// доверять.
 export function normalizeContentEntryLink<T extends { link?: unknown }>(
   entry: T,
-): T & { link: ContentEntryLink | null } {
+): T & { link: ContentEntryLink | null | undefined } {
+  if (!('link' in entry) || (entry as { link?: unknown }).link === undefined) {
+    return { ...entry, link: undefined };
+  }
   const raw = (entry as { link?: unknown }).link;
+  if (raw === null) return { ...entry, link: null };
   if (raw && typeof raw === 'object') {
     const candidate = raw as { type?: unknown; projectId?: unknown; sessionId?: unknown };
     if (candidate.type === 'project' && typeof candidate.projectId === 'string') {
@@ -34,12 +47,16 @@ export function normalizeContentEntryLink<T extends { link?: unknown }>(
   return { ...entry, link: null };
 }
 
-// Запись уже связана, если у неё есть явный link, ИЛИ она создана из
+// Запись уже связана, если у неё есть явный link (включая явное «без
+// привязки», которое просто не считается «непривязанной, требующей sheet»
+// иначе — см. ниже), ИЛИ link ещё не задан (undefined) и она создана из
 // существующей сессии (sourceType==='session' + sourceId) — тот случай не
-// требует дублирования в link, см. модуль-докстринг задачи.
+// требует дублирования в link, см. модуль-докстринг задачи. Explicit null
+// НЕ падает обратно на sourceType/sourceId — это осознанное решение мастера.
 export function isContentEntryLinked<T extends LinkableContentEntry & { link?: unknown }>(entry: T): boolean {
   const { link } = normalizeContentEntryLink(entry);
   if (link) return true;
+  if (link === null) return false;
   return entry.sourceType === 'session' && entry.sourceId !== null;
 }
 
@@ -68,17 +85,26 @@ function findSessionById(
 
 // Проект для session-link всегда вычисляется через существующий
 // session.projectId — не хранится отдельно, чтобы не дублировать источник
-// истины и не рассинхронизироваться при переносе сессии между проектами.
-export function resolveContentEntryProjectId<T extends { link?: unknown }>(
+// истины и не рассинхронизироваться при переносе сессии между проектами. То
+// же самое верно для автоматической связи с исходной сессией
+// (sourceType==='session'), пока link не задан явно (undefined) — explicit
+// null проект не даёт вообще.
+export function resolveContentEntryProjectId<T extends LinkableContentEntry & { link?: unknown }>(
   entry: T,
   projects: Project[],
   clients: Client[],
 ): string | null {
   const { link } = normalizeContentEntryLink(entry);
-  if (!link) return null;
-  if (link.type === 'project') return link.projectId;
-  const found = findSessionById(clients, projects, link.sessionId);
-  return found?.session.projectId ?? null;
+  if (link) {
+    if (link.type === 'project') return link.projectId;
+    const found = findSessionById(clients, projects, link.sessionId);
+    return found?.session.projectId ?? null;
+  }
+  if (link === undefined && entry.sourceType === 'session' && entry.sourceId) {
+    const found = findSessionById(clients, projects, entry.sourceId);
+    return found?.session.projectId ?? null;
+  }
+  return null;
 }
 
 export type ResolvedContentEntryLink =
@@ -106,7 +132,9 @@ export function resolveContentEntryLink<T extends LinkableContentEntry & { link?
     return found ? { kind: 'session', session: found.session, project: found.project } : { kind: 'missing', link };
   }
 
-  if (entry.sourceType === 'session' && entry.sourceId) {
+  // link === null — явное «оставить без привязки»: не падаем обратно на
+  // sourceType/sourceId, даже если запись создана из существующей сессии.
+  if (link === undefined && entry.sourceType === 'session' && entry.sourceId) {
     const found = findSessionById(clients, projects, entry.sourceId);
     if (found) return { kind: 'session', session: found.session, project: found.project };
     return { kind: 'missing', link: { type: 'session', sessionId: entry.sourceId } };
