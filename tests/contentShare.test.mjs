@@ -22,7 +22,7 @@ const webp = (originalIndex) => ({
   originalIndex,
 });
 
-test('Instagram payload contains exactly one real image File and no text fields', () => {
+test('Instagram payload contains every real image File and no text fields', () => {
   const preparation = prepareInstagramContentShare({
     entryId: 'entry-1',
     savedText: 'saved text',
@@ -31,38 +31,53 @@ test('Instagram payload contains exactly one real image File and no text fields'
 
   assert.equal(preparation.status, 'ready');
   assert.deepEqual(Object.keys(preparation.payload), ['files']);
-  assert.equal(preparation.payload.files.length, 1);
-  assert.ok(preparation.payload.files[0] instanceof File);
+  assert.equal(preparation.payload.files.length, 2);
+  assert.ok(preparation.payload.files.every((file) => file instanceof File));
   assert.equal(preparation.payload.files[0].type, 'image/jpeg');
   assert.equal(preparation.payload.files[0].name, 'contentinka-entry-1-3.jpg');
+  assert.equal(preparation.payload.files[1].type, 'image/png');
+  assert.equal(preparation.payload.files[1].name, 'contentinka-entry-1-8.png');
   assert.equal('text' in preparation.payload, false);
   assert.equal('title' in preparation.payload, false);
   assert.equal('url' in preparation.payload, false);
 });
 
-test('Instagram uses the first final photo when no separate photo is selected', () => {
+test('Instagram preserves all nine final photos in their current order', () => {
+  const photos = [png(7), jpeg(1), webp(9), jpeg(4), png(2), jpeg(8), webp(3), png(6), jpeg(5)];
   const preparation = prepareInstagramContentShare({
-    entryId: 'entry-2',
+    entryId: 'entry-nine',
     savedText: 'saved',
-    photos: [png(7), jpeg(1)],
+    photos,
   });
 
   assert.equal(preparation.status, 'ready');
-  assert.equal(preparation.photo.originalIndex, 7);
-  assert.equal(preparation.file.name, 'contentinka-entry-2-7.png');
-  assert.equal(preparation.file.type, 'image/png');
+  assert.equal(preparation.files.length, 9);
+  assert.deepEqual(preparation.photos.map((photo) => photo.originalIndex), [7, 1, 9, 4, 2, 8, 3, 6, 5]);
+  assert.deepEqual(
+    preparation.files.map((file) => file.name),
+    [
+      'contentinka-entry-nine-7.png',
+      'contentinka-entry-nine-1.jpg',
+      'contentinka-entry-nine-9.webp',
+      'contentinka-entry-nine-4.jpg',
+      'contentinka-entry-nine-2.png',
+      'contentinka-entry-nine-8.jpg',
+      'contentinka-entry-nine-3.webp',
+      'contentinka-entry-nine-6.png',
+      'contentinka-entry-nine-5.jpg',
+    ],
+  );
+  assert.deepEqual(preparation.payload.files, preparation.files);
 });
 
-test('a separately selected current photo takes precedence when provided', () => {
+test('Instagram does not silently discard a later invalid photo', () => {
   const preparation = prepareInstagramContentShare({
-    entryId: 'entry-3',
+    entryId: 'entry-invalid-later',
     savedText: 'saved',
-    photos: [jpeg(0), png(1)],
-    selectedPhoto: png(1),
+    photos: [jpeg(0), { src: 'https://example.com/photo.jpg', originalIndex: 1 }, png(2)],
   });
 
-  assert.equal(preparation.status, 'ready');
-  assert.equal(preparation.photo.originalIndex, 1);
+  assert.deepEqual(preparation, { status: 'invalid_photo' });
 });
 
 test('WebP originals keep a shareable MIME type and normal extension', () => {
@@ -73,8 +88,8 @@ test('WebP originals keep a shareable MIME type and normal extension', () => {
   });
 
   assert.equal(preparation.status, 'ready');
-  assert.equal(preparation.file.type, 'image/webp');
-  assert.equal(preparation.file.name, 'contentinka-entry-webp-5.webp');
+  assert.equal(preparation.files[0].type, 'image/webp');
+  assert.equal(preparation.files[0].name, 'contentinka-entry-webp-5.webp');
 });
 
 test('standard share preserves all valid photos together with saved text', () => {
@@ -135,11 +150,11 @@ test('unsupported or throwing file-share capability is handled safely', () => {
   const preparation = prepareInstagramContentShare({
     entryId: 'entry-4',
     savedText: 'saved',
-    photos: [jpeg(0)],
+    photos: [jpeg(0), png(1)],
   });
 
   assert.equal(canShareInstagramContent(preparation, undefined), false);
   assert.equal(canShareInstagramContent(preparation, () => false), false);
   assert.equal(canShareInstagramContent(preparation, () => { throw new Error('unsupported'); }), false);
-  assert.equal(canShareInstagramContent(preparation, (payload) => payload.files?.length === 1), true);
+  assert.equal(canShareInstagramContent(preparation, (payload) => payload.files?.length === 2), true);
 });
