@@ -15,6 +15,13 @@
     "src/lib/clipboard.ts",
     "src/lib/contentWorkspace.ts",
     "src/lib/contentSync.ts",
-    "src/lib/contentTranslation.ts"
+    "src/lib/contentTranslation.ts",
+    "src/domain/project.ts",
+    "src/domain/projectSelectors.ts",
+    "src/domain/client.ts",
+    "src/domain/session.ts",
+    "src/domain/consultation.ts",
+    "src/domain/task.ts",
+    "src/domain/urgency.ts"
   ]
 }

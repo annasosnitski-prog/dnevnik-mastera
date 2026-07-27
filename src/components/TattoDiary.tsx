@@ -100,7 +100,10 @@ import {
   getWorkshopProjects,
   getSessionsByProjectId,
   getConsultationsByProjectId,
+  buildProjectFolders,
 } from '../domain/projectSelectors';
+import { ProjectFolderCard } from './project/ProjectFolderCard';
+import { ProjectFolderView } from './project/ProjectFolderView';
 import { getTasksByProjectId, urgencyRank, urgencyMeta, notesUrgencyCounts, urgencyCounts } from '../domain/taskSelectors';
 import {
   lastSession,
@@ -160,7 +163,7 @@ import {
 // ===================== DESIGN TOKENS =====================
 // Values resolve to CSS variables (see index.css), so the same component
 // re-skins itself when the document's data-theme switches between dark/light.
-const COLORS = {
+export const COLORS = {
   bg: 'var(--bg)',
   sheet: 'var(--sheet)',
   gold: 'var(--gold)',
@@ -179,7 +182,7 @@ const COLORS = {
 // renders top-down synchronously, so children read the current value). Font
 // sizes go through fs(); box dimensions stay fixed — the OS "text size" model.
 let TEXT_SCALE = 1;
-const fs = (px: number): number => Math.round(px * TEXT_SCALE * 100) / 100;
+export const fs = (px: number): number => Math.round(px * TEXT_SCALE * 100) / 100;
 
 // Per-client accent colours, assigned on creation (rotated through the list
 // when the master doesn't pick one explicitly).
@@ -397,10 +400,10 @@ function hexToRgba(hex: string, alpha: number): string {
 // True for strings that start in a right-to-left script (Hebrew, Arabic, …), so
 // the layout can flip the drop-cap + name into their natural reading order.
 const RTL_RE = /[֐-׿؀-ۿ܀-ݏހ-޿יִ-﷿ﹰ-﻿]/;
-const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
+export const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
 
-const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
-const nameRest = (name: string) => (name ? name.slice(1) : '');
+export const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
+export const nameRest = (name: string) => (name ? name.slice(1) : '');
 
 // Every client-facing auto-message (healing check-in, upcoming-booking
 // reminder, and whatever gets added next) is written in the client's own
@@ -4339,7 +4342,7 @@ function TrialGate({
 // along the top edge (tapered to a nib on the left); the right stripe runs down
 // the card's right edge (tapered to a nib at the bottom). They meet over the gem
 // corner. Clip-path tapers live in index.css. Used in both themes.
-function TopStripe({ color }: { color: string }) {
+export function TopStripe({ color }: { color: string }) {
   return (
     <div
       className="inka-stripe"
@@ -4360,7 +4363,7 @@ function TopStripe({ color }: { color: string }) {
 
 // Vertical stripe dropping down the card's right edge from the top-right corner,
 // tapered to a point at the bottom (nib), over the gem corner.
-function RightStripe({ color }: { color: string }) {
+export function RightStripe({ color }: { color: string }) {
   return (
     <div
       className="inka-stripe-right"
@@ -4382,7 +4385,7 @@ function RightStripe({ color }: { color: string }) {
 // Coloured-glass "gem" corner: a small translucent bevelled triangle with
 // gradient depth (глубина) and a soft colour reflection spilling onto the card
 // surface (цветной отсвет). Tucked under the top stripe; no specular glint.
-function GemCorner({ color, size = 19 }: { color: string; size?: number }) {
+export function GemCorner({ color, size = 19 }: { color: string; size?: number }) {
   return (
     <>
       {/* colour reflection cast onto the surface */}
@@ -4710,13 +4713,13 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
 // stripes + gem corner + drop-cap title), just built from a Project instead
 // of a Client — see ClientGridCard above for the shared decoration helpers
 // (TopStripe/RightStripe/GemCorner).
-function clientNameFor(clients: Client[], clientId: string | null): string | null {
+export function clientNameFor(clients: Client[], clientId: string | null): string | null {
   if (!clientId) return null;
   const c = clients.find((x) => x.id === clientId);
   return c ? `${c.name} ${c.surname}`.trim() : null;
 }
 
-function ProjectCard({ project, clientName, onClick }: { project: Project; clientName: string | null; onClick: () => void }) {
+export function ProjectCard({ project, clientName, onClick }: { project: Project; clientName: string | null; onClick: () => void }) {
   return (
     <div
       className="inka-card"
@@ -4903,7 +4906,21 @@ function WorkshopScreen({
 }) {
   const [categoryFilter, setCategoryFilter] = useState<'all' | ProjectCategory>('all');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const filtered = categoryFilter === 'all' ? projects : projects.filter((p) => p.category === categoryFilter);
+  const folders = buildProjectFolders(filtered, clients);
+  const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null;
+
+  if (openFolder) {
+    return (
+      <ProjectFolderView
+        folder={openFolder}
+        clients={clients}
+        onOpenProject={onOpenProject}
+        onBack={() => setOpenFolderId(null)}
+      />
+    );
+  }
 
   return (
     <div style={{ minHeight: '100%' }}>
@@ -5002,8 +5019,13 @@ function WorkshopScreen({
           zIndex: 1,
         }}
       >
-        {filtered.map((project) => (
-          <ProjectCard key={project.id} project={project} clientName={clientNameFor(clients, project.clientId)} onClick={() => onOpenProject(project)} />
+        {folders.map((folder) => (
+          <ProjectFolderCard
+            key={folder.id}
+            folder={folder}
+            accentColor={folder.type === 'client' ? (clients.find((c) => c.id === folder.clientId)?.color ?? COLORS.gold) : COLORS.gold}
+            onClick={() => setOpenFolderId(folder.id)}
+          />
         ))}
       </div>
 
