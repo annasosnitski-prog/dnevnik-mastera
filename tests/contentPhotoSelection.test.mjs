@@ -5,6 +5,7 @@ import {
   contentSelectionRoleLabel,
   hasContentPhotoSelectionContract,
   resolveAllContentPhotos,
+  resolveContentPhotoPublicationSets,
   resolveContentPhotoSelection,
 } from '../.test-dist/src/lib/contentPhotoSelection.js';
 import { normalizeContentEntry } from '../.test-dist/src/lib/contentApproval.js';
@@ -125,6 +126,64 @@ test('legacy entries without photoIds fall back to contentDraft order', () => {
   assert.deepEqual(resolved.map((photo) => photo.selectionRole), ['cover', 'detail', undefined]);
 });
 
+test('splits selected photos into carousel and stories by backend format', () => {
+  const sets = resolveContentPhotoPublicationSets({
+    photos,
+    photoIds,
+    contentDraft: [
+      kept({ id: 'photo-a', selected: true, format: 'post', order_index: 0 }),
+      kept({ id: 'photo-b', selected: true, format: 'story', order_index: 1 }),
+      kept({ id: 'photo-c', selected: true, format: 'post', order_index: 2 }),
+    ],
+  });
+
+  assert.deepEqual(sets.carousel.map((photo) => photo.id), ['photo-a', 'photo-c']);
+  assert.deepEqual(sets.stories.map((photo) => photo.id), ['photo-b']);
+  assert.deepEqual(sets.carousel.map((photo) => photo.publicationFormat), ['post', 'post']);
+  assert.deepEqual(sets.stories.map((photo) => photo.publicationFormat), ['story']);
+});
+
+test('publication sets preserve the selected order inside each output', () => {
+  const sets = resolveContentPhotoPublicationSets({
+    photos,
+    photoIds,
+    contentDraft: [
+      kept({ id: 'photo-c', selected: true, format: 'story', order_index: 0 }),
+      kept({ id: 'photo-b', selected: true, format: 'post', order_index: 1 }),
+      kept({ id: 'photo-a', selected: true, format: 'story', order_index: 2 }),
+    ],
+  });
+
+  assert.deepEqual(sets.carousel.map((photo) => photo.id), ['photo-b']);
+  assert.deepEqual(sets.stories.map((photo) => photo.id), ['photo-c', 'photo-a']);
+});
+
+test('selected photos without format use carousel as a legacy fallback', () => {
+  const sets = resolveContentPhotoPublicationSets({
+    photos,
+    photoIds,
+    contentDraft: [
+      kept({ id: 'photo-a', selected: true }),
+      kept({ id: 'photo-b', selected: true, format: 'story' }),
+      kept({ id: 'photo-c', selected: false, format: 'post' }),
+    ],
+  });
+
+  assert.deepEqual(sets.carousel.map((photo) => photo.id), ['photo-a']);
+  assert.deepEqual(sets.stories.map((photo) => photo.id), ['photo-b']);
+});
+
+test('legacy selection contract routes every original to carousel', () => {
+  const sets = resolveContentPhotoPublicationSets({
+    photos,
+    photoIds,
+    contentDraft: [kept({ id: 'photo-a' }), kept({ id: 'photo-b' })],
+  });
+
+  assert.deepEqual(sets.carousel.map((photo) => photo.src), photos);
+  assert.deepEqual(sets.stories, []);
+});
+
 test('archive resolver retains every original, including rejected photos', () => {
   const resolved = resolveAllContentPhotos({
     photos,
@@ -173,6 +232,7 @@ test('photoIds and backend selection fields survive ContentEntry normalization',
       id: 'photo-a',
       selected: true,
       selection_role: 'cover',
+      format: 'post',
       duplicate_group: 'group-a',
     })],
   };
