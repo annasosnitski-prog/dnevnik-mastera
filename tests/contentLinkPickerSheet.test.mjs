@@ -6,8 +6,11 @@ const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.m
 const sheet = source.slice(source.indexOf('function ContentLinkPickerSheet('), source.indexOf('// ===================== CALENDAR SHEET ====================='));
 const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
 const handleAddProject = source.slice(source.indexOf('const handleAddProject = (data'), source.indexOf('const handleAddProjectSession ='));
-const handleAddProjectSession = source.slice(source.indexOf('const handleAddProjectSession ='), source.indexOf('const openCreateProjectForContentLink ='));
+const handleAddProjectSession = source.slice(source.indexOf('const handleAddProjectSession ='), source.indexOf('const saveSessionFromNewSessionSheet ='));
+const saveSessionFromNewSessionSheet = source.slice(source.indexOf('const saveSessionFromNewSessionSheet ='), source.indexOf('const openCreateProjectForContentLink ='));
 const openCallbacks = source.slice(source.indexOf('const openCreateProjectForContentLink ='), source.indexOf('const migrateRecordsIntoProjects ='));
+const projectSessionPickerSheetFn = source.slice(source.indexOf('function ProjectSessionPickerSheet('), source.indexOf('// ===================== CALENDAR CREATION WALK'));
+const projectSessionPickerSheetUsage = source.slice(source.indexOf('<ProjectSessionPickerSheet'), source.indexOf('<NewConsultationSheet'));
 
 test('the intermediate "choice" step is gone — one sheet, no big-card choice screen', () => {
   assert.doesNotMatch(sheet, /'choice'/);
@@ -71,9 +74,9 @@ test('a created project automatically links to the pending ContentEntry (no re-s
   assert.match(handleAddProject, /setShowNewSessionForm\(true\)/);
 });
 
-test('a created session automatically links to the pending ContentEntry', () => {
-  assert.match(handleAddProjectSession, /newSessionId && pendingContentLinkRef\.current\?\.target === 'session'/);
-  assert.match(handleAddProjectSession, /linkContentEntryTo\(pendingContentLinkRef\.current\.entryId, \{ type: 'session', sessionId: newSessionId \}\)/);
+test('a created studio (project-only) session automatically links to the pending ContentEntry', () => {
+  assert.match(handleAddProjectSession, /!editSession && pendingContentLinkRef\.current\?\.target === 'session'/);
+  assert.match(handleAddProjectSession, /linkContentEntryTo\(pendingContentLinkRef\.current\.entryId, \{ type: 'session', sessionId \}\)/);
   assert.match(handleAddProjectSession, /pendingContentLinkRef\.current = null/);
 });
 
@@ -113,7 +116,62 @@ test('opening a create-project/create-session flow closes ContentLinkPickerSheet
   assert.ok(onCreateSessionWiring.indexOf('setLinkPickerEntryId(null)') < onCreateSessionWiring.indexOf('onCreateSessionForLink('));
 });
 
-test('the initial tab defaults to Project for an unlinked entry and to the existing link type otherwise', () => {
+test('the initial tab is computed from resolveContentEntryLink, not just explicit entry.link', () => {
   assert.match(screen, /const openLinkPicker = \(entryId: string\) => \{/);
-  assert.match(screen, /setLinkPickerTarget\(linkType === 'session' \? 'session' : 'project'\)/);
+  const openLinkPickerBody = screen.slice(screen.indexOf('const openLinkPicker = (entryId: string) => {'), screen.indexOf('const copyFeedbackController ='));
+  assert.match(openLinkPickerBody, /resolveContentEntryLink\(candidate, projects, clients\)/);
+  assert.match(openLinkPickerBody, /setLinkPickerTarget\(resolved\?\.kind === 'session' \? 'session' : 'project'\)/);
+});
+
+test('a sourceType=session entry with no explicit link resolves to kind "session" (openLinkPicker opens the Session tab)', async () => {
+  const { resolveContentEntryLink } = await import('../.test-dist/src/lib/contentLink.js');
+  const project = { id: 'p1', clientId: 'client-1', sessions: [] };
+  const session = { id: 's1', projectId: 'p1' };
+  const client = { id: 'client-1', sessions: [session], consultations: [] };
+  const entry = { sourceType: 'session', sourceId: 's1', clientId: 'client-1' };
+
+  const resolved = resolveContentEntryLink(entry, [project], [client]);
+  assert.equal(resolved.kind, 'session');
+});
+
+test('creating a session for a CLIENT ContentEntry lists that client\'s own projects, not clientless ones', () => {
+  assert.match(projectSessionPickerSheetFn, /clientId \? projects\.filter\(\(p\) => p\.clientId === clientId\) : projects\.filter\(\(p\) => !p\.clientId\)/);
+  assert.match(projectSessionPickerSheetFn, /Пока нет проектов у этого клиента/);
+  assert.match(projectSessionPickerSheetUsage, /clientId=\{pendingContentLinkRef\.current\?\.preferredClientId \?\? null\}/);
+});
+
+test('creating a project from the empty Session tab preserves the entry\'s preferredClientId, not null', () => {
+  const onCreateProjectWiring = projectSessionPickerSheetUsage.slice(projectSessionPickerSheetUsage.indexOf('onCreateProject={'));
+  assert.match(onCreateProjectWiring, /setNewProjectClientId\(pendingContentLinkRef\.current\?\.preferredClientId \?\? null\)/);
+});
+
+test('saveSessionFromNewSessionSheet routes a CLIENT content-link session into client.sessions via upsertClientSession, not Project.sessions', () => {
+  assert.match(saveSessionFromNewSessionSheet, /const contentLinkClientId = pendingContentLinkRef\.current\?\.preferredClientId/);
+  const clientBranch = saveSessionFromNewSessionSheet.slice(
+    saveSessionFromNewSessionSheet.indexOf('if (sessionTargetProjectId && contentLinkClientId)'),
+    saveSessionFromNewSessionSheet.indexOf('if (sessionTargetProjectId) {'),
+  );
+  assert.match(clientBranch, /upsertClientSession\(\s*client,\s*\{ \.\.\.data, projectId: sessionTargetProjectId \},\s*editSession\?\.id \?\? null,\s*\)/);
+  assert.match(clientBranch, /saveClient\(updatedClient\)/);
+  assert.match(clientBranch, /linkContentEntryTo\(pendingContentLinkRef\.current\.entryId, \{ type: 'session', sessionId \}\)/);
+  assert.doesNotMatch(clientBranch, /upsertProjectSession|saveProject\(/);
+});
+
+test('saveSessionFromNewSessionSheet falls back to Project.sessions (handleAddProjectSession) for a STUDIO content-link session', () => {
+  const studioBranch = saveSessionFromNewSessionSheet.slice(
+    saveSessionFromNewSessionSheet.indexOf('if (sessionTargetProjectId) {\n      handleAddProjectSession'),
+    saveSessionFromNewSessionSheet.indexOf('handleAddSession(data);'),
+  );
+  assert.match(studioBranch, /handleAddProjectSession\(sessionTargetProjectId, data\)/);
+  assert.match(studioBranch, /closeNewSession\(\)/);
+});
+
+test('a plain client-tab session (no content-link chain) still falls through to handleAddSession', () => {
+  assert.match(saveSessionFromNewSessionSheet, /handleAddSession\(data\);\s*\};/);
+});
+
+test('the NewSessionSheet form itself is not duplicated — onAdd delegates to the single orchestration function', () => {
+  assert.match(source, /onAdd=\{saveSessionFromNewSessionSheet\}/);
+  const newSessionSheetSource = source.slice(source.indexOf('function NewSessionSheet('), source.indexOf('function WorkshopCreateChoiceSheet('));
+  assert.doesNotMatch(newSessionSheetSource, /upsertClientSession|upsertProjectSession|pendingContentLinkRef/);
 });

@@ -18,6 +18,7 @@
     "src/lib/contentTranslation.ts",
     "src/lib/contentLink.ts",
     "src/lib/contentProject.ts",
+    "src/lib/sessionSave.ts",
     "src/domain/project.ts",
     "src/domain/projectSelectors.ts",
     "src/domain/client.ts",

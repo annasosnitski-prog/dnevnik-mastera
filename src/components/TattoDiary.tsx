@@ -83,6 +83,7 @@ import {
   type ResolvedContentEntryLink,
 } from '../lib/contentLink';
 import { getContentEntriesForProject, type ProjectContentItem } from '../lib/contentProject';
+import { upsertClientSession, upsertProjectSession, type SessionFormData } from '../lib/sessionSave';
 import { ArchetypeToolbar } from './content/ArchetypeToolbar';
 import { ActionButton, ContentEntryActions } from './content/ContentEntryActions';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
@@ -1722,7 +1723,15 @@ export default function TattoDiary() {
   // создание сессии). Ref, а не state — handleAddProject{,Session} и
   // closeNewSession/onClose читают его синхронно в одном тике, до
   // следующего рендера, где обычный state ещё не обновился бы.
-  const pendingContentLinkRef = useRef<{ entryId: string; target: 'project' | 'session' } | null>(null);
+  // preferredClientId — entry.clientId записи, ради которой запущена
+  // цепочка: null для Мастерской (сессия/проект без клиента), id клиента —
+  // тогда сессия должна лечь в client.sessions этого клиента, а не в
+  // Project.sessions (см. saveSessionFromNewSessionSheet ниже).
+  const pendingContentLinkRef = useRef<{
+    entryId: string;
+    target: 'project' | 'session';
+    preferredClientId: string | null;
+  } | null>(null);
   const linkContentEntryTo = (entryId: string, link: ContentEntryLink | null) => {
     const entry = contentEntries.find((candidate) => candidate.id === entryId);
     if (entry) saveContentEntry(setContentEntryLink(entry, link));
@@ -2250,82 +2259,83 @@ export default function TattoDiary() {
   };
 
   // «Сессия без клиента» — живёт прямо в проекте (Project.sessions), пока к
-  // проекту не привязан клиент (см. миграцию в handleAddProject выше). Тот
-  // же набор полей, что и у обычной сессии клиента.
-  const handleAddProjectSession = (
-    projectId: string,
-    data: {
-      name: string;
-      date: string;
-      time: string;
-      duration: string;
-      style: string;
-      area: string;
-      colors: string;
-      needles: string;
-      skinReaction: string;
-      note: string;
-      photos: string[];
-      done: boolean;
-      healed: boolean;
-      projectId: string | null;
-    },
-  ) => {
+  // проекту не привязан клиент (см. миграцию в handleAddProject выше). Чистая
+  // мутация вынесена в upsertProjectSession (src/lib/sessionSave.ts).
+  const handleAddProjectSession = (projectId: string, data: SessionFormData) => {
     const p = getProjectById(projects, projectId);
     if (!p) return;
-    const fields = {
-      name: data.name.trim(),
-      date: data.date,
-      time: data.time,
-      duration: data.duration,
-      style: data.style,
-      area: data.area.trim(),
-      colors: data.colors.trim(),
-      needles: data.needles.trim(),
-      skinReaction: data.skinReaction.trim(),
-      note: data.note.trim(),
-      photos: data.photos,
-      done: data.done,
-      healed: data.healed,
-      projectId,
-    };
-    let sessions: Session[];
-    let newSessionId: string | null = null;
-    if (editSession) {
-      sessions = p.sessions.map((s) => (s.id === editSession.id ? { ...s, ...fields } : s));
-    } else {
-      newSessionId = Date.now().toString();
-      sessions = [...p.sessions, { id: newSessionId, cancelled: false, ...fields }];
-    }
-    saveProject({ ...p, sessions });
-    advanceProjectStage(projectId, fields.done ? 'in_progress' : 'booked');
+    const { project: updatedProject, sessionId } = upsertProjectSession(p, { ...data, projectId }, editSession?.id ?? null);
+    saveProject(updatedProject);
+    advanceProjectStage(projectId, data.done ? 'in_progress' : 'booked');
 
-    // Сессия создана из ContentLinkPickerSheet «Сохранить в…» (project→session
-    // цепочка или прямой выбор проекта на вкладке «Сессия») — привязываем её.
-    if (newSessionId && pendingContentLinkRef.current?.target === 'session') {
-      linkContentEntryTo(pendingContentLinkRef.current.entryId, { type: 'session', sessionId: newSessionId });
+    // Сессия создана из ContentLinkPickerSheet «Сохранить в…» для
+    // Мастерской (studio-запись, без клиента) — привязываем её. !editSession
+    // отсекает обычное редактирование существующей сессии, чтобы не
+    // переписывать уже сделанную привязку.
+    if (!editSession && pendingContentLinkRef.current?.target === 'session') {
+      linkContentEntryTo(pendingContentLinkRef.current.entryId, { type: 'session', sessionId });
       pendingContentLinkRef.current = null;
     }
+  };
+
+  // Единственная точка сохранения для NewSessionSheet (кроме calendar-walk,
+  // см. onAdd там же) — три возможных владельца результата:
+  // 1) content-link цепочка для КЛИЕНТСКОЙ ContentEntry (preferredClientId
+  //    задан) → сессия ложится в client.sessions ЭТОГО клиента (см.
+  //    entry.clientId), а не «текущего открытого» selectedClient и не в
+  //    Project.sessions — так клиентский контент остаётся связан с историей
+  //    клиента, а не превращается в анонимную «сессию без клиента»;
+  // 2) «сессия без клиента» (sessionTargetProjectId без preferredClientId —
+  //    и обычный сценарий «Мастерская», и content-link для studio-записи) →
+  //    Project.sessions через handleAddProjectSession, как раньше;
+  // 3) обычная форма с экрана клиента (ни то, ни другое) → handleAddSession.
+  const saveSessionFromNewSessionSheet = (data: SessionFormData) => {
+    const contentLinkClientId = pendingContentLinkRef.current?.preferredClientId;
+    if (sessionTargetProjectId && contentLinkClientId) {
+      const client = clients.find((c) => c.id === contentLinkClientId);
+      if (client) {
+        const { client: updatedClient, sessionId } = upsertClientSession(
+          client,
+          { ...data, projectId: sessionTargetProjectId },
+          editSession?.id ?? null,
+        );
+        saveClient(updatedClient);
+        advanceProjectStage(sessionTargetProjectId, data.done ? 'in_progress' : 'booked');
+        if (!editSession && pendingContentLinkRef.current?.target === 'session') {
+          linkContentEntryTo(pendingContentLinkRef.current.entryId, { type: 'session', sessionId });
+          pendingContentLinkRef.current = null;
+        }
+      }
+      closeNewSession();
+      return;
+    }
+    if (sessionTargetProjectId) {
+      handleAddProjectSession(sessionTargetProjectId, data);
+      closeNewSession();
+      return;
+    }
+    handleAddSession(data);
   };
 
   // Узкие callbacks для ContentLinkPickerSheet («Создать проект»/«Создать
   // сессию») — запускают уже существующие сценарии создания Project/Session
   // вместо второй копии формы внутри самого sheet'а. См. handleAddProject/
-  // handleAddProjectSession выше — там pendingContentLinkRef приводит к
-  // автоматической привязке результата к нужной ContentEntry.
+  // handleAddProjectSession/saveSessionFromNewSessionSheet выше — там
+  // pendingContentLinkRef приводит к автоматической привязке результата к
+  // нужной ContentEntry.
   const openCreateProjectForContentLink = (entryId: string, preferredClientId: string | null) => {
-    pendingContentLinkRef.current = { entryId, target: 'project' };
+    pendingContentLinkRef.current = { entryId, target: 'project', preferredClientId };
     setEditProject(null);
     setNewProjectClientId(preferredClientId);
     setShowNewProjectForm(true);
   };
-  const openCreateSessionForContentLink = (entryId: string) => {
-    // Существующая логика выбора проекта для «сессии без клиента» — та же,
-    // что и в «Мастерская: Создать → Сессия без клиента» (см.
-    // ProjectSessionPickerSheet ниже). Если подходящих проектов нет, сама
-    // ProjectSessionPickerSheet предлагает создать его первым — цепочка
-    // продолжается в handleAddProject выше.
-    pendingContentLinkRef.current = { entryId, target: 'session' };
+  const openCreateSessionForContentLink = (entryId: string, preferredClientId: string | null) => {
+    // Проекты этого клиента (или без клиента для Мастерской) — та же логика
+    // выбора проекта, что и в «Мастерская: Создать → Сессия без клиента»
+    // (см. ProjectSessionPickerSheet ниже), только с client-aware фильтром.
+    // Если подходящих проектов нет, сама ProjectSessionPickerSheet предлагает
+    // создать его первым — цепочка продолжается в handleAddProject выше.
+    pendingContentLinkRef.current = { entryId, target: 'session', preferredClientId };
     setShowProjectSessionPicker(true);
   };
 
@@ -2566,62 +2576,19 @@ export default function TattoDiary() {
     setCelebrationKey((k) => k + 1);
   };
 
-  const handleAddSession = (data: {
-    name: string;
-    date: string;
-    time: string;
-    duration: string;
-    style: string;
-    area: string;
-    colors: string;
-    needles: string;
-    skinReaction: string;
-    note: string;
-    photos: string[];
-    done: boolean;
-    healed: boolean;
-    projectId: string | null;
-  }) => {
+  // Сохранение чистой логики (client.sessions + мёрдж стилей) вынесено в
+  // upsertClientSession (src/lib/sessionSave.ts) — по явному clientId, а не
+  // через selectedClient. handleAddSession по-прежнему читает владельца из
+  // selectedClient (обычная форма «Новая сессия» с экрана клиента), но сама
+  // мутация теперь testable в изоляции; ContentLinkPickerSheet использует тот
+  // же helper со своим явным clientId (см. saveSessionForContentLink ниже).
+  const handleAddSession = (data: SessionFormData) => {
     if (!selectedClient) return;
-    const fields = {
-      name: data.name.trim(),
-      date: data.date,
-      time: data.time,
-      duration: data.duration,
-      style: data.style,
-      area: data.area.trim(),
-      colors: data.colors.trim(),
-      needles: data.needles.trim(),
-      skinReaction: data.skinReaction.trim(),
-      note: data.note.trim(),
-      photos: data.photos,
-      done: data.done,
-      healed: data.healed,
-      projectId: data.projectId,
-    };
-    let sessions: Session[];
-    if (editSession) {
-      // Update the existing session in place, keeping its id (status can now
-      // change between planned and done via the form).
-      sessions = selectedClient.sessions.map((s) =>
-        s.id === editSession.id ? { ...s, ...fields } : s,
-      );
-    } else {
-      sessions = [...selectedClient.sessions, { id: Date.now().toString(), cancelled: false, ...fields }];
-    }
-    const mergedStyles =
-      data.style && !clientStyles(selectedClient).includes(data.style)
-        ? [...clientStyles(selectedClient), data.style]
-        : clientStyles(selectedClient);
-    saveClient({
-      ...selectedClient,
-      styles: mergedStyles,
-      style: mergedStyles.join(' · '),
-      sessions,
-    });
+    const { client: updatedClient } = upsertClientSession(selectedClient, data, editSession?.id ?? null);
+    saveClient(updatedClient);
     // Авто-переход этапа проекта (Этап 3b): выполненная сессия → «В работе»,
     // запланированная (ещё не выполнена) → «Записан». Только вперёд.
-    advanceProjectStage(fields.projectId, fields.done ? 'in_progress' : 'booked');
+    advanceProjectStage(data.projectId, data.done ? 'in_progress' : 'booked');
     setShowNewSessionForm(false);
     setEditSession(null);
     setCalendarCreateDate(null);
@@ -3548,14 +3515,7 @@ export default function TattoDiary() {
         initial={editSession}
         initialDate={calendarCreateDate ?? undefined}
         onClose={closeNewSession}
-        onAdd={(data) => {
-          if (sessionTargetProjectId) {
-            handleAddProjectSession(sessionTargetProjectId, data);
-            closeNewSession();
-          } else {
-            handleAddSession(data);
-          }
-        }}
+        onAdd={saveSessionFromNewSessionSheet}
       />
 
       {/* ═══════════ ADD CHOICE (session vs consultation) ═══════════ */}
@@ -3596,6 +3556,7 @@ export default function TattoDiary() {
       <ProjectSessionPickerSheet
         open={showProjectSessionPicker}
         projects={projects}
+        clientId={pendingContentLinkRef.current?.preferredClientId ?? null}
         onClose={() => {
           setShowProjectSessionPicker(false);
           if (pendingContentLinkRef.current?.target === 'session') {
@@ -3612,7 +3573,9 @@ export default function TattoDiary() {
         onCreateProject={() => {
           setShowProjectSessionPicker(false);
           setEditProject(null);
-          setNewProjectClientId(null);
+          // content-link цепочка для клиентской записи → новый проект должен
+          // предзаполниться этим же клиентом, а не «Мастерская».
+          setNewProjectClientId(pendingContentLinkRef.current?.preferredClientId ?? null);
           setShowNewProjectForm(true);
         }}
       />
@@ -11273,7 +11236,7 @@ function ContentINKAScreen({
   // именно родитель их открывает (см. TattoDiary root: NewProjectSheet/
   // ProjectSessionPickerSheet+NewSessionSheet).
   onCreateProjectForLink: (entryId: string, preferredClientId: string | null) => void;
-  onCreateSessionForLink: (entryId: string) => void;
+  onCreateSessionForLink: (entryId: string, preferredClientId: string | null) => void;
   // Если пользователь отменяет создание Project/Session, запущенное отсюда,
   // родитель просит снова открыть ContentLinkPickerSheet на той же записи и
   // вкладке — тот же паттерн, что и focusEntryId/onFocusEntryApplied выше.
@@ -11304,10 +11267,14 @@ function ContentINKAScreen({
   // создания Project/Session.
   const [linkPickerEntryId, setLinkPickerEntryId] = useState<string | null>(null);
   const [linkPickerTarget, setLinkPickerTarget] = useState<'project' | 'session'>('project');
+  // Учитывает не только явный entry.link, но и фактически resolved связь
+  // (resolveContentEntryLink) — так legacy/source-session записи (link ещё
+  // не задан явно, но sourceType==='session' резолвится в сессию) тоже
+  // открываются сразу на вкладке «Сессия», а не «Проект» по умолчанию.
   const openLinkPicker = (entryId: string) => {
-    const target = contentEntriesRef.current.find((candidate) => candidate.id === entryId);
-    const linkType = target ? normalizeContentEntryLink(target).link?.type : undefined;
-    setLinkPickerTarget(linkType === 'session' ? 'session' : 'project');
+    const candidate = contentEntriesRef.current.find((entry) => entry.id === entryId);
+    const resolved = candidate ? resolveContentEntryLink(candidate, projects, clients) : null;
+    setLinkPickerTarget(resolved?.kind === 'session' ? 'session' : 'project');
     setLinkPickerEntryId(entryId);
   };
   const copyFeedbackController = useMemo(
@@ -12418,7 +12385,7 @@ function ContentINKAScreen({
           const entry = contentEntries.find((e) => e.id === linkPickerEntryId);
           if (!entry) return;
           setLinkPickerEntryId(null);
-          onCreateSessionForLink(entry.id);
+          onCreateSessionForLink(entry.id, entry.clientId);
         }}
       />
     </div>
@@ -13958,17 +13925,23 @@ function WorkshopCreateChoiceSheet({
 function ProjectSessionPickerSheet({
   open,
   projects,
+  clientId = null,
   onClose,
   onPick,
   onCreateProject,
 }: {
   open: boolean;
   projects: Project[];
+  // null (по умолчанию) — «сессия без клиента» (Мастерская), список
+  // проектов БЕЗ клиента, как раньше. Задан — список проектов ЭТОГО
+  // клиента (content-link цепочка для клиентской ContentEntry), а не
+  // клиентских по умолчанию.
+  clientId?: string | null;
   onClose: () => void;
   onPick: (project: Project) => void;
   onCreateProject: () => void;
 }) {
-  const clientless = projects.filter((p) => !p.clientId);
+  const eligible = clientId ? projects.filter((p) => p.clientId === clientId) : projects.filter((p) => !p.clientId);
   return (
     <BottomSheet open={open} heightPct={50}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
@@ -13977,12 +13950,12 @@ function ProjectSessionPickerSheet({
         <SheetStarDivider />
       </div>
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {clientless.length === 0 ? (
+        {eligible.length === 0 ? (
           <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
-            Пока нет проектов без клиента — создайте первый.
+            {clientId ? 'Пока нет проектов у этого клиента — создайте первый.' : 'Пока нет проектов без клиента — создайте первый.'}
           </div>
         ) : (
-          clientless.map((p) => (
+          eligible.map((p) => (
             <div
               key={p.id}
               onClick={() => onPick(p)}
