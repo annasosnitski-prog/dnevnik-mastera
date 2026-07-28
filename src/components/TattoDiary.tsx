@@ -10947,8 +10947,8 @@ function ViewField({ label, value }: { label: string; value: string }) {
   );
 }
 
-// Архетипные chips — под капотом тот же master_instruction в /api/ingest.
-// /api/ingest, см. contentSync.ts. Названы напрямую по семи архетипам
+// Архетипные chips — под капотом тот же master_instruction в
+// POST /api/ingest-jobs (см. sendToContent в contentSync.ts). Названы напрямую по семи архетипам
 // contentINKA (см. lib/prompts/archetypes.txt в contentinka), а не по
 // настроению («теплее»/«жёстче») — так кнопка сразу говорит, какой голос
 // перегенерирует текст. Каждый пресет ставит выбранный архетип в роль
