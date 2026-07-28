@@ -175,3 +175,68 @@ test('the NewSessionSheet form itself is not duplicated — onAdd delegates to t
   const newSessionSheetSource = source.slice(source.indexOf('function NewSessionSheet('), source.indexOf('function WorkshopCreateChoiceSheet('));
   assert.doesNotMatch(newSessionSheetSource, /upsertClientSession|upsertProjectSession|pendingContentLinkRef/);
 });
+
+// Edge case: NewProjectSheet lets the master switch the project's client
+// (or "Мастерская") right in the create-project form. The chain's owner must
+// follow that FINAL choice (data.clientId), not the original entry.clientId
+// captured when "Создать сессию" was first tapped — otherwise a session
+// could land on the wrong client, or a studio project could be routed
+// through client.sessions with a stale clientId.
+const sessionChainBranch = handleAddProject.slice(
+  handleAddProject.indexOf("} else {\n          // target === 'session'"),
+  handleAddProject.indexOf('return;\n        }'),
+);
+
+test('switching the project to a NEW client mid-creation updates the chain\'s owner to that client (not the original entry.clientId)', () => {
+  // The fix: preferredClientId is overwritten with the just-saved
+  // data.clientId right before opening NewSessionSheet.
+  assert.match(
+    sessionChainBranch,
+    /pendingContentLinkRef\.current = \{ \.\.\.pendingContentLinkRef\.current, preferredClientId: data\.clientId \}/,
+  );
+  // This must happen before the session form opens, so
+  // saveSessionFromNewSessionSheet reads the updated owner, not the stale one.
+  assert.ok(
+    sessionChainBranch.indexOf('preferredClientId: data.clientId') <
+      sessionChainBranch.indexOf('setShowNewSessionForm(true)'),
+  );
+  // saveSessionFromNewSessionSheet always re-reads preferredClientId from the
+  // ref at save time (not a value captured earlier) — so the updated owner
+  // set above is exactly what routes the session into client B's sessions.
+  assert.match(saveSessionFromNewSessionSheet, /const contentLinkClientId = pendingContentLinkRef\.current\?\.preferredClientId/);
+});
+
+test('switching the project to "Мастерская" (clientId: null) mid-creation routes the session into Project.sessions, not client.sessions', () => {
+  // data.clientId can be null when the master picks "Мастерская (без
+  // клиента)" in NewProjectSheet — the same assignment applies unconditionally,
+  // so preferredClientId becomes null and saveSessionFromNewSessionSheet's
+  // `contentLinkClientId` guard (`sessionTargetProjectId && contentLinkClientId`)
+  // is falsy, falling through to the Project.sessions branch below it.
+  assert.match(sessionChainBranch, /preferredClientId: data\.clientId/);
+  assert.doesNotMatch(sessionChainBranch, /preferredClientId: data\.clientId \?\? /);
+  const studioBranch = saveSessionFromNewSessionSheet.slice(
+    saveSessionFromNewSessionSheet.indexOf('if (sessionTargetProjectId) {\n      handleAddProjectSession'),
+    saveSessionFromNewSessionSheet.indexOf('handleAddSession(data);'),
+  );
+  assert.match(studioBranch, /handleAddProjectSession\(sessionTargetProjectId, data\)/);
+});
+
+test('the session\'s projectId is always the actually-created project\'s id (newProjectId), passed through as sessionTargetProjectId', () => {
+  assert.match(sessionChainBranch, /setSessionTargetProjectId\(newProjectId\)/);
+  // Both save branches use sessionTargetProjectId as the session's projectId —
+  // client.sessions via upsertClientSession's { ...data, projectId: sessionTargetProjectId },
+  // and Project.sessions via handleAddProjectSession(sessionTargetProjectId, data)
+  // (which itself passes projectId through to upsertProjectSession).
+  assert.match(saveSessionFromNewSessionSheet, /\{ \.\.\.data, projectId: sessionTargetProjectId \}/);
+  assert.match(saveSessionFromNewSessionSheet, /handleAddProjectSession\(sessionTargetProjectId, data\)/);
+  assert.match(handleAddProjectSession, /upsertProjectSession\(p, \{ \.\.\.data, projectId \}, editSession\?\.id \?\? null\)/);
+});
+
+test('the existing pick-an-existing-project scenario is untouched by this fix', () => {
+  const onPickWiring = projectSessionPickerSheetUsage.slice(
+    projectSessionPickerSheetUsage.indexOf('onPick={(project) => {'),
+    projectSessionPickerSheetUsage.indexOf('onCreateProject={'),
+  );
+  assert.doesNotMatch(onPickWiring, /preferredClientId/);
+  assert.match(onPickWiring, /setSessionTargetProjectId\(project\.id\)/);
+});

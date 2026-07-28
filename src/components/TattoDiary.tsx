@@ -2242,7 +2242,12 @@ export default function TattoDiary() {
           pendingContentLinkRef.current = null;
         } else {
           // target === 'session': проектов не было — этот проект лишь шаг к
-          // сессии, продолжаем прямо в её создание, без тупика.
+          // сессии, продолжаем прямо в её создание, без тупика. NewProjectSheet
+          // позволяет сменить клиента прямо в форме — владельца цепочки берём
+          // из фактически сохранённого data.clientId, а не из entry.clientId
+          // (preferredClientId мог устареть, если мастер выбрал другого
+          // клиента или «Мастерская» уже в форме создания проекта).
+          pendingContentLinkRef.current = { ...pendingContentLinkRef.current, preferredClientId: data.clientId };
           setShowNewProjectForm(false);
           setEditProject(null);
           setNewProjectClientId(null);
