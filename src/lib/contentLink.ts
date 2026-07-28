@@ -9,6 +9,7 @@
 import type { Project } from '../domain/project';
 import type { Client } from '../domain/client';
 import type { Session } from '../domain/session';
+import type { Consultation } from '../domain/consultation';
 import { getProjectById } from '../domain/projectSelectors.js';
 import type { LinkableContentEntry } from './contentWorkspace';
 
@@ -83,12 +84,25 @@ function findSessionById(
   return null;
 }
 
+// Консультации, в отличие от сессий, живут только у клиента — у проекта без
+// клиента консультаций не бывает.
+function findConsultationById(clients: Client[], consultationId: string): Consultation | null {
+  for (const client of clients) {
+    const consultation = client.consultations.find((c) => c.id === consultationId);
+    if (consultation) return consultation;
+  }
+  return null;
+}
+
 // Проект для session-link всегда вычисляется через существующий
 // session.projectId — не хранится отдельно, чтобы не дублировать источник
 // истины и не рассинхронизироваться при переносе сессии между проектами. То
-// же самое верно для автоматической связи с исходной сессией
-// (sourceType==='session'), пока link не задан явно (undefined) — explicit
-// null проект не даёт вообще.
+// же самое верно для автоматической связи с исходной сессией/консультацией
+// (sourceType==='session'|'consultation'), пока link не задан явно
+// (undefined) — explicit null проект не даёт вообще. ContentEntryLink сам по
+// себе консультацию как тип ручной привязки не поддерживает (её нет как
+// варианта в sheet «Куда сохранить контент?») — только как fallback от
+// sourceType/sourceId.
 export function resolveContentEntryProjectId<T extends LinkableContentEntry & { link?: unknown }>(
   entry: T,
   projects: Project[],
@@ -100,21 +114,34 @@ export function resolveContentEntryProjectId<T extends LinkableContentEntry & { 
     const found = findSessionById(clients, projects, link.sessionId);
     return found?.session.projectId ?? null;
   }
-  if (link === undefined && entry.sourceType === 'session' && entry.sourceId) {
-    const found = findSessionById(clients, projects, entry.sourceId);
-    return found?.session.projectId ?? null;
+  if (link === undefined) {
+    if (entry.sourceType === 'session' && entry.sourceId) {
+      const found = findSessionById(clients, projects, entry.sourceId);
+      return found?.session.projectId ?? null;
+    }
+    if (entry.sourceType === 'consultation' && entry.sourceId) {
+      const consultation = findConsultationById(clients, entry.sourceId);
+      return consultation?.projectId ?? null;
+    }
   }
   return null;
 }
 
+// «missing» с sourceType==='consultation' переносит consultationId в
+// отдельном поле, а не в ContentEntryLink (та не поддерживает consultation
+// как тип ручной привязки — только project/session, см. выше).
 export type ResolvedContentEntryLink =
   | { kind: 'none' }
   | { kind: 'project'; project: Project }
   | { kind: 'session'; session: Session; project: Project | null }
-  // Сохранённый projectId/sessionId (явный link, либо исходная сессия
-  // sourceType==='session') больше не находится — запись не теряется и не
-  // исправляется автоматически, просто показывается как безопасный fallback.
-  | { kind: 'missing'; link: ContentEntryLink };
+  | { kind: 'consultation'; consultation: Consultation; project: Project | null }
+  // Сохранённый projectId/sessionId (явный link, либо исходная сессия)
+  // больше не находится — запись не теряется и не исправляется
+  // автоматически, просто показывается как безопасный fallback.
+  | { kind: 'missing'; link: ContentEntryLink }
+  // То же самое для исходной консультации (sourceType==='consultation'),
+  // которая сама по себе не является ContentEntryLink.
+  | { kind: 'missing-consultation'; consultationId: string };
 
 export function resolveContentEntryLink<T extends LinkableContentEntry & { link?: unknown }>(
   entry: T,
@@ -133,11 +160,22 @@ export function resolveContentEntryLink<T extends LinkableContentEntry & { link?
   }
 
   // link === null — явное «оставить без привязки»: не падаем обратно на
-  // sourceType/sourceId, даже если запись создана из существующей сессии.
-  if (link === undefined && entry.sourceType === 'session' && entry.sourceId) {
-    const found = findSessionById(clients, projects, entry.sourceId);
-    if (found) return { kind: 'session', session: found.session, project: found.project };
-    return { kind: 'missing', link: { type: 'session', sessionId: entry.sourceId } };
+  // sourceType/sourceId, даже если запись создана из существующей сессии
+  // или консультации.
+  if (link === undefined) {
+    if (entry.sourceType === 'session' && entry.sourceId) {
+      const found = findSessionById(clients, projects, entry.sourceId);
+      if (found) return { kind: 'session', session: found.session, project: found.project };
+      return { kind: 'missing', link: { type: 'session', sessionId: entry.sourceId } };
+    }
+    if (entry.sourceType === 'consultation' && entry.sourceId) {
+      const consultation = findConsultationById(clients, entry.sourceId);
+      if (consultation) {
+        const project = consultation.projectId ? getProjectById(projects, consultation.projectId) : null;
+        return { kind: 'consultation', consultation, project };
+      }
+      return { kind: 'missing-consultation', consultationId: entry.sourceId };
+    }
   }
 
   return { kind: 'none' };

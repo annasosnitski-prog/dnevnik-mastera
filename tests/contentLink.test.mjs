@@ -72,6 +72,27 @@ function makeSession(overrides = {}) {
   };
 }
 
+function makeConsultation(overrides = {}) {
+  return {
+    id: 'consultation-1',
+    date: '2026-02-01',
+    time: '',
+    area: '',
+    style: '',
+    generalNotes: '',
+    feeling: '',
+    creative: '',
+    inspirationSources: '',
+    urgency: 'none',
+    photos: [],
+    done: false,
+    cancelled: false,
+    createdDate: '2026-01-01',
+    projectId: null,
+    ...overrides,
+  };
+}
+
 function makeEntry(overrides = {}) {
   return {
     id: 'entry-1',
@@ -188,6 +209,38 @@ test('a dangling source-session (sourceType session, deleted session, link still
   delete entry.link;
   const resolved = resolveContentEntryLink(entry, [], []);
   assert.deepEqual(resolved, { kind: 'missing', link: { type: 'session', sessionId: 'ghost-session' } });
+});
+
+test('a source-consultation entry (no manual link) resolves its project through consultation.projectId', () => {
+  const project = makeProject({ id: 'project-consult' });
+  const consultation = makeConsultation({ id: 'consult-1', projectId: project.id });
+  const client = makeClient({ consultations: [consultation] });
+  const entry = makeEntry({ sourceType: 'consultation', sourceId: consultation.id });
+  delete entry.link;
+
+  assert.equal(resolveContentEntryProjectId(entry, [project], [client]), project.id);
+  const resolved = resolveContentEntryLink(entry, [project], [client]);
+  assert.equal(resolved.kind, 'consultation');
+  assert.equal(resolved.consultation.id, consultation.id);
+  assert.equal(resolved.project?.id, project.id);
+});
+
+test('an explicit link: null on a source-consultation entry is treated as unlinked, not the consultation', () => {
+  const project = makeProject({ id: 'project-consult' });
+  const consultation = makeConsultation({ id: 'consult-1', projectId: project.id });
+  const client = makeClient({ consultations: [consultation] });
+  const entry = makeEntry({ sourceType: 'consultation', sourceId: consultation.id, link: null });
+
+  assert.equal(resolveContentEntryProjectId(entry, [project], [client]), null);
+  assert.deepEqual(resolveContentEntryLink(entry, [project], [client]), { kind: 'none' });
+});
+
+test('a dangling source-consultation (deleted consultation, link still undefined) resolves as missing, not a crash', () => {
+  const entry = makeEntry({ sourceType: 'consultation', sourceId: 'ghost-consultation' });
+  delete entry.link;
+
+  assert.equal(resolveContentEntryProjectId(entry, [], []), null);
+  assert.deepEqual(resolveContentEntryLink(entry, [], []), { kind: 'missing-consultation', consultationId: 'ghost-consultation' });
 });
 
 test('resolveContentEntryLink does not mutate Project[], Client[] or the entry', () => {
