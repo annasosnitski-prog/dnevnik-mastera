@@ -1,4 +1,4 @@
-name: Durable content jobs branch validation
+name: Build durable content jobs
 
 on:
   push:
@@ -9,12 +9,34 @@ permissions:
   contents: write
 
 jobs:
-  validate-runner:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feature/durable-content-jobs
-      - run: node --version
-      - run: npm --version
-      - run: echo "durable jobs runner ready"
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply implementation
+        run: |
+          base64 -d .github/scripts/apply_durable_content_jobs.py.gz.b64 | gzip -d > /tmp/apply_durable_content_jobs.py
+          python /tmp/apply_durable_content_jobs.py
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - run: git diff --check
+
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: recover POSTiNKA jobs after reload"
+          git push origin HEAD:feature/durable-content-jobs
