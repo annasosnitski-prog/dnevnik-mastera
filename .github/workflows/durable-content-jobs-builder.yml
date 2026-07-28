@@ -47,6 +47,73 @@ jobs:
           PY
           python /tmp/apply_durable_content_jobs.py
 
+      - name: Update tests for persisted async refresh
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_block(path: str, start: str, next_start: str, replacement: str) -> None:
+              file = Path(path)
+              source = file.read_text()
+              begin = source.index(start)
+              end = source.index(next_start, begin)
+              file.write_text(source[:begin] + replacement.rstrip() + '\n\n' + source[end:])
+
+          replace_block(
+              'tests/contentArchetypeSelection.test.mjs',
+              "test('the saved archetype reuses the existing ingest instruction and survives normalization'",
+              "test('the new archetype SVG icon set has no emoji and no external icon dependency'",
+              r"""test('the saved archetype reuses the existing ingest instruction and survives normalization', () => {
+            const componentSource = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+            const syncSource = readFileSync(new URL('../src/lib/contentSync.ts', import.meta.url), 'utf8');
+            const screen = componentSource.slice(componentSource.indexOf('function ContentINKAScreen({'), componentSource.indexOf('function ContentPanel({'));
+            const refresh = screen.slice(screen.indexOf('const regenerate ='), screen.indexOf('const copyContentDraft ='));
+
+            assert.match(refresh, /preset\.label === currentEntry\.textArchetype/);
+            assert.match(refresh, /const masterInstruction = instruction \|\| primaryTextArchetype\?\.instruction/);
+            assert.match(refresh, /createContentIngestJob\(params\)/);
+            assert.match(refresh, /operation: 'refresh'/);
+            assert.match(syncSource, /\/api\/ingest-jobs/);
+            assert.match(syncSource, /master_instruction: params\.masterInstruction \?\? null/);
+            assert.doesNotMatch(syncSource, /api\/archetype|api\/generate-text/);
+
+            const entry = normalizeContentEntry({
+              id: 'entry-1',
+              textDraft: 'Текст',
+              textArchetype: 'Мудрец',
+            });
+            assert.equal(entry.textArchetype, 'Мудрец');
+          });""",
+          )
+
+          replace_block(
+              'tests/contentRefresh.test.mjs',
+              "test('refresh UI keeps loading and feedback local to each entry'",
+              "test('archetype controls use the existing labels through the shared icon toolbar without emoji'",
+              r"""test('refresh UI keeps loading and feedback local to each entry', () => {
+            const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+            const refreshImplementation = source.slice(source.indexOf('const regenerate ='), source.indexOf('const visibleEntries'));
+            const refreshCatch = refreshImplementation.slice(refreshImplementation.indexOf('} catch (refreshError)'), refreshImplementation.indexOf('const retryContentJob'));
+
+            assert.match(refreshImplementation, /currentEntry\.status === 'confirmed'/);
+            assert.match(refreshImplementation, /isEntryRefreshing\(currentEntry\.id\)/);
+            assert.match(refreshImplementation, /setError\(null\)/);
+            assert.match(refreshImplementation, /createContentIngestJob\(params\)/);
+            assert.match(refreshImplementation, /onSaveContentIngestJob/);
+            assert.match(refreshImplementation, /operation: 'refresh'/);
+            assert.match(refreshImplementation, /baseTextDraft: currentEntry\.textDraft/);
+            assert.match(refreshImplementation, /requestedArchetype: selectedArchetype \?\? null/);
+            assert.match(refreshCatch, /setRefreshFeedbackByEntry/);
+            assert.match(refreshCatch, /kind: 'error'/);
+            assert.doesNotMatch(refreshCatch, /setError\(/);
+            assert.match(source, /refreshFeedbackByEntry\[entry\.id\]/);
+            assert.match(source, /POSTiNKA обновляет черновик…/);
+            assert.match(source, /Обновить черновик/);
+            assert.match(source, /isEntryRefreshing\(entry\.id\)/);
+          });""",
+          )
+          PY
+
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
