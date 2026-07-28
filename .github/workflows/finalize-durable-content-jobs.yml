@@ -1,0 +1,308 @@
+name: Finalize durable content jobs
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.head_ref == 'feature/durable-content-jobs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/durable-content-jobs
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply final review fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str, label: str) -> None:
+              file = Path(path)
+              source = file.read_text()
+              count = source.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{label}: expected one match, found {count}')
+              file.write_text(source.replace(old, new, 1))
+
+          replace_once(
+              'src/lib/contentSync.ts',
+              """function isIngestResult(value: unknown): value is IngestResult {
+            if (!value || typeof value !== 'object') return false;
+            const candidate = value as Partial<IngestResult>;
+            return (
+              Array.isArray(candidate.media) &&
+              typeof candidate.text_draft === 'string' &&
+              (candidate.visual_archetype === null || typeof candidate.visual_archetype === 'string') &&
+              (candidate.text_triad === null ||
+                (!!candidate.text_triad &&
+                  typeof candidate.text_triad.opens === 'string' &&
+                  typeof candidate.text_triad.leads === 'string' &&
+                  typeof candidate.text_triad.closes === 'string'))
+            );
+          }
+          """,
+              """function isIngestResult(value: unknown): value is IngestResult {
+            if (!value || typeof value !== 'object') return false;
+            const candidate = value as Partial<IngestResult>;
+            const validMedia =
+              Array.isArray(candidate.media) &&
+              candidate.media.every((item) => {
+                if (!item || typeof item !== 'object') return false;
+                const media = item as Partial<ContentDraftMedia>;
+                return (
+                  typeof media.id === 'string' &&
+                  media.id.trim().length > 0 &&
+                  (media.technical_status === 'kept' ||
+                    media.technical_status === 'background' ||
+                    media.technical_status === 'rejected')
+                );
+              });
+            return (
+              validMedia &&
+              typeof candidate.text_draft === 'string' &&
+              candidate.text_draft.trim().length > 0 &&
+              (candidate.visual_archetype === null || typeof candidate.visual_archetype === 'string') &&
+              (candidate.text_triad === null ||
+                (!!candidate.text_triad &&
+                  typeof candidate.text_triad.opens === 'string' &&
+                  typeof candidate.text_triad.leads === 'string' &&
+                  typeof candidate.text_triad.closes === 'string'))
+            );
+          }
+          """,
+              'strict completed result validation',
+          )
+
+          replace_once(
+              'src/lib/contentSync.ts',
+              """  if (response.status !== 202) {
+            const text = await response.text().catch(() => '');
+            throw new ContentSyncError(`POSTiNKA ответила ошибкой (${response.status}): ${text.slice(0, 200)}`);
+          }
+          """,
+              """  if (response.status !== 202) {
+            throw new ContentSyncError(`POSTiNKA ответила ошибкой (${response.status}).`);
+          }
+          """,
+              'safe create error',
+          )
+
+          replace_once(
+              'src/lib/contentSync.ts',
+              """  if (!data || typeof data.job_id !== 'string' || typeof data.status !== 'string') {
+            throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
+          }
+          """,
+              """  if (!data || data.job_id !== jobId || typeof data.status !== 'string') {
+            throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
+          }
+          """,
+              'strict job id response',
+          )
+
+          replace_once(
+              'src/lib/contentSync.ts',
+              """  if (data.status === 'failed') {
+            return {
+              status: 'failed',
+              error: typeof data.error === 'string' && data.error ? data.error : 'POSTiNKA не смогла собрать материал.',
+            };
+          }
+          """,
+              """  if (data.status === 'failed') {
+            return { status: 'failed', error: 'POSTiNKA не смогла собрать материал.' };
+          }
+          """,
+              'safe failed job error',
+          )
+
+          replace_once(
+              'src/lib/contentJobQueue.ts',
+              """export function getContentIngestJobRecord(db: IDBDatabase, id: string): Promise<ContentIngestJobRecord | null> {
+            return new Promise((resolve, reject) => {
+              const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readonly');
+              const request = tx.objectStore(CONTENT_INGEST_JOB_STORE).get(id);
+              request.onsuccess = () => resolve((request.result as ContentIngestJobRecord | undefined) ?? null);
+              request.onerror = () => reject(request.error ?? new Error('Failed to load content job'));
+            });
+          }
+          """,
+              """export function getContentIngestJobRecord(db: IDBDatabase, id: string): Promise<ContentIngestJobRecord | null> {
+            return new Promise((resolve, reject) => {
+              const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readonly');
+              const request = tx.objectStore(CONTENT_INGEST_JOB_STORE).get(id);
+              request.onsuccess = () => resolve((request.result as ContentIngestJobRecord | undefined) ?? null);
+              request.onerror = () => reject(request.error ?? new Error('Failed to load content job'));
+            });
+          }
+
+          function getContentEntryState(
+            db: IDBDatabase,
+            id: string,
+          ): Promise<{ status?: unknown } | null> {
+            return new Promise((resolve, reject) => {
+              const tx = db.transaction(CONTENT_ENTRY_STORE, 'readonly');
+              const request = tx.objectStore(CONTENT_ENTRY_STORE).get(id);
+              request.onsuccess = () => resolve((request.result as { status?: unknown } | undefined) ?? null);
+              request.onerror = () => reject(request.error ?? new Error('Failed to load content entry'));
+            });
+          }
+          """,
+              'content entry state helper',
+          )
+
+          replace_once(
+              'src/lib/contentJobQueue.ts',
+              """  const processJob = async (record: ContentIngestJobRecord) => {
+            if (activeJobIds.has(record.id) || record.state === 'failed') return;
+            activeJobIds.add(record.id);
+            try {
+              const status = await getContentIngestJob(record.jobId);
+          """,
+              """  const processJob = async (record: ContentIngestJobRecord) => {
+            if (activeJobIds.has(record.id)) return;
+            activeJobIds.add(record.id);
+            try {
+              if (record.state === 'failed') {
+                if (record.operation === 'refresh') {
+                  const entry = await getContentEntryState(options.db, record.entryId);
+                  if (!entry || entry.status !== 'draft') {
+                    await deleteContentIngestJob(options.db, record.id);
+                    options.onChanged();
+                  }
+                }
+                return;
+              }
+              const status = await getContentIngestJob(record.jobId);
+          """,
+              'failed refresh cleanup',
+          )
+
+          replace_once(
+              'src/lib/contentJobQueue.ts',
+              """        retryable: false,
+          """,
+              """        retryable: currentRecord.operation === 'create',
+          """,
+              'terminal create retryability',
+          )
+
+          tests = Path('tests/durableContentJobs.test.mjs')
+          source = tests.read_text()
+          import_anchor = "} from '../.test-dist/src/lib/contentJobQueue.js';\n"
+          import_line = "import { ContentSyncError, createContentIngestJob, getContentIngestJob } from '../.test-dist/src/lib/contentSync.js';\n"
+          if import_line not in source:
+              source = source.replace(import_anchor, import_anchor + import_line, 1)
+
+          extra = r"""
+
+          test('provider response bodies and backend failure details never reach the UI error', async () => {
+            const settings = { enabled: true, endpoint: 'https://postinka.example', secret: 'secret' };
+            await assert.rejects(
+              createContentIngestJob(
+                {
+                  sessionId: 'session-1',
+                  sourceType: 'freeform',
+                  session: { client: '', zone: '', style: '', description: 'note' },
+                  media: [],
+                },
+                {
+                  readSettings: () => settings,
+                  fetch: async () => ({ status: 500, text: async () => 'provider content-secret' }),
+                },
+              ),
+              (error) =>
+                error instanceof ContentSyncError &&
+                error.message === 'POSTiNKA ответила ошибкой (500).' &&
+                !error.message.includes('content-secret') &&
+                !error.message.includes('provider'),
+            );
+
+            const failed = await getContentIngestJob('job-1', {
+              readSettings: () => settings,
+              fetch: async () => ({
+                status: 200,
+                ok: true,
+                json: async () => ({ job_id: 'job-1', status: 'failed', error: 'provider content-secret' }),
+              }),
+            });
+            assert.deepEqual(failed, { status: 'failed', error: 'POSTiNKA не смогла собрать материал.' });
+          });
+
+          test('completed jobs reject malformed media and mismatched job ids', async () => {
+            const settings = { enabled: true, endpoint: 'https://postinka.example', secret: 'secret' };
+            await assert.rejects(
+              getContentIngestJob('job-1', {
+                readSettings: () => settings,
+                fetch: async () => ({
+                  status: 200,
+                  ok: true,
+                  json: async () => ({
+                    job_id: 'job-1',
+                    status: 'completed',
+                    result: {
+                      media: [{ id: 'photo-1' }],
+                      visual_archetype: null,
+                      text_triad: null,
+                      text_draft: 'Текст',
+                    },
+                  }),
+                }),
+              }),
+              (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA вернула повреждённый результат.',
+            );
+
+            await assert.rejects(
+              getContentIngestJob('job-1', {
+                readSettings: () => settings,
+                fetch: async () => ({
+                  status: 200,
+                  ok: true,
+                  json: async () => ({ job_id: 'job-other', status: 'running' }),
+                }),
+              }),
+              (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA вернула неожиданный ответ.',
+            );
+          });
+
+          test('terminal create jobs stay retryable and failed refresh jobs are cleaned after confirmation', () => {
+            const queue = readFileSync(new URL('../src/lib/contentJobQueue.ts', import.meta.url), 'utf8');
+            assert.match(queue, /retryable: currentRecord\.operation === 'create'/);
+            assert.match(queue, /record\.state === 'failed'[\s\S]*record\.operation === 'refresh'[\s\S]*entry\.status !== 'draft'/);
+          });
+          """
+          if "provider response bodies and backend failure details never reach" not in source:
+              source += extra
+          tests.write_text(source)
+          PY
+
+      - name: Remove temporary workflow
+        run: rm .github/workflows/finalize-durable-content-jobs.yml
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - run: git diff --check
+
+      - name: Commit final fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: harden durable POSTiNKA job recovery"
+          git push origin HEAD:feature/durable-content-jobs
