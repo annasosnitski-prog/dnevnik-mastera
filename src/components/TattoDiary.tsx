@@ -12548,8 +12548,17 @@ function BottomSheet({
         borderBottom: 'none',
         zIndex: 15,
         overflowY: 'auto',
-        transform: open ? 'translateY(0)' : 'translateY(105%)',
+        // Closed state must clear the bottom of the viewport by a lot more
+        // than "the sheet's own height" — translateY is a % of the element's
+        // OWN box, so the old 105% only bought ~5% of the sheet's height as
+        // clearance (a few dozen px on a full-height screen). That's thin
+        // enough for ordinary desktop browser-chrome/viewport-height
+        // differences to leave the "closed" sheet peeking up from the
+        // bottom of the page. The extra 100vh guarantees real clearance
+        // regardless of the sheet's own height or the viewport's.
+        transform: open ? 'translateY(0)' : 'translateY(calc(100% + 100vh))',
         transition: 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        pointerEvents: open ? 'auto' : 'none',
       }}
     >
       <div style={{ width: 36, height: 3, background: 'rgba(var(--gold-rgb),0.2)', borderRadius: 2, margin: '14px auto 0' }} />
