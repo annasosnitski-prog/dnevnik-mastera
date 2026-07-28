@@ -29,33 +29,20 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
-          def replace_once(path: str, old: str, new: str, label: str) -> None:
+          def regex_once(path: str, pattern: str, replacement: str, label: str) -> None:
               file = Path(path)
               source = file.read_text()
-              count = source.count(old)
+              updated, count = re.subn(pattern, replacement, source, count=1, flags=re.S)
               if count != 1:
                   raise RuntimeError(f'{label}: expected one match, found {count}')
-              file.write_text(source.replace(old, new, 1))
+              file.write_text(updated)
 
-          replace_once(
-              'src/lib/contentSync.ts',
-              """function isIngestResult(value: unknown): value is IngestResult {
-            if (!value || typeof value !== 'object') return false;
-            const candidate = value as Partial<IngestResult>;
-            return (
-              Array.isArray(candidate.media) &&
-              typeof candidate.text_draft === 'string' &&
-              (candidate.visual_archetype === null || typeof candidate.visual_archetype === 'string') &&
-              (candidate.text_triad === null ||
-                (!!candidate.text_triad &&
-                  typeof candidate.text_triad.opens === 'string' &&
-                  typeof candidate.text_triad.leads === 'string' &&
-                  typeof candidate.text_triad.closes === 'string'))
-            );
-          }
-          """,
-              """function isIngestResult(value: unknown): value is IngestResult {
+          sync_path = Path('src/lib/contentSync.ts')
+          sync = sync_path.read_text()
+
+          strict_validator = """function isIngestResult(value: unknown): value is IngestResult {
             if (!value || typeof value !== 'object') return false;
             const candidate = value as Partial<IngestResult>;
             const validMedia =
@@ -83,74 +70,48 @@ jobs:
                   typeof candidate.text_triad.closes === 'string'))
             );
           }
-          """,
-              'strict completed result validation',
+
+          """
+          sync, count = re.subn(
+              r"function isIngestResult\(value: unknown\): value is IngestResult \{.*?\n\}\n\n(?=export async function createContentIngestJob)",
+              strict_validator,
+              sync,
+              count=1,
+              flags=re.S,
           )
+          if count != 1:
+              raise RuntimeError(f'strict result validator: expected one match, found {count}')
 
-          replace_once(
-              'src/lib/contentSync.ts',
-              """  if (response.status !== 202) {
-            const text = await response.text().catch(() => '');
-            throw new ContentSyncError(`POSTiNKA ответила ошибкой (${response.status}): ${text.slice(0, 200)}`);
-          }
-          """,
-              """  if (response.status !== 202) {
-            throw new ContentSyncError(`POSTiNKA ответила ошибкой (${response.status}).`);
-          }
-          """,
-              'safe create error',
+          sync, count = re.subn(
+              r"  if \(response\.status !== 202\) \{.*?\n  \}",
+              "  if (response.status !== 202) {\n    throw new ContentSyncError(`POSTiNKA ответила ошибкой (${response.status}).`);\n  }",
+              sync,
+              count=1,
+              flags=re.S,
           )
+          if count != 1:
+              raise RuntimeError(f'safe create error: expected one match, found {count}')
 
-          replace_once(
-              'src/lib/contentSync.ts',
-              """  if (!data || typeof data.job_id !== 'string' || typeof data.status !== 'string') {
-            throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
-          }
-          """,
-              """  if (!data || data.job_id !== jobId || typeof data.status !== 'string') {
-            throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
-          }
-          """,
-              'strict job id response',
+          old_job_check = "if (!data || typeof data.job_id !== 'string' || typeof data.status !== 'string')"
+          if sync.count(old_job_check) != 1:
+              raise RuntimeError(f'strict job id check: expected one match, found {sync.count(old_job_check)}')
+          sync = sync.replace(old_job_check, "if (!data || data.job_id !== jobId || typeof data.status !== 'string')", 1)
+
+          sync, count = re.subn(
+              r"  if \(data\.status === 'failed'\) \{\n    return \{.*?\n    \};\n  \}",
+              "  if (data.status === 'failed') {\n    return { status: 'failed', error: 'POSTiNKA не смогла собрать материал.' };\n  }",
+              sync,
+              count=1,
+              flags=re.S,
           )
+          if count != 1:
+              raise RuntimeError(f'safe failed job error: expected one match, found {count}')
+          sync_path.write_text(sync)
 
-          replace_once(
-              'src/lib/contentSync.ts',
-              """  if (data.status === 'failed') {
-            return {
-              status: 'failed',
-              error: typeof data.error === 'string' && data.error ? data.error : 'POSTiNKA не смогла собрать материал.',
-            };
-          }
-          """,
-              """  if (data.status === 'failed') {
-            return { status: 'failed', error: 'POSTiNKA не смогла собрать материал.' };
-          }
-          """,
-              'safe failed job error',
-          )
+          queue_path = Path('src/lib/contentJobQueue.ts')
+          queue = queue_path.read_text()
 
-          replace_once(
-              'src/lib/contentJobQueue.ts',
-              """export function getContentIngestJobRecord(db: IDBDatabase, id: string): Promise<ContentIngestJobRecord | null> {
-            return new Promise((resolve, reject) => {
-              const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readonly');
-              const request = tx.objectStore(CONTENT_INGEST_JOB_STORE).get(id);
-              request.onsuccess = () => resolve((request.result as ContentIngestJobRecord | undefined) ?? null);
-              request.onerror = () => reject(request.error ?? new Error('Failed to load content job'));
-            });
-          }
-          """,
-              """export function getContentIngestJobRecord(db: IDBDatabase, id: string): Promise<ContentIngestJobRecord | null> {
-            return new Promise((resolve, reject) => {
-              const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readonly');
-              const request = tx.objectStore(CONTENT_INGEST_JOB_STORE).get(id);
-              request.onsuccess = () => resolve((request.result as ContentIngestJobRecord | undefined) ?? null);
-              request.onerror = () => reject(request.error ?? new Error('Failed to load content job'));
-            });
-          }
-
-          function getContentEntryState(
+          helper = """function getContentEntryState(
             db: IDBDatabase,
             id: string,
           ): Promise<{ status?: unknown } | null> {
@@ -161,19 +122,21 @@ jobs:
               request.onerror = () => reject(request.error ?? new Error('Failed to load content entry'));
             });
           }
-          """,
-              'content entry state helper',
-          )
 
-          replace_once(
-              'src/lib/contentJobQueue.ts',
-              """  const processJob = async (record: ContentIngestJobRecord) => {
+          """
+          helper_anchor = 'export async function putContentIngestJob'
+          if 'function getContentEntryState(' not in queue:
+              if queue.count(helper_anchor) != 1:
+                  raise RuntimeError('content entry helper anchor changed')
+              queue = queue.replace(helper_anchor, helper + helper_anchor, 1)
+
+          old_process = """  const processJob = async (record: ContentIngestJobRecord) => {
             if (activeJobIds.has(record.id) || record.state === 'failed') return;
             activeJobIds.add(record.id);
             try {
               const status = await getContentIngestJob(record.jobId);
-          """,
-              """  const processJob = async (record: ContentIngestJobRecord) => {
+          """
+          new_process = """  const processJob = async (record: ContentIngestJobRecord) => {
             if (activeJobIds.has(record.id)) return;
             activeJobIds.add(record.id);
             try {
@@ -188,24 +151,29 @@ jobs:
                 return;
               }
               const status = await getContentIngestJob(record.jobId);
-          """,
-              'failed refresh cleanup',
-          )
+          """
+          if queue.count(old_process) != 1:
+              raise RuntimeError(f'failed refresh cleanup: expected one match, found {queue.count(old_process)}')
+          queue = queue.replace(old_process, new_process, 1)
 
-          replace_once(
-              'src/lib/contentJobQueue.ts',
-              """        retryable: false,
-          """,
-              """        retryable: currentRecord.operation === 'create',
-          """,
-              'terminal create retryability',
-          )
+          old_retry = """        error: error instanceof Error ? error.message : 'Не удалось проверить задачу POSTiNKA.',
+            retryable: false,
+          """
+          new_retry = """        error: error instanceof Error ? error.message : 'Не удалось проверить задачу POSTiNKA.',
+            retryable: currentRecord.operation === 'create',
+          """
+          if queue.count(old_retry) != 1:
+              raise RuntimeError(f'terminal create retryability: expected one match, found {queue.count(old_retry)}')
+          queue = queue.replace(old_retry, new_retry, 1)
+          queue_path.write_text(queue)
 
           tests = Path('tests/durableContentJobs.test.mjs')
           source = tests.read_text()
           import_anchor = "} from '../.test-dist/src/lib/contentJobQueue.js';\n"
           import_line = "import { ContentSyncError, createContentIngestJob, getContentIngestJob } from '../.test-dist/src/lib/contentSync.js';\n"
           if import_line not in source:
+              if source.count(import_anchor) != 1:
+                  raise RuntimeError('durable test import anchor changed')
               source = source.replace(import_anchor, import_anchor + import_line, 1)
 
           extra = r"""
