@@ -98,14 +98,20 @@ test('"Оставить без привязки" saves link: null and closes the
   assert.match(leaveUnlinked, /onClose\(\)/);
 });
 
-test('cancelling project/session creation does not save anything and returns to the picker instead of leaving it stranded', () => {
+test('cancelling project/session creation does not save anything and just closes — no forced reopen of the picker', () => {
   const newProjectSheetBlock = source.slice(source.indexOf('<NewProjectSheet'), source.indexOf('</NewProjectSheet') + 1 || source.indexOf('/>', source.indexOf('<NewProjectSheet')));
   const projectSessionPickerBlock = source.slice(source.indexOf('<ProjectSessionPickerSheet'), source.indexOf('<NewConsultationSheet'));
 
   for (const block of [newProjectSheetBlock, projectSessionPickerBlock]) {
-    assert.match(block, /setReopenContentLinkPicker/);
+    // Cancelling just drops the pending chain — it used to force the
+    // "Сохранить в…" sheet back open (setReopenContentLinkPicker), which kept
+    // resurfacing it even after the master had already moved to an unrelated
+    // tab/filter, making it look like the sheet never closed.
+    assert.match(block, /pendingContentLinkRef\.current = null/);
+    assert.doesNotMatch(block, /setReopenContentLinkPicker/);
     assert.doesNotMatch(block.slice(0, block.indexOf('onClose=') + 400), /saveProject\(/);
   }
+  assert.doesNotMatch(source, /setReopenContentLinkPicker|reopenLinkPickerEntryId|reopenContentLinkPicker/);
 });
 
 test('opening a create-project/create-session flow closes ContentLinkPickerSheet first — no two bottom sheets at once', () => {

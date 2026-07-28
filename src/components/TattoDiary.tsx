@@ -1736,23 +1736,16 @@ export default function TattoDiary() {
     const entry = contentEntries.find((candidate) => candidate.id === entryId);
     if (entry) saveContentEntry(setContentEntryLink(entry, link));
   };
-  // Пользователь отменил создание Project/Session, запущенное отсюда —
-  // ContentINKAScreen снова открывает ContentLinkPickerSheet на той же
-  // записи и вкладке вместо тупикового пустого экрана.
-  const [reopenContentLinkPicker, setReopenContentLinkPicker] = useState<
-    { entryId: string; target: 'project' | 'session' } | null
-  >(null);
-  // Цепочка «Сохранить в…» → «Создать проект/сессию» имеет смысл только
-  // пока мастер остаётся на экране контента. Уход с него (например, назад
-  // в список клиентов) обрывает цепочку — иначе зависший pendingContentLinkRef
-  // мог бы неожиданно «воскреснуть» и снова открыть sheet при отмене
-  // совершенно не связанного создания сессии/проекта где-то ещё в приложении.
-  useEffect(() => {
-    if (screen !== 'content') {
-      pendingContentLinkRef.current = null;
-      setReopenContentLinkPicker(null);
-    }
-  }, [screen]);
+  // Пользователь отменил создание Project/Session, запущенное из
+  // ContentLinkPickerSheet («Создать проект»/«Создать сессию») — цепочка
+  // просто обрывается (см. pendingContentLinkRef.current = null в
+  // closeNewSession/onClose ниже), sheet не переоткрывается сам. Раньше он
+  // переоткрывался автоматически («чтобы не оставлять тупиковый экран»), но
+  // это переоткрытие срабатывало и после того, как мастер уже переключился
+  // на другую вкладку/фильтр внутри экрана контента — sheet «Сохранить в…»
+  // возникал заново поверх никак не связанного с ним содержимого и выглядел
+  // так, будто вообще не закрывается. Запись остаётся непривязанной и
+  // доступна для привязки вручную через «Привязать»/«Изменить привязку».
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -2068,11 +2061,8 @@ export default function TattoDiary() {
     setSessionTargetProjectId(null);
     // Called both after a successful project-session save (handleAddProjectSession
     // already cleared the ref there) and on a plain cancel — only the latter
-    // still has a pending 'session' chain to unwind back to the picker.
-    if (pendingContentLinkRef.current?.target === 'session') {
-      setReopenContentLinkPicker({ entryId: pendingContentLinkRef.current.entryId, target: 'session' });
-      pendingContentLinkRef.current = null;
-    }
+    // still has a pending chain left to unwind.
+    pendingContentLinkRef.current = null;
   };
   const closeNewConsultation = () => {
     setShowNewConsultationForm(false);
@@ -3316,9 +3306,6 @@ export default function TattoDiary() {
             onDeleteEntry={deleteContentEntry}
             onCreateProjectForLink={openCreateProjectForContentLink}
             onCreateSessionForLink={openCreateSessionForContentLink}
-            reopenLinkPickerEntryId={reopenContentLinkPicker?.entryId ?? null}
-            reopenLinkPickerTarget={reopenContentLinkPicker?.target ?? null}
-            onReopenLinkPickerApplied={() => setReopenContentLinkPicker(null)}
           />
         )}
       </div>
@@ -3575,10 +3562,7 @@ export default function TattoDiary() {
         clientId={pendingContentLinkRef.current?.preferredClientId ?? null}
         onClose={() => {
           setShowProjectSessionPicker(false);
-          if (pendingContentLinkRef.current?.target === 'session') {
-            setReopenContentLinkPicker({ entryId: pendingContentLinkRef.current.entryId, target: 'session' });
-            pendingContentLinkRef.current = null;
-          }
+          pendingContentLinkRef.current = null;
         }}
         onPick={(project) => {
           setShowProjectSessionPicker(false);
@@ -3619,13 +3603,7 @@ export default function TattoDiary() {
           setShowNewProjectForm(false);
           setEditProject(null);
           setNewProjectClientId(null);
-          if (pendingContentLinkRef.current) {
-            setReopenContentLinkPicker({
-              entryId: pendingContentLinkRef.current.entryId,
-              target: pendingContentLinkRef.current.target,
-            });
-            pendingContentLinkRef.current = null;
-          }
+          pendingContentLinkRef.current = null;
         }}
         onAdd={handleAddProject}
         onDelete={editProject ? () => deleteProject(editProject.id) : undefined}
@@ -11230,9 +11208,6 @@ function ContentINKAScreen({
   onDeleteEntry,
   onCreateProjectForLink,
   onCreateSessionForLink,
-  reopenLinkPickerEntryId,
-  reopenLinkPickerTarget,
-  onReopenLinkPickerApplied,
 }: {
   clients: Client[];
   projects: Project[];
@@ -11253,12 +11228,6 @@ function ContentINKAScreen({
   // ProjectSessionPickerSheet+NewSessionSheet).
   onCreateProjectForLink: (entryId: string, preferredClientId: string | null) => void;
   onCreateSessionForLink: (entryId: string, preferredClientId: string | null) => void;
-  // Если пользователь отменяет создание Project/Session, запущенное отсюда,
-  // родитель просит снова открыть ContentLinkPickerSheet на той же записи и
-  // вкладке — тот же паттерн, что и focusEntryId/onFocusEntryApplied выше.
-  reopenLinkPickerEntryId: string | null;
-  reopenLinkPickerTarget: 'project' | 'session' | null;
-  onReopenLinkPickerApplied: () => void;
 }) {
   const [composerClientId, setComposerClientId] = useState<string | null>(null); // null = мастерская
   const [composerItemKey, setComposerItemKey] = useState<string>(''); // '' | 's:<id>' | 'c:<id>'
@@ -11542,27 +11511,6 @@ function ContentINKAScreen({
     const timer = setTimeout(() => setHighlightedEntryId(null), 2500);
     return () => clearTimeout(timer);
   }, [highlightedEntryId]);
-
-  // Отмена создания Project/Session, запущенного из ContentLinkPickerSheet
-  // (см. onCreateProjectForLink/onCreateSessionForLink), просит снова
-  // открыть sheet на той же записи и вкладке — тот же паттерн, что и
-  // focusEntryId/onFocusEntryApplied выше.
-  useEffect(() => {
-    if (!reopenLinkPickerEntryId) return;
-    // Запись могла уже получить привязку (или устареть) другим путём, пока
-    // сигнал reopen долетал сюда — например, если этот сигнал пришёл от
-    // отмены совершенно другого, не связанного создания сессии/проекта,
-    // случившегося после того, как эта запись уже была привязана. В таком
-    // случае повторно дёргать sheet не нужно — просто гасим сигнал.
-    const entry = contentEntriesRef.current.find((candidate) => candidate.id === reopenLinkPickerEntryId);
-    if (!entry || isContentEntryLinked(entry)) {
-      onReopenLinkPickerApplied();
-      return;
-    }
-    setLinkPickerTarget(reopenLinkPickerTarget ?? 'project');
-    setLinkPickerEntryId(reopenLinkPickerEntryId);
-    onReopenLinkPickerApplied();
-  }, [reopenLinkPickerEntryId, reopenLinkPickerTarget, onReopenLinkPickerApplied]);
 
   const resetComposer = () => {
     setComposerText('');
