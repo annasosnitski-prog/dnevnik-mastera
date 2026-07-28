@@ -1,0 +1,308 @@
+import {
+  ContentSyncError,
+  getContentIngestJob,
+  type ContentIngestParams,
+  type ContentSessionContext,
+  type IngestResult,
+} from './contentSync.js';
+
+export const TATTO_DIARY_DB_VERSION = 3;
+export const CONTENT_INGEST_JOB_STORE = 'contentIngestJobs';
+export const CONTENT_ENTRY_STORE = 'contentEntries';
+
+export type ContentIngestJobState = 'queued' | 'running' | 'failed';
+
+export interface ContentIngestRequestSnapshot {
+  sessionId: string;
+  sourceType: ContentIngestParams['sourceType'];
+  session: ContentSessionContext;
+  mediaIds: string[];
+  masterInstruction?: string;
+  previousDraft?: string;
+}
+
+export interface PendingContentEntrySnapshot {
+  id: string;
+  createdDate: string;
+  clientId: string | null;
+  sourceType: ContentIngestParams['sourceType'];
+  sourceId: string | null;
+  format: 'post' | 'story' | null;
+  text: string;
+  context: ContentSessionContext;
+  textArchetype?: string | null;
+  photos: string[];
+  photoIds: string[];
+}
+
+interface BaseContentIngestJobRecord {
+  id: string;
+  jobId: string;
+  operation: 'create' | 'refresh';
+  state: ContentIngestJobState;
+  createdAt: string;
+  updatedAt: string;
+  request: ContentIngestRequestSnapshot;
+  error?: string;
+  retryable?: boolean;
+}
+
+export interface ContentCreateJobRecord extends BaseContentIngestJobRecord {
+  operation: 'create';
+  entry: PendingContentEntrySnapshot;
+}
+
+export interface ContentRefreshJobRecord extends BaseContentIngestJobRecord {
+  operation: 'refresh';
+  entryId: string;
+  baseTextDraft: string;
+  requestedArchetype: string | null;
+}
+
+export type ContentIngestJobRecord = ContentCreateJobRecord | ContentRefreshJobRecord;
+
+export function ensureContentIngestJobStore(db: IDBDatabase): void {
+  if (!db.objectStoreNames.contains(CONTENT_INGEST_JOB_STORE)) {
+    db.createObjectStore(CONTENT_INGEST_JOB_STORE, { keyPath: 'id' });
+  }
+}
+
+function transactionDone(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+  });
+}
+
+export function loadContentIngestJobs(db: IDBDatabase): Promise<ContentIngestJobRecord[]> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readonly');
+    const request = tx.objectStore(CONTENT_INGEST_JOB_STORE).getAll();
+    request.onsuccess = () => {
+      const records = (request.result || []) as ContentIngestJobRecord[];
+      resolve([...records].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+    };
+    request.onerror = () => reject(request.error ?? new Error('Failed to load content jobs'));
+  });
+}
+
+export function getContentIngestJobRecord(db: IDBDatabase, id: string): Promise<ContentIngestJobRecord | null> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readonly');
+    const request = tx.objectStore(CONTENT_INGEST_JOB_STORE).get(id);
+    request.onsuccess = () => resolve((request.result as ContentIngestJobRecord | undefined) ?? null);
+    request.onerror = () => reject(request.error ?? new Error('Failed to load content job'));
+  });
+}
+
+export async function putContentIngestJob(db: IDBDatabase, record: ContentIngestJobRecord): Promise<void> {
+  const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readwrite');
+  tx.objectStore(CONTENT_INGEST_JOB_STORE).put(record);
+  await transactionDone(tx);
+}
+
+export async function deleteContentIngestJob(db: IDBDatabase, id: string): Promise<void> {
+  const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readwrite');
+  tx.objectStore(CONTENT_INGEST_JOB_STORE).delete(id);
+  await transactionDone(tx);
+}
+
+export async function deleteContentEntryAndRefreshJobs(db: IDBDatabase, entryId: string): Promise<void> {
+  const tx = db.transaction([CONTENT_ENTRY_STORE, CONTENT_INGEST_JOB_STORE], 'readwrite');
+  tx.objectStore(CONTENT_ENTRY_STORE).delete(entryId);
+  const jobsStore = tx.objectStore(CONTENT_INGEST_JOB_STORE);
+  const request = jobsStore.getAll();
+  request.onsuccess = () => {
+    for (const job of (request.result || []) as ContentIngestJobRecord[]) {
+      if (job.operation === 'refresh' && job.entryId === entryId) jobsStore.delete(job.id);
+    }
+  };
+  await transactionDone(tx);
+}
+
+export function createCompletedContentEntry(record: ContentCreateJobRecord, result: IngestResult): object {
+  return {
+    ...record.entry,
+    contentDraft: result.media,
+    visualArchetype: result.visual_archetype,
+    textTriad: result.text_triad,
+    textDraft: result.text_draft,
+    status: 'draft',
+    isExemplar: false,
+  };
+}
+
+export function canApplyRefreshResult(
+  record: ContentRefreshJobRecord,
+  entry: { status?: unknown; textDraft?: unknown } | null | undefined,
+): boolean {
+  return !!entry && entry.status === 'draft' && entry.textDraft === record.baseTextDraft;
+}
+
+export type ContentJobApplyOutcome = 'applied' | 'conflict' | 'missing';
+
+export function applyCompletedContentIngestJob(
+  db: IDBDatabase,
+  record: ContentIngestJobRecord,
+  result: IngestResult,
+): Promise<ContentJobApplyOutcome> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([CONTENT_ENTRY_STORE, CONTENT_INGEST_JOB_STORE], 'readwrite');
+    const entries = tx.objectStore(CONTENT_ENTRY_STORE);
+    const jobs = tx.objectStore(CONTENT_INGEST_JOB_STORE);
+    let outcome: ContentJobApplyOutcome = 'applied';
+
+    if (record.operation === 'create') {
+      entries.put(createCompletedContentEntry(record, result));
+      jobs.delete(record.id);
+    } else {
+      const getEntry = entries.get(record.entryId);
+      getEntry.onsuccess = () => {
+        const entry = getEntry.result as { status?: unknown; textDraft?: unknown } | undefined;
+        if (!entry) {
+          outcome = 'missing';
+          jobs.delete(record.id);
+          return;
+        }
+        if (!canApplyRefreshResult(record, entry)) {
+          outcome = 'conflict';
+          jobs.put({
+            ...record,
+            state: 'failed',
+            updatedAt: new Date().toISOString(),
+            error: 'Черновик изменился — готовый результат не применён.',
+            retryable: false,
+          });
+          return;
+        }
+        entries.put({ ...entry, textDraft: result.text_draft });
+        jobs.delete(record.id);
+      };
+    }
+
+    tx.oncomplete = () => resolve(outcome);
+    tx.onerror = () => reject(tx.error ?? new Error('Failed to apply content job'));
+    tx.onabort = () => reject(tx.error ?? new Error('Failed to apply content job'));
+  });
+}
+
+async function updateJobState(
+  db: IDBDatabase,
+  record: ContentIngestJobRecord,
+  patch: Partial<Pick<ContentIngestJobRecord, 'state' | 'updatedAt' | 'error' | 'retryable'>>,
+): Promise<void> {
+  await putContentIngestJob(db, { ...record, ...patch } as ContentIngestJobRecord);
+}
+
+export interface ContentJobCoordinatorOptions {
+  db: IDBDatabase;
+  onChanged: () => void;
+  pollIntervalMs?: number;
+  documentRef?: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'> | null;
+  windowRef?: Pick<Window, 'addEventListener' | 'removeEventListener'> | null;
+}
+
+export function startContentIngestJobCoordinator(options: ContentJobCoordinatorOptions): () => void {
+  const documentRef = options.documentRef ?? (typeof document === 'undefined' ? null : document);
+  const windowRef = options.windowRef ?? (typeof window === 'undefined' ? null : window);
+  const pollIntervalMs = options.pollIntervalMs ?? 2500;
+  const activeJobIds = new Set<string>();
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const schedule = () => {
+    if (stopped || documentRef?.visibilityState === 'hidden') return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => void checkAll(), pollIntervalMs);
+  };
+
+  const processJob = async (record: ContentIngestJobRecord) => {
+    if (activeJobIds.has(record.id) || record.state === 'failed') return;
+    activeJobIds.add(record.id);
+    try {
+      const status = await getContentIngestJob(record.jobId);
+      // Cancellation or retry can happen while the GET is in flight. Re-read the
+      // durable record before mutating anything so an old result cannot resurrect
+      // a locally cancelled job or overwrite a newer retry jobId.
+      const currentRecord = await getContentIngestJobRecord(options.db, record.id);
+      if (!currentRecord || currentRecord.jobId !== record.jobId) return;
+      if (status.status === 'running') {
+        if (currentRecord.state !== 'running') {
+          await updateJobState(options.db, currentRecord, {
+            state: 'running',
+            updatedAt: new Date().toISOString(),
+            error: undefined,
+            retryable: undefined,
+          });
+          options.onChanged();
+        }
+        return;
+      }
+      if (status.status === 'failed') {
+        await updateJobState(options.db, currentRecord, {
+          state: 'failed',
+          updatedAt: new Date().toISOString(),
+          error: status.error,
+          retryable: true,
+        });
+        options.onChanged();
+        return;
+      }
+      await applyCompletedContentIngestJob(options.db, currentRecord, status.result);
+      options.onChanged();
+    } catch (error) {
+      if (error instanceof ContentSyncError && error.retryable) return;
+      const currentRecord = await getContentIngestJobRecord(options.db, record.id).catch(() => null);
+      if (!currentRecord || currentRecord.jobId !== record.jobId) return;
+      await updateJobState(options.db, currentRecord, {
+        state: 'failed',
+        updatedAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Не удалось проверить задачу POSTiNKA.',
+        retryable: false,
+      });
+      options.onChanged();
+    } finally {
+      activeJobIds.delete(record.id);
+    }
+  };
+
+  const checkAll = async () => {
+    if (stopped || documentRef?.visibilityState === 'hidden') return;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    try {
+      const jobs = await loadContentIngestJobs(options.db);
+      await Promise.all(jobs.map(processJob));
+    } finally {
+      schedule();
+    }
+  };
+
+  const wake = () => {
+    if (documentRef?.visibilityState === 'hidden') return;
+    void checkAll();
+  };
+  const onVisibility = () => {
+    if (documentRef?.visibilityState === 'visible') wake();
+    else if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  documentRef?.addEventListener('visibilitychange', onVisibility);
+  windowRef?.addEventListener('focus', wake);
+  windowRef?.addEventListener('online', wake);
+  void checkAll();
+
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+    documentRef?.removeEventListener('visibilitychange', onVisibility);
+    windowRef?.removeEventListener('focus', wake);
+    windowRef?.removeEventListener('online', wake);
+  };
+}

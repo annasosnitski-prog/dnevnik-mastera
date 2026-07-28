@@ -69,8 +69,10 @@ test('the saved archetype reuses the existing ingest instruction and survives no
   const refresh = screen.slice(screen.indexOf('const regenerate ='), screen.indexOf('const copyContentDraft ='));
 
   assert.match(refresh, /preset\.label === currentEntry\.textArchetype/);
-  assert.match(refresh, /masterInstruction: instruction \|\| primaryTextArchetype\?\.instruction/);
-  assert.match(syncSource, /\/api\/ingest/);
+  assert.match(refresh, /const masterInstruction = instruction \|\| primaryTextArchetype\?\.instruction/);
+  assert.match(refresh, /createContentIngestJob\(params\)/);
+  assert.match(refresh, /operation: 'refresh'/);
+  assert.match(syncSource, /\/api\/ingest-jobs/);
   assert.match(syncSource, /master_instruction: params\.masterInstruction \?\? null/);
   assert.doesNotMatch(syncSource, /api\/archetype|api\/generate-text/);
 

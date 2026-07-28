@@ -15,16 +15,30 @@ import {
   type BotBooking,
 } from '../lib/calendarSync';
 import {
-  sendToContent,
+  createContentIngestJob,
   translateContentText,
   ContentSyncError,
   readContentSyncSettings,
   writeContentSyncSettings,
   type ContentDraftMedia,
+  type ContentIngestParams,
   type ContentSyncSettings,
   type ContentSessionContext,
   type ContentTranslationLanguage,
 } from '../lib/contentSync';
+import {
+  CONTENT_INGEST_JOB_STORE,
+  TATTO_DIARY_DB_VERSION,
+  deleteContentEntryAndRefreshJobs,
+  deleteContentIngestJob,
+  ensureContentIngestJobStore,
+  loadContentIngestJobs,
+  putContentIngestJob,
+  startContentIngestJobCoordinator,
+  type ContentCreateJobRecord,
+  type ContentIngestJobRecord,
+  type ContentRefreshJobRecord,
+} from '../lib/contentJobQueue';
 import {
   contentSelectionRoleLabel,
   createContentPhotoIds,
@@ -43,10 +57,9 @@ import {
   type ContentSharePhoto,
 } from '../lib/contentShare';
 import { downsizeToPreview } from '../lib/imagePreview';
-import { createContentRefreshRunner } from '../lib/contentRefresh';
 import {
   confirmContentEntry,
-  createDraftContentEntry,
+  createContentEntryId,
   normalizeContentEntry,
   setContentEntryExemplar,
 } from '../lib/contentApproval';
@@ -611,7 +624,7 @@ function normalizeProject(raw: any, index: number): Project {
 // store and its data are never re-created or wiped.
 const initDB = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
-    const request = indexedDB.open('TattoDiaryDB', 2);
+    const request = indexedDB.open('TattoDiaryDB', TATTO_DIARY_DB_VERSION);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = (event) => {
@@ -625,6 +638,7 @@ const initDB = (): Promise<IDBDatabase> =>
       if (!db.objectStoreNames.contains('contentEntries')) {
         db.createObjectStore('contentEntries', { keyPath: 'id' });
       }
+      ensureContentIngestJobStore(db);
     };
   });
 
@@ -1587,6 +1601,7 @@ export default function TattoDiary() {
   // клиента — доступна и без выбранного клиента (страница ContentINKA,
   // «мастерская»).
   const [contentEntries, setContentEntries] = useState<ContentEntry[]>([]);
+  const [contentIngestJobs, setContentIngestJobs] = useState<ContentIngestJobRecord[]>([]);
   const [db, setDb] = useState<IDBDatabase | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(readInitialTheme);
@@ -1836,6 +1851,7 @@ export default function TattoDiary() {
         loadClients(database);
         loadProjects(database);
         loadContentEntries(database);
+        reloadContentIngestJobs(database);
       })
       .catch((err) => {
         console.error('IndexedDB init failed:', err);
@@ -1897,6 +1913,24 @@ export default function TattoDiary() {
     request.onerror = () => setDbError('Не удалось загрузить черновики контента.');
   };
 
+  const reloadContentIngestJobs = (database: IDBDatabase) => {
+    loadContentIngestJobs(database)
+      .then(setContentIngestJobs)
+      .catch(() => setDbError('Не удалось загрузить фоновые задачи POSTiNKA.'));
+  };
+
+  const saveContentIngestJob = async (record: ContentIngestJobRecord): Promise<void> => {
+    if (!db) throw new ContentSyncError('Хранилище недоступно — задача не сохранена.');
+    await putContentIngestJob(db, record);
+    reloadContentIngestJobs(db);
+  };
+
+  const removeContentIngestJob = async (id: string): Promise<void> => {
+    if (!db) return;
+    await deleteContentIngestJob(db, id);
+    reloadContentIngestJobs(db);
+  };
+
   // Единственная точка записи для contentEntries — по аналогии с
   // saveClient. Апсерт по id: запись с тем же id перезаписывается
   // (перегенерация текста), иначе создаётся новая.
@@ -1917,10 +1951,24 @@ export default function TattoDiary() {
 
   const deleteContentEntry = (id: string) => {
     if (!db) return;
-    const tx = db.transaction('contentEntries', 'readwrite');
-    tx.objectStore('contentEntries').delete(id);
-    tx.oncomplete = () => loadContentEntries(db);
+    deleteContentEntryAndRefreshJobs(db, id)
+      .then(() => {
+        loadContentEntries(db);
+        reloadContentIngestJobs(db);
+      })
+      .catch(() => setDbError('Не удалось удалить запись контента.'));
   };
+
+  useEffect(() => {
+    if (!db) return;
+    return startContentIngestJobCoordinator({
+      db,
+      onChanged: () => {
+        loadContentEntries(db);
+        reloadContentIngestJobs(db);
+      },
+    });
+  }, [db]);
 
   const saveClient = (client: Client) => {
     if (!db) {
@@ -1978,7 +2026,7 @@ export default function TattoDiary() {
     const importedMasterNotes = bundle.masterNotes;
     const stores = ['clients'];
     if (bundle.projects) stores.push('projects');
-    if (bundle.contentEntries) stores.push('contentEntries');
+    if (bundle.contentEntries) stores.push('contentEntries', CONTENT_INGEST_JOB_STORE);
     const tx = db.transaction(stores, 'readwrite');
     const cs = tx.objectStore('clients');
     cs.clear();
@@ -1992,11 +2040,15 @@ export default function TattoDiary() {
       const es = tx.objectStore('contentEntries');
       es.clear();
       bundle.contentEntries.forEach((e) => es.put(e));
+      tx.objectStore(CONTENT_INGEST_JOB_STORE).clear();
     }
     tx.oncomplete = () => {
       loadClients(db);
       if (bundle.projects) loadProjects(db);
-      if (bundle.contentEntries) loadContentEntries(db);
+      if (bundle.contentEntries) {
+        loadContentEntries(db);
+        reloadContentIngestJobs(db);
+      }
       if (importedMasterNotes !== undefined) {
         setMasterInfo((prev) => ({ ...prev, notes: importedMasterNotes }));
       }
@@ -3297,12 +3349,15 @@ export default function TattoDiary() {
             clients={clients}
             projects={projects}
             contentEntries={contentEntries}
+            contentIngestJobs={contentIngestJobs}
             navigation={contentNavigation}
             onNavigationApplied={() => setContentNavigation(null)}
             focusEntryId={contentFocusEntryId}
             onFocusEntryApplied={() => setContentFocusEntryId(null)}
             onSaveEntry={saveContentEntry}
             onDeleteEntry={deleteContentEntry}
+            onSaveContentIngestJob={saveContentIngestJob}
+            onDeleteContentIngestJob={removeContentIngestJob}
             onCreateProjectForLink={openCreateProjectForContentLink}
             onCreateSessionForLink={openCreateSessionForContentLink}
             reopenLinkPickerEntryId={reopenContentLinkPicker?.entryId ?? null}
@@ -11211,12 +11266,15 @@ function ContentINKAScreen({
   clients,
   projects,
   contentEntries,
+  contentIngestJobs,
   navigation,
   onNavigationApplied,
   focusEntryId,
   onFocusEntryApplied,
   onSaveEntry,
   onDeleteEntry,
+  onSaveContentIngestJob,
+  onDeleteContentIngestJob,
   onCreateProjectForLink,
   onCreateSessionForLink,
   reopenLinkPickerEntryId,
@@ -11226,6 +11284,7 @@ function ContentINKAScreen({
   clients: Client[];
   projects: Project[];
   contentEntries: ContentEntry[];
+  contentIngestJobs: ContentIngestJobRecord[];
   navigation: ContentWorkspaceNavigation | null;
   onNavigationApplied: () => void;
   // Узкий target «раскрыть вот эту запись» по id (см. contentFocusEntryId в
@@ -11235,6 +11294,8 @@ function ContentINKAScreen({
   onFocusEntryApplied: () => void;
   onSaveEntry: (entry: ContentEntry) => void;
   onDeleteEntry: (id: string) => void;
+  onSaveContentIngestJob: (record: ContentIngestJobRecord) => Promise<void>;
+  onDeleteContentIngestJob: (id: string) => Promise<void>;
   // Узкие callbacks запуска УЖЕ существующих сценариев создания Project/
   // Session из ContentLinkPickerSheet (кнопка «Создать проект»/«Создать
   // сессию») — сам sheet не хранит вторую копию этих форм и не знает, как
@@ -11256,8 +11317,19 @@ function ContentINKAScreen({
   const [composerPhotos, setComposerPhotos] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const refreshRunner = useMemo(() => createContentRefreshRunner(), []);
-  const [refreshingEntryIds, setRefreshingEntryIds] = useState<Set<string>>(() => new Set());
+  const [retryingJobIds, setRetryingJobIds] = useState<Set<string>>(() => new Set());
+  const refreshingEntryIds = new Set(
+    contentIngestJobs
+      .filter((job): job is ContentRefreshJobRecord => job.operation === 'refresh' && job.state !== 'failed')
+      .map((job) => job.entryId),
+  );
+  const refreshJobByEntry = new Map(
+    contentIngestJobs
+      .filter((job): job is ContentRefreshJobRecord => job.operation === 'refresh')
+      .map((job) => [job.entryId, job]),
+  );
+  const createIngestJobs = contentIngestJobs.filter((job): job is ContentCreateJobRecord => job.operation === 'create');
+  const isEntryRefreshing = (entryId: string) => refreshingEntryIds.has(entryId);
   const [selectedArchetypeByEntry, setSelectedArchetypeByEntry] = useState<Record<string, string>>({});
   const [refreshFeedbackByEntry, setRefreshFeedbackByEntry] = useState<Record<string, {
     kind: 'success' | 'error';
@@ -11324,7 +11396,7 @@ function ContentINKAScreen({
     textEditFeedbackTimers.current.set(entryId, timer);
   };
   const startTextEdit = (entry: ContentEntry) => {
-    if (entry.status !== 'draft') return;
+    if (entry.status !== 'draft' || isEntryRefreshing(entry.id)) return;
     const currentTimer = textEditFeedbackTimers.current.get(entry.id);
     if (currentTimer) clearTimeout(currentTimer);
     textEditFeedbackTimers.current.delete(entry.id);
@@ -11387,7 +11459,7 @@ function ContentINKAScreen({
   };
   const approveEntry = (entry: ContentEntry) => {
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
-    if (currentEntry.status === 'confirmed' || hasUnsavedTextEdit(currentEntry)) return;
+    if (currentEntry.status === 'confirmed' || hasUnsavedTextEdit(currentEntry) || isEntryRefreshing(currentEntry.id)) return;
     saveEntryInWorkspace(confirmContentEntry(currentEntry));
     // Только после сохранения status: confirmed — и только если запись ещё
     // не связана (включая уже связанные через sourceType==='session') —
@@ -11579,36 +11651,57 @@ function ContentINKAScreen({
       const photos = composerPhotos.length > 0 ? composerPhotos : linkedItem?.photos ?? [];
       const photoIds = createContentPhotoIds(photos.length);
       const selectedTextArchetype = ARCHETYPE_CHIPS.find((preset) => preset.label === composerTextArchetype);
-
+      const existingIds = [
+        ...contentEntriesRef.current,
+        ...createIngestJobs.map((job) => ({ id: job.entry.id })),
+      ];
+      const entryId = createContentEntryId(existingIds);
+      const createdDate = new Date().toISOString();
+      const sessionId = sourceId ?? `freeform-${entryId}`;
+      const context = { client: clientName, work, zone, style, description };
       const previews = await Promise.all(
-        photos.map(async (photo, i) => ({ id: photoIds[i], preview_data_url: await downsizeToPreview(photo) })),
+        photos.map(async (photo, index) => ({ id: photoIds[index], preview_data_url: await downsizeToPreview(photo) })),
       );
-      const result = await sendToContent({
-        sessionId: sourceId ?? `freeform-${Date.now()}`,
+      const params: ContentIngestParams = {
+        sessionId,
         sourceType,
-        session: { client: clientName, work, zone, style, description },
+        session: context,
         media: previews,
         masterInstruction: selectedTextArchetype?.instruction,
-      });
-      saveEntryInWorkspace(createDraftContentEntry({
-        createdDate: new Date().toISOString(),
-        clientId: composerClientId,
-        sourceType,
-        sourceId,
-        format: null,
-        text: composerText,
-        context: { client: clientName, work, zone, style, description },
-        textArchetype: selectedTextArchetype?.label ?? null,
-        photos,
-        photoIds,
-        contentDraft: result.media,
-        visualArchetype: result.visual_archetype,
-        textTriad: result.text_triad,
-        textDraft: result.text_draft,
-      }, contentEntriesRef.current));
+      };
+      const created = await createContentIngestJob(params);
+      const record: ContentCreateJobRecord = {
+        id: `create:${entryId}`,
+        jobId: created.jobId,
+        operation: 'create',
+        state: 'queued',
+        createdAt: createdDate,
+        updatedAt: createdDate,
+        request: {
+          sessionId,
+          sourceType,
+          session: context,
+          mediaIds: photoIds,
+          masterInstruction: selectedTextArchetype?.instruction,
+        },
+        entry: {
+          id: entryId,
+          createdDate,
+          clientId: composerClientId,
+          sourceType,
+          sourceId,
+          format: null,
+          text: composerText,
+          context,
+          textArchetype: selectedTextArchetype?.label ?? null,
+          photos,
+          photoIds,
+        },
+      };
+      await onSaveContentIngestJob(record);
       resetComposer();
-    } catch (err) {
-      setError(err instanceof ContentSyncError ? err.message : 'Не удалось сгенерировать контент.');
+    } catch (generationError) {
+      setError(generationError instanceof ContentSyncError ? generationError.message : 'Не удалось отправить материал в POSTiNKA.');
     } finally {
       setSending(false);
     }
@@ -11616,72 +11709,110 @@ function ContentINKAScreen({
 
   const regenerate = async (entry: ContentEntry, instruction: string, selectedArchetype?: string) => {
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
-    if (currentEntry.status === 'confirmed' || hasUnsavedTextEdit(currentEntry) || refreshRunner.isRunning(currentEntry.id)) return;
+    if (currentEntry.status === 'confirmed' || hasUnsavedTextEdit(currentEntry) || isEntryRefreshing(currentEntry.id)) return;
     setError(null);
-    setRefreshingEntryIds((current) => {
-      const next = new Set(current);
-      next.add(entry.id);
-      return next;
-    });
     setRefreshFeedbackByEntry((current) => {
       const next = { ...current };
       delete next[entry.id];
       return next;
     });
     try {
-      const outcome = await refreshRunner.run({
-        entry: currentEntry,
-        getCurrentEntry: () =>
-          contentEntriesRef.current.find((candidate) => candidate.id === currentEntry.id) ?? currentEntry,
-        request: async () => {
-          const primaryTextArchetype = ARCHETYPE_CHIPS.find((preset) => preset.label === currentEntry.textArchetype);
-          const requestPhotoIds =
-            currentEntry.photoIds?.length === currentEntry.photos.length
-              ? currentEntry.photoIds
-              : currentEntry.contentDraft?.length === currentEntry.photos.length
-                ? currentEntry.contentDraft.map((media) => media.id)
-                : currentEntry.photos.map((_, index) => `${currentEntry.id}-${index}`);
-          const previews = await Promise.all(
-            currentEntry.photos.map(async (photo, i) => ({ id: requestPhotoIds[i], preview_data_url: await downsizeToPreview(photo) })),
-          );
-          return sendToContent({
-            sessionId: currentEntry.sourceId ?? currentEntry.id,
-            sourceType: currentEntry.sourceType,
-            session: currentEntry.context,
-            media: previews,
-            masterInstruction: instruction || primaryTextArchetype?.instruction,
-            previousDraft: currentEntry.textDraft || undefined,
-          });
+      const primaryTextArchetype = ARCHETYPE_CHIPS.find((preset) => preset.label === currentEntry.textArchetype);
+      const requestPhotoIds =
+        currentEntry.photoIds?.length === currentEntry.photos.length
+          ? currentEntry.photoIds
+          : currentEntry.contentDraft?.length === currentEntry.photos.length
+            ? currentEntry.contentDraft.map((media) => media.id)
+            : currentEntry.photos.map((_, index) => `${currentEntry.id}-${index}`);
+      const previews = await Promise.all(
+        currentEntry.photos.map(async (photo, index) => ({ id: requestPhotoIds[index], preview_data_url: await downsizeToPreview(photo) })),
+      );
+      const masterInstruction = instruction || primaryTextArchetype?.instruction;
+      const params: ContentIngestParams = {
+        sessionId: currentEntry.sourceId ?? currentEntry.id,
+        sourceType: currentEntry.sourceType,
+        session: currentEntry.context,
+        media: previews,
+        masterInstruction,
+        previousDraft: currentEntry.textDraft || undefined,
+      };
+      const created = await createContentIngestJob(params);
+      const now = new Date().toISOString();
+      await onSaveContentIngestJob({
+        id: `refresh:${currentEntry.id}`,
+        jobId: created.jobId,
+        operation: 'refresh',
+        state: 'queued',
+        createdAt: now,
+        updatedAt: now,
+        request: {
+          sessionId: params.sessionId,
+          sourceType: params.sourceType,
+          session: params.session,
+          mediaIds: requestPhotoIds,
+          masterInstruction,
+          previousDraft: currentEntry.textDraft || undefined,
         },
-        save: saveEntryInWorkspace,
+        entryId: currentEntry.id,
+        baseTextDraft: currentEntry.textDraft,
+        requestedArchetype: selectedArchetype ?? null,
       });
-      if (outcome.status === 'ignored') return;
-      if (outcome.status === 'locked') {
-        setRefreshFeedbackByEntry((current) => ({
-          ...current,
-          [entry.id]: { kind: 'success', message: 'Одобренный текст защищён' },
-        }));
-        return;
-      }
       if (selectedArchetype) {
         setSelectedArchetypeByEntry((current) => ({ ...current, [entry.id]: selectedArchetype }));
       }
-      setRefreshFeedbackByEntry((current) => ({
-        ...current,
-        [entry.id]: { kind: 'success', message: 'Черновик обновлён' },
-      }));
-    } catch (err) {
+    } catch (refreshError) {
       setRefreshFeedbackByEntry((current) => ({
         ...current,
         [entry.id]: {
           kind: 'error',
-          message: err instanceof ContentSyncError ? err.message : 'Не удалось обновить черновик. Попробуйте ещё раз.',
+          message: refreshError instanceof ContentSyncError ? refreshError.message : 'Не удалось отправить обновление в POSTiNKA.',
         },
       }));
+    }
+  };
+
+  const retryContentJob = async (job: ContentIngestJobRecord) => {
+    if (retryingJobIds.has(job.id) || job.retryable === false) return;
+    setRetryingJobIds((current) => new Set(current).add(job.id));
+    try {
+      const entry = job.operation === 'create'
+        ? null
+        : contentEntriesRef.current.find((candidate) => candidate.id === job.entryId) ?? null;
+      if (job.operation === 'refresh' && !entry) {
+        await onDeleteContentIngestJob(job.id);
+        return;
+      }
+      const photos = job.operation === 'create' ? job.entry.photos : entry?.photos ?? [];
+      const mediaIds = job.operation === 'create'
+        ? job.entry.photoIds
+        : entry?.photoIds?.length === photos.length
+          ? entry.photoIds
+          : job.request.mediaIds;
+      const previews = await Promise.all(
+        photos.map(async (photo, index) => ({ id: mediaIds[index] ?? `${job.id}-${index}`, preview_data_url: await downsizeToPreview(photo) })),
+      );
+      const created = await createContentIngestJob({
+        sessionId: job.request.sessionId,
+        sourceType: job.request.sourceType,
+        session: job.request.session,
+        media: previews,
+        masterInstruction: job.request.masterInstruction,
+        previousDraft: job.request.previousDraft,
+      });
+      await onSaveContentIngestJob({
+        ...job,
+        jobId: created.jobId,
+        state: 'queued',
+        updatedAt: new Date().toISOString(),
+        error: undefined,
+        retryable: undefined,
+      });
+    } catch (retryError) {
+      setError(retryError instanceof ContentSyncError ? retryError.message : 'Не удалось повторить задачу POSTiNKA.');
     } finally {
-      setRefreshingEntryIds((current) => {
+      setRetryingJobIds((current) => {
         const next = new Set(current);
-        next.delete(entry.id);
+        next.delete(job.id);
         return next;
       });
     }
@@ -11700,7 +11831,7 @@ function ContentINKAScreen({
 
   const toggleTranslationMenu = (entryId: string) => {
     const entry = contentEntriesRef.current.find((candidate) => candidate.id === entryId);
-    if (entry && hasUnsavedTextEdit(entry)) return;
+    if (entry && (hasUnsavedTextEdit(entry) || isEntryRefreshing(entry.id))) return;
     setTranslationMenuEntryIds((current) => {
       const next = new Set(current);
       if (next.has(entryId)) next.delete(entryId);
@@ -11711,7 +11842,7 @@ function ContentINKAScreen({
 
   const translateEntry = async (entry: ContentEntry, language: ContentTranslationLanguage) => {
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
-    if (hasUnsavedTextEdit(currentEntry) || !currentEntry.textDraft.trim() || currentContentTranslation(currentEntry, language)) return;
+    if (hasUnsavedTextEdit(currentEntry) || isEntryRefreshing(currentEntry.id) || !currentEntry.textDraft.trim() || currentContentTranslation(currentEntry, language)) return;
     if (translationRunner.isRunning(currentEntry.id, language)) return;
 
     const key = contentTranslationKey(currentEntry.id, language);
@@ -11948,6 +12079,43 @@ function ContentINKAScreen({
           />
         </div>
 
+
+        {createIngestJobs.length > 0 && (
+          <GoldFrame plain style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.4px', marginBottom: 10 }}>В работе</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {createIngestJobs.map((job) => (
+                <div key={job.id} style={{ borderTop: '1px solid rgba(var(--gold-rgb),0.14)', paddingTop: 10 }}>
+                  <div style={{ fontSize: fs(13), color: COLORS.textPrimary }}>
+                    {job.state === 'failed' ? 'Не удалось собрать материал' : 'POSTiNKA собирает материал…'}
+                  </div>
+                  <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 3 }}>
+                    {clientLabel(job.entry.clientId)} · {job.entry.sourceType === 'session' ? 'сессия' : job.entry.sourceType === 'consultation' ? 'консультация' : 'свободный материал'}
+                  </div>
+                  {job.state === 'failed' ? (
+                    <>
+                      <div className="content-refresh-feedback is-error" role="alert">{job.error ?? 'Задача завершилась ошибкой'}</div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        {job.retryable !== false && (
+                          <button type="button" onClick={() => retryContentJob(job)} disabled={retryingJobIds.has(job.id)}>
+                            {retryingJobIds.has(job.id) ? 'Повторяю…' : 'Повторить'}
+                          </button>
+                        )}
+                        <button type="button" onClick={() => onDeleteContentIngestJob(job.id)}>Удалить</button>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
+                      <span style={{ fontSize: fs(11), color: COLORS.textGhost }}>Можно перейти в другой раздел</span>
+                      <button type="button" onClick={() => onDeleteContentIngestJob(job.id)}>Отменить</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </GoldFrame>
+        )}
+
         {/* ── Composer ── */}
         <GoldFrame plain style={{ padding: '16px 18px' }}>
           <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 10 }}>Новая запись</div>
@@ -11999,7 +12167,7 @@ function ContentINKAScreen({
             onClick={sending ? undefined : handleGenerate}
             style={{ ...SUBMIT_STYLE, marginTop: 12, opacity: sending ? 0.6 : 1, cursor: sending ? 'default' : 'pointer' }}
           >
-            {sending ? 'Генерирую…' : 'Сгенерировать'}
+            {sending ? 'Отправляю…' : 'Сгенерировать'}
           </div>
           {error && <div style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', marginTop: 8 }}>{error}</div>}
         </GoldFrame>
@@ -12090,7 +12258,7 @@ function ContentINKAScreen({
                     <button
                       type="button"
                       className="content-approve-action"
-                      disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
+                      disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry) || isEntryRefreshing(entry.id)}
                       onClick={() => approveEntry(entry)}
                     >
                       Одобрить текст
@@ -12157,7 +12325,7 @@ function ContentINKAScreen({
               ) : entry.textDraft ? (
                 <div className="content-text-output">
                   <div dir="auto" className="content-text-output__body">{entry.textDraft}</div>
-                  {entry.status === 'draft' && (
+                  {entry.status === 'draft' && !isEntryRefreshing(entry.id) && (
                     <ActionButton icon="edit" label="Редактировать" onClick={() => startTextEdit(entry)} />
                   )}
                 </div>
@@ -12198,7 +12366,7 @@ function ContentINKAScreen({
                       {isStale && (
                         <button
                           type="button"
-                          disabled={feedback?.state === 'loading' || !entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
+                          disabled={feedback?.state === 'loading' || !entry.textDraft.trim() || hasUnsavedTextEdit(entry) || isEntryRefreshing(entry.id)}
                           onClick={() => translateEntry(entry, option.language)}
                         >
                           {feedback?.state === 'loading' ? 'Перевожу…' : 'Обновить перевод'}
@@ -12239,6 +12407,26 @@ function ContentINKAScreen({
               />
               {entry.status === 'draft' && (
                 <div className="content-refresh-row">
+                  {refreshJobByEntry.get(entry.id)?.state !== 'failed' && refreshJobByEntry.has(entry.id) && (
+                    <div className="content-refresh-feedback" role="status">POSTiNKA обновляет черновик… Можно перейти в другой раздел.</div>
+                  )}
+                  {refreshJobByEntry.get(entry.id)?.state === 'failed' && (
+                    <div className="content-refresh-feedback is-error" role="alert">
+                      {refreshJobByEntry.get(entry.id)?.error ?? 'Не удалось обновить черновик'}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 7 }}>
+                        {refreshJobByEntry.get(entry.id)?.retryable !== false && (
+                          <button type="button" onClick={() => {
+                            const job = refreshJobByEntry.get(entry.id);
+                            if (job) retryContentJob(job);
+                          }}>Повторить</button>
+                        )}
+                        <button type="button" onClick={() => {
+                          const job = refreshJobByEntry.get(entry.id);
+                          if (job) onDeleteContentIngestJob(job.id);
+                        }}>Удалить</button>
+                      </div>
+                    </div>
+                  )}
                   <button
                     type="button"
                     className="content-refresh-action"

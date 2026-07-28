@@ -23,11 +23,10 @@ export function setContentEntryExemplar<T extends { status?: unknown; isExemplar
   return { ...entry, isExemplar };
 }
 
-export function createDraftContentEntry<T extends object>(
-  values: T,
+export function createContentEntryId(
   existingEntries: readonly { id: string }[],
   now: () => number = Date.now,
-): T & { id: string; status: 'draft'; isExemplar: false } {
+): string {
   const existingIds = new Set(existingEntries.map((entry) => entry.id));
   const baseId = String(now());
   let id = baseId;
@@ -37,10 +36,17 @@ export function createDraftContentEntry<T extends object>(
     id = `${baseId}-${suffix}`;
     suffix += 1;
   }
+  return id;
+}
 
+export function createDraftContentEntry<T extends object>(
+  values: T,
+  existingEntries: readonly { id: string }[],
+  now: () => number = Date.now,
+): T & { id: string; status: 'draft'; isExemplar: false } {
   return {
     ...values,
-    id,
+    id: createContentEntryId(existingEntries, now),
     status: 'draft',
     isExemplar: false,
   };
