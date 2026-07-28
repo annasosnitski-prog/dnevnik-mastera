@@ -170,7 +170,7 @@ test('editor UI saves through the existing entry, blocks unsafe actions and neve
   assert.match(copyHandler, /copyTextToClipboard\(entry\.textDraft\)/);
   assert.doesNotMatch(copyHandler, /editedText|textEditorsByEntry/);
   assert.match(screen, /disabled=\{!entry\.textDraft\.trim\(\) \|\| hasUnsavedTextEdit\(entry\)\}/);
-  assert.match(screen, /disabled=\{isRefreshing \|\| hasUnsavedTextEdit\(entry\)\}/);
+  assert.match(screen, /disabled=\{entry\.status === 'confirmed' \|\| refreshingEntryIds\.has\(entry\.id\) \|\| hasUnsavedTextEdit\(entry\)\}/);
   assert.match(screen, /disabled=\{refreshingEntryIds\.has\(entry\.id\) \|\| hasUnsavedTextEdit\(entry\)\}/);
   assert.match(translateHandler, /hasUnsavedTextEdit\(currentEntry\)/);
   assert.match(translateHandler, /translateContentText\(\{ sourceText: currentEntry\.textDraft/);
@@ -178,4 +178,18 @@ test('editor UI saves through the existing entry, blocks unsafe actions and neve
 
   assert.match(styles, /\.content-text-editor textarea\s*\{[^}]*min-height:\s*180px/s);
   assert.match(styles, /\.content-text-output__body\s*\{[^}]*white-space:\s*pre-wrap/s);
+});
+
+test('the visible "N / 650" counter is removed from the editor while the 650 limit stays enforced', () => {
+  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+
+  assert.doesNotMatch(screen, /\{contentTextLength\([^)]*\)\}\s*\/\s*\{MAX_CONTENT_TEXT_CHARACTERS\}/);
+  assert.doesNotMatch(screen, /is-over-limit/);
+
+  // Ограничение и предупреждение о превышении остаются: aria-invalid,
+  // блокировка «Сохранить» и текст ошибки при превышении лимита.
+  assert.match(screen, /aria-invalid=\{contentTextLength\(textEditorsByEntry\[entry\.id\]\.editedText\.trim\(\)\) > MAX_CONTENT_TEXT_CHARACTERS\}/);
+  assert.match(screen, /contentTextLength\(textEditorsByEntry\[entry\.id\]\.editedText\.trim\(\)\) > MAX_CONTENT_TEXT_CHARACTERS &&/);
+  assert.match(screen, /Сократите текст вручную до 650 символов/);
 });

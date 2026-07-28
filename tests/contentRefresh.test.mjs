@@ -263,8 +263,9 @@ test('refresh UI keeps loading and feedback local to each entry', () => {
   assert.match(source, /Обновить черновик/);
 });
 
-test('archetype controls use the existing labels as wrapping text chips without emoji', () => {
+test('archetype controls use the existing labels through the shared icon toolbar without emoji', () => {
   const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const toolbarSource = readFileSync(new URL('../src/components/content/ArchetypeToolbar.tsx', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   const presets = source.slice(source.indexOf('const ARCHETYPE_CHIPS'), source.indexOf('function ContentINKAScreen'));
 
@@ -275,13 +276,13 @@ test('archetype controls use the existing labels as wrapping text chips without 
     assert.equal(presets.includes(emoji), false);
   }
 
-  assert.match(source, /className="content-archetype-chips"/);
-  assert.match(source, /\{preset\.label\}/);
-  assert.match(source, /aria-pressed=\{isSelected\}/);
+  assert.match(toolbarSource, /className="archetype-toolbar"/);
+  assert.match(source, /<ArchetypeToolbar/);
+  assert.match(toolbarSource, /aria-pressed=\{isSelected\}/);
   assert.match(source, /Визуальный архетип/);
   assert.match(source, /Текстовая триада/);
-  assert.match(styles, /\.content-archetype-chips\s*\{[^}]*flex-wrap:\s*wrap/s);
-  assert.match(styles, /\.content-archetype-chip\.is-selected/);
-  assert.match(styles, /\.content-archetype-chip:active:not\(:disabled\)/);
+  assert.match(styles, /\.archetype-toolbar\s*\{[^}]*overflow-x:\s*auto/s);
+  assert.match(styles, /\.archetype-toolbar__button\.is-selected/);
+  assert.match(styles, /\.archetype-toolbar__button:active:not\(:disabled\)/);
   assert.match(styles, /overflow-wrap:\s*anywhere/);
 });

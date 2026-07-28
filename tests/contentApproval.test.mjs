@@ -111,7 +111,9 @@ test('approval UI persists through the existing contentEntries store and locks r
   assert.match(source, /Эталон/);
   assert.match(source, /entry\.status === 'confirmed'/);
   assert.match(source, /entry\.status === 'draft' && \(/);
-  assert.match(source, /className="content-archetype-chip is-static"/);
+  // Confirmed-записи не перегенерируются — общий ArchetypeToolbar получает
+  // disabled=true вместо отдельной статичной разметки чипов.
+  assert.match(source, /disabled=\{entry\.status === 'confirmed' \|\| refreshingEntryIds\.has\(entry\.id\) \|\| hasUnsavedTextEdit\(entry\)\}/);
   assert.match(source, /Перевести/);
   assert.match(source, /Копировать текст/);
 });

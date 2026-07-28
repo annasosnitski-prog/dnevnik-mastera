@@ -632,7 +632,7 @@ input[type='date'] {
 .content-approve-action,
 .content-exemplar-toggle {
   appearance: none;
-  min-height: 30px;
+  min-height: 40px;
   padding: 6px 10px;
   border: 1px solid rgba(var(--gold-rgb), 0.42);
   border-radius: 3px;
@@ -816,27 +816,22 @@ input[type='date'] {
   font-style: italic;
 }
 
-.content-primary-archetype-field {
-  display: grid;
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.content-primary-archetype-field > span {
-  color: var(--text-ghost);
-  font-size: 10px;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-}
-
 .content-archetype-context {
-  display: grid;
-  gap: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 8px;
   margin-bottom: 10px;
   color: var(--text-ghost);
   font-size: 10px;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+.content-archetype-context > div {
+  padding: 3px 8px;
+  border: 1px solid rgba(var(--gold-rgb), 0.22);
+  border-radius: 999px;
+  background: rgba(var(--gold-rgb), 0.03);
 }
 
 .content-archetype-label {
@@ -847,51 +842,55 @@ input[type='date'] {
   text-transform: uppercase;
 }
 
-.content-archetype-chips {
+/* Toolbar из семи архетипов (ArchetypeToolbar) — общий для composer
+   (выбор основного архетипа новой генерации) и карточки (перегенерация). */
+.archetype-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  min-width: 0;
-  margin-bottom: 12px;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 6px;
+  margin-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
-.content-archetype-chip,
-.content-refresh-action {
+.archetype-toolbar__button {
   appearance: none;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
   border: 1px solid rgba(var(--gold-rgb), 0.3);
-  border-radius: 3px;
+  border-radius: 50%;
   background: rgba(var(--gold-rgb), 0.025);
   color: var(--text-ghost);
-  font: inherit;
+  cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
 
-.content-archetype-chip {
-  max-width: 100%;
-  padding: 6px 10px;
-  font-size: 12px;
-  line-height: 1.3;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-align: left;
-  cursor: pointer;
-}
-
-.content-archetype-chip:hover:not(:disabled),
-.content-archetype-chip.is-selected {
+.archetype-toolbar__button:hover:not(:disabled) {
   border-color: rgba(var(--gold-rgb), 0.72);
-  background: rgba(var(--gold-rgb), 0.12);
+  background: rgba(var(--gold-rgb), 0.1);
   color: var(--text);
 }
 
-.content-archetype-chip.is-selected {
-  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.18);
+.archetype-toolbar__button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.96);
 }
 
-.content-archetype-chip.is-static {
+.archetype-toolbar__button.is-selected {
+  border-color: rgba(var(--gold-rgb), 0.85);
+  background: rgba(var(--gold-rgb), 0.16);
+  color: var(--gold);
+  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.25);
+}
+
+.archetype-toolbar__button:disabled {
+  opacity: 0.4;
   cursor: default;
-  pointer-events: none;
-  opacity: 0.72;
 }
 
 .content-refresh-row {
@@ -899,21 +898,26 @@ input[type='date'] {
   flex-wrap: wrap;
   align-items: center;
   gap: 9px 12px;
-  margin-bottom: 12px;
+  margin: 4px 0 12px;
 }
 
 .content-refresh-action {
+  appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 32px;
-  padding: 7px 11px;
-  border-color: rgba(var(--gold-rgb), 0.42);
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid rgba(var(--gold-rgb), 0.42);
+  border-radius: 3px;
+  background: rgba(var(--gold-rgb), 0.025);
   color: var(--text-soft);
+  font: inherit;
   font-size: 12px;
   line-height: 1.2;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .content-refresh-action:hover:not(:disabled) {
@@ -921,13 +925,11 @@ input[type='date'] {
   background: rgba(var(--gold-rgb), 0.09);
 }
 
-.content-archetype-chip:active:not(:disabled),
 .content-refresh-action:active:not(:disabled) {
   transform: translateY(1px) scale(0.98);
   background: rgba(var(--gold-rgb), 0.16);
 }
 
-.content-archetype-chip:disabled,
 .content-refresh-action:disabled {
   opacity: 0.5;
   cursor: default;
@@ -955,7 +957,107 @@ input[type='date'] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+}
+
+.content-card-actions__primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 9px 16px;
+  min-width: 0;
+}
+
+/* «Удалить» визуально отделено от обычных действий, чтобы снизить риск
+   случайного нажатия. */
+.content-card-actions__danger {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.content-action-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-ghost);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.content-action-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.content-action-button--primary {
+  border-color: rgba(var(--gold-rgb), 0.42);
+  background: rgba(var(--gold-rgb), 0.035);
+  color: var(--text-soft);
+}
+
+.content-action-button--primary:hover:not(:disabled) {
+  border-color: rgba(var(--gold-rgb), 0.72);
+  background: rgba(var(--gold-rgb), 0.09);
+}
+
+.content-action-button--danger {
+  color: var(--urgent, #c0392b);
+}
+
+.content-action-button--danger:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.08);
+  border-color: rgba(192, 57, 43, 0.3);
+}
+
+.content-card-header {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.content-filter-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1px 1px 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.content-filter-chip {
+  appearance: none;
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 7px 13px;
+  border: 1px solid rgba(var(--gold-rgb), 0.3);
+  border-radius: 999px;
+  background: rgba(var(--gold-rgb), 0.025);
+  color: var(--text-ghost);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.content-filter-chip:hover {
+  border-color: rgba(var(--gold-rgb), 0.6);
+}
+
+.content-filter-chip.is-selected {
+  border-color: rgba(var(--gold-rgb), 0.85);
+  background: rgba(var(--gold-rgb), 0.16);
+  color: var(--gold);
 }
 
 .content-share-action {
@@ -1292,7 +1394,7 @@ input[type='date'] {
 .content-copy-action,
 .content-translate-action {
   appearance: none;
-  min-height: 30px;
+  min-height: 40px;
   padding: 6px 10px;
   border: 1px solid rgba(var(--gold-rgb), 0.4);
   border-radius: 3px;
