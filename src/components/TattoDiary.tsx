@@ -79,8 +79,9 @@ import {
   buildContentProjectOptions,
   buildContentSessionOptions,
   type ContentEntryLink,
+  type ResolvedContentEntryLink,
 } from '../lib/contentLink';
-import { getProjectContentEntries } from '../lib/contentProject';
+import { getContentEntriesForProject, type ProjectContentItem } from '../lib/contentProject';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
@@ -14417,9 +14418,11 @@ function ProjectViewSheet({
       ? getTasksByProjectId(linkedClient.notes, project.id)
       : getTasksByProjectId(masterNotes, project.id)
     : [];
-  // Вся принадлежность записи проекту — уже в getProjectContentEntries
-  // (переиспользует resolveContentEntryProjectId, ничего не резолвится здесь).
-  const projectContentEntries = project ? getProjectContentEntries(contentEntries, project.id, projects, clients) : [];
+  // Вся принадлежность записи проекту (и то, как именно она связана — для
+  // подписи в карточке) — уже в getContentEntriesForProject, ничего не
+  // резолвится здесь. Только confirmed — approval flow не меняется, это
+  // фильтр чтения.
+  const projectContentItems = project ? getContentEntriesForProject(contentEntries, project.id, projects, clients) : [];
 
   const chipStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -14562,12 +14565,14 @@ function ProjectViewSheet({
 
             <div>
               <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Контент</div>
-              {projectContentEntries.length === 0 ? (
-                <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет привязанного контента.</div>
+              {projectContentItems.length === 0 ? (
+                <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                  К проекту пока не привязан готовый контент
+                </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {projectContentEntries.map((entry) => (
-                    <ProjectContentCard key={entry.id} entry={entry} onClick={() => onOpenContentEntry(entry)} />
+                  {projectContentItems.map((item) => (
+                    <ProjectContentCard key={item.entry.id} item={item} onClick={() => onOpenContentEntry(item.entry)} />
                   ))}
                 </div>
               )}
@@ -14579,13 +14584,29 @@ function ProjectViewSheet({
   );
 }
 
+// «Проект» / название+дата сессии / «Консультация» — берёт готовый resolved
+// link (ResolvedContentEntryLink из src/lib/contentLink.ts), ничего сам не
+// резолвит.
+function projectContentLinkLabel(link: ResolvedContentEntryLink): string {
+  if (link.kind === 'project') return 'Проект';
+  if (link.kind === 'session') {
+    const dateLabel = ISO_DATE_RE.test(link.session.date) ? formatDate(link.session.date) : link.session.date;
+    return [link.session.name || 'Сессия', dateLabel].filter(Boolean).join(' · ');
+  }
+  if (link.kind === 'consultation') return 'Консультация';
+  return '';
+}
+
 // Компактная карточка одного материала ContentINKA внутри «Контент» на
-// экране проекта — только для просмотра, без редактирования (см. onClick,
-// открывает существующий ContentINKA, а не что-то новое).
-function ProjectContentCard({ entry, onClick }: { entry: ContentEntry; onClick: () => void }) {
+// экране проекта — только для просмотра, без редактирования, перевода,
+// архетипов и управления фотоподборкой (см. onClick — открывает уже
+// существующий ContentINKA, а не что-то новое).
+function ProjectContentCard({ item, onClick }: { item: ProjectContentItem<ContentEntry>; onClick: () => void }) {
+  const { entry, link } = item;
   const firstLine = (entry.textDraft || entry.text || '').split('\n')[0].trim();
   const datePart = entry.createdDate.slice(0, 10);
   const dateLabel = ISO_DATE_RE.test(datePart) ? formatDate(datePart) : entry.createdDate;
+  const selectedPhotoCount = entry.photos.length;
 
   return (
     <div
@@ -14614,10 +14635,12 @@ function ProjectContentCard({ entry, onClick }: { entry: ContentEntry; onClick: 
         >
           {firstLine || 'Без текста'}
         </div>
-        <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
-          {dateLabel} · {entry.status === 'confirmed' ? 'Подтвержден' : 'Черновик'}
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {dateLabel} · {projectContentLinkLabel(link)}
+          {selectedPhotoCount > 0 ? ` · Фото: ${selectedPhotoCount}` : ''}
         </div>
       </div>
+      <span style={{ fontSize: fs(10.5), color: COLORS.gold, flexShrink: 0, letterSpacing: '0.4px' }}>Открыть в ContentINKA</span>
     </div>
   );
 }
