@@ -1,0 +1,42 @@
+name: Finalize durable jobs on reopen
+
+on:
+  pull_request:
+    branches: [main]
+    types: [reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.head_ref == 'feature/durable-content-jobs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/durable-content-jobs
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: python .github/scripts/finalize_durable_review.py
+      - name: Remove temporary files
+        run: |
+          rm -f .github/workflows/finalize-durable-content-jobs.yml
+          rm -f .github/workflows/finalize-durable-on-reopen.yml
+          rm -f .github/scripts/finalize_durable_review.py
+          rm -f .github/durable-finalize.trigger
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - run: git diff --check
+      - name: Commit final fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: harden durable POSTiNKA job recovery"
+          git push origin HEAD:feature/durable-content-jobs
