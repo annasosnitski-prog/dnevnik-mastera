@@ -31,6 +31,7 @@ import {
   hasContentPhotoSelectionContract,
   resolveAllContentPhotos,
   resolveContentPhotoPublicationSets,
+  resolveContentPhotoSelection,
   type ResolvedContentPhoto,
 } from '../lib/contentPhotoSelection';
 import {
@@ -14606,7 +14607,13 @@ function ProjectContentCard({ item, onClick }: { item: ProjectContentItem<Conten
   const firstLine = (entry.textDraft || entry.text || '').split('\n')[0].trim();
   const datePart = entry.createdDate.slice(0, 10);
   const dateLabel = ISO_DATE_RE.test(datePart) ? formatDate(datePart) : entry.createdDate;
-  const selectedPhotoCount = entry.photos.length;
+  // Итоговая выбранная подборка (не все исходные фото) — та же логика, что
+  // и в самой карточке ContentINKA (ContentPhotoGallery), не задублирована.
+  const selectedPhotoCount = resolveContentPhotoSelection({
+    photos: entry.photos,
+    photoIds: entry.photoIds,
+    contentDraft: entry.contentDraft,
+  }).length;
 
   return (
     <div

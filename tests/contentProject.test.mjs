@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { getContentEntriesForProject } from '../.test-dist/src/lib/contentProject.js';
+import { resolveContentPhotoSelection } from '../.test-dist/src/lib/contentPhotoSelection.js';
 
 function makeProject(overrides = {}) {
   return {
@@ -270,4 +271,27 @@ test('empty state text is shown when there is no confirmed content for the proje
   assert.match(sheet, /К проекту пока не привязан готовый контент/);
   // No generation entry point leaks into the project screen.
   assert.doesNotMatch(sheet, /Сгенерировать/);
+});
+
+test('the photo count is the final selected publication set, not every source photo (8 source, 3 selected → 3)', () => {
+  const photos = Array.from({ length: 8 }, (_, i) => `photo-${i}`);
+  const photoIds = photos.map((_, i) => `id-${i}`);
+  const contentDraft = photoIds.map((id, i) => ({
+    id,
+    technical_status: 'kept',
+    selected: i === 1 || i === 3 || i === 5, // exactly 3 of the 8 selected
+  }));
+
+  const selection = resolveContentPhotoSelection({ photos, photoIds, contentDraft });
+
+  assert.equal(photos.length, 8);
+  assert.equal(selection.length, 3);
+});
+
+test('ProjectContentCard computes the photo count via resolveContentPhotoSelection, not entry.photos.length', () => {
+  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const card = source.slice(source.indexOf('function ProjectContentCard('), source.length);
+
+  assert.match(card, /resolveContentPhotoSelection\(\{\s*photos: entry\.photos,\s*photoIds: entry\.photoIds,\s*contentDraft: entry\.contentDraft,\s*\}\)\.length/);
+  assert.doesNotMatch(card, /entry\.photos\.length/);
 });
