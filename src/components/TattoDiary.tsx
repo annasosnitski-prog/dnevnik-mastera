@@ -1712,6 +1712,27 @@ export default function TattoDiary() {
   // Если задан — открытая форма «Новая сессия» сохраняет в Project.sessions
   // этого проекта (сессия без клиента), а не в client.sessions (Этап 3b-доп.).
   const [sessionTargetProjectId, setSessionTargetProjectId] = useState<string | null>(null);
+  // ContentLinkPickerSheet «Сохранить в…» → «Создать проект»/«Создать
+  // сессию» запускает уже существующие сценарии (NewProjectSheet, либо
+  // ProjectSessionPickerSheet+NewSessionSheet) — этот ref запоминает, какую
+  // ContentEntry нужно привязать к результату, и что именно должно стать
+  // итоговой привязкой: сам созданный проект ('project'), или сессию,
+  // которую нужно создать следующим шагом внутри него ('session' — тогда
+  // handleAddProject не привязывает проект напрямую, а продолжает цепочку в
+  // создание сессии). Ref, а не state — handleAddProject{,Session} и
+  // closeNewSession/onClose читают его синхронно в одном тике, до
+  // следующего рендера, где обычный state ещё не обновился бы.
+  const pendingContentLinkRef = useRef<{ entryId: string; target: 'project' | 'session' } | null>(null);
+  const linkContentEntryTo = (entryId: string, link: ContentEntryLink | null) => {
+    const entry = contentEntries.find((candidate) => candidate.id === entryId);
+    if (entry) saveContentEntry(setContentEntryLink(entry, link));
+  };
+  // Пользователь отменил создание Project/Session, запущенное отсюда —
+  // ContentINKAScreen снова открывает ContentLinkPickerSheet на той же
+  // записи и вкладке вместо тупикового пустого экрана.
+  const [reopenContentLinkPicker, setReopenContentLinkPicker] = useState<
+    { entryId: string; target: 'project' | 'session' } | null
+  >(null);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -2025,6 +2046,13 @@ export default function TattoDiary() {
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
     setSessionTargetProjectId(null);
+    // Called both after a successful project-session save (handleAddProjectSession
+    // already cleared the ref there) and on a plain cancel — only the latter
+    // still has a pending 'session' chain to unwind back to the picker.
+    if (pendingContentLinkRef.current?.target === 'session') {
+      setReopenContentLinkPicker({ entryId: pendingContentLinkRef.current.entryId, target: 'session' });
+      pendingContentLinkRef.current = null;
+    }
   };
   const closeNewConsultation = () => {
     setShowNewConsultationForm(false);
@@ -2195,7 +2223,26 @@ export default function TattoDiary() {
         saveProject({ ...editProject, ...data });
       }
     } else {
-      saveProject({ id: Date.now().toString(), createdDate: new Date().toISOString(), sessions: [], ...data });
+      const newProjectId = Date.now().toString();
+      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), sessions: [], ...data });
+      // Проект создан из ContentLinkPickerSheet «Сохранить в…».
+      if (pendingContentLinkRef.current) {
+        if (pendingContentLinkRef.current.target === 'project') {
+          // Цепочка заканчивается здесь — сам проект и есть привязка.
+          linkContentEntryTo(pendingContentLinkRef.current.entryId, { type: 'project', projectId: newProjectId });
+          pendingContentLinkRef.current = null;
+        } else {
+          // target === 'session': проектов не было — этот проект лишь шаг к
+          // сессии, продолжаем прямо в её создание, без тупика.
+          setShowNewProjectForm(false);
+          setEditProject(null);
+          setNewProjectClientId(null);
+          setEditSession(null);
+          setSessionTargetProjectId(newProjectId);
+          setShowNewSessionForm(true);
+          return;
+        }
+      }
     }
     setShowNewProjectForm(false);
     setEditProject(null);
@@ -2243,13 +2290,43 @@ export default function TattoDiary() {
       projectId,
     };
     let sessions: Session[];
+    let newSessionId: string | null = null;
     if (editSession) {
       sessions = p.sessions.map((s) => (s.id === editSession.id ? { ...s, ...fields } : s));
     } else {
-      sessions = [...p.sessions, { id: Date.now().toString(), cancelled: false, ...fields }];
+      newSessionId = Date.now().toString();
+      sessions = [...p.sessions, { id: newSessionId, cancelled: false, ...fields }];
     }
     saveProject({ ...p, sessions });
     advanceProjectStage(projectId, fields.done ? 'in_progress' : 'booked');
+
+    // Сессия создана из ContentLinkPickerSheet «Сохранить в…» (project→session
+    // цепочка или прямой выбор проекта на вкладке «Сессия») — привязываем её.
+    if (newSessionId && pendingContentLinkRef.current?.target === 'session') {
+      linkContentEntryTo(pendingContentLinkRef.current.entryId, { type: 'session', sessionId: newSessionId });
+      pendingContentLinkRef.current = null;
+    }
+  };
+
+  // Узкие callbacks для ContentLinkPickerSheet («Создать проект»/«Создать
+  // сессию») — запускают уже существующие сценарии создания Project/Session
+  // вместо второй копии формы внутри самого sheet'а. См. handleAddProject/
+  // handleAddProjectSession выше — там pendingContentLinkRef приводит к
+  // автоматической привязке результата к нужной ContentEntry.
+  const openCreateProjectForContentLink = (entryId: string, preferredClientId: string | null) => {
+    pendingContentLinkRef.current = { entryId, target: 'project' };
+    setEditProject(null);
+    setNewProjectClientId(preferredClientId);
+    setShowNewProjectForm(true);
+  };
+  const openCreateSessionForContentLink = (entryId: string) => {
+    // Существующая логика выбора проекта для «сессии без клиента» — та же,
+    // что и в «Мастерская: Создать → Сессия без клиента» (см.
+    // ProjectSessionPickerSheet ниже). Если подходящих проектов нет, сама
+    // ProjectSessionPickerSheet предлагает создать его первым — цепочка
+    // продолжается в handleAddProject выше.
+    pendingContentLinkRef.current = { entryId, target: 'session' };
+    setShowProjectSessionPicker(true);
   };
 
   // ── Миграция «Собрать старые записи в проекты» (Этап 2) ──
@@ -3254,6 +3331,11 @@ export default function TattoDiary() {
             onFocusEntryApplied={() => setContentFocusEntryId(null)}
             onSaveEntry={saveContentEntry}
             onDeleteEntry={deleteContentEntry}
+            onCreateProjectForLink={openCreateProjectForContentLink}
+            onCreateSessionForLink={openCreateSessionForContentLink}
+            reopenLinkPickerEntryId={reopenContentLinkPicker?.entryId ?? null}
+            reopenLinkPickerTarget={reopenContentLinkPicker?.target ?? null}
+            onReopenLinkPickerApplied={() => setReopenContentLinkPicker(null)}
           />
         )}
       </div>
@@ -3514,7 +3596,13 @@ export default function TattoDiary() {
       <ProjectSessionPickerSheet
         open={showProjectSessionPicker}
         projects={projects}
-        onClose={() => setShowProjectSessionPicker(false)}
+        onClose={() => {
+          setShowProjectSessionPicker(false);
+          if (pendingContentLinkRef.current?.target === 'session') {
+            setReopenContentLinkPicker({ entryId: pendingContentLinkRef.current.entryId, target: 'session' });
+            pendingContentLinkRef.current = null;
+          }
+        }}
         onPick={(project) => {
           setShowProjectSessionPicker(false);
           setEditSession(null);
@@ -3552,6 +3640,13 @@ export default function TattoDiary() {
           setShowNewProjectForm(false);
           setEditProject(null);
           setNewProjectClientId(null);
+          if (pendingContentLinkRef.current) {
+            setReopenContentLinkPicker({
+              entryId: pendingContentLinkRef.current.entryId,
+              target: pendingContentLinkRef.current.target,
+            });
+            pendingContentLinkRef.current = null;
+          }
         }}
         onAdd={handleAddProject}
         onDelete={editProject ? () => deleteProject(editProject.id) : undefined}
@@ -11154,6 +11249,11 @@ function ContentINKAScreen({
   onFocusEntryApplied,
   onSaveEntry,
   onDeleteEntry,
+  onCreateProjectForLink,
+  onCreateSessionForLink,
+  reopenLinkPickerEntryId,
+  reopenLinkPickerTarget,
+  onReopenLinkPickerApplied,
 }: {
   clients: Client[];
   projects: Project[];
@@ -11167,6 +11267,19 @@ function ContentINKAScreen({
   onFocusEntryApplied: () => void;
   onSaveEntry: (entry: ContentEntry) => void;
   onDeleteEntry: (id: string) => void;
+  // Узкие callbacks запуска УЖЕ существующих сценариев создания Project/
+  // Session из ContentLinkPickerSheet (кнопка «Создать проект»/«Создать
+  // сессию») — сам sheet не хранит вторую копию этих форм и не знает, как
+  // именно родитель их открывает (см. TattoDiary root: NewProjectSheet/
+  // ProjectSessionPickerSheet+NewSessionSheet).
+  onCreateProjectForLink: (entryId: string, preferredClientId: string | null) => void;
+  onCreateSessionForLink: (entryId: string) => void;
+  // Если пользователь отменяет создание Project/Session, запущенное отсюда,
+  // родитель просит снова открыть ContentLinkPickerSheet на той же записи и
+  // вкладке — тот же паттерн, что и focusEntryId/onFocusEntryApplied выше.
+  reopenLinkPickerEntryId: string | null;
+  reopenLinkPickerTarget: 'project' | 'session' | null;
+  onReopenLinkPickerApplied: () => void;
 }) {
   const [composerClientId, setComposerClientId] = useState<string | null>(null); // null = мастерская
   const [composerItemKey, setComposerItemKey] = useState<string>(''); // '' | 's:<id>' | 'c:<id>'
@@ -11183,10 +11296,20 @@ function ContentINKAScreen({
     message: string;
   }>>({});
   const [copyFeedbackByEntry, setCopyFeedbackByEntry] = useState<Record<string, CopyFeedback>>({});
-  // id записи, для которой сейчас открыт sheet «Куда сохранить контент?» —
-  // и после одобрения непривязанной записи (обязательный вопрос), и по
-  // ручному «Привязать»/«Изменить привязку» из карточки (тот же sheet).
+  // id записи, для которой сейчас открыт sheet «Сохранить в…» — и после
+  // одобрения непривязанной записи (обязательный вопрос), и по ручному
+  // «Привязать»/«Изменить привязку» из карточки (тот же sheet). Вкладка
+  // (Проект/Сессия) — отдельный managed state, а не внутренний step sheet'а,
+  // чтобы одинаково задавать её и при открытии, и при возврате после отмены
+  // создания Project/Session.
   const [linkPickerEntryId, setLinkPickerEntryId] = useState<string | null>(null);
+  const [linkPickerTarget, setLinkPickerTarget] = useState<'project' | 'session'>('project');
+  const openLinkPicker = (entryId: string) => {
+    const target = contentEntriesRef.current.find((candidate) => candidate.id === entryId);
+    const linkType = target ? normalizeContentEntryLink(target).link?.type : undefined;
+    setLinkPickerTarget(linkType === 'session' ? 'session' : 'project');
+    setLinkPickerEntryId(entryId);
+  };
   const copyFeedbackController = useMemo(
     () => createCopyFeedbackController({ onChange: setCopyFeedbackByEntry }),
     [],
@@ -11298,7 +11421,7 @@ function ContentINKAScreen({
     // не связана (включая уже связанные через sourceType==='session') —
     // открываем обязательный вопрос «Куда сохранить контент?». confirmContentEntry
     // чистая и идемпотентная — повторный вызов не создаёт новое состояние.
-    if (!isContentEntryLinked(confirmContentEntry(currentEntry))) setLinkPickerEntryId(currentEntry.id);
+    if (!isContentEntryLinked(confirmContentEntry(currentEntry))) openLinkPicker(currentEntry.id);
   };
   const updateEntryLink = (entry: ContentEntry, link: ContentEntryLink | null) => {
     const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
@@ -11436,6 +11559,17 @@ function ContentINKAScreen({
     const timer = setTimeout(() => setHighlightedEntryId(null), 2500);
     return () => clearTimeout(timer);
   }, [highlightedEntryId]);
+
+  // Отмена создания Project/Session, запущенного из ContentLinkPickerSheet
+  // (см. onCreateProjectForLink/onCreateSessionForLink), просит снова
+  // открыть sheet на той же записи и вкладке — тот же паттерн, что и
+  // focusEntryId/onFocusEntryApplied выше.
+  useEffect(() => {
+    if (!reopenLinkPickerEntryId) return;
+    setLinkPickerTarget(reopenLinkPickerTarget ?? 'project');
+    setLinkPickerEntryId(reopenLinkPickerEntryId);
+    onReopenLinkPickerApplied();
+  }, [reopenLinkPickerEntryId, reopenLinkPickerTarget, onReopenLinkPickerApplied]);
 
   const resetComposer = () => {
     setComposerText('');
@@ -11995,7 +12129,7 @@ function ContentINKAScreen({
                   entry={entry}
                   projects={projects}
                   clients={clients}
-                  onOpenPicker={() => setLinkPickerEntryId(entry.id)}
+                  onOpenPicker={() => openLinkPicker(entry.id)}
                 />
               </div>
               {hasUnsavedTextEdit(entry) && (
@@ -12267,10 +12401,24 @@ function ContentINKAScreen({
         entry={contentEntries.find((e) => e.id === linkPickerEntryId) ?? null}
         projects={projects}
         clients={clients}
+        target={linkPickerTarget}
+        onTargetChange={setLinkPickerTarget}
         onClose={() => setLinkPickerEntryId(null)}
         onPick={(link) => {
           const entry = contentEntries.find((e) => e.id === linkPickerEntryId);
           if (entry) updateEntryLink(entry, link);
+        }}
+        onCreateProject={() => {
+          const entry = contentEntries.find((e) => e.id === linkPickerEntryId);
+          if (!entry) return;
+          setLinkPickerEntryId(null);
+          onCreateProjectForLink(entry.id, entry.clientId);
+        }}
+        onCreateSession={() => {
+          const entry = contentEntries.find((e) => e.id === linkPickerEntryId);
+          if (!entry) return;
+          setLinkPickerEntryId(null);
+          onCreateSessionForLink(entry.id);
         }}
       />
     </div>
@@ -12556,73 +12704,41 @@ function ContentLinkStatus({
   );
 }
 
-// Sheet «Куда сохранить контент?» — открывается либо автоматически один раз
-// после одобрения непривязанной записи, либо вручную из карточки
-// («Привязать»/«Изменить привязку»). Вся группировка/фильтрация проектов и
-// сессий — в src/lib/contentLink.ts (buildContentProjectOptions/
-// buildContentSessionOptions), здесь только раскладка списка по шагам.
+// Sheet «Сохранить в…» — открывается либо автоматически один раз после
+// одобрения непривязанной записи, либо вручную из карточки
+// («Привязать»/«Изменить привязку»). Один экран с двумя вкладками
+// (Проект/Сессия) — без промежуточного шага выбора и без тупиковых пустых
+// состояний: создание нового проекта/сессии всегда доступно рядом со
+// списком и запускает уже существующие сценарии (onCreateProject/
+// onCreateSession), а не копию формы внутри этого sheet. Вся
+// группировка/фильтрация проектов и сессий — в src/lib/contentLink.ts
+// (buildContentProjectOptions/buildContentSessionOptions), не меняется.
 function ContentLinkPickerSheet({
   open,
   entry,
   projects,
   clients,
+  target,
+  onTargetChange,
   onClose,
   onPick,
+  onCreateProject,
+  onCreateSession,
 }: {
   open: boolean;
   entry: ContentEntry | null;
   projects: Project[];
   clients: Client[];
+  target: 'project' | 'session';
+  onTargetChange: (target: 'project' | 'session') => void;
   onClose: () => void;
   onPick: (link: ContentEntryLink | null) => void;
+  onCreateProject: () => void;
+  onCreateSession: () => void;
 }) {
-  const [step, setStep] = useState<'choice' | 'project' | 'session'>('choice');
-
-  useEffect(() => {
-    if (open) setStep('choice');
-  }, [open, entry?.id]);
-
   const preferredClientId = entry?.clientId ?? null;
   const projectOptions = entry ? buildContentProjectOptions(projects, preferredClientId) : [];
   const sessionOptions = entry ? buildContentSessionOptions(clients, projects, preferredClientId) : [];
-
-  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
-    <div
-      onClick={onClick}
-      role="button"
-      aria-label={title}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        border: '1px solid rgba(var(--gold-rgb),0.25)',
-        borderRadius: 2,
-        padding: '16px',
-        cursor: 'pointer',
-        background: 'rgba(var(--gold-rgb),0.03)',
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          color: 'var(--gold)',
-        }}
-      >
-        {icon}
-      </div>
-      <div>
-        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
-      </div>
-    </div>
-  );
 
   const row = (key: string, title: string, subtitle: string | null, color: string, onClick: () => void) => (
     <div
@@ -12656,87 +12772,86 @@ function ContentLinkPickerSheet({
     <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', margin: '6px 0 0' }}>{text}</div>
   );
 
+  const createLinkText = (label: string, onClick: () => void) => (
+    <div
+      onClick={onClick}
+      role="button"
+      style={{ textAlign: 'center', padding: '10px 0 2px', color: COLORS.gold, fontSize: fs(13), letterSpacing: '0.5px', cursor: 'pointer' }}
+    >
+      + {label}
+    </div>
+  );
+
+  const createPrimaryButton = (label: string, onClick: () => void) => (
+    <div className="inka-submit" onClick={onClick} style={{ ...SUBMIT_STYLE, marginTop: 4, textAlign: 'center' }}>
+      {label}
+    </div>
+  );
+
   return (
-    <BottomSheet open={open} heightPct={step === 'choice' ? 40 : 58}>
+    <BottomSheet open={open} heightPct={62}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
-        {step !== 'choice' && (
-          <div className="inka-back" onClick={() => setStep('choice')} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginBottom: 8 }}>
-            <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
-              <path d="M11 4L6 9L11 14" stroke={COLORS.gold} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span style={{ fontSize: fs(13), color: COLORS.gold, fontStyle: 'italic' }}>назад</span>
-          </div>
-        )}
-        <div style={{ fontSize: fs(20), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
-          {step === 'choice' ? 'Куда сохранить контент?' : step === 'project' ? 'Выбрать проект' : 'Выбрать сессию'}
-        </div>
+        <div style={{ fontSize: fs(20), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Сохранить в…</div>
         <SheetStarDivider />
       </div>
 
-      {step === 'choice' && (
-        <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {choice(
-            'Выбрать проект',
-            'Существующий проект — мастера или клиента',
-            () => setStep('project'),
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-              <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            </svg>,
-          )}
-          {choice(
-            'Выбрать сессию',
-            'Сессия, уже привязанная к проекту',
-            () => setStep('session'),
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-              <rect x="3" y="4.5" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
-              <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.2" />
-            </svg>,
-          )}
-          {choice(
-            'Оставить без привязки',
-            'Можно привязать позже из карточки',
-            () => {
-              onPick(null);
-              onClose();
-            },
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-              <line x1="5" y1="10" x2="15" y2="10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>,
-          )}
-        </div>
-      )}
+      <div style={{ padding: '0 24px', display: 'flex', gap: 8 }} role="tablist" aria-label="Тип привязки">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={target === 'project'}
+          className={`content-link-tab${target === 'project' ? ' is-active' : ''}`}
+          onClick={() => onTargetChange('project')}
+        >
+          Проект
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={target === 'session'}
+          className={`content-link-tab${target === 'session' ? ' is-active' : ''}`}
+          onClick={() => onTargetChange('session')}
+        >
+          Сессия
+        </button>
+      </div>
 
-      {step === 'project' && (
-        <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '56vh', overflowY: 'auto' }}>
-          {projectOptions.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет проектов.</div>
+      <div style={{ padding: '12px 24px 8px', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '46vh', overflowY: 'auto' }}>
+        {target === 'project' ? (
+          projectOptions.length === 0 ? (
+            <>
+              <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет проектов.</div>
+              {createPrimaryButton('Создать проект', onCreateProject)}
+            </>
           ) : (
-            projectOptions.map((opt, i) => (
-              <Fragment key={opt.project.id}>
-                {i > 0 && projectOptions[i - 1].isPreferredClient && !opt.isPreferredClient && groupLabel('Все проекты')}
-                {row(
-                  opt.project.id,
-                  opt.project.title || 'Без названия',
-                  clientNameFor(clients, opt.project.clientId),
-                  opt.project.color,
-                  () => {
-                    onPick({ type: 'project', projectId: opt.project.id });
-                    onClose();
-                  },
-                )}
-              </Fragment>
-            ))
-          )}
-        </div>
-      )}
-
-      {step === 'session' && (
-        <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '56vh', overflowY: 'auto' }}>
-          {sessionOptions.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет сессий, привязанных к проекту.</div>
-          ) : (
-            sessionOptions.map((opt, i) => {
+            <>
+              {projectOptions.map((opt, i) => (
+                <Fragment key={opt.project.id}>
+                  {i > 0 && projectOptions[i - 1].isPreferredClient && !opt.isPreferredClient && groupLabel('Все проекты')}
+                  {row(
+                    opt.project.id,
+                    opt.project.title || 'Без названия',
+                    clientNameFor(clients, opt.project.clientId) ?? 'Мастерская',
+                    opt.project.color,
+                    () => {
+                      onPick({ type: 'project', projectId: opt.project.id });
+                      onClose();
+                    },
+                  )}
+                </Fragment>
+              ))}
+              {createLinkText('Создать проект', onCreateProject)}
+            </>
+          )
+        ) : sessionOptions.length === 0 ? (
+          <>
+            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет сессий.</div>
+            {createPrimaryButton('Создать сессию', onCreateSession)}
+          </>
+        ) : (
+          <>
+            {sessionOptions.map((opt, i) => {
               const dateLabel = ISO_DATE_RE.test(opt.session.date) ? formatDate(opt.session.date) : opt.session.date;
               const subtitle = [opt.project.title || 'Без названия', dateLabel].filter(Boolean).join(' · ');
               return (
@@ -12748,10 +12863,24 @@ function ContentLinkPickerSheet({
                   })}
                 </Fragment>
               );
-            })
-          )}
-        </div>
-      )}
+            })}
+            {createLinkText('Создать сессию', onCreateSession)}
+          </>
+        )}
+      </div>
+
+      <div style={{ padding: '4px 24px calc(20px + env(safe-area-inset-bottom))' }}>
+        <span
+          onClick={() => {
+            onPick(null);
+            onClose();
+          }}
+          role="button"
+          style={{ fontSize: fs(12), color: COLORS.textGhost, cursor: 'pointer', textDecoration: 'underline' }}
+        >
+          Оставить без привязки
+        </span>
+      </div>
     </BottomSheet>
   );
 }
