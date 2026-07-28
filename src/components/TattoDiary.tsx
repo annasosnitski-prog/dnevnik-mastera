@@ -83,6 +83,8 @@ import {
   type ResolvedContentEntryLink,
 } from '../lib/contentLink';
 import { getContentEntriesForProject, type ProjectContentItem } from '../lib/contentProject';
+import { ArchetypeToolbar } from './content/ArchetypeToolbar';
+import { ActionButton, ContentEntryActions } from './content/ContentEntryActions';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
@@ -11816,13 +11818,30 @@ function ContentINKAScreen({
   return (
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      {/* ── Шапка POSTiNKA ── */}
       <div style={{ padding: '6px 24px 12px' }}>
         <InkaLogo height={fs(15)} />
-        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>ContentINKA</div>
+        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>POSTiNKA</div>
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 2 }}>Собрать материал</div>
         <StarDivider />
       </div>
 
       <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* ── Верхний toolbar архетипов: основной текстовый архетип НОВОЙ генерации ── */}
+        <div>
+          <div className="content-archetype-label">
+            {composerTextArchetype ? `Голос текста · ${composerTextArchetype}` : 'Голос текста · Инка выберет сама'}
+          </div>
+          <ArchetypeToolbar
+            chips={ARCHETYPE_CHIPS}
+            value={composerTextArchetype || null}
+            disabled={sending}
+            allowClear
+            ariaLabel="Основной текстовый архетип новой публикации"
+            onSelect={setComposerTextArchetype}
+          />
+        </div>
+
         {/* ── Composer ── */}
         <GoldFrame plain style={{ padding: '16px 18px' }}>
           <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 10 }}>Новая запись</div>
@@ -11869,20 +11888,6 @@ function ContentINKAScreen({
 
           <SessionPhotos photos={composerPhotos} onChange={setComposerPhotos} allowDelete buttonFirst />
 
-          <label className="content-primary-archetype-field">
-            <span>Основной текстовый архетип</span>
-            <select
-              value={composerTextArchetype}
-              onChange={(event) => setComposerTextArchetype(event.target.value)}
-              style={INPUT_STYLE}
-            >
-              <option value="">Инка выберет сама</option>
-              {ARCHETYPE_CHIPS.map((preset) => (
-                <option key={preset.label} value={preset.label}>{preset.label}</option>
-              ))}
-            </select>
-          </label>
-
           <div
             className="inka-submit"
             onClick={sending ? undefined : handleGenerate}
@@ -11894,22 +11899,44 @@ function ContentINKAScreen({
         </GoldFrame>
 
         {/* ── Filter ── */}
-        <select
-          value={filterClientId}
-          onChange={(e) => {
-            setFocusedSource(null);
-            setFilterClientId(e.target.value);
-          }}
-          style={INPUT_STYLE}
-        >
-          <option value="all">Все записи</option>
-          <option value="studio">Мастерская</option>
+        <div className="content-filter-chips" role="group" aria-label="Фильтр записей">
+          <button
+            type="button"
+            className={`content-filter-chip${filterClientId === 'all' ? ' is-selected' : ''}`}
+            aria-pressed={filterClientId === 'all'}
+            onClick={() => {
+              setFocusedSource(null);
+              setFilterClientId('all');
+            }}
+          >
+            Все
+          </button>
+          <button
+            type="button"
+            className={`content-filter-chip${filterClientId === 'studio' ? ' is-selected' : ''}`}
+            aria-pressed={filterClientId === 'studio'}
+            onClick={() => {
+              setFocusedSource(null);
+              setFilterClientId('studio');
+            }}
+          >
+            Мастерская
+          </button>
           {clients.map((c) => (
-            <option key={c.id} value={c.id}>
+            <button
+              key={c.id}
+              type="button"
+              className={`content-filter-chip${filterClientId === c.id ? ' is-selected' : ''}`}
+              aria-pressed={filterClientId === c.id}
+              onClick={() => {
+                setFocusedSource(null);
+                setFilterClientId(c.id);
+              }}
+            >
               {`${c.name} ${c.surname}`.trim()}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
 
         {/* ── List ── */}
         <div ref={entriesListRef} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -11935,40 +11962,42 @@ function ContentINKAScreen({
               }
             >
             <GoldFrame plain style={{ padding: '14px 16px' }}>
-              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '0.5px', marginBottom: 8 }}>
-                {clientLabel(entry.clientId)}
-                {entry.format === 'story' ? ' · сторис' : ''}
+              <div className="content-card-header">
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '0.5px' }}>
+                  {clientLabel(entry.clientId)}
+                  {entry.format === 'story' ? ' · сторис' : ''}
+                </div>
+                <div className="content-approval-row">
+                  {entry.status === 'confirmed' ? (
+                    <>
+                      <span className="content-approved-status">Одобрено</span>
+                      <label className={`content-exemplar-toggle${entry.isExemplar ? ' is-active' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={entry.isExemplar}
+                          onChange={(event) => updateExemplar(entry, event.target.checked)}
+                        />
+                        <span>Эталон</span>
+                      </label>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="content-approve-action"
+                      disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
+                      onClick={() => approveEntry(entry)}
+                    >
+                      Одобрить текст
+                    </button>
+                  )}
+                </div>
+                <ContentLinkStatus
+                  entry={entry}
+                  projects={projects}
+                  clients={clients}
+                  onOpenPicker={() => setLinkPickerEntryId(entry.id)}
+                />
               </div>
-              <div className="content-approval-row">
-                {entry.status === 'confirmed' ? (
-                  <>
-                    <span className="content-approved-status">Одобрено</span>
-                    <label className={`content-exemplar-toggle${entry.isExemplar ? ' is-active' : ''}`}>
-                      <input
-                        type="checkbox"
-                        checked={entry.isExemplar}
-                        onChange={(event) => updateExemplar(entry, event.target.checked)}
-                      />
-                      <span>Эталон</span>
-                    </label>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="content-approve-action"
-                    disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
-                    onClick={() => approveEntry(entry)}
-                  >
-                    Одобрить текст
-                  </button>
-                )}
-              </div>
-              <ContentLinkStatus
-                entry={entry}
-                projects={projects}
-                clients={clients}
-                onOpenPicker={() => setLinkPickerEntryId(entry.id)}
-              />
               {hasUnsavedTextEdit(entry) && (
                 <div className="content-text-edit-guard">Сначала сохраните или отмените правки</div>
               )}
@@ -11994,9 +12023,6 @@ function ContentINKAScreen({
                     <span className={hasUnsavedTextEdit(entry) ? 'is-dirty' : ''}>
                       {hasUnsavedTextEdit(entry) ? 'Не сохранено' : 'Без изменений'}
                     </span>
-                    <span className={contentTextLength(textEditorsByEntry[entry.id].editedText.trim()) > MAX_CONTENT_TEXT_CHARACTERS ? 'is-over-limit' : ''}>
-                      {contentTextLength(textEditorsByEntry[entry.id].editedText.trim())} / {MAX_CONTENT_TEXT_CHARACTERS}
-                    </span>
                   </div>
                   {contentTextLength(textEditorsByEntry[entry.id].editedText.trim()) > MAX_CONTENT_TEXT_CHARACTERS && (
                     <div className="content-text-edit-feedback is-error" role="alert">
@@ -12009,29 +12035,24 @@ function ContentINKAScreen({
                     </div>
                   )}
                   <div className="content-text-editor__actions">
-                    <button
-                      type="button"
-                      className="content-text-save-action"
+                    <ActionButton
+                      icon="save"
+                      label="Сохранить"
+                      variant="primary"
                       disabled={
                         !textEditorsByEntry[entry.id].editedText.trim() ||
                         contentTextLength(textEditorsByEntry[entry.id].editedText.trim()) > MAX_CONTENT_TEXT_CHARACTERS
                       }
                       onClick={() => saveTextEdit(entry)}
-                    >
-                      Сохранить
-                    </button>
-                    <button type="button" className="content-text-cancel-action" onClick={() => cancelTextEdit(entry.id)}>
-                      Отмена
-                    </button>
+                    />
+                    <ActionButton icon="cancel" label="Отмена" onClick={() => cancelTextEdit(entry.id)} />
                   </div>
                 </div>
               ) : entry.textDraft ? (
                 <div className="content-text-output">
                   <div dir="auto" className="content-text-output__body">{entry.textDraft}</div>
                   {entry.status === 'draft' && (
-                    <button type="button" className="content-text-edit-action" onClick={() => startTextEdit(entry)}>
-                      Редактировать
-                    </button>
+                    <ActionButton icon="edit" label="Редактировать" onClick={() => startTextEdit(entry)} />
                   )}
                 </div>
               ) : null}
@@ -12097,32 +12118,19 @@ function ContentINKAScreen({
                   )}
                 </div>
               )}
-              <div className="content-archetype-label">Голос текста</div>
-              <div className="content-archetype-chips">
-                {ARCHETYPE_CHIPS.map((preset) => {
-                  const isRefreshing = refreshingEntryIds.has(entry.id);
-                  const isSelected = selectedArchetypeByEntry[entry.id] === preset.label;
-                  if (entry.status === 'confirmed') {
-                    return (
-                      <span key={preset.label} className="content-archetype-chip is-static">
-                        {preset.label}
-                      </span>
-                    );
-                  }
-                  return (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      className={`content-archetype-chip${isSelected ? ' is-selected' : ''}`}
-                      aria-pressed={isSelected}
-                      disabled={isRefreshing || hasUnsavedTextEdit(entry)}
-                      onClick={() => regenerate(entry, preset.instruction, preset.label)}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
+              <div className="content-archetype-label">
+                Голос текста — перегенерировать
               </div>
+              <ArchetypeToolbar
+                chips={ARCHETYPE_CHIPS}
+                value={selectedArchetypeByEntry[entry.id] ?? null}
+                disabled={entry.status === 'confirmed' || refreshingEntryIds.has(entry.id) || hasUnsavedTextEdit(entry)}
+                ariaLabel="Перегенерировать текст публикации"
+                onSelect={(label) => {
+                  const preset = ARCHETYPE_CHIPS.find((candidate) => candidate.label === label);
+                  if (preset) regenerate(entry, preset.instruction, preset.label);
+                }}
+              />
               {entry.status === 'draft' && (
                 <div className="content-refresh-row">
                   <button
@@ -12146,38 +12154,51 @@ function ContentINKAScreen({
                   )}
                 </div>
               )}
-              <div className="content-card-actions">
-                <button
-                  type="button"
-                  className={`content-copy-action${copyFeedbackByEntry[entry.id] ? ` is-${copyFeedbackByEntry[entry.id]}` : ''}`}
-                  aria-label="Копировать текст публикации"
-                  aria-live="polite"
-                  disabled={!entry.textDraft.trim()}
-                  onClick={() => copyContentDraft(entry)}
-                >
-                  {copyFeedbackByEntry[entry.id] === 'success'
-                    ? 'Скопировано'
-                    : copyFeedbackByEntry[entry.id] === 'error'
-                      ? 'Не удалось скопировать'
-                      : 'Копировать текст'}
-                </button>
-                <button
-                  type="button"
-                  className="content-translate-action"
-                  aria-expanded={translationMenuEntryIds.has(entry.id)}
-                  disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
-                  onClick={() => toggleTranslationMenu(entry.id)}
-                >
-                  Перевести
-                </button>
-                {hasUnsavedTextEdit(entry) && <span className="content-text-edit-guard">Сначала сохраните текст</span>}
-                <button type="button" className="content-share-action" onClick={() => openContentShareMenu(entry.id)}>
-                  Поделиться
-                </button>
-                <span onClick={() => deleteContentEntry(entry.id)} style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', cursor: 'pointer', textDecoration: 'underline' }}>
-                  Удалить
-                </span>
-              </div>
+              <ContentEntryActions
+                primary={
+                  <>
+                    <button
+                      type="button"
+                      className={`content-action-button content-copy-action${copyFeedbackByEntry[entry.id] ? ` is-${copyFeedbackByEntry[entry.id]}` : ''}`}
+                      aria-label="Копировать текст публикации"
+                      aria-live="polite"
+                      disabled={!entry.textDraft.trim()}
+                      onClick={() => copyContentDraft(entry)}
+                    >
+                      {copyFeedbackByEntry[entry.id] === 'success'
+                        ? 'Скопировано'
+                        : copyFeedbackByEntry[entry.id] === 'error'
+                          ? 'Не удалось скопировать'
+                          : 'Копировать текст'}
+                    </button>
+                    <button
+                      type="button"
+                      className="content-action-button content-translate-action"
+                      aria-expanded={translationMenuEntryIds.has(entry.id)}
+                      disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
+                      onClick={() => toggleTranslationMenu(entry.id)}
+                    >
+                      Перевести
+                    </button>
+                    {hasUnsavedTextEdit(entry) && <span className="content-text-edit-guard">Сначала сохраните текст</span>}
+                    <button
+                      type="button"
+                      className="content-action-button content-share-action"
+                      onClick={() => openContentShareMenu(entry.id)}
+                    >
+                      Поделиться
+                    </button>
+                  </>
+                }
+                danger={
+                  <ActionButton
+                    icon="delete"
+                    label="Удалить"
+                    variant="danger"
+                    onClick={() => deleteContentEntry(entry.id)}
+                  />
+                }
+              />
               {shareFeedbackByEntry[entry.id] && (
                 <div
                   className={`content-share-feedback is-${shareFeedbackByEntry[entry.id].kind}`}

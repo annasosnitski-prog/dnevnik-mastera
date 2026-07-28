@@ -243,7 +243,7 @@ test('renders an accessible disabled copy button and keeps copy errors local', (
   const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   const copyImplementation = source.slice(source.indexOf('const copyContentDraft ='), source.indexOf('const visibleEntries'));
 
-  assert.match(source, /type="button"\s+className=\{`content-copy-action/);
+  assert.match(source, /type="button"\s+className=\{`content-action-button content-copy-action/);
   assert.match(source, /aria-label="Копировать текст публикации"/);
   assert.match(source, /disabled=\{!entry\.textDraft\.trim\(\)\}/);
   assert.match(source, /Копировать текст/);
