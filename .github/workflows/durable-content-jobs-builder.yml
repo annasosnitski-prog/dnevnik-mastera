@@ -1,0 +1,20 @@
+name: Durable content jobs branch validation
+
+on:
+  push:
+    branches:
+      - feature/durable-content-jobs
+
+permissions:
+  contents: write
+
+jobs:
+  validate-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/durable-content-jobs
+      - run: node --version
+      - run: npm --version
+      - run: echo "durable jobs runner ready"
