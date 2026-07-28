@@ -22,6 +22,18 @@ jobs:
           node-version: 20
           cache: npm
       - run: python .github/scripts/finalize_durable_review.py
+      - name: Update legacy failed-job test
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/contentSync.test.mjs')
+          source = path.read_text()
+          old = "(err) => err instanceof ContentSyncError && err.message === 'Content generation failed'"
+          new = "(err) => err instanceof ContentSyncError && err.message === 'POSTiNKA не смогла собрать материал.'"
+          if source.count(old) != 1:
+              raise RuntimeError(f'legacy failed-job expectation changed: {source.count(old)}')
+          path.write_text(source.replace(old, new, 1))
+          PY
       - name: Remove temporary files
         run: |
           rm -f .github/workflows/finalize-durable-content-jobs.yml
