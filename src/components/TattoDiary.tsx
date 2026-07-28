@@ -1742,6 +1742,17 @@ export default function TattoDiary() {
   const [reopenContentLinkPicker, setReopenContentLinkPicker] = useState<
     { entryId: string; target: 'project' | 'session' } | null
   >(null);
+  // Цепочка «Сохранить в…» → «Создать проект/сессию» имеет смысл только
+  // пока мастер остаётся на экране контента. Уход с него (например, назад
+  // в список клиентов) обрывает цепочку — иначе зависший pendingContentLinkRef
+  // мог бы неожиданно «воскреснуть» и снова открыть sheet при отмене
+  // совершенно не связанного создания сессии/проекта где-то ещё в приложении.
+  useEffect(() => {
+    if (screen !== 'content') {
+      pendingContentLinkRef.current = null;
+      setReopenContentLinkPicker(null);
+    }
+  }, [screen]);
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -11538,6 +11549,16 @@ function ContentINKAScreen({
   // focusEntryId/onFocusEntryApplied выше.
   useEffect(() => {
     if (!reopenLinkPickerEntryId) return;
+    // Запись могла уже получить привязку (или устареть) другим путём, пока
+    // сигнал reopen долетал сюда — например, если этот сигнал пришёл от
+    // отмены совершенно другого, не связанного создания сессии/проекта,
+    // случившегося после того, как эта запись уже была привязана. В таком
+    // случае повторно дёргать sheet не нужно — просто гасим сигнал.
+    const entry = contentEntriesRef.current.find((candidate) => candidate.id === reopenLinkPickerEntryId);
+    if (!entry || isContentEntryLinked(entry)) {
+      onReopenLinkPickerApplied();
+      return;
+    }
     setLinkPickerTarget(reopenLinkPickerTarget ?? 'project');
     setLinkPickerEntryId(reopenLinkPickerEntryId);
     onReopenLinkPickerApplied();
