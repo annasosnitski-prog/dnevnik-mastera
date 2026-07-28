@@ -112,6 +112,19 @@ jobs:
             assert.match(source, /isEntryRefreshing\(entry\.id\)/);
           });""",
           )
+
+          translation = Path('tests/contentTranslation.test.mjs')
+          translation_source = translation.read_text()
+          replacements = {
+              'ContentINKA ответил ошибкой.': 'POSTiNKA ответила ошибкой.',
+              'Не удалось связаться с ContentINKA.': 'Не удалось связаться с POSTiNKA.',
+              'ContentINKA не настроен.': 'POSTiNKA не настроена.',
+          }
+          for old, new in replacements.items():
+              if translation_source.count(old) != 1:
+                  raise RuntimeError(f'translation expectation changed: {old}')
+              translation_source = translation_source.replace(old, new, 1)
+          translation.write_text(translation_source)
           PY
 
       - run: npm ci
