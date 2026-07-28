@@ -8,6 +8,7 @@ import {
   CONTENT_INGEST_JOB_STORE,
   TATTO_DIARY_DB_VERSION,
 } from '../.test-dist/src/lib/contentJobQueue.js';
+import { ContentSyncError, createContentIngestJob, getContentIngestJob } from '../.test-dist/src/lib/contentSync.js';
 
 const diary = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
 const sync = readFileSync(new URL('../src/lib/contentSync.ts', import.meta.url), 'utf8');
@@ -118,4 +119,50 @@ test('hidden documents pause polling and visible, focus, online wake it', () => 
   assert.match(queue, /addEventListener\('visibilitychange'/);
   assert.match(queue, /addEventListener\('focus'/);
   assert.match(queue, /addEventListener\('online'/);
+});
+
+
+test('provider response bodies and backend failure details never reach the UI error', async () => {
+  const settings = { enabled: true, endpoint: 'https://postinka.example', secret: 'secret' };
+  await assert.rejects(
+    createContentIngestJob(
+      {
+        sessionId: 'session-1',
+        sourceType: 'freeform',
+        session: { client: '', zone: '', style: '', description: 'note' },
+        media: [],
+      },
+      { readSettings: () => settings, fetch: async () => ({ status: 500, text: async () => 'provider content-secret' }) },
+    ),
+    (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA ответила ошибкой (500).' && !error.message.includes('content-secret'),
+  );
+  const failed = await getContentIngestJob('job-1', {
+    readSettings: () => settings,
+    fetch: async () => ({ status: 200, ok: true, json: async () => ({ job_id: 'job-1', status: 'failed', error: 'provider content-secret' }) }),
+  });
+  assert.deepEqual(failed, { status: 'failed', error: 'POSTiNKA не смогла собрать материал.' });
+});
+
+test('completed jobs reject malformed media and mismatched job ids', async () => {
+  const settings = { enabled: true, endpoint: 'https://postinka.example', secret: 'secret' };
+  await assert.rejects(
+    getContentIngestJob('job-1', {
+      readSettings: () => settings,
+      fetch: async () => ({ status: 200, ok: true, json: async () => ({ job_id: 'job-1', status: 'completed', result: { media: [{ id: 'photo-1' }], visual_archetype: null, text_triad: null, text_draft: 'Текст' } }) }),
+    }),
+    (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA вернула повреждённый результат.',
+  );
+  await assert.rejects(
+    getContentIngestJob('job-1', {
+      readSettings: () => settings,
+      fetch: async () => ({ status: 200, ok: true, json: async () => ({ job_id: 'job-other', status: 'running' }) }),
+    }),
+    (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA вернула неожиданный ответ.',
+  );
+});
+
+test('terminal create jobs stay retryable and failed refresh jobs are cleaned after confirmation', () => {
+  const queue = readFileSync(new URL('../src/lib/contentJobQueue.ts', import.meta.url), 'utf8');
+  assert.match(queue, /retryable: currentRecord\.operation === 'create'/);
+  assert.match(queue, /record\.state === 'failed'[\s\S]*record\.operation === 'refresh'[\s\S]*entry\.status !== 'draft'/);
 });

@@ -96,6 +96,18 @@ export function getContentIngestJobRecord(db: IDBDatabase, id: string): Promise<
   });
 }
 
+function getContentEntryState(
+  db: IDBDatabase,
+  id: string,
+): Promise<{ status?: unknown } | null> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CONTENT_ENTRY_STORE, 'readonly');
+    const request = tx.objectStore(CONTENT_ENTRY_STORE).get(id);
+    request.onsuccess = () => resolve((request.result as { status?: unknown } | undefined) ?? null);
+    request.onerror = () => reject(request.error ?? new Error('Failed to load content entry'));
+  });
+}
+
 export async function putContentIngestJob(db: IDBDatabase, record: ContentIngestJobRecord): Promise<void> {
   const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readwrite');
   tx.objectStore(CONTENT_INGEST_JOB_STORE).put(record);
@@ -218,9 +230,19 @@ export function startContentIngestJobCoordinator(options: ContentJobCoordinatorO
   };
 
   const processJob = async (record: ContentIngestJobRecord) => {
-    if (activeJobIds.has(record.id) || record.state === 'failed') return;
+    if (activeJobIds.has(record.id)) return;
     activeJobIds.add(record.id);
     try {
+      if (record.state === 'failed') {
+        if (record.operation === 'refresh') {
+          const entry = await getContentEntryState(options.db, record.entryId);
+          if (!entry || entry.status !== 'draft') {
+            await deleteContentIngestJob(options.db, record.id);
+            options.onChanged();
+          }
+        }
+        return;
+      }
       const status = await getContentIngestJob(record.jobId);
       // Cancellation or retry can happen while the GET is in flight. Re-read the
       // durable record before mutating anything so an old result cannot resurrect
@@ -259,7 +281,7 @@ export function startContentIngestJobCoordinator(options: ContentJobCoordinatorO
         state: 'failed',
         updatedAt: new Date().toISOString(),
         error: error instanceof Error ? error.message : 'Не удалось проверить задачу POSTiNKA.',
-        retryable: false,
+        retryable: currentRecord.operation === 'create',
       });
       options.onChanged();
     } finally {

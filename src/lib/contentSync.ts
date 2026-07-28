@@ -183,9 +183,23 @@ function settingsFor(environment: ContentIngestEnvironment): ContentSyncSettings
 function isIngestResult(value: unknown): value is IngestResult {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<IngestResult>;
-  return (
+  const validMedia =
     Array.isArray(candidate.media) &&
+    candidate.media.every((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const media = item as Partial<ContentDraftMedia>;
+      return (
+        typeof media.id === 'string' &&
+        media.id.trim().length > 0 &&
+        (media.technical_status === 'kept' ||
+          media.technical_status === 'background' ||
+          media.technical_status === 'rejected')
+      );
+    });
+  return (
+    validMedia &&
     typeof candidate.text_draft === 'string' &&
+    candidate.text_draft.trim().length > 0 &&
     (candidate.visual_archetype === null || typeof candidate.visual_archetype === 'string') &&
     (candidate.text_triad === null ||
       (!!candidate.text_triad &&
@@ -225,8 +239,7 @@ export async function createContentIngestJob(
   }
 
   if (response.status !== 202) {
-    const text = await response.text().catch(() => '');
-    throw new ContentSyncError(`POSTiNKA ответила ошибкой (${response.status}): ${text.slice(0, 200)}`);
+    throw new ContentSyncError(`POSTiNKA ответила ошибкой (${response.status}).`);
   }
 
   const data = await response.json().catch(() => null);
@@ -267,7 +280,7 @@ export async function getContentIngestJob(
   }
 
   const data = await response.json().catch(() => null);
-  if (!data || typeof data.job_id !== 'string' || typeof data.status !== 'string') {
+  if (!data || data.job_id !== jobId || typeof data.status !== 'string') {
     throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
   }
 
@@ -277,10 +290,7 @@ export async function getContentIngestJob(
     return { status: 'completed', result: data.result };
   }
   if (data.status === 'failed') {
-    return {
-      status: 'failed',
-      error: typeof data.error === 'string' && data.error ? data.error : 'POSTiNKA не смогла собрать материал.',
-    };
+    return { status: 'failed', error: 'POSTiNKA не смогла собрать материал.' };
   }
 
   throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');

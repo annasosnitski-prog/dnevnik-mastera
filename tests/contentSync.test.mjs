@@ -149,7 +149,7 @@ test('a "failed" job status gives a clear, human-readable error', async () => {
 
   await assert.rejects(
     sendToContent(baseParams, baseEnvironment({ fetch: fetchMock })),
-    (err) => err instanceof ContentSyncError && err.message === 'Content generation failed',
+    (err) => err instanceof ContentSyncError && err.message === 'POSTiNKA не смогла собрать материал.',
   );
 });
 
