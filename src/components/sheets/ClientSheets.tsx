@@ -8,12 +8,14 @@ import {
   SKIN_TYPES,
   INPUT_STYLE,
   SUBMIT_STYLE,
+} from '../TattoDiary';
+import {
   DeleteButton,
   SkinTonePalette,
   MarkerColorPalette,
   ClientTypeToggle,
   StyleChips,
-} from '../TattoDiary';
+} from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton } from '../ui/Sheet';
 import { FieldLabel, SheetStarDivider } from '../ui/TextAtoms';
 

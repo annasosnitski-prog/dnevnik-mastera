@@ -35,14 +35,16 @@ import {
   STYLES,
   STYLES_PINNED_COUNT,
   DONE_EMOJI,
-  SessionPhotos,
-  UrgencyChips,
-  ProjectCategoryChips,
   ViewField,
-  MarkerColorPalette,
   clientNameFor,
   type ContentEntry,
 } from '../TattoDiary';
+import {
+  SessionPhotos,
+  UrgencyChips,
+  ProjectCategoryChips,
+  MarkerColorPalette,
+} from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton, SheetSavedCheck } from '../ui/Sheet';
 import { FieldLabel, SheetStarDivider } from '../ui/TextAtoms';
 
