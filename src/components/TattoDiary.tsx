@@ -329,6 +329,13 @@ interface ContentEntry {
   // src/lib/contentLink.ts). null = осознанно оставлено без привязки;
   // undefined (старые записи) нормализуется в null тем же модулем.
   link?: ContentEntryLink | null;
+  // «Удалить» на уже привязанной (к проекту/сессии) записи не стирает её —
+  // запись остаётся в базе и продолжает показываться там, где привязана,
+  // только прячется из собственного списка черновиков ПОСТиНКИ (см.
+  // deleteContentEntry в ContentINKAScreen). Для непривязанных записей
+  // «Удалить» по-прежнему стирает их насовсем — прятать нечего, черновик
+  // больше нигде не появится.
+  removedFromWorkspace?: boolean;
 }
 
 // Turns a raw input (phone, @handle, domain or full URL) into an openable link.
@@ -11874,6 +11881,17 @@ function ContentINKAScreen({
         Object.entries(current).filter(([key]) => !CONTENT_TRANSLATION_OPTIONS.some((option) => key === contentTranslationKey(entryId, option.language))),
       ),
     );
+    // A linked entry is still shown inside its project/session — "Удалить"
+    // here should only take it out of POSTiNKA's own draft list, not erase
+    // the content the project already points at. Only truly unlinked drafts
+    // get hard-deleted (nothing else references them, nothing to keep).
+    const entry = contentEntriesRef.current.find((candidate) => candidate.id === entryId);
+    if (entry && isContentEntryLinked(entry)) {
+      const hidden: ContentEntry = { ...entry, removedFromWorkspace: true };
+      contentEntriesRef.current = contentEntriesRef.current.map((candidate) => (candidate.id === entryId ? hidden : candidate));
+      onSaveEntry(hidden);
+      return;
+    }
     contentEntriesRef.current = contentEntriesRef.current.filter((entry) => entry.id !== entryId);
     onDeleteEntry(entryId);
   };
@@ -12009,8 +12027,14 @@ function ContentINKAScreen({
     await shareContentEntry(currentEntry.id, currentEntry.photos, currentEntry.textDraft);
   };
 
+  // Linked entries "deleted" from POSTiNKA (see deleteContentEntry above)
+  // stay in the store but drop out of this workspace's own list — except
+  // the one explicitly being focused (opened from its linked project/
+  // session via focusEntryId below), which still needs to render so the
+  // scroll-into-view/highlight effect has something to find.
+  const workspaceEntries = contentEntries.filter((entry) => !entry.removedFromWorkspace || entry.id === focusEntryId);
   const visibleEntries = selectContentWorkspaceEntries({
-    entries: contentEntries,
+    entries: workspaceEntries,
     clientFilter: filterClientId,
     focusedSource,
   });
