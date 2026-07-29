@@ -2,6 +2,8 @@
 // только перенос.
 import type { BotBooking } from './calendarSync';
 
+export const OPEN_SLOT_MARK = '#5E8C4A';
+
 export function tagLabel(tag: BotBooking['tag']): string {
   switch (tag) {
     case '[ВИДЕО]':

@@ -7,7 +7,7 @@ import { type Consultation } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
 import { URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency';
 import { isValidISODate } from '../utils/dates';
-import { CLIENT_TYPES, CLIENT_LANGUAGES, type Client } from '../domain/client';
+import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, MARKER_COLORS, type Client } from '../domain/client';
 import {
   PROJECT_CATEGORIES,
   PROJECT_STAGES,
@@ -17,7 +17,6 @@ import {
   NEXT_ACTION_TYPES,
   type Project,
 } from '../domain/project';
-import { MARKER_COLORS, ACCENT_COLORS } from '../components/TattoDiary';
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.

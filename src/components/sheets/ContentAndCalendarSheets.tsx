@@ -21,7 +21,7 @@ import {
   type BotBooking,
 } from '../../lib/calendarSync';
 import { collectCalendarEvents, botSlotDayKey } from '../../lib/calendarEvents';
-import { tagLabel } from '../../lib/botBookingFormat';
+import { OPEN_SLOT_MARK, tagLabel } from '../../lib/botBookingFormat';
 import { ISO_DATE_RE, formatDate, todayISO } from '../../utils/dates';
 import {
   COLORS,
@@ -427,8 +427,8 @@ const MONTHS_RU_FULL = ['Январь', 'Февраль', 'Март', 'Апре�
 const CONSULT_MARK = '#B0413E';
 // Открытые (ещё не забронированные) WALKIN/ONLINE-слоты от бота — тот же
 // приглушённый шалфейный тон, что уже есть в палитре маркеров клиента.
-// Экспортирован — тот же цвет используется в BotBookingsList (TattoDiary.tsx).
-export const OPEN_SLOT_MARK = '#5E8C4A';
+// Экспортирован — тот же цвет используется в BotBookingsList (AdminDashboardScreen.tsx).
+export { OPEN_SLOT_MARK } from '../../lib/botBookingFormat';
 
 export function CalendarSheet({
   open,
