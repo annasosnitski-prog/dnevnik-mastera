@@ -99,12 +99,18 @@ import { getContentEntriesForProject, type ProjectContentItem } from '../lib/con
 import { upsertClientSession, upsertProjectSession, type SessionFormData } from '../lib/sessionSave';
 // Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
 // не менялась — только перенос.
-import { hexToRgba, isRTL, firstLetter, nameRest } from '../lib/textFormat';
+import { isRTL, firstLetter, nameRest } from '../lib/textFormat';
 import { buildChatLink } from '../lib/chatLink';
 import { healingReminderMessage, soonReminderMessage } from '../lib/reminderMessages';
 import { normalizeClientNote, normalizeClient, normalizeProject } from '../lib/normalize';
 import { tagLabel, stripTagPrefix, formatBookingTime } from '../lib/botBookingFormat';
 import { collectCalendarEvents, botSlotDayKey } from '../lib/calendarEvents';
+// UI-примитивы вынесены в отдельные модули (PR 4 рефакторинга). Логика и
+// разметка не менялись — только перенос.
+import { TopStripe, RightStripe, GemCorner, GoldFrame } from './ui/Stripes';
+import { StatBlock, SplitStatBlock } from './ui/StatBlocks';
+import { SheetStarDivider, FieldLabel, MetaLabel, MetaValue, SectionDivider, SectionHeader } from './ui/TextAtoms';
+import { BottomSheet, SheetCloseButton, SheetEditButton, SheetSavedCheck } from './ui/Sheet';
 import { ArchetypeToolbar } from './content/ArchetypeToolbar';
 import { ActionButton, ContentEntryActions } from './content/ContentEntryActions';
 // Иконки и мини-игры вынесены в отдельные модули (PR 2 рефакторинга).
@@ -1155,34 +1161,6 @@ function FunWinSalute({ trigger }: { trigger: number }) {
   return <div ref={containerRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 210, overflow: 'hidden' }} />;
 }
 
-function SheetStarDivider() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.5), transparent)' }} />
-      <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-        <path d="M4.5 0.5L5.2 3.5H8.5L5.9 5.2L6.6 8.5L4.5 6.8L2.4 8.5L3.1 5.2L0.5 3.5H3.8Z" fill="currentColor" fillOpacity="0.3" />
-      </svg>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.5), transparent)' }} />
-    </div>
-  );
-}
-
-// Form field label — 8.5px uppercase, wide tracking.
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: fs(11),
-        color: COLORS.textGhost,
-        letterSpacing: '2.5px',
-        textTransform: 'uppercase',
-        marginBottom: 7,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%',
@@ -3730,186 +3708,6 @@ function TrialGate({
   );
 }
 
-// ===================== CLIENT MARKER (stripe + gem corner) =====================
-// Gilded foil stripes with a bright sheen in the middle. The top stripe runs
-// along the top edge (tapered to a nib on the left); the right stripe runs down
-// the card's right edge (tapered to a nib at the bottom). They meet over the gem
-// corner. Clip-path tapers live in index.css. Used in both themes.
-export function TopStripe({ color }: { color: string }) {
-  return (
-    <div
-      className="inka-stripe"
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 2,
-        zIndex: 6, // above the gem corner so it tucks under the stripe
-        pointerEvents: 'none',
-        background: `linear-gradient(90deg, ${color} 0%, #f6e8c4 48%, ${color} 100%)`,
-        boxShadow: `0 1px 2px ${hexToRgba(color, 0.4)}`,
-      }}
-    />
-  );
-}
-
-// Vertical stripe dropping down the card's right edge from the top-right corner,
-// tapered to a point at the bottom (nib), over the gem corner.
-export function RightStripe({ color }: { color: string }) {
-  return (
-    <div
-      className="inka-stripe-right"
-      style={{
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        right: 0,
-        width: 2,
-        zIndex: 6,
-        pointerEvents: 'none',
-        background: `linear-gradient(180deg, ${color} 0%, #f6e8c4 48%, ${color} 100%)`,
-        boxShadow: `-1px 0 2px ${hexToRgba(color, 0.4)}`,
-      }}
-    />
-  );
-}
-
-// Coloured-glass "gem" corner: a small translucent bevelled triangle with
-// gradient depth (глубина) and a soft colour reflection spilling onto the card
-// surface (цветной отсвет). Tucked under the top stripe; no specular glint.
-export function GemCorner({ color, size = 19 }: { color: string; size?: number }) {
-  return (
-    <>
-      {/* colour reflection cast onto the surface */}
-      <div
-        style={{
-          position: 'absolute',
-          top: -6,
-          right: -6,
-          width: size + 20,
-          height: size + 20,
-          background: `radial-gradient(circle at top right, ${hexToRgba(color, 0.45)}, transparent 66%)`,
-          filter: 'blur(5px)',
-          zIndex: 2,
-          pointerEvents: 'none',
-        }}
-      />
-      {/* glass body */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          width: size,
-          height: size,
-          clipPath: 'polygon(100% 0, 0 0, 100% 100%)',
-          background: `linear-gradient(215deg, ${color} 0%, ${hexToRgba(color, 0.6)} 52%, ${hexToRgba(color, 0.12)} 100%)`,
-          boxShadow: `inset 2px -2px 3px ${hexToRgba(color, 0.5)}`,
-          zIndex: 3,
-          pointerEvents: 'none',
-        }}
-      />
-    </>
-  );
-}
-
-// Gold versions of the client card's foil stripes + gem corner — same recipe
-// (gradient stripe with a bright sheen, glass corner with a soft reflection),
-// just always gold instead of the per-client marker colour, and mirrored to
-// the bottom-left (rather than the client card's top-right) so Админка's
-// frames read as their own thing. Used to frame boxes on the master
-// dashboard so they read as one family with the cards.
-function GoldBottomStripe() {
-  return (
-    <div
-      className="inka-stripe"
-      style={{
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 2,
-        zIndex: 6,
-        pointerEvents: 'none',
-        background: 'linear-gradient(90deg, var(--gold) 0%, #f6e8c4 48%, var(--gold) 100%)',
-        boxShadow: '0 -1px 2px rgba(var(--gold-rgb),0.4)',
-      }}
-    />
-  );
-}
-function GoldLeftStripe() {
-  return (
-    <div
-      className="inka-stripe-right"
-      style={{
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        left: 0,
-        width: 2,
-        zIndex: 6,
-        pointerEvents: 'none',
-        background: 'linear-gradient(180deg, var(--gold) 0%, #f6e8c4 48%, var(--gold) 100%)',
-        boxShadow: '1px 0 2px rgba(var(--gold-rgb),0.4)',
-      }}
-    />
-  );
-}
-function GoldGemCorner({ size = 16 }: { size?: number }) {
-  return (
-    <>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: -6,
-          left: -6,
-          width: size + 20,
-          height: size + 20,
-          background: 'radial-gradient(circle at bottom left, rgba(var(--gold-rgb),0.45), transparent 66%)',
-          filter: 'blur(5px)',
-          zIndex: 2,
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          width: size,
-          height: size,
-          clipPath: 'polygon(0 100%, 100% 100%, 0 0)',
-          background: 'linear-gradient(35deg, var(--gold) 0%, rgba(var(--gold-rgb),0.6) 52%, rgba(var(--gold-rgb),0.12) 100%)',
-          boxShadow: 'inset -2px 2px 3px rgba(var(--gold-rgb),0.5)',
-          zIndex: 3,
-          pointerEvents: 'none',
-        }}
-      />
-    </>
-  );
-}
-// Gold reads through the theme's --gold-rgb custom property (so it tracks
-// light/dark theme changes); any other accent is a literal hex, tinted via
-// hexToRgba instead. Shared by GemCornerBL/BR below.
-// Wraps a box in the same stripe+gem-corner+inset-ring frame as a client
-// card, all gold. Used throughout the master dashboard — pass `plain` to
-// keep just the card surface, no stripes/corner (the Мастер tab's own cards
-// go plain; Админка keeps the full frame).
-function GoldFrame({ children, style, plain = false }: { children: React.ReactNode; style?: React.CSSProperties; plain?: boolean }) {
-  return (
-    <div className="inka-static" style={{ position: 'relative', borderRadius: 3, overflow: 'hidden', background: 'rgba(var(--surface-rgb),0.018)', ...(plain ? { boxShadow: 'var(--card-rest-shadow)' } : {}), ...style }}>
-      {!plain && (
-        <>
-          <GoldBottomStripe />
-          <GoldLeftStripe />
-          <GoldGemCorner />
-        </>
-      )}
-      <div style={{ position: 'relative', zIndex: 2 }}>{children}</div>
-    </div>
-  );
-}
 
 // ===================== CLIENT GRID CARD =====================
 function ClientGridCard({ client, onClick }: { client: Client; onClick: () => void }) {
@@ -4463,72 +4261,6 @@ function WorkshopScreen({
   );
 }
 
-// A single "ability score" style tile for the master dashboard's stat grid —
-// bracketed corners and a big centered number, like a tabletop character
-// sheet's stat block, but in the app's own gold/dark palette.
-function StatBlock({ label, value, big = true, plain = false }: { label: string; value: string | number; big?: boolean; plain?: boolean }) {
-  return (
-    <GoldFrame plain={plain} style={{ textAlign: 'center', padding: '18px 10px 16px' }}>
-      <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
-      <div
-        style={{
-          fontFamily: DROP_CAP_FONT,
-          fontSize: big ? fs(30) : fs(16),
-          fontWeight: 600,
-          lineHeight: 1.15,
-          color: COLORS.gold,
-          fontStyle: !big && value === 'Пока нет данных' ? 'italic' : 'normal',
-        }}
-      >
-        {value}
-      </div>
-    </GoldFrame>
-  );
-}
-
-// One stat tile split in half, sharing a single frame — used to fit two
-// related counters (e.g. Срочно/Важно, or a period count stacked over an
-// all-time count) into the space of one grid cell.
-function SplitStatBlock({
-  direction = 'row',
-  a,
-  b,
-}: {
-  direction?: 'row' | 'column';
-  a: { label: string; value: string | number; onClick?: () => void };
-  b: { label: string; value: string | number; onClick?: () => void };
-}) {
-  const cell = (item: { label: string; value: string | number; onClick?: () => void }) => (
-    <div
-      onClick={item.onClick}
-      role={item.onClick ? 'button' : undefined}
-      aria-label={item.onClick ? item.label : undefined}
-      style={{ flex: 1, textAlign: 'center', cursor: item.onClick ? 'pointer' : undefined }}
-    >
-      <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
-        {item.label}
-      </div>
-      <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{item.value}</div>
-    </div>
-  );
-
-  return (
-    <GoldFrame style={{ padding: direction === 'row' ? '16px 10px' : '13px 10px' }}>
-      <div style={{ display: 'flex', flexDirection: direction, alignItems: 'center', gap: direction === 'row' ? 8 : 10 }}>
-        {cell(a)}
-        <div
-          style={{
-            background: 'rgba(var(--gold-rgb),0.15)',
-            width: direction === 'row' ? 1 : '100%',
-            height: direction === 'row' ? 34 : 1,
-            flexShrink: 0,
-          }}
-        />
-        {cell(b)}
-      </div>
-    </GoldFrame>
-  );
-}
 
 // Copies text to the clipboard, showing a brief «Скопировано» confirmation —
 // shared by every healing-reminder card (Задачи + Мастер both render one).
@@ -8192,46 +7924,6 @@ function DeleteButton({
   );
 }
 
-function MetaLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
-      {children}
-    </div>
-  );
-}
-function MetaValue({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: fs(15), color: COLORS.textPrimary, fontWeight: 300 }}>{children}</div>;
-}
-
-// ── Skin (type + notes) ──
-function SectionDivider() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, clear: 'both' }}>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.28), transparent)' }} />
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-        <path d="M5 1L5.8 4H9L6.5 5.8L7.3 9L5 7.2L2.7 9L3.5 5.8L1 4H4.2Z" fill="currentColor" fillOpacity="0.28" />
-      </svg>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.28), transparent)' }} />
-    </div>
-  );
-}
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontFamily: "'Kelly Slab', 'Playfair Display', serif",
-        fontSize: fs(11),
-        color: COLORS.textGhost,
-        letterSpacing: '3.5px',
-        textTransform: 'uppercase',
-        marginBottom: 12,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
 
 // ── Reusable pickers (skin tone / marker colour / styles) ──
 function SkinTonePalette({ value, onPick }: { value: string; onPick: (hex: string) => void }) {
@@ -11877,116 +11569,6 @@ function TimelineViewSheet({
   );
 }
 
-function BottomSheet({
-  open,
-  heightPct,
-  children,
-}: {
-  open: boolean;
-  heightPct: number;
-  children: React.ReactNode;
-}) {
-  // Same sheet DOM node is reused across opens (e.g. add-session then
-  // edit-session), so its scroll position otherwise carries over — reset to
-  // top each time it opens.
-  const scrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (open) scrollRef.current?.scrollTo(0, 0);
-  }, [open]);
-
-  // Portaled straight to <body> — same escape hatch already used by the
-  // content photo viewer/share sheet (see createPortal usages above). Sheets
-  // are opened from buttons that can sit anywhere inside a screen's own
-  // scrollable content (e.g. a "Привязать" link far down a long list); a
-  // sheet positioned as a normal DOM descendant of that scrollable ancestor
-  // is placed relative to the ancestor's scrolled CONTENT, not the visible
-  // viewport, so opening it while scrolled down could put it far above or
-  // below what's actually on screen. position:fixed anchored at the real
-  // document root sidesteps that entirely.
-  return createPortal(
-    <div
-      ref={scrollRef}
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: `${heightPct}%`,
-        background: COLORS.sheet,
-        borderRadius: '20px 20px 0 0',
-        border: '1px solid rgba(var(--gold-rgb),0.18)',
-        borderBottom: 'none',
-        zIndex: 950,
-        overflowY: 'auto',
-        // Closed state must be reliably invisible AND must not enlarge this
-        // screen's own scrollable area. A translateY(105%) alone only buys
-        // ~5% of the sheet's own height as clearance (a few dozen px on a
-        // full-height screen) — thin enough for ordinary desktop
-        // browser-chrome/viewport-height differences to leave it peeking up
-        // from the bottom of the page. Pushing it further via transform
-        // (e.g. +100vh) "fixes" that but backfires badly: transform still
-        // contributes to the ancestor's scrollable overflow, and every
-        // closed BottomSheet across the whole app (there are dozens mounted
-        // at once) would each add a full extra viewport's worth of
-        // scrollable height, bloating the screen's scroll area and causing
-        // real jank. visibility:hidden is what actually guarantees nothing
-        // is painted or clickable while closed, independent of the exact
-        // transform distance — the delayed transition below keeps it
-        // visible for the full slide-down close animation, then hides it.
-        transform: open ? 'translateY(0)' : 'translateY(105%)',
-        visibility: open ? 'visible' : 'hidden',
-        transition: open
-          ? 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94), visibility 0s'
-          : 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94), visibility 0s linear 0.42s',
-        pointerEvents: open ? 'auto' : 'none',
-      }}
-    >
-      <div style={{ width: 36, height: 3, background: 'rgba(var(--gold-rgb),0.2)', borderRadius: 2, margin: '14px auto 0' }} />
-      {children}
-    </div>,
-    document.body,
-  );
-}
-
-function SheetCloseButton({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="inka-close" onClick={onClose} style={{ position: 'absolute', top: 18, right: 24, cursor: 'pointer', opacity: 0.4 }}>
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-}
-
-// Тот же карандаш, что и «править» в шапке карточки клиента (см.
-// DetailScreen) — единый визуальный язык для «редактировать» по всему
-// приложению, вместо разнобоя из текстовых кнопок. Сидит слева от крестика
-// закрытия, в том же верхнем правом углу read-only просмотров (Timeline/
-// ProjectViewSheet), а не отдельной кнопкой внизу листа.
-function SheetEditButton({ onClick }: { onClick: () => void }) {
-  return (
-    <div className="inka-back" onClick={onClick} style={{ position: 'absolute', top: 17, right: 52, cursor: 'pointer', color: COLORS.gold, opacity: 0.85 }}>
-      <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-        <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
-}
-
-// Sits in the same top-right corner as SheetCloseButton, same size — swapped
-// in briefly after saving an edit (Session/Consultation) so the confirmation
-// reads as "the close button turned into a checkmark" rather than an
-// unrelated toast appearing elsewhere on the sheet.
-function SheetSavedCheck() {
-  return (
-    <div style={{ position: 'absolute', top: 18, right: 24 }}>
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M2.5 8.3L6 11.8L13.5 4.3" stroke="#5E8C4A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
-}
 
 // Компактная строка связи в карточке — название проекта, либо название/дату
 // сессии, либо «Не привязан»/«Связь не найдена». Вся логика вычисления — в
