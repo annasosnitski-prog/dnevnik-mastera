@@ -149,6 +149,16 @@ function CoverNoteEditor({ client, onSave }: { client: Client; onSave: (c: Clien
 }
 
 // ===================== DETAIL SCREEN =====================
+const CLIENT_TAB_GEM_SIZE = 54;
+const CLIENT_TAB_GEM_INDEX = {
+  sessions: 0,
+  consultations: 1,
+  content: 2,
+  notes: 3,
+  info: 4,
+} as const;
+type ClientTabGem = keyof typeof CLIENT_TAB_GEM_INDEX;
+
 export function DetailScreen({
   client,
   activeTab,
@@ -222,16 +232,18 @@ export function DetailScreen({
     transition: 'border-color 0.25s',
   });
 
-  const gemMarker = (kind: 'sessions' | 'consultations' | 'content' | 'notes' | 'info', tab: typeof activeTab) => (
-    <img
-      src={`/gem-icons.svg#${kind}`}
-      alt=""
+  const gemMarker = (kind: ClientTabGem, tab: typeof activeTab) => (
+    <span
       aria-hidden="true"
-      width={54}
-      height={54}
       style={{
         display: 'block',
+        width: CLIENT_TAB_GEM_SIZE,
+        height: CLIENT_TAB_GEM_SIZE,
         flexShrink: 0,
+        backgroundImage: 'url(/gem-icons.svg)',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: `${CLIENT_TAB_GEM_SIZE * 5}px ${CLIENT_TAB_GEM_SIZE}px`,
+        backgroundPosition: `${-CLIENT_TAB_GEM_INDEX[kind] * CLIENT_TAB_GEM_SIZE}px 0`,
         opacity: activeTab === tab ? 1 : 0.62,
         filter: activeTab === tab ? 'none' : 'saturate(0.72) brightness(0.82)',
         transition: 'opacity 0.25s, filter 0.25s',
