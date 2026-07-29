@@ -40,17 +40,19 @@ function JewelrySettingsGearIcon(
   );
 }
 
-// A classic door key for «Личный кабинет»: circular bow, long shaft and
-// two teeth. Kept diagonal so it stays readable at the small fan-button size.
-function JewelryKeyIcon(
+// An open-end wrench on the diagonal — reads as "tools/setup" at a glance,
+// distinct from the settings-gear now living inside the Мастер screen itself.
+// The source artwork traced this as two nested contours (an outer + an
+// inset copy, opposite winding) — the classic "stroke converted to a fill"
+// setup — which renders as a hollow outline when both are kept. Only the
+// outer contour is kept here, filled solid, so it reads as a silhouette
+// like the icons above rather than a hairline outline.
+function JewelryMasterIcon(
   props: SVGProps<SVGSVGElement>,
 ) {
   return (
-    <svg viewBox="0 0 32 32" {...sharedProps} {...props}>
-      <circle cx="9.5" cy="9.5" r="5.25" strokeWidth="2" />
-      <circle cx="9.5" cy="9.5" r="1.35" fill="currentColor" stroke="none" />
-      <path d="M13.2 13.2 27 27" strokeWidth="2.6" />
-      <path d="m20.2 20.2 3-3M23.4 23.4l3-3" strokeWidth="2.2" />
+    <svg viewBox="0 0 329.497 329.497" fill="currentColor" stroke="none" {...props}>
+      <path d="M77.713,328.151c-9.955,0-19.718-1.896-29.024-5.649l-9.01-3.638l42.301-42.301c3.946-3.94,6.118-9.19,6.118-14.762 c0-5.585-2.172-10.823-6.118-14.775c-7.899-7.899-21.646-7.899-29.544,0L9.897,289.577l-3.728-8.76 C2.076,271.19,0,260.984,0,250.45c0-42.854,34.866-77.713,77.713-77.713c9.158,0,18.092,1.581,26.626,4.704l73.774-73.78 c-2.68-7.982-4.036-16.241-4.036-24.608c0-42.848,34.866-77.707,77.713-77.707c10.257,0,20.245,1.986,29.692,5.9l8.888,3.683 l-42.854,42.848c-3.946,3.946-6.118,9.197-6.118,14.775s2.172,10.829,6.118,14.775c7.899,7.886,21.658,7.886,29.544,0 l42.848-42.848l3.683,8.882c3.914,9.46,5.906,19.448,5.906,29.692c0,42.848-34.859,77.707-77.707,77.707 c-9.158,0-18.092-1.581-26.633-4.704l-73.78,73.78c2.686,7.982,4.042,16.241,4.042,24.615 C155.42,293.292,120.561,328.151,77.713,328.151z" />
     </svg>
   );
 }
@@ -89,48 +91,59 @@ function JewelrySketchbookIcon(
   );
 }
 
-// One person for «Клиенты» — a single clear client rather than the former
-// overlapping pair.
-function JewelryPersonIcon(
+// The person silhouette reads as filled (head + shoulders solid in the
+// stroke's own colour) rather than an outline, unlike the other icons here.
+function JewelryProfileIcon(
+  props: SVGProps<SVGSVGElement>,
+) {
+  return (
+    <svg viewBox="0 0 32 32" {...sharedProps} {...props}>
+      <circle
+        cx="16"
+        cy="12"
+        r="4.25"
+        strokeWidth="1.55"
+        fill="currentColor"
+      />
+      <path
+        strokeWidth="1.55"
+        fill="currentColor"
+        d="M7.5 27c.6-5 3.6-7.5 8.5-7.5s7.9 2.5 8.5 7.5"
+      />
+    </svg>
+  );
+}
+
+// Two of the same silhouette used for «Профиль» above, scaled down and
+// overlapping — reusing that shape (rather than drawing a new one) keeps the
+// pair visually consistent with the single-person icon it's distinct from.
+function JewelryClientsIcon(
   props: SVGProps<SVGSVGElement>,
 ) {
   return (
     <svg viewBox="0 0 32 32" fill="currentColor" stroke="none" {...props}>
-      <circle cx="16" cy="10.5" r="4.5" />
-      <path d="M6.8 27c.55-6.05 3.75-9.1 9.2-9.1s8.65 3.05 9.2 9.1H6.8Z" />
+      <g transform="translate(-0.85,4.4) scale(0.68)">
+        <circle cx="16" cy="12" r="4.25" />
+        <path d="M7.5 27c.6-5 3.6-7.5 8.5-7.5s7.9 2.5 8.5 7.5" />
+      </g>
+      <g transform="translate(8.65,2.4) scale(0.78)">
+        <circle cx="16" cy="12" r="4.25" />
+        <path d="M7.5 27c.6-5 3.6-7.5 8.5-7.5s7.9 2.5 8.5 7.5" />
+      </g>
     </svg>
   );
 }
 
-// Coil tattoo machine for «Админка»: top frame, two coils, armature,
-// grip and needle stay distinct even when the icon is reduced to 40px.
-function JewelryTattooMachineIcon(
+// A paintbrush leaning on the diagonal, tip resting in its own paint pool —
+// filled solid like the gear/sketchbook icons above, for «Мастерская» (the
+// standalone sketch/idea board, separate from any client).
+function JewelryBrushIcon(
   props: SVGProps<SVGSVGElement>,
 ) {
   return (
-    <svg viewBox="0 0 32 32" {...sharedProps} {...props}>
-      <path d="M5.5 6.5h16.8l3.2 4.1-4.2 3.1" strokeWidth="1.8" />
-      <path d="M6.5 8.7h14.8" strokeWidth="1.8" />
-      <rect x="7.5" y="10.2" width="5.4" height="7.2" rx="1.1" strokeWidth="1.6" />
-      <rect x="14.7" y="10.2" width="5.4" height="7.2" rx="1.1" strokeWidth="1.6" />
-      <path d="m10.1 17.7 7.2 4.1 3.8-6.4" strokeWidth="1.9" />
-      <path d="m17.3 21.8 5.8 3.3M23.1 25.1l-3.6 6.1" strokeWidth="2.2" />
-      <path d="m20.1 26.8 4.1 2.4" strokeWidth="1.3" />
-    </svg>
-  );
-}
-
-// The Projects destination uses the atom sign as a native SVG rather than an
-// emoji, so its line weight and gold colour stay consistent with the set.
-function JewelryAtomIcon(
-  props: SVGProps<SVGSVGElement>,
-) {
-  return (
-    <svg viewBox="0 0 32 32" {...sharedProps} {...props}>
-      <ellipse cx="16" cy="16" rx="12" ry="4.8" strokeWidth="1.5" />
-      <ellipse cx="16" cy="16" rx="12" ry="4.8" strokeWidth="1.5" transform="rotate(60 16 16)" />
-      <ellipse cx="16" cy="16" rx="12" ry="4.8" strokeWidth="1.5" transform="rotate(120 16 16)" />
-      <circle cx="16" cy="16" r="2.2" fill="currentColor" stroke="none" />
+    <svg viewBox="0 0 30 30" fill="currentColor" stroke="none" {...props}>
+      <path d="M4.5 22c-1.614 0-2.597.884-3.04 1.867C1.013 24.85 1 25.915 1 26.5c0 .497-.114 1.14-.285 1.664-.113.418-.305.796-.463.902-.445.256-.263.935.25.934H4c1.415 0 2.457-.728 3.09-1.568.632-.84.91-1.76.91-2.432 0-.525-.01-1.48-.467-2.36C7.076 22.756 6.093 22 4.5 22z" />
+      <path d="M29.424.002c-.102-.006-.182.006-.263.02-.162.033-.33.09-.533.167-.404.155-.93.4-1.566.732-1.272.66-2.983 1.658-4.91 2.902-3.857 2.49-8.574 5.962-12.305 9.694-1.31 1.31-1.857 2.706-1.845 3.972.012 1.267.57 2.378 1.35 3.16.783.783 1.883 1.338 3.15 1.35 1.267.012 2.673-.533 3.983-1.844 3.732-3.73 7.204-8.448 9.693-12.304 1.245-1.928 2.24-3.64 2.903-4.913.33-.637.576-1.163.73-1.567.08-.202.135-.37.167-.533.016-.082.027-.162.02-.264-.004-.102-.022-.254-.17-.402-.15-.15-.3-.166-.403-.172z" />
     </svg>
   );
 }
@@ -171,15 +184,15 @@ export function ToolbarIcon({
     case "sketchbook":
       return <JewelrySketchbookIcon {...iconProps} />;
     case "profile":
-      return <JewelryTattooMachineIcon {...iconProps} />;
+      return <JewelryProfileIcon {...iconProps} />;
     case "gear":
-      return <JewelryKeyIcon {...iconProps} />;
+      return <JewelryMasterIcon {...iconProps} />;
     case "settingsGear":
       return <JewelrySettingsGearIcon {...iconProps} />;
     case "clients":
-      return <JewelryPersonIcon {...iconProps} />;
+      return <JewelryClientsIcon {...iconProps} />;
     case "brush":
-      return <JewelryAtomIcon {...iconProps} />;
+      return <JewelryBrushIcon {...iconProps} />;
     case "content":
       return <JewelryContentIcon {...iconProps} />;
   }
