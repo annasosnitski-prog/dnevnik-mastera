@@ -2,15 +2,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+function readSource(path) {
+  return readFileSync(new URL(path, import.meta.url), 'utf8').replace(/\r\n?/g, '\n');
+}
+
+const source = readSource('../src/components/TattoDiary.tsx');
 // NewSessionSheet/ProjectSessionPickerSheet/NewConsultationSheet/ProjectViewSheet/
 // NewProjectSheet вынесены в отдельный модуль (PR 6 рефакторинга) — их function
 // definitions читаются оттуда; JSX usage (<ProjectSessionPickerSheet ...>) и
 // корневые обработчики остаются в TattoDiary.tsx.
-const sheetsSource = readFileSync(new URL('../src/components/sheets/SessionAndProjectSheets.tsx', import.meta.url), 'utf8');
+const sheetsSource = readSource('../src/components/sheets/SessionAndProjectSheets.tsx');
 // ContentLinkPickerSheet/CalendarSheet вынесены в отдельный модуль тоже (PR 7
 // рефакторинга) — их definitions читаются из него же.
-const contentCalendarSource = readFileSync(new URL('../src/components/sheets/ContentAndCalendarSheets.tsx', import.meta.url), 'utf8');
+const contentCalendarSource = readSource('../src/components/sheets/ContentAndCalendarSheets.tsx');
 const sheet = contentCalendarSource.slice(contentCalendarSource.indexOf('export function ContentLinkPickerSheet('), contentCalendarSource.indexOf('// ===================== CALENDAR SHEET ====================='));
 const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
 const handleAddProject = source.slice(source.indexOf('const handleAddProject = (data'), source.indexOf('const handleAddProjectSession ='));
