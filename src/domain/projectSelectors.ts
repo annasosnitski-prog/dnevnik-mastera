@@ -28,6 +28,12 @@ export function getWorkshopProjects(projects: Project[]): Project[] {
   return projects.filter((p) => p.clientId === null);
 }
 
+export function clientNameFor(clients: Client[], clientId: string | null): string | null {
+  if (!clientId) return null;
+  const c = clients.find((x) => x.id === clientId);
+  return c ? `${c.name} ${c.surname}`.trim() : null;
+}
+
 // Сессии, привязанные к проекту (link-подход: сессия физически лежит у
 // клиента, связь — через projectId).
 export function getSessionsByProjectId(sessions: Session[], projectId: string): Session[] {
