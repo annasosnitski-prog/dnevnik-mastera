@@ -5,7 +5,8 @@
 // проекта. Папки не хранятся и не являются доменной сущностью.
 import type { ProjectFolder } from '../../domain/projectSelectors';
 import { DROP_CAP_FONT } from '../InkaLogo';
-import { COLORS, fs, isRTL, firstLetter, nameRest, TopStripe, RightStripe, GemCorner } from '../TattoDiary';
+import { COLORS, fs, TopStripe, RightStripe, GemCorner } from '../TattoDiary';
+import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
 
 export function ProjectFolderCard({ folder, accentColor, onClick }: { folder: ProjectFolder; accentColor: string; onClick: () => void }) {
   return (

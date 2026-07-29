@@ -26,6 +26,7 @@
     "src/domain/session.ts",
     "src/domain/consultation.ts",
     "src/domain/task.ts",
-    "src/domain/urgency.ts"
+    "src/domain/urgency.ts",
+    "src/utils/dates.ts"
   ]
 }
