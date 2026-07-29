@@ -48,34 +48,34 @@
     </filter>
 
     <linearGradient id="light-strong" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".78"/>
-      <stop offset=".52" stop-color="#FFFFFF" stop-opacity=".42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".12"/>
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".94"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".68"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".22"/>
     </linearGradient>
     <linearGradient id="light-medium" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".52"/>
-      <stop offset=".6" stop-color="#FFFFFF" stop-opacity=".2"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".04"/>
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".7"/>
+      <stop offset=".56" stop-color="#FFFFFF" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".06"/>
     </linearGradient>
     <linearGradient id="glass-light" x1="0" y1="0" x2=".35" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".62"/>
-      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".18"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".08"/>
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".86"/>
+      <stop offset=".44" stop-color="#FFFFFF" stop-opacity=".36"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".14"/>
     </linearGradient>
     <linearGradient id="shade-soft" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".08"/>
-      <stop offset=".48" stop-color="#000000" stop-opacity=".18"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".42"/>
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".02"/>
+      <stop offset=".44" stop-color="#000000" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".58"/>
     </linearGradient>
     <linearGradient id="shade-deep" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#000000" stop-opacity=".16"/>
-      <stop offset=".55" stop-color="#000000" stop-opacity=".46"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".7"/>
+      <stop offset="0" stop-color="#000000" stop-opacity=".3"/>
+      <stop offset=".5" stop-color="#000000" stop-opacity=".62"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".84"/>
     </linearGradient>
     <linearGradient id="shade-bottom" x1=".25" y1="0" x2=".8" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".06"/>
-      <stop offset=".42" stop-color="#000000" stop-opacity=".24"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".58"/>
+      <stop offset="0" stop-color="#000000" stop-opacity=".12"/>
+      <stop offset=".4" stop-color="#000000" stop-opacity=".44"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".74"/>
     </linearGradient>
 
     <!-- Cut lines follow the same upper-left light source as the facets. -->
