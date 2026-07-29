@@ -3504,7 +3504,7 @@ function MasterDashboardScreen({
             textTransform: 'uppercase',
           }}
         >
-          Мастер
+          Личный кабинет
         </div>
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Профиль мастера

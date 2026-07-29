@@ -140,7 +140,9 @@
 .nav-fab {
   position: absolute;
   left: 50%;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  /* The 180° end buttons share the hub's vertical centre. Keep enough
+     clearance for their 31px radius and the hub's enlarged open state. */
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   z-index: 56;
   width: 0;
   height: 0;

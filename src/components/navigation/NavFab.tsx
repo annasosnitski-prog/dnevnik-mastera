@@ -12,125 +12,34 @@ interface NavFabProps {
   adminBadges?: ("urgent" | "reminder")[];
   // Contextual «create» action (new client / new note / schedule…) — its
   // meaning depends on which screen is current, decided by the caller.
-  // Omit to hide the create button entirely (Мастер has no create action).
+  // Omit to hide the create button entirely (Личный кабинет has no create action).
   onCreate?: () => void;
 }
 
-// Order used to be pure frequency (Планнер reached for most, Мастер least),
-// but Планнер and Мастер have swapped array slots on explicit request — the
-// radius each id maps to (see RADIUS below) was swapped along with them, so
-// this is a full slot exchange, not just an angular reshuffle: Мастер now
-// takes Планнер's old close-in ray (then doubled — see DEST_MIN below) and
-// Планнер takes Мастер's old far ray. Контент (ContentINKA) is the newest
-// addition — appended at the end, next to Планнер, rather than reshuffling
-// the four hand-tuned slots above it (see DEST_TIER_CONTENT below).
+// Clockwise order of destinations in the open semicircle. Internal ids and
+// screens stay stable so the renamed entries keep their existing routes.
 const NAV_ITEMS: {
   id: "sketchbook" | "content" | "clients" | "brush" | "profile" | "gear";
   label: string;
   screen: AppScreen;
   isActive: (active: AppScreen) => boolean;
 }[] = [
-  { id: "gear", label: "Мастер", screen: "master", isActive: (a) => a === "master" },
+  { id: "gear", label: "Личный кабинет", screen: "master", isActive: (a) => a === "master" },
   // «Клиенты» stays lit for Настройки and a client's Detail screen too —
   // both are reached from the roster, not a separate section.
   { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail" },
-  { id: "brush", label: "Мастерская", screen: "workshop", isActive: (a) => a === "workshop" },
+  { id: "brush", label: "Проекты", screen: "workshop", isActive: (a) => a === "workshop" },
   { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
   { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary" },
   { id: "content", label: "Контент", screen: "content", isActive: (a) => a === "content" },
 ];
 
-// Angle: split across however many items happen to be open right now — see
-// GAP_WEIGHT below for how that split isn't perfectly even. «Создать» is
-// placed in the middle of the sequence below, so on every screen it lands
-// at or next to the true centre of whatever arc results.
-const ARC_SPAN_DEG = 150;
-
-// Each gap between neighbouring fan slots gets a weight, not a fixed size —
-// slots either side of «Создать» sit closer together (it's a big circle at
-// a big radius, so it already has plenty of clearance from its neighbours),
-// freeing up angle for the two destination-to-destination gaps instead.
-// Those are the tight ones: their radii sit closest to the hub, where the
-// same angular gap covers far less physical distance — widening exactly
-// those two gaps is what lets DEST_MIN/TIER_2 below sit close together
-// without the two circles' edges overlapping.
-const GAP_WEIGHT_OUTER = 1.5;
-const GAP_WEIGHT_INNER = 1;
-// Клиенты's own left-hand gap (to whichever item sits at NAV_ITEMS index 0 —
-// Мастер, now that it's swapped in) specifically gets an even bigger share,
-// taken from Клиенты's right-hand gap (to Мастерская at index 2) next to it
-// (their sum still keeps every later slot — Мастерская, «Создать», Админка,
-// Планнер — at the same angle as before). That tilts Клиенты's own position
-// toward vertical, so its height reads as its own distinct step between
-// «Создать» and the Мастерская/Админка pair, rather than blending into their
-// row (see DEST_TIER_2 below).
-const GAP_WEIGHT_CLIENTS_LEFT = 2.367;
-const GAP_WEIGHT_CLIENTS_RIGHT = 1.233;
-
-// Radius: fixed per destination — this is where each one's own importance
-// shows up. Per Fitts's law, a target reached for constantly should need
-// less travel to hit than one opened rarely, so radius follows NAV_ITEMS'
-// own frequency ranking: closer for the ones used all the time, farther for
-// the rare ones. Мастер is the one deliberate exception (see MASTER_RADIUS
-// below) — swapped onto Планнер's old close-in ray, then doubled on top of
-// that, an explicit override rather than a frequency read.
-//
-// DEST_MIN sits right outside the hub — as tight as it can get without the
-// two circles' own edges touching (HUB_HALF + ITEM_HALF + a small gap for
-// the ray itself to read as a distinct line). DEST_MAX is the safe ceiling
-// for the two outermost fan slots (±15° off horizontal — see ARC_SPAN_DEG)
-// without a button's own edge crossing off-screen on a narrow (~360px)
-// phone; pushing it further risks clipping a destination clean off the
-// visible area, which is worse for accessibility than a long reach ever is.
-// Buttons must never overlap each other — only their rays are allowed to
-// cross — so every tier here is checked against its actual neighbour's
-// angle (via GAP_WEIGHT above) to keep a real gap between the two circles'
-// edges, not just their centres. «Создать» then breaks past DEST_MAX by a
-// wide, deliberate margin — it's the one CTA, not a fourth destination, so
-// it needs to read as a different tier at a glance, not just one more step
-// in the same sequence.
-// With 6 destinations (was 5), Мастер/Клиенты/Мастерская all sit before
-// «Создать» in the fan sequence — three items sharing one outer-gap chain
-// instead of two — so the same-angle overlap constraint now binds on that
-// whole chain, not just the closest pair. Клиенты and Мастерская aren't
-// visually adjacent to Админка/Планнер/Контент (Create's own big circle
-// sits between the two halves), so only same-side neighbours need checking
-// against each other.
-// Клиенты sits further out than strict frequency order would suggest — a
-// deliberate exception so its own ray reads as clearly longer/shorter than
-// its two neighbours (Мастер, Мастерская) rather than blending into a
-// nearly-even row; the wide outer-gap weight above still keeps it clear of
-// both.
-const DEST_MIN = 68;
-const DEST_TIER_2 = 170;
-const DEST_TIER_3 = 128;
-const DEST_TIER_4 = 136;
-const DEST_MAX = 146;
-const CREATE_RADIUS = 205;
-// Мастер and Планнер swapped array slots on request, and their radii
-// swapped along with them (Планнер now rides Мастер's old DEST_MAX ray) —
-// then Мастер's own new ray was doubled again on top of that, so it no
-// longer reads as "the closest, most-frequent" ray despite sitting where
-// that slot used to be.
-const MASTER_RADIUS = DEST_MIN * 2;
-// Контент is the newest destination, appended after Планнер rather than
-// reshuffling the five rays above — its own ray sits halfway between
-// Планнер's (DEST_MAX) and Клиенты's (DEST_TIER_2), reading as "next to
-// Планнер, just short of Клиенты" rather than disturbing either.
-const DEST_TIER_CONTENT = (DEST_MAX + DEST_TIER_2) / 2;
-
-// Explicit key set (not derived from ToolbarIconName) — the main button
-// below always shows the $ icon regardless of the active screen, so
-// "tasks" no longer names a fan destination and doesn't need a radius here.
-const RADIUS: Record<"sketchbook" | "content" | "clients" | "brush" | "profile" | "gear" | "create", number> = {
-  create: CREATE_RADIUS,
-  sketchbook: DEST_MAX,
-  content: DEST_TIER_CONTENT,
-  clients: DEST_TIER_2,
-  brush: DEST_TIER_3,
-  profile: DEST_TIER_4,
-  gear: MASTER_RADIUS,
-};
+// The open toolbar is a true semicircle. Every destination — including the
+// contextual «Создать» action — sits on the same radius, so all visible rays
+// have exactly the same length. At 128px, seven 62px buttons separated by
+// 30° keep a small gap and still fit a 320px-wide viewport edge to edge.
+const ARC_SPAN_DEG = 180;
+const FAN_RADIUS = 128;
 
 function arcOffset(angleDeg: number, radius: number): { dx: number; dy: number } {
   const angleRad = (angleDeg * Math.PI) / 180;
@@ -161,13 +70,8 @@ const ITEM_HALF = 31;
 const HUB_SIZE = HUB_HALF * 2;
 const ITEM_SIZE = ITEM_HALF * 2;
 
-// Every other icon has real margin baked into its own viewBox, so rendering
-// it at 2/3 of the button's height already reads as comfortably inset. The
-// «Мастерская» brush and «Мастер» wrench glyphs both lean on the diagonal
-// and fill their own viewBox corner-to-corner (tip to tip), so the same
-// 2/3-of-height size instead makes that diagonal span nearly the whole
-// button. Sized down separately for both so the diagonal — not the height —
-// comes out to 2/3 of the button's diameter.
+// The key fills its viewBox corner-to-corner on the diagonal, so it is sized
+// by diagonal rather than height. Other glyphs keep their built-in margins.
 const DIAGONAL_ICON_SIZE = Math.round((ITEM_SIZE * 2) / 3 / Math.SQRT2);
 
 // Single circular button, bottom-centre — replaces the full-width bottom bar.
@@ -193,45 +97,14 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   // main button instead, so an outstanding reminder is never invisible.
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
 
-  // Each gap's weight — smaller (GAP_WEIGHT_INNER) on either side of
-  // «Создать», larger (GAP_WEIGHT_OUTER) between two destinations — then
-  // normalised so the weights sum to the full ARC_SPAN_DEG. See GAP_WEIGHT
-  // above for why: it's what gives the destination pairs room to spread
-  // their radii apart without the circles themselves overlapping. Клиенты's
-  // own two gaps (to whichever items flank it in NAV_ITEMS — index 0 and 2,
-  // not any particular id) get their own special-cased split so its angle
-  // can tilt toward vertical without shifting anything past its far
-  // neighbour — see GAP_WEIGHT_CLIENTS_LEFT above. Keyed by NAV_ITEMS
-  // index rather than id so this keeps targeting Клиенты's actual neighbours
-  // if NAV_ITEMS gets reordered again.
-  const indexOf = (e: FanEntry) => (e.kind === "nav" ? NAV_ITEMS.indexOf(e.item) : -1);
-  const gapWeights = fanEntries.slice(1).map((_, i) => {
-    const a = fanEntries[i];
-    const b = fanEntries[i + 1];
-    if (a.kind === "create" || b.kind === "create") return GAP_WEIGHT_INNER;
-    const aIdx = indexOf(a);
-    const bIdx = indexOf(b);
-    if ((aIdx === 0 && bIdx === 1) || (aIdx === 1 && bIdx === 0)) {
-      return GAP_WEIGHT_CLIENTS_LEFT;
-    }
-    if ((aIdx === 1 && bIdx === 2) || (aIdx === 2 && bIdx === 1)) {
-      return GAP_WEIGHT_CLIENTS_RIGHT;
-    }
-    return GAP_WEIGHT_OUTER;
-  });
-  const totalWeight = gapWeights.reduce((sum, w) => sum + w, 0) || 1;
-  // cumulativeWeight[i] = the summed weight of every gap before entry i, so
-  // cumulativeWeight[0] is always 0 (nothing precedes the first entry).
-  const cumulativeWeight: number[] = [0];
-  gapWeights.forEach((w) => cumulativeWeight.push(cumulativeWeight[cumulativeWeight.length - 1] + w));
-
   // Computed once so the connecting rays (drawn first, underneath) and the
-  // buttons themselves (drawn on top) agree on exactly the same points.
-  const positions = fanEntries.map((entry, i) => {
-    const angleDeg = fanEntries.length <= 1 ? 90 : 90 + ARC_SPAN_DEG / 2 - cumulativeWeight[i] * (ARC_SPAN_DEG / totalWeight);
-    return arcOffset(angleDeg, RADIUS[entry.kind === "create" ? "create" : entry.item.id]);
+  // buttons themselves (drawn on top) agree on exactly the same points. The
+  // first and last entries sit at 180°/0°; the rest split the arc evenly.
+  const positions = fanEntries.map((_, i) => {
+    const angleDeg = fanEntries.length <= 1 ? 90 : ARC_SPAN_DEG - i * (ARC_SPAN_DEG / (fanEntries.length - 1));
+    return arcOffset(angleDeg, FAN_RADIUS);
   });
-  const rayExtent = CREATE_RADIUS + 40;
+  const rayExtent = FAN_RADIUS + 40;
 
   return (
     <>
@@ -398,7 +271,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                     DIAGONAL_ICON_SIZE above). */}
                 <ToolbarIcon
                   name={item.id}
-                  size={item.id === "brush" || item.id === "gear" ? DIAGONAL_ICON_SIZE : Math.round((ITEM_SIZE * 2) / 3)}
+                  size={item.id === "gear" ? DIAGONAL_ICON_SIZE : Math.round((ITEM_SIZE * 2) / 3)}
                 />
                 {badges?.map((kind, bi) => (
                   <span
