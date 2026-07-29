@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type SVGProps } from 'react';
+import { memo, useState, useEffect, useRef, useMemo, type ReactNode, type SVGProps } from 'react';
 import { createPortal } from 'react-dom';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
@@ -52,7 +52,7 @@ import {
   type ContentSharePhoto,
 } from '../lib/contentShare';
 export { shareOrDownloadJSON } from '../lib/contentShare';
-import { downsizeToPreview } from '../lib/imagePreview';
+import { downsizePhotosSequentially } from '../lib/imagePreview';
 import {
   confirmContentEntry,
   createContentEntryId,
@@ -4071,8 +4071,11 @@ type ContentShareFeedback = {
   message: string;
 };
 
+const CONTENT_ENTRY_PAGE_SIZE = 8;
+
 function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
   const [viewerPhoto, setViewerPhoto] = useState<ResolvedContentPhoto | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const input = { photos: entry.photos, photoIds: entry.photoIds, contentDraft: entry.contentDraft };
   const hasSelectionContract = hasContentPhotoSelectionContract(entry.contentDraft);
   const publicationSets = resolveContentPhotoPublicationSets(input);
@@ -4137,14 +4140,21 @@ function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
               )}
             </div>
           )}
-          <details className="content-photo-archive">
-            <summary>Все фотографии · {allPhotos.length}</summary>
-            {allPhotos.length > 0 && (
+          <div className="content-photo-archive">
+            <button
+              type="button"
+              className="content-photo-archive__toggle"
+              aria-expanded={archiveOpen}
+              onClick={() => setArchiveOpen((open) => !open)}
+            >
+              Все фотографии · {allPhotos.length}
+            </button>
+            {archiveOpen && allPhotos.length > 0 && (
               <div className="content-photo-archive__grid">
                 {allPhotos.map((photo) => photoButton(photo, 'content-photo-tile'))}
               </div>
             )}
-          </details>
+          </div>
         </div>
       ) : entry.photos.length > 0 ? (
         <div className="content-photo-legacy">
@@ -4170,6 +4180,38 @@ function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
     </>
   );
 }
+
+type ContentEntryCardProps = {
+  entry: ContentEntry;
+  highlighted: boolean;
+  clients: Client[];
+  projects: Project[];
+  revision: string;
+  children: ReactNode;
+};
+
+const ContentEntryCard = memo(function ContentEntryCard({ entry, highlighted, children }: ContentEntryCardProps) {
+  return (
+    <div
+      id={`content-entry-${entry.id}`}
+      style={
+        highlighted
+          ? { boxShadow: '0 0 0 2px var(--gold)', borderRadius: 3, transition: 'box-shadow 0.3s ease' }
+          : undefined
+      }
+    >
+      <GoldFrame plain style={{ padding: '14px 16px' }}>
+        {children}
+      </GoldFrame>
+    </div>
+  );
+}, (previous, next) =>
+  previous.entry === next.entry &&
+  previous.highlighted === next.highlighted &&
+  previous.clients === next.clients &&
+  previous.projects === next.projects &&
+  previous.revision === next.revision,
+);
 
 // Полноценный рабочий интерфейс ContentINKA — отдельная страница
 // (NavFab → «Контент»). Здесь собирается материал с нуля или из выбранной
@@ -4385,6 +4427,7 @@ function ContentINKAScreen({
   const knownContentEntryIds = useRef(new Set(contentEntries.map((entry) => entry.id)));
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
   const [focusedSource, setFocusedSource] = useState<ContentSourceRef | null>(null);
+  const [visibleEntryLimit, setVisibleEntryLimit] = useState(CONTENT_ENTRY_PAGE_SIZE);
   // Кратковременная подсветка записи, раскрытой через focusEntryId (клик по
   // карточке в разделе «Контент» экрана проекта) — гаснет сама, ничего не
   // меняет в данных.
@@ -4460,6 +4503,7 @@ function ContentINKAScreen({
     setComposerClientId(client?.id ?? navigation.clientId);
     setComposerItemKey(contentComposerItemKey(source));
     setFilterClientId(client?.id ?? 'all');
+    setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
 
     if (navigation.mode === 'compose') {
       setFocusedSource(null);
@@ -4495,6 +4539,10 @@ function ContentINKAScreen({
     if (target) {
       setFocusedSource(null);
       setFilterClientId('all');
+      const targetIndex = contentEntries
+        .filter((entry) => !entry.removedFromWorkspace || entry.id === target.id)
+        .findIndex((entry) => entry.id === target.id);
+      setVisibleEntryLimit(Math.max(CONTENT_ENTRY_PAGE_SIZE, targetIndex + 1));
       setHighlightedEntryId(target.id);
       requestAnimationFrame(() => {
         document.getElementById(`content-entry-${target.id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -4553,9 +4601,7 @@ function ContentINKAScreen({
       const createdDate = new Date().toISOString();
       const sessionId = sourceId ?? `freeform-${entryId}`;
       const context = { client: clientName, work, zone, style, description };
-      const previews = await Promise.all(
-        photos.map(async (photo, index) => ({ id: photoIds[index], preview_data_url: await downsizeToPreview(photo) })),
-      );
+      const previews = await downsizePhotosSequentially(photos, photoIds);
       const params: ContentIngestParams = {
         sessionId,
         sourceType,
@@ -4618,9 +4664,7 @@ function ContentINKAScreen({
           : currentEntry.contentDraft?.length === currentEntry.photos.length
             ? currentEntry.contentDraft.map((media) => media.id)
             : currentEntry.photos.map((_, index) => `${currentEntry.id}-${index}`);
-      const previews = await Promise.all(
-        currentEntry.photos.map(async (photo, index) => ({ id: requestPhotoIds[index], preview_data_url: await downsizeToPreview(photo) })),
-      );
+      const previews = await downsizePhotosSequentially(currentEntry.photos, requestPhotoIds);
       const masterInstruction = instruction || primaryTextArchetype?.instruction;
       const params: ContentIngestParams = {
         sessionId: currentEntry.sourceId ?? currentEntry.id,
@@ -4682,9 +4726,8 @@ function ContentINKAScreen({
         : entry?.photoIds?.length === photos.length
           ? entry.photoIds
           : job.request.mediaIds;
-      const previews = await Promise.all(
-        photos.map(async (photo, index) => ({ id: mediaIds[index] ?? `${job.id}-${index}`, preview_data_url: await downsizeToPreview(photo) })),
-      );
+      const previewIds = photos.map((_, index) => mediaIds[index] ?? `${job.id}-${index}`);
+      const previews = await downsizePhotosSequentially(photos, previewIds);
       const created = await createContentIngestJob({
         sessionId: job.request.sessionId,
         sourceType: job.request.sourceType,
@@ -4956,6 +4999,7 @@ function ContentINKAScreen({
     clientFilter: filterClientId,
     focusedSource,
   });
+  const pagedVisibleEntries = visibleEntries.slice(0, visibleEntryLimit);
 
   const clientLabel = (clientId: string | null) => {
     if (clientId === null) return 'Мастерская';
@@ -5092,6 +5136,7 @@ function ContentINKAScreen({
             onClick={() => {
               setFocusedSource(null);
               setFilterClientId('all');
+              setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
             }}
           >
             Все
@@ -5103,6 +5148,7 @@ function ContentINKAScreen({
             onClick={() => {
               setFocusedSource(null);
               setFilterClientId('studio');
+              setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
             }}
           >
             Мастерская
@@ -5116,6 +5162,7 @@ function ContentINKAScreen({
               onClick={() => {
                 setFocusedSource(null);
                 setFilterClientId(c.id);
+                setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
               }}
             >
               {`${c.name} ${c.surname}`.trim()}
@@ -5128,7 +5175,10 @@ function ContentINKAScreen({
           {focusedSource && (
             <div className="content-linked-heading">
               <span>Связанные черновики · {visibleEntries.length}</span>
-              <button type="button" onClick={() => setFocusedSource(null)}>
+              <button type="button" onClick={() => {
+                setFocusedSource(null);
+                setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
+              }}>
                 Показать все
               </button>
             </div>
@@ -5136,17 +5186,31 @@ function ContentINKAScreen({
           {visibleEntries.length === 0 && (
             <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока пусто.</div>
           )}
-          {visibleEntries.map((entry) => (
-            <div
+          {pagedVisibleEntries.map((entry) => {
+            const revision = JSON.stringify([
+              refreshingEntryIds.has(entry.id),
+              refreshJobByEntry.get(entry.id),
+              selectedArchetypeByEntry[entry.id],
+              textEditorsByEntry[entry.id],
+              textEditFeedbackByEntry[entry.id],
+              copyFeedbackByEntry[entry.id],
+              translationMenuEntryIds.has(entry.id),
+              CONTENT_TRANSLATION_OPTIONS.map((option) => {
+                const key = contentTranslationKey(entry.id, option.language);
+                return [translationFeedbackByKey[key], translationCopyFeedbackByKey[key]];
+              }),
+              shareMenuEntryId === entry.id,
+              shareFeedbackByEntry[entry.id],
+            ]);
+            return (
+            <ContentEntryCard
               key={entry.id}
-              id={`content-entry-${entry.id}`}
-              style={
-                highlightedEntryId === entry.id
-                  ? { boxShadow: '0 0 0 2px var(--gold)', borderRadius: 3, transition: 'box-shadow 0.3s ease' }
-                  : undefined
-              }
+              entry={entry}
+              highlighted={highlightedEntryId === entry.id}
+              clients={clients}
+              projects={projects}
+              revision={revision}
             >
-            <GoldFrame plain style={{ padding: '14px 16px' }}>
               <div className="content-card-header">
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '0.5px' }}>
                   {clientLabel(entry.clientId)}
@@ -5462,9 +5526,18 @@ function ContentINKAScreen({
                   })}
                 </div>
               )}
-            </GoldFrame>
-            </div>
-          ))}
+            </ContentEntryCard>
+            );
+          })}
+          {pagedVisibleEntries.length < visibleEntries.length && (
+            <button
+              type="button"
+              className="content-filter-chip content-show-more"
+              onClick={() => setVisibleEntryLimit((current) => Math.min(current + CONTENT_ENTRY_PAGE_SIZE, visibleEntries.length))}
+            >
+              Показать ещё
+            </button>
+          )}
         </div>
       </div>
       <ContentLinkPickerSheet

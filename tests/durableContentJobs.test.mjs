@@ -7,6 +7,8 @@ import {
   createCompletedContentEntry,
   CONTENT_INGEST_JOB_STORE,
   TATTO_DIARY_DB_VERSION,
+  startContentIngestJobCoordinator,
+  wakeContentIngestJobCoordinator,
 } from '../.test-dist/src/lib/contentJobQueue.js';
 import { ContentSyncError, createContentIngestJob, getContentIngestJob } from '../.test-dist/src/lib/contentSync.js';
 
@@ -119,6 +121,67 @@ test('hidden documents pause polling and visible, focus, online wake it', () => 
   assert.match(queue, /addEventListener\('visibilitychange'/);
   assert.match(queue, /addEventListener\('focus'/);
   assert.match(queue, /addEventListener\('online'/);
+});
+
+test('idle content coordinator schedules no timer and wakes on demand', async () => {
+  const listeners = new Map();
+  const documentRef = {
+    visibilityState: 'visible',
+    addEventListener(name, listener) { listeners.set(`document:${name}`, listener); },
+    removeEventListener(name) { listeners.delete(`document:${name}`); },
+  };
+  const windowRef = {
+    addEventListener(name, listener) { listeners.set(`window:${name}`, listener); },
+    removeEventListener(name) { listeners.delete(`window:${name}`); },
+  };
+  const db = {};
+  let loads = 0;
+  let timers = 0;
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  const stop = startContentIngestJobCoordinator({
+    db,
+    onChanged() {},
+    documentRef,
+    windowRef,
+    loadJobs: async () => {
+      loads += 1;
+      return [];
+    },
+    setTimer: () => {
+      timers += 1;
+      return 1;
+    },
+    clearTimer() {},
+  });
+
+  await flush();
+  assert.equal(loads, 1);
+  assert.equal(timers, 0);
+
+  wakeContentIngestJobCoordinator(db);
+  await flush();
+  assert.equal(loads, 2);
+  assert.equal(timers, 0);
+
+  listeners.get('window:focus')();
+  await flush();
+  assert.equal(loads, 3);
+  listeners.get('window:online')();
+  await flush();
+  assert.equal(loads, 4);
+
+  documentRef.visibilityState = 'hidden';
+  listeners.get('document:visibilitychange')();
+  documentRef.visibilityState = 'visible';
+  listeners.get('document:visibilitychange')();
+  await flush();
+  assert.equal(loads, 5);
+  assert.equal(timers, 0);
+
+  stop();
+  wakeContentIngestJobCoordinator(db);
+  await flush();
+  assert.equal(loads, 5);
 });
 
 

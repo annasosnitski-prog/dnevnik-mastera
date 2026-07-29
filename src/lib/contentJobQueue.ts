@@ -10,6 +10,22 @@ export const TATTO_DIARY_DB_VERSION = 3;
 export const CONTENT_INGEST_JOB_STORE = 'contentIngestJobs';
 export const CONTENT_ENTRY_STORE = 'contentEntries';
 
+const coordinatorWakeups = new WeakMap<IDBDatabase, Set<() => void>>();
+
+export function wakeContentIngestJobCoordinator(db: IDBDatabase): void {
+  for (const wake of coordinatorWakeups.get(db) ?? []) wake();
+}
+
+function registerContentIngestJobCoordinatorWakeup(db: IDBDatabase, wake: () => void): () => void {
+  const wakeups = coordinatorWakeups.get(db) ?? new Set<() => void>();
+  wakeups.add(wake);
+  coordinatorWakeups.set(db, wakeups);
+  return () => {
+    wakeups.delete(wake);
+    if (wakeups.size === 0) coordinatorWakeups.delete(db);
+  };
+}
+
 export type ContentIngestJobState = 'queued' | 'running' | 'failed';
 
 export interface ContentIngestRequestSnapshot {
@@ -112,6 +128,7 @@ export async function putContentIngestJob(db: IDBDatabase, record: ContentIngest
   const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readwrite');
   tx.objectStore(CONTENT_INGEST_JOB_STORE).put(record);
   await transactionDone(tx);
+  if (record.state === 'queued') wakeContentIngestJobCoordinator(db);
 }
 
 export async function deleteContentIngestJob(db: IDBDatabase, id: string): Promise<void> {
@@ -213,24 +230,35 @@ export interface ContentJobCoordinatorOptions {
   pollIntervalMs?: number;
   documentRef?: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'> | null;
   windowRef?: Pick<Window, 'addEventListener' | 'removeEventListener'> | null;
+  loadJobs?: (db: IDBDatabase) => Promise<ContentIngestJobRecord[]>;
+  setTimer?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
+  clearTimer?: (timer: ReturnType<typeof setTimeout>) => void;
 }
 
 export function startContentIngestJobCoordinator(options: ContentJobCoordinatorOptions): () => void {
   const documentRef = options.documentRef ?? (typeof document === 'undefined' ? null : document);
   const windowRef = options.windowRef ?? (typeof window === 'undefined' ? null : window);
   const pollIntervalMs = options.pollIntervalMs ?? 2500;
+  const loadJobs = options.loadJobs ?? loadContentIngestJobs;
+  const setTimer = options.setTimer ?? ((callback, delay) => setTimeout(callback, delay));
+  const clearTimer = options.clearTimer ?? ((pendingTimer) => clearTimeout(pendingTimer));
   const activeJobIds = new Set<string>();
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let checking: Promise<void> | null = null;
+  let wakeRequested = false;
 
   const schedule = () => {
     if (stopped || documentRef?.visibilityState === 'hidden') return;
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => void checkAll(), pollIntervalMs);
+    if (timer) clearTimer(timer);
+    timer = setTimer(() => {
+      timer = null;
+      void checkAll();
+    }, pollIntervalMs);
   };
 
-  const processJob = async (record: ContentIngestJobRecord) => {
-    if (activeJobIds.has(record.id)) return;
+  const processJob = async (record: ContentIngestJobRecord): Promise<boolean> => {
+    if (activeJobIds.has(record.id)) return true;
     activeJobIds.add(record.id);
     try {
       if (record.state === 'failed') {
@@ -241,14 +269,14 @@ export function startContentIngestJobCoordinator(options: ContentJobCoordinatorO
             options.onChanged();
           }
         }
-        return;
+        return false;
       }
       const status = await getContentIngestJob(record.jobId);
       // Cancellation or retry can happen while the GET is in flight. Re-read the
       // durable record before mutating anything so an old result cannot resurrect
       // a locally cancelled job or overwrite a newer retry jobId.
       const currentRecord = await getContentIngestJobRecord(options.db, record.id);
-      if (!currentRecord || currentRecord.jobId !== record.jobId) return;
+      if (!currentRecord || currentRecord.jobId !== record.jobId) return false;
       if (status.status === 'running') {
         if (currentRecord.state !== 'running') {
           await updateJobState(options.db, currentRecord, {
@@ -259,7 +287,7 @@ export function startContentIngestJobCoordinator(options: ContentJobCoordinatorO
           });
           options.onChanged();
         }
-        return;
+        return true;
       }
       if (status.status === 'failed') {
         await updateJobState(options.db, currentRecord, {
@@ -269,14 +297,15 @@ export function startContentIngestJobCoordinator(options: ContentJobCoordinatorO
           retryable: true,
         });
         options.onChanged();
-        return;
+        return false;
       }
       await applyCompletedContentIngestJob(options.db, currentRecord, status.result);
       options.onChanged();
+      return false;
     } catch (error) {
-      if (error instanceof ContentSyncError && error.retryable) return;
+      if (error instanceof ContentSyncError && error.retryable) return true;
       const currentRecord = await getContentIngestJobRecord(options.db, record.id).catch(() => null);
-      if (!currentRecord || currentRecord.jobId !== record.jobId) return;
+      if (!currentRecord || currentRecord.jobId !== record.jobId) return false;
       await updateJobState(options.db, currentRecord, {
         state: 'failed',
         updatedAt: new Date().toISOString(),
@@ -284,23 +313,34 @@ export function startContentIngestJobCoordinator(options: ContentJobCoordinatorO
         retryable: currentRecord.operation === 'create',
       });
       options.onChanged();
+      return false;
     } finally {
       activeJobIds.delete(record.id);
     }
   };
 
-  const checkAll = async () => {
-    if (stopped || documentRef?.visibilityState === 'hidden') return;
+  const checkAll = (): Promise<void> => {
+    if (stopped || documentRef?.visibilityState === 'hidden') return Promise.resolve();
+    if (checking) {
+      wakeRequested = true;
+      return checking;
+    }
     if (timer) {
-      clearTimeout(timer);
+      clearTimer(timer);
       timer = null;
     }
-    try {
-      const jobs = await loadContentIngestJobs(options.db);
-      await Promise.all(jobs.map(processJob));
-    } finally {
-      schedule();
-    }
+    checking = (async () => {
+      const jobs = await loadJobs(options.db);
+      const keepPolling = await Promise.all(jobs.map(processJob));
+      if (keepPolling.some(Boolean)) schedule();
+    })().finally(() => {
+      checking = null;
+      if (wakeRequested && !stopped) {
+        wakeRequested = false;
+        void checkAll();
+      }
+    });
+    return checking;
   };
 
   const wake = () => {
@@ -310,7 +350,7 @@ export function startContentIngestJobCoordinator(options: ContentJobCoordinatorO
   const onVisibility = () => {
     if (documentRef?.visibilityState === 'visible') wake();
     else if (timer) {
-      clearTimeout(timer);
+      clearTimer(timer);
       timer = null;
     }
   };
@@ -318,11 +358,13 @@ export function startContentIngestJobCoordinator(options: ContentJobCoordinatorO
   documentRef?.addEventListener('visibilitychange', onVisibility);
   windowRef?.addEventListener('focus', wake);
   windowRef?.addEventListener('online', wake);
+  const unregisterWakeup = registerContentIngestJobCoordinatorWakeup(options.db, wake);
   void checkAll();
 
   return () => {
     stopped = true;
-    if (timer) clearTimeout(timer);
+    if (timer) clearTimer(timer);
+    unregisterWakeup();
     documentRef?.removeEventListener('visibilitychange', onVisibility);
     windowRef?.removeEventListener('focus', wake);
     windowRef?.removeEventListener('online', wake);
