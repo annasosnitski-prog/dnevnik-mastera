@@ -257,7 +257,7 @@ test('the order of matching entries follows the input order, no new sort', () =>
 });
 
 test('«Открыть в ContentINKA» does not create a draft or trigger generation', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/components/sheets/SessionAndProjectSheets.tsx', import.meta.url), 'utf8');
   const sheet = source.slice(source.indexOf('function ProjectViewSheet({'), source.indexOf('function NewProjectSheet({'));
 
   assert.match(sheet, /onOpenContentEntry/);
@@ -265,7 +265,7 @@ test('«Открыть в ContentINKA» does not create a draft or trigger gener
 });
 
 test('empty state text is shown when there is no confirmed content for the project', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/components/sheets/SessionAndProjectSheets.tsx', import.meta.url), 'utf8');
   const sheet = source.slice(source.indexOf('function ProjectViewSheet({'), source.indexOf('function NewProjectSheet({'));
 
   assert.match(sheet, /К проекту пока не привязан готовый контент/);
@@ -289,7 +289,7 @@ test('the photo count is the final selected publication set, not every source ph
 });
 
 test('ProjectContentCard computes the photo count via resolveContentPhotoSelection, not entry.photos.length', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/components/sheets/SessionAndProjectSheets.tsx', import.meta.url), 'utf8');
   const card = source.slice(source.indexOf('function ProjectContentCard('), source.length);
 
   assert.match(card, /resolveContentPhotoSelection\(\{\s*photos: entry\.photos,\s*photoIds: entry\.photoIds,\s*contentDraft: entry\.contentDraft,\s*\}\)\.length/);

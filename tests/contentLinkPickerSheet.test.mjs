@@ -3,13 +3,18 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+// NewSessionSheet/ProjectSessionPickerSheet/NewConsultationSheet/ProjectViewSheet/
+// NewProjectSheet вынесены в отдельный модуль (PR 6 рефакторинга) — их function
+// definitions читаются оттуда; JSX usage (<ProjectSessionPickerSheet ...>) и
+// корневые обработчики остаются в TattoDiary.tsx.
+const sheetsSource = readFileSync(new URL('../src/components/sheets/SessionAndProjectSheets.tsx', import.meta.url), 'utf8');
 const sheet = source.slice(source.indexOf('function ContentLinkPickerSheet('), source.indexOf('// ===================== CALENDAR SHEET ====================='));
 const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
 const handleAddProject = source.slice(source.indexOf('const handleAddProject = (data'), source.indexOf('const handleAddProjectSession ='));
 const handleAddProjectSession = source.slice(source.indexOf('const handleAddProjectSession ='), source.indexOf('const saveSessionFromNewSessionSheet ='));
 const saveSessionFromNewSessionSheet = source.slice(source.indexOf('const saveSessionFromNewSessionSheet ='), source.indexOf('const openCreateProjectForContentLink ='));
 const openCallbacks = source.slice(source.indexOf('const openCreateProjectForContentLink ='), source.indexOf('const migrateRecordsIntoProjects ='));
-const projectSessionPickerSheetFn = source.slice(source.indexOf('function ProjectSessionPickerSheet('), source.indexOf('// ===================== CALENDAR CREATION WALK'));
+const projectSessionPickerSheetFn = sheetsSource.slice(sheetsSource.indexOf('export function ProjectSessionPickerSheet('), sheetsSource.indexOf('export function NewConsultationSheet('));
 const projectSessionPickerSheetUsage = source.slice(source.indexOf('<ProjectSessionPickerSheet'), source.indexOf('<NewConsultationSheet'));
 
 test('the intermediate "choice" step is gone — one sheet, no big-card choice screen', () => {
@@ -178,7 +183,7 @@ test('a plain client-tab session (no content-link chain) still falls through to 
 
 test('the NewSessionSheet form itself is not duplicated — onAdd delegates to the single orchestration function', () => {
   assert.match(source, /onAdd=\{saveSessionFromNewSessionSheet\}/);
-  const newSessionSheetSource = source.slice(source.indexOf('function NewSessionSheet('), source.indexOf('function WorkshopCreateChoiceSheet('));
+  const newSessionSheetSource = sheetsSource.slice(sheetsSource.indexOf('export function NewSessionSheet('), sheetsSource.indexOf('export function ProjectSessionPickerSheet('));
   assert.doesNotMatch(newSessionSheetSource, /upsertClientSession|upsertProjectSession|pendingContentLinkRef/);
 });
 
