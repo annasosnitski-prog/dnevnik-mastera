@@ -12721,11 +12721,20 @@ function BottomSheet({
     if (open) scrollRef.current?.scrollTo(0, 0);
   }, [open]);
 
-  return (
+  // Portaled straight to <body> — same escape hatch already used by the
+  // content photo viewer/share sheet (see createPortal usages above). Sheets
+  // are opened from buttons that can sit anywhere inside a screen's own
+  // scrollable content (e.g. a "Привязать" link far down a long list); a
+  // sheet positioned as a normal DOM descendant of that scrollable ancestor
+  // is placed relative to the ancestor's scrolled CONTENT, not the visible
+  // viewport, so opening it while scrolled down could put it far above or
+  // below what's actually on screen. position:fixed anchored at the real
+  // document root sidesteps that entirely.
+  return createPortal(
     <div
       ref={scrollRef}
       style={{
-        position: 'absolute',
+        position: 'fixed',
         bottom: 0,
         left: 0,
         right: 0,
@@ -12734,7 +12743,7 @@ function BottomSheet({
         borderRadius: '20px 20px 0 0',
         border: '1px solid rgba(var(--gold-rgb),0.18)',
         borderBottom: 'none',
-        zIndex: 15,
+        zIndex: 950,
         overflowY: 'auto',
         // Closed state must be reliably invisible AND must not enlarge this
         // screen's own scrollable area. A translateY(105%) alone only buys
@@ -12761,7 +12770,8 @@ function BottomSheet({
     >
       <div style={{ width: 36, height: 3, background: 'rgba(var(--gold-rgb),0.2)', borderRadius: 2, margin: '14px auto 0' }} />
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
