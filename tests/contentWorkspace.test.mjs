@@ -122,7 +122,9 @@ test('a click on a project-content card passes the entry.id as a focus target, a
 });
 
 test('client Content tab uses the same compact hand-off surface', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  // DetailScreen и его вкладки (включая ClientContentTab) вынесены в
+  // отдельный модуль (PR 11 рефакторинга) — читаем оттуда.
+  const source = readFileSync(new URL('../src/components/screens/DetailScreen.tsx', import.meta.url), 'utf8');
   const clientTab = source.slice(source.indexOf('function ClientContentTab({'), source.indexOf('// ── Info tab ──'));
 
   assert.match(source, /onTab\('content'\)/);
