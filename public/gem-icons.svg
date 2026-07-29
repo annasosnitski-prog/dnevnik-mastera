@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
-     width="256"
+     width="320"
      height="64"
-     viewBox="0 0 256 64"
+     viewBox="0 0 320 64"
      role="img"
      aria-labelledby="title desc">
   <title id="title">Glowing gemstone navigation icons</title>
-  <desc id="desc">Green sessions, blue consultations, violet content, and red info icons.</desc>
+  <desc id="desc">Green sessions, blue consultations, violet content, amber notes, and red info icons.</desc>
 
   <!--
     Text SVG sprite.
@@ -15,12 +15,14 @@
       gem-icons.svg#sessions
       gem-icons.svg#consultations
       gem-icons.svg#content
+      gem-icons.svg#notes
       gem-icons.svg#info
   -->
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
   <view id="content" viewBox="128 0 64 64"/>
-  <view id="info" viewBox="192 0 64 64"/>
+  <view id="notes" viewBox="192 0 64 64"/>
+  <view id="info" viewBox="256 0 64 64"/>
 
   <defs>
     <filter id="glow-green" x="-80%" y="-80%" width="260%" height="260%">
@@ -38,6 +40,12 @@
     <filter id="glow-violet" x="-80%" y="-80%" width="260%" height="260%">
       <feGaussianBlur stdDeviation="2.8" result="blur"/>
       <feFlood flood-color="#B4A0CA" flood-opacity=".72" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="halo"/>
+      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-amber" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="2.8" result="blur"/>
+      <feFlood flood-color="#D2B17B" flood-opacity=".7" result="color"/>
       <feComposite in="color" in2="blur" operator="in" result="halo"/>
       <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
@@ -86,8 +94,15 @@
     <use href="#gem-cut"/>
   </g>
 
-  <g id="info-icon"
+  <g id="notes-icon"
      transform="translate(192 0)"
+     style="--gem-dark:#63491F;--gem-deep:#8A672D;--gem-mid:#B48745;--gem-light:#D2B17B;--gem-core:#F4EBDD;--gem-edge:#C39C60;--gem-line:#E6D2AE"
+     filter="url(#glow-amber)">
+    <use href="#gem-cut"/>
+  </g>
+
+  <g id="info-icon"
+     transform="translate(256 0)"
      style="--gem-dark:#682725;--gem-deep:#8E3532;--gem-mid:#B0413E;--gem-light:#D18A87;--gem-core:#F4E3E2;--gem-edge:#C66561;--gem-line:#E5B8B5"
      filter="url(#glow-red)">
     <use href="#gem-cut"/>
