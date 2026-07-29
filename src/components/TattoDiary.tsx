@@ -92,11 +92,19 @@ import {
   setContentEntryLink,
   buildContentProjectOptions,
   buildContentSessionOptions,
+  projectContentLinkLabel,
   type ContentEntryLink,
-  type ResolvedContentEntryLink,
 } from '../lib/contentLink';
 import { getContentEntriesForProject, type ProjectContentItem } from '../lib/contentProject';
 import { upsertClientSession, upsertProjectSession, type SessionFormData } from '../lib/sessionSave';
+// Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
+// не менялась — только перенос.
+import { hexToRgba, isRTL, firstLetter, nameRest } from '../lib/textFormat';
+import { buildChatLink } from '../lib/chatLink';
+import { healingReminderMessage, soonReminderMessage } from '../lib/reminderMessages';
+import { normalizeClientNote, normalizeClient, normalizeProject } from '../lib/normalize';
+import { tagLabel, stripTagPrefix, formatBookingTime } from '../lib/botBookingFormat';
+import { collectCalendarEvents, botSlotDayKey } from '../lib/calendarEvents';
 import { ArchetypeToolbar } from './content/ArchetypeToolbar';
 import { ActionButton, ContentEntryActions } from './content/ContentEntryActions';
 // Иконки и мини-игры вынесены в отдельные модули (PR 2 рефакторинга).
@@ -109,7 +117,7 @@ import { BlackjackGame } from './games/BlackjackGame';
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
-import { type UrgencyKey, URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency';
+import { type UrgencyKey, URGENCY } from '../domain/urgency';
 import { type Session } from '../domain/session';
 import { type Consultation } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
@@ -118,10 +126,8 @@ import {
   type ChatPlatform,
   type ChatLink,
   PLATFORM_LABELS,
-  CHAT_PLATFORM_DOMAINS,
   type ClientType,
   CLIENT_TYPES,
-  type ClientLanguage,
   CLIENT_LANGUAGES,
   type Client,
   clientStyles,
@@ -129,7 +135,7 @@ import {
 } from '../domain/client';
 // Чистые выборки/сортировки/агрегаты вынесены в domain/*Selectors и
 // utils/dates (PR 3 рефакторинга). Алгоритмы и результаты не менялись.
-import { ISO_DATE_RE, formatDate, dateParts, todayISO, isValidISODate } from '../utils/dates';
+import { ISO_DATE_RE, formatDate, dateParts, todayISO } from '../utils/dates';
 import {
   getProjectById,
   getProjectsByClientId,
@@ -222,7 +228,7 @@ export const fs = (px: number): number => Math.round(px * TEXT_SCALE * 100) / 10
 
 // Per-client accent colours, assigned on creation (rotated through the list
 // when the master doesn't pick one explicitly).
-const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#7A6A3A', '#3A6A7A'];
+export const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#7A6A3A', '#3A6A7A'];
 
 // Marker palette the master picks from at creation to tag/colour a client card.
 export const MARKER_COLORS = ['#B0413E', '#C67A32', '#C9A227', '#5E8C4A', '#3E7CA6', '#7A5AA0', '#A0555F', '#6E7B8B'];
@@ -345,45 +351,6 @@ interface ContentEntry {
   removedFromWorkspace?: boolean;
 }
 
-// Turns a raw input (phone, @handle, domain or full URL) into an openable link.
-function buildChatLink(platform: ChatPlatform, raw: string): string {
-  const trimmed = raw.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  // Without this, a link like "instagram.com/name" falls through to the
-  // handle logic below, which would prefix the domain a second time —
-  // "https://instagram.com/instagram.com/name" — a broken URL that the
-  // platform then redirects to its own homepage instead of the profile/chat.
-  const domain = CHAT_PLATFORM_DOMAINS[platform];
-  if (domain && new RegExp(`^(www\\.)?${domain.replace('.', '\\.')}(/|$)`, 'i').test(trimmed)) {
-    return `https://${trimmed}`;
-  }
-  const handle = trimmed.replace(/^@/, '');
-  switch (platform) {
-    case 'whatsapp': {
-      const digits = trimmed.replace(/[^\d]/g, '');
-      return digits ? `https://wa.me/${digits}` : trimmed;
-    }
-    case 'telegram':
-      return handle ? `https://t.me/${handle}` : trimmed;
-    // Social-media platforms (Instagram/Facebook/TikTok/Pinterest) open the
-    // profile page, not a chat — only whatsapp/telegram/messenger are actual
-    // messaging apps and get a direct-chat link.
-    case 'instagram':
-      return handle ? `https://instagram.com/${handle}` : trimmed;
-    case 'facebook':
-      return handle ? `https://facebook.com/${handle}` : trimmed;
-    case 'messenger':
-      return handle ? `https://m.me/${handle}` : trimmed;
-    case 'tiktok':
-      return handle ? `https://tiktok.com/@${handle}` : trimmed;
-    case 'pinterest':
-      return handle ? `https://pinterest.com/${handle}` : trimmed;
-    case 'website':
-      return trimmed ? `https://${trimmed}` : trimmed;
-    default:
-      return trimmed;
-  }
-}
 
 const SKIN_TYPES: { value: string; label: string }[] = [
   { value: '', label: 'Не указан' },
@@ -436,198 +403,6 @@ function UpcomingDateBadge({ clients, onOpen }: { clients: Client[]; onOpen: () 
   );
 }
 
-
-// Converts a #rrggbb hex to an rgba() string at the given alpha.
-function hexToRgba(hex: string, alpha: number): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
-  if (!m) return hex;
-  const int = parseInt(m[1], 16);
-  return `rgba(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}, ${alpha})`;
-}
-
-// True for strings that start in a right-to-left script (Hebrew, Arabic, …), so
-// the layout can flip the drop-cap + name into their natural reading order.
-const RTL_RE = /[֐-׿؀-ۿ܀-ݏހ-޿יִ-﷿ﹰ-﻿]/;
-export const isRTL = (s: string) => RTL_RE.test((s || '').trim().charAt(0));
-
-export const firstLetter = (name: string) => (name ? name.charAt(0).toUpperCase() : '?');
-export const nameRest = (name: string) => (name ? name.slice(1) : '');
-
-// Every client-facing auto-message (healing check-in, upcoming-booking
-// reminder, and whatever gets added next) is written in the client's own
-// language (see Client.language, set from the Инфо tab) — keep new templates
-// here rather than adding a new bare Russian string elsewhere.
-const CLIENT_LOCALE: Record<ClientLanguage, string> = { ru: 'ru-RU', en: 'en-US', he: 'he-IL' };
-
-const REMINDER_TEXTS: Record<ClientLanguage, { healing: string; soon: (when: string) => string }> = {
-  ru: {
-    healing: 'Привет, как дела? Пишу узнать как зажила татуировка',
-    soon: (when) => `Привет! Как дела? Напоминаю о нашей встрече «${when}»`,
-  },
-  en: {
-    healing: 'Hi, how are you? Just checking in on how the tattoo is healing',
-    soon: (when) => `Hi! How are you? Just a reminder about our appointment: ${when}`,
-  },
-  he: {
-    healing: 'היי, מה שלומך? רק בודקת איך הקעקוע מחלים',
-    soon: (when) => `היי! מה שלומך? רק תזכורת לפגישה שלנו: ${when}`,
-  },
-};
-
-// The message offered for copying on a healing check-in — deliberately not
-// personalised with the client's name (master's preference).
-function healingReminderMessage(client: Client): string {
-  return REMINDER_TEXTS[client.language].healing;
-}
-
-// "<weekday>, <day> <month>[, <time>]" in the client's own language/locale —
-// e.g. ru: «четверг, 23 июля, 16:27», en: "Thursday, July 23, 4:27 PM". Built
-// from y/m/d components (not `new Date(iso)`) for the same reason as
-// dateParts below — avoids a UTC-parse day-shift in western timezones.
-function localizedWhen(dateIso: string, time: string, language: ClientLanguage): string {
-  const m = ISO_DATE_RE.exec(dateIso);
-  if (!m) return dateIso;
-  const [y, mo, d] = dateIso.split('-').map(Number);
-  const locale = CLIENT_LOCALE[language];
-  const dateStr = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(y, mo - 1, d));
-  if (!time) return dateStr;
-  const [hh, mi] = time.split(':').map(Number);
-  const timeStr = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(new Date(y, mo - 1, d, hh, mi));
-  return `${dateStr}, ${timeStr}`;
-}
-
-// Auto-message for the 36–48h heads-up — master copies it to nudge the
-// client about the upcoming booking, same pattern as healingReminderMessage.
-function soonReminderMessage(it: UpcomingSoonItem): string {
-  const { language } = it.client;
-  return REMINDER_TEXTS[language].soon(localizedWhen(it.date, it.time, language));
-}
-
-// Normalises a raw IndexedDB record (which may predate this schema) into a
-// complete Client so the UI never has to guard against missing fields.
-// Общая нормализация сессии — переиспользуется и для client.sessions, и для
-// «сессий без клиента» на самом проекте (Project.sessions, Этап 3b-доп.).
-function normalizeSession(s: any, i: number): Session {
-  return {
-    id: String(s?.id ?? `${Date.now()}-${i}`),
-    name: s?.name ?? '',
-    date: s?.date ?? '',
-    time: s?.time ?? '',
-    duration: s?.duration ?? '',
-    style: s?.style ?? '',
-    area: s?.area ?? s?.proportions ?? '',
-    colors: Array.isArray(s?.colors) ? s.colors.join(', ') : s?.colors ?? '',
-    needles: s?.needles ?? '',
-    skinReaction: s?.skinReaction ?? '',
-    note: s?.note ?? s?.notes ?? '',
-    photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
-    done: s?.done ?? true,
-    healed: s?.healed ?? false,
-    cancelled: s?.cancelled ?? false,
-    projectId: s?.projectId ?? null,
-  };
-}
-
-// Единая нормализация ClientNote для клиентских и мастерских задач, включая
-// импорт старых/повреждённых данных. idPrefix сохраняет прежние fallback-id:
-// `n` для client.notes и `m` для masterInfo.notes.
-function normalizeClientNote(raw: any, index: number, idPrefix: 'n' | 'm' = 'n'): ClientNote {
-  return {
-    id: String(raw?.id ?? `${Date.now()}-${idPrefix}${index}`),
-    text: raw?.text ?? '',
-    urgency: URGENCY.some((u) => u.key === raw?.urgency) ? raw.urgency : LEGACY_URGENCY_MAP[raw?.urgency] ?? 'normal',
-    done: Boolean(raw?.done),
-    createdDate: raw?.createdDate ?? new Date().toISOString(),
-    photos: Array.isArray(raw?.photos) ? raw.photos : [],
-    projectId: raw?.projectId ?? null,
-    dueDate: isValidISODate(raw?.dueDate) ? raw.dueDate : null,
-  };
-}
-
-function normalizeClient(raw: any, index: number): Client {
-  const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
-
-  const latestStyle = sessions.length ? sessions[sessions.length - 1].style : '';
-  const styles: string[] = Array.isArray(raw?.styles)
-    ? raw.styles.filter(Boolean)
-    : raw?.style
-    ? [raw.style]
-    : latestStyle
-    ? [latestStyle]
-    : [];
-
-  return {
-    id: String(raw?.id ?? Date.now() + index),
-    name: raw?.name ?? '',
-    surname: raw?.surname ?? '',
-    styles,
-    style: styles.join(' · '),
-    color: raw?.color ?? ACCENT_COLORS[index % ACCENT_COLORS.length],
-    clientType: CLIENT_TYPES.some((t) => t.value === raw?.clientType) ? raw.clientType : 'client',
-    language: CLIENT_LANGUAGES.some((l) => l.value === raw?.language) ? raw.language : 'ru',
-    note: raw?.note ?? raw?.chatHistory ?? '',
-    masterNote: raw?.masterNote ?? '',
-    phone: raw?.phone ?? '',
-    skinType: raw?.skinType ?? '',
-    skinTone: raw?.skinTone ?? '',
-    skinNotes: raw?.skinNotes ?? '',
-    allergies: raw?.allergies ?? '',
-    skinReactions: raw?.skinReactions ?? '',
-    chatLinks: Array.isArray(raw?.chatLinks) ? raw.chatLinks : [],
-    sessions,
-    consultations: Array.isArray(raw?.consultations)
-      ? raw.consultations.map((cn: any, i: number): Consultation => ({
-          id: String(cn?.id ?? `${Date.now()}-c${i}`),
-          date: cn?.date ?? '',
-          time: cn?.time ?? '',
-          area: cn?.area ?? '',
-          style: cn?.style ?? '',
-          generalNotes: cn?.generalNotes ?? '',
-          feeling: cn?.feeling ?? '',
-          creative: cn?.creative ?? '',
-          inspirationSources: cn?.inspirationSources ?? '',
-          urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
-          photos: Array.isArray(cn?.photos) ? cn.photos : [],
-          done: Boolean(cn?.done),
-          cancelled: Boolean(cn?.cancelled),
-          createdDate: cn?.createdDate ?? new Date().toISOString(),
-          projectId: cn?.projectId ?? null,
-        }))
-      : [],
-    documents: Array.isArray(raw?.documents) ? raw.documents : [],
-    notes: Array.isArray(raw?.notes) ? raw.notes.map((n: any, i: number) => normalizeClientNote(n, i, 'n')) : [],
-    createdDate: raw?.createdDate ?? new Date().toISOString(),
-  };
-}
-
-function normalizeProject(raw: any, index: number): Project {
-  return {
-    id: String(raw?.id ?? Date.now() + index),
-    title: raw?.title ?? '',
-    color: raw?.color ?? MARKER_COLORS[index % MARKER_COLORS.length],
-    category: PROJECT_CATEGORIES.some((c) => c.key === raw?.category) ? raw.category : 'tattoo',
-    clientId: raw?.clientId ?? null,
-    stage: PROJECT_STAGES.some((s) => s.key === raw?.stage) ? raw.stage : 'idea',
-    state: PROJECT_STATES.some((s) => s.key === raw?.state) ? raw.state : 'active',
-    waitingFor: PROJECT_WAITING_FOR.some((w) => w.key === raw?.waitingFor) ? raw.waitingFor : 'none',
-    nextActionText: raw?.nextActionText ?? '',
-    nextActionDate: raw?.nextActionDate ?? null,
-    // Отсутствует или неизвестное значение → null (не угадываем тип по
-    // nextActionText). Повторная нормализация валидного значения не меняет
-    // его — та же .some()-проверка, что и у остальных union-полей проекта.
-    nextActionType: NEXT_ACTION_TYPES.some((t) => t.key === raw?.nextActionType) ? raw.nextActionType : null,
-    priority: PROJECT_PRIORITIES.some((p) => p.key === raw?.priority) ? raw.priority : 'normal',
-    area: raw?.area ?? '',
-    style: raw?.style ?? '',
-    generalNotes: raw?.generalNotes ?? '',
-    feeling: raw?.feeling ?? '',
-    creative: raw?.creative ?? '',
-    inspirationSources: raw?.inspirationSources ?? '',
-    photos: Array.isArray(raw?.photos) ? raw.photos : [],
-    createdDate: raw?.createdDate ?? new Date().toISOString(),
-    sessions: Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [],
-  };
-}
 
 // ===================== DATABASE =====================
 // Version bumped 1 → 2 to add two new stores at once — «projects»
@@ -6826,39 +6601,6 @@ function MasterDashboardScreen({
 // Ручное обновление кнопкой: экран Настроек не размонтируется при уходе
 // (переключение через CSS-transform), поэтому автообновление по монтированию
 // сработало бы только один раз за всю сессию приложения.
-function tagLabel(tag: BotBooking['tag']): string {
-  switch (tag) {
-    case '[ВИДЕО]':
-      return 'Видео';
-    case '[ОКНО]':
-      return 'Окно';
-    case '[ТАТУ]':
-      return 'Тату';
-    case '[ПРИЁМ]':
-      return 'Приём';
-    default:
-      return '—';
-  }
-}
-
-function stripTagPrefix(summary: string, tag: BotBooking['tag']): string {
-  if (!tag) return summary;
-  return summary.startsWith(tag) ? summary.slice(tag.length).replace(/^\s+/, '') : summary;
-}
-
-function formatBookingTime(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString('ru-RU', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Jerusalem',
-  });
-}
-
 function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
   const [bookings, setBookings] = useState<BotBooking[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -12486,47 +12228,6 @@ const CONSULT_MARK = '#B0413E';
 // приглушённый шалфейный тон, что уже есть в палитре маркеров клиента.
 const OPEN_SLOT_MARK = '#5E8C4A';
 
-interface CalendarEvent {
-  date: string;
-  time: string;
-  kind: 'session' | 'consultation';
-  clientId: string;
-  clientName: string;
-  id: string;
-  done: boolean;
-}
-
-// Buckets every dated session/consultation across all clients by ISO date,
-// each day's list sorted by time (untimed entries sink to the bottom).
-function collectCalendarEvents(clients: Client[]): Map<string, CalendarEvent[]> {
-  const map = new Map<string, CalendarEvent[]>();
-  const add = (e: CalendarEvent) => {
-    const arr = map.get(e.date) ?? [];
-    arr.push(e);
-    map.set(e.date, arr);
-  };
-  for (const c of clients) {
-    const clientName = [c.name, c.surname].filter(Boolean).join(' ').trim() || 'Клиент';
-    for (const s of c.sessions) {
-      if (ISO_DATE_RE.test(s.date)) add({ date: s.date, time: s.time, kind: 'session', clientId: c.id, clientName, id: s.id, done: s.done });
-    }
-    for (const cs of c.consultations) {
-      if (ISO_DATE_RE.test(cs.date)) add({ date: cs.date, time: cs.time, kind: 'consultation', clientId: c.id, clientName, id: cs.id, done: cs.done });
-    }
-  }
-  for (const arr of map.values()) arr.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
-  return map;
-}
-
-// День по календарю Asia/Jerusalem для ISO-времени бота — тот же приём,
-// что и на стороне бота (jerusalemDayKey в lib/calendar.ts), только тут
-// на чистом Intl, без сервера.
-function botSlotDayKey(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
-}
-
 function CalendarSheet({
   open,
   onClose,
@@ -14328,19 +14029,6 @@ function ProjectViewSheet({
       </div>
     </BottomSheet>
   );
-}
-
-// «Проект» / название+дата сессии / «Консультация» — берёт готовый resolved
-// link (ResolvedContentEntryLink из src/lib/contentLink.ts), ничего сам не
-// резолвит.
-function projectContentLinkLabel(link: ResolvedContentEntryLink): string {
-  if (link.kind === 'project') return 'Проект';
-  if (link.kind === 'session') {
-    const dateLabel = ISO_DATE_RE.test(link.session.date) ? formatDate(link.session.date) : link.session.date;
-    return [link.session.name || 'Сессия', dateLabel].filter(Boolean).join(' · ');
-  }
-  if (link.kind === 'consultation') return 'Консультация';
-  return '';
 }
 
 // Компактная карточка одного материала ContentINKA внутри «Контент» на

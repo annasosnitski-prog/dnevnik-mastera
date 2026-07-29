@@ -12,6 +12,7 @@ import type { Session } from '../domain/session';
 import type { Consultation } from '../domain/consultation';
 import { getProjectById } from '../domain/projectSelectors.js';
 import type { LinkableContentEntry } from './contentWorkspace';
+import { ISO_DATE_RE, formatDate } from '../utils/dates.js';
 
 export type ContentEntryLink =
   | { type: 'project'; projectId: string }
@@ -236,4 +237,17 @@ export function buildContentSessionOptions(
   }
 
   return options.sort((a, b) => Number(b.isPreferredClient) - Number(a.isPreferredClient));
+}
+
+// «Проект» / название+дата сессии / «Консультация» — берёт готовый resolved
+// link (ResolvedContentEntryLink выше), ничего сам не резолвит. Вынесено из
+// TattoDiary.tsx (PR 3 рефакторинга).
+export function projectContentLinkLabel(link: ResolvedContentEntryLink): string {
+  if (link.kind === 'project') return 'Проект';
+  if (link.kind === 'session') {
+    const dateLabel = ISO_DATE_RE.test(link.session.date) ? formatDate(link.session.date) : link.session.date;
+    return [link.session.name || 'Сессия', dateLabel].filter(Boolean).join(' · ');
+  }
+  if (link.kind === 'consultation') return 'Консультация';
+  return '';
 }
