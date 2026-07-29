@@ -54,6 +54,7 @@ import {
 export { shareOrDownloadJSON } from '../lib/contentShare';
 import { downsizePhotosSequentially } from '../lib/imagePreview';
 import { createContentEntryCardRevision } from '../lib/contentCardMemo';
+import { buildInitialContentInstruction } from '../lib/contentPrompt';
 import {
   confirmContentEntry,
   createContentEntryId,
@@ -4594,6 +4595,9 @@ function ContentINKAScreen({
       const photos = composerPhotos.length > 0 ? composerPhotos : linkedItem?.photos ?? [];
       const photoIds = createContentPhotoIds(photos.length);
       const selectedTextArchetype = ARCHETYPE_CHIPS.find((preset) => preset.label === composerTextArchetype);
+      const masterInstruction = photos.length > 0
+        ? buildInitialContentInstruction(selectedTextArchetype?.instruction)
+        : selectedTextArchetype?.instruction;
       const existingIds = [
         ...contentEntriesRef.current,
         ...createIngestJobs.map((job) => ({ id: job.entry.id })),
@@ -4608,7 +4612,7 @@ function ContentINKAScreen({
         sourceType,
         session: context,
         media: previews,
-        masterInstruction: selectedTextArchetype?.instruction,
+        masterInstruction,
       };
       const created = await createContentIngestJob(params);
       const record: ContentCreateJobRecord = {
@@ -4623,7 +4627,7 @@ function ContentINKAScreen({
           sourceType,
           session: context,
           mediaIds: photoIds,
-          masterInstruction: selectedTextArchetype?.instruction,
+          masterInstruction,
         },
         entry: {
           id: entryId,

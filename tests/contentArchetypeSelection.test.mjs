@@ -30,7 +30,8 @@ test('composer defaults to Inka choice and persists the selected primary text ar
   assert.doesNotMatch(composer, /<select[^>]*composerTextArchetype/);
 
   assert.match(generation, /ARCHETYPE_CHIPS\.find\(\(preset\) => preset\.label === composerTextArchetype\)/);
-  assert.match(generation, /masterInstruction: selectedTextArchetype\?\.instruction/);
+  assert.match(generation, /photos\.length > 0[\s\S]*buildInitialContentInstruction\(selectedTextArchetype\?\.instruction\)/);
+  assert.match(generation, /masterInstruction,/);
   assert.match(generation, /textArchetype: selectedTextArchetype\?\.label \?\? null/);
   assert.match(screen, /const resetComposer = \(\) => \{[^}]*setComposerTextArchetype\(''\)/s);
 });

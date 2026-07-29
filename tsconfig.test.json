@@ -17,6 +17,7 @@
     "src/lib/contentSync.ts",
     "src/lib/contentJobQueue.ts",
     "src/lib/contentCardMemo.ts",
+    "src/lib/contentPrompt.ts",
     "src/lib/imagePreview.ts",
     "src/lib/contentTranslation.ts",
     "src/lib/contentLink.ts",
