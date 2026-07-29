@@ -5,19 +5,9 @@
      viewBox="0 0 320 64"
      role="img"
      aria-labelledby="title desc">
-  <title id="title">Glowing gemstone navigation icons</title>
+  <title id="title">Faceted diamond navigation icons</title>
   <desc id="desc">Green sessions, blue consultations, violet content, amber notes, and red info icons.</desc>
 
-  <!--
-    Text SVG sprite.
-    Full strip: gem-icons.svg
-    Individual views:
-      gem-icons.svg#sessions
-      gem-icons.svg#consultations
-      gem-icons.svg#content
-      gem-icons.svg#notes
-      gem-icons.svg#info
-  -->
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
   <view id="content" viewBox="128 0 64 64"/>
@@ -25,86 +15,147 @@
   <view id="info" viewBox="256 0 64 64"/>
 
   <defs>
-    <filter id="glow-green" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="2.8" result="blur"/>
-      <feFlood flood-color="#9FBD8B" flood-opacity=".68" result="color"/>
+    <filter id="glow-green" x="-55%" y="-55%" width="210%" height="210%">
+      <feGaussianBlur stdDeviation="2.4" result="blur"/>
+      <feFlood flood-color="#CFE2C2" flood-opacity=".56" result="color"/>
       <feComposite in="color" in2="blur" operator="in" result="halo"/>
       <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="glow-blue" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="2.8" result="blur"/>
-      <feFlood flood-color="#91B7D0" flood-opacity=".7" result="color"/>
+    <filter id="glow-blue" x="-55%" y="-55%" width="210%" height="210%">
+      <feGaussianBlur stdDeviation="2.4" result="blur"/>
+      <feFlood flood-color="#C8DDEA" flood-opacity=".58" result="color"/>
       <feComposite in="color" in2="blur" operator="in" result="halo"/>
       <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="glow-violet" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="2.8" result="blur"/>
-      <feFlood flood-color="#B4A0CA" flood-opacity=".72" result="color"/>
+    <filter id="glow-violet" x="-55%" y="-55%" width="210%" height="210%">
+      <feGaussianBlur stdDeviation="2.4" result="blur"/>
+      <feFlood flood-color="#D8CCE4" flood-opacity=".6" result="color"/>
       <feComposite in="color" in2="blur" operator="in" result="halo"/>
       <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="glow-amber" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="2.8" result="blur"/>
-      <feFlood flood-color="#D2B17B" flood-opacity=".7" result="color"/>
+    <filter id="glow-amber" x="-55%" y="-55%" width="210%" height="210%">
+      <feGaussianBlur stdDeviation="2.4" result="blur"/>
+      <feFlood flood-color="#E8D1A8" flood-opacity=".58" result="color"/>
       <feComposite in="color" in2="blur" operator="in" result="halo"/>
       <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="glow-red" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="2.8" result="blur"/>
-      <feFlood flood-color="#D18A87" flood-opacity=".7" result="color"/>
+    <filter id="glow-red" x="-55%" y="-55%" width="210%" height="210%">
+      <feGaussianBlur stdDeviation="2.4" result="blur"/>
+      <feFlood flood-color="#E6B6B3" flood-opacity=".58" result="color"/>
       <feComposite in="color" in2="blur" operator="in" result="halo"/>
       <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
 
-    <!-- One shared simple square cut; color is supplied by each use instance. -->
-    <g id="gem-cut">
-      <path d="M14 10H50L54 14V50L50 54H14L10 50V14Z"
-            fill="var(--gem-dark)" stroke="var(--gem-edge)" stroke-width="1.4"
-            stroke-linejoin="round"/>
-      <path d="M14 10H50L44 20H20Z" fill="var(--gem-light)"/>
-      <path d="M50 10 54 14V50L44 44V20Z" fill="var(--gem-mid)"/>
-      <path d="M54 50 50 54H14L20 44H44Z" fill="var(--gem-deep)"/>
-      <path d="M14 54 10 50V14L20 20V44Z" fill="var(--gem-mid)"/>
-      <rect x="20" y="20" width="24" height="24" rx="1"
-            fill="var(--gem-core)" opacity=".88"/>
-      <path d="M20 20 44 44M44 20 20 44"
-            fill="none" stroke="var(--gem-line)" stroke-width=".65" opacity=".45"/>
-      <path d="M23 23H31L27 27Z" fill="#FFFFFF" opacity=".92"/>
-      <circle cx="27" cy="27" r="1.5" fill="#FFFFFF"/>
-    </g>
+    <!-- Universal light/shadow overlays keep every colored stone identically cut. -->
+    <linearGradient id="facet-top-light" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".52"/>
+      <stop offset=".52" stop-color="#FFFFFF" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="facet-left-light" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".26"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".05"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".18"/>
+    </linearGradient>
+    <linearGradient id="facet-right-shadow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".04"/>
+      <stop offset=".54" stop-color="#000000" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".48"/>
+    </linearGradient>
+    <linearGradient id="facet-bottom-shadow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#000000" stop-opacity=".08"/>
+      <stop offset=".5" stop-color="#000000" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".58"/>
+    </linearGradient>
+    <radialGradient id="core-glass" cx=".34" cy=".28" r=".82">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".54"/>
+      <stop offset=".34" stop-color="#FFFFFF" stop-opacity=".1"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".3"/>
+    </radialGradient>
+
   </defs>
 
   <g id="sessions-icon"
-     style="--gem-dark:#314A27;--gem-deep:#486D39;--gem-mid:#5E8C4A;--gem-light:#9FBD8B;--gem-core:#E6EFDF;--gem-edge:#789F65;--gem-line:#C9DDBB"
      filter="url(#glow-green)">
-    <use href="#gem-cut"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="#5E8C4A"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="#5E8C4A"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="#5E8C4A"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="#5E8C4A"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
+    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#5E8C4A"/>
+    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
+    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#E7F2E0" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
+    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
   </g>
 
   <g id="consultations-icon"
      transform="translate(64 0)"
-     style="--gem-dark:#244A64;--gem-deep:#326789;--gem-mid:#3E7CA6;--gem-light:#91B7D0;--gem-core:#E2EDF4;--gem-edge:#6699BA;--gem-line:#C4D9E6"
      filter="url(#glow-blue)">
-    <use href="#gem-cut"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="#3E7CA6"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="#3E7CA6"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="#3E7CA6"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="#3E7CA6"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
+    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#3E7CA6"/>
+    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
+    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#E1EFF6" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
+    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
   </g>
 
   <g id="content-icon"
      transform="translate(128 0)"
-     style="--gem-dark:#49365F;--gem-deep:#62477E;--gem-mid:#7A5AA0;--gem-light:#B4A0CA;--gem-core:#EEE8F3;--gem-edge:#9478B1;--gem-line:#D5C8E1"
      filter="url(#glow-violet)">
-    <use href="#gem-cut"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="#7A5AA0"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="#7A5AA0"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="#7A5AA0"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="#7A5AA0"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
+    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#7A5AA0"/>
+    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
+    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#F0E9F5" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
+    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
   </g>
 
   <g id="notes-icon"
      transform="translate(192 0)"
-     style="--gem-dark:#63491F;--gem-deep:#8A672D;--gem-mid:#B48745;--gem-light:#D2B17B;--gem-core:#F4EBDD;--gem-edge:#C39C60;--gem-line:#E6D2AE"
      filter="url(#glow-amber)">
-    <use href="#gem-cut"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="#B48745"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="#B48745"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="#B48745"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="#B48745"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
+    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#B48745"/>
+    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
+    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#F8ECD8" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
+    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
   </g>
 
   <g id="info-icon"
      transform="translate(256 0)"
-     style="--gem-dark:#682725;--gem-deep:#8E3532;--gem-mid:#B0413E;--gem-light:#D18A87;--gem-core:#F4E3E2;--gem-edge:#C66561;--gem-line:#E5B8B5"
      filter="url(#glow-red)">
-    <use href="#gem-cut"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="#B0413E"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="#B0413E"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="#B0413E"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="#B0413E"/>
+    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
+    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
+    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
+    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
+    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#B0413E"/>
+    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
+    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#F7E3E1" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
+    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
   </g>
 </svg>
