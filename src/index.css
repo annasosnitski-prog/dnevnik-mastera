@@ -1770,8 +1770,13 @@ input[type='date'] {
 }
 
 /* ── Scrollbar (kept whisper-thin to match the surfaces) ── */
+/* width covers vertical scrollbars, height covers horizontal ones (e.g.
+   .content-filter-chips, .archetype-toolbar) — without it, WebKit/Chrome
+   falls back to the thick default OS scrollbar for horizontal scroll,
+   clashing with the thin gold one used everywhere else. */
 ::-webkit-scrollbar {
   width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
