@@ -28,12 +28,12 @@ import {
   fs,
   INPUT_STYLE,
   SUBMIT_STYLE,
-  SessionPhotos,
   ViewField,
   ContentPanel,
   clientNameFor,
   type ContentEntry,
 } from '../TattoDiary';
+import { SessionPhotos } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton } from '../ui/Sheet';
 import { SheetStarDivider } from '../ui/TextAtoms';
 
