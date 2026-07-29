@@ -7,6 +7,13 @@ import type { Session } from './session';
 import type { Consultation } from './consultation';
 import type { ClientNote } from './task';
 
+// Per-client accent colours, assigned on creation (rotated through the list
+// when the master doesn't pick one explicitly).
+export const ACCENT_COLORS = ['#4A7A5A', '#8A3040', '#6B7A4A', '#3A5A7A', '#7A4A6A', '#7A6A3A', '#3A6A7A'];
+
+// Marker palette the master picks from at creation to tag/colour a client card.
+export const MARKER_COLORS = ['#B0413E', '#C67A32', '#C9A227', '#5E8C4A', '#3E7CA6', '#7A5AA0', '#A0555F', '#6E7B8B'];
+
 export interface ClientDocument {
   id: string;
   name: string;

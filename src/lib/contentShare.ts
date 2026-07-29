@@ -122,3 +122,27 @@ export function prepareStandardContentShare(params: {
 export function isShareAbortError(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'name' in error && error.name === 'AbortError';
 }
+
+// Shares a JSON payload via the native share sheet if the device has one
+// (files, not just text, so it can be AirDropped/sent as an attachment),
+// falling back to a plain browser download otherwise — shared by the full
+// backup export (Админка) and the single-client export (Инфо tab).
+export async function shareOrDownloadJSON(json: string, filename: string, shareTitle: string): Promise<void> {
+  const file = new File([json], filename, { type: 'application/json' });
+  const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+  if (nav.canShare && nav.canShare({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: shareTitle });
+      return;
+    } catch (err) {
+      if ((err as DOMException)?.name === 'AbortError') return;
+    }
+  }
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

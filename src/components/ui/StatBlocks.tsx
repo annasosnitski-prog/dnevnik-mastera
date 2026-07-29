@@ -1,4 +1,4 @@
-import { COLORS, fs } from '../TattoDiary';
+import { COLORS, fs } from './designTokens';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { GoldFrame } from './Stripes';
 
