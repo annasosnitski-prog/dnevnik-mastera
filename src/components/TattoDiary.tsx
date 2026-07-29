@@ -179,7 +179,6 @@ import {
 } from '../domain/projectSelectors';
 export { clientNameFor } from '../domain/projectSelectors';
 import {
-  lastSession,
   nextPlannedSession,
   type SortMode,
   SORT_MODES,
@@ -2876,6 +2875,8 @@ function TrialGate({
 
 // ===================== CLIENT GRID CARD =====================
 function ClientGridCard({ client, onClick }: { client: Client; onClick: () => void }) {
+  const plannedSession = nextPlannedSession(client);
+
   return (
     <div
       className="inka-card"
@@ -2988,35 +2989,28 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           )}
         </div>
 
-        {/* Next planned session date if one exists, otherwise the last
-            completed one — calendar date only, never a session title. Legacy
-            records sometimes have free text in the date field (predates the
-            date picker); ISO_DATE_RE filters those out rather than leaking
-            them onto the card. */}
-        <div style={{ marginBottom: 6, minWidth: 0 }}>
-          <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-            {nextPlannedSession(client) ? 'Следующая сессия' : 'Последняя сессия'}
+        {/* Only an upcoming session belongs on the cover. Completed-session
+            dates remain available inside the client profile and timeline. */}
+        {plannedSession && ISO_DATE_RE.test(plannedSession.date) && (
+          <div style={{ marginBottom: 6, minWidth: 0 }}>
+            <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+              Следующая сессия
+            </div>
+            <div
+              style={{
+                fontSize: fs(12),
+                color: COLORS.textSecondary,
+                fontStyle: 'italic',
+                marginTop: 2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {formatDate(plannedSession.date)}
+            </div>
           </div>
-          <div
-            style={{
-              fontSize: fs(12),
-              color: COLORS.textSecondary,
-              fontStyle: 'italic',
-              marginTop: 2,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {(() => {
-              const dateOnly = (value: string) => (ISO_DATE_RE.test(value) ? formatDate(value) : '');
-              const planned = nextPlannedSession(client);
-              if (planned) return dateOnly(planned.date) || '—';
-              const last = lastSession(client);
-              return last ? dateOnly(last.date) || '—' : 'Нет сессий';
-            })()}
-          </div>
-        </div>
+        )}
 
         {/* Style tag (+ Модель/Другое badge, when not a plain client) */}
         <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
