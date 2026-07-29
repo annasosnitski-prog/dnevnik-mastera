@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import { createContentEntryCardRevision } from '../.test-dist/src/lib/contentCardMemo.js';
 import { downsizePhotosSequentially } from '../.test-dist/src/lib/imagePreview.js';
 
 const diary = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
@@ -27,6 +28,24 @@ test('content cards are memoized independently from composer input state', () =>
   assert.match(diary, /const ContentEntryCard = memo\(/);
   assert.match(diary, /pagedVisibleEntries\.map\(\(entry\)/);
   assert.match(diary, /<ContentEntryCard/);
+  assert.match(diary, /contentCardActionHandlersRef\.current = \{/);
+  assert.match(diary, /const contentCardActions = useMemo\(\(\) => \(\{/);
+  assert.match(diary, /onClick=\{\(\) => contentCardActions\.approveEntry\(entry\)\}/);
+});
+
+test('changing refresh feedback invalidates only the matching content card revision', () => {
+  const stableParts = ['entry', false, null];
+  const initialFeedback = {};
+  const changedFeedback = { 'entry-a': { kind: 'error', message: 'Retry failed' } };
+
+  const initialA = createContentEntryCardRevision('entry-a', stableParts, initialFeedback);
+  const initialB = createContentEntryCardRevision('entry-b', stableParts, initialFeedback);
+  const changedA = createContentEntryCardRevision('entry-a', stableParts, changedFeedback);
+  const changedB = createContentEntryCardRevision('entry-b', stableParts, changedFeedback);
+
+  assert.notEqual(changedA, initialA);
+  assert.equal(changedB, initialB);
+  assert.match(diary, /createContentEntryCardRevision\(entry\.id,[\s\S]*refreshFeedbackByEntry\)/);
 });
 
 test('photo previews are downsized sequentially and preserve their order', async () => {

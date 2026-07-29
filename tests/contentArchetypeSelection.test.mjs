@@ -58,7 +58,7 @@ test('the top composer toolbar and the card regeneration toolbar reuse the same 
   const cardToolbar = screen.slice(screen.indexOf('Голос текста — перегенерировать'), screen.indexOf('content-refresh-row'));
   assert.match(cardToolbar, /ArchetypeToolbar/);
   assert.match(cardToolbar, /value=\{selectedArchetypeByEntry\[entry\.id\] \?\? null\}/);
-  assert.match(cardToolbar, /if \(preset\) regenerate\(entry, preset\.instruction, preset\.label\);/);
+  assert.match(cardToolbar, /if \(preset\) contentCardActions\.regenerate\(entry, preset\.instruction, preset\.label\);/);
   assert.match(cardToolbar, /entry\.status === 'confirmed'/);
 });
 
