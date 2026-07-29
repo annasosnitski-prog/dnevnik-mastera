@@ -1267,16 +1267,37 @@ input[type='date'] {
   border-top: 1px solid rgba(var(--gold-rgb), 0.14);
 }
 
-.content-photo-archive summary {
+.content-photo-archive__toggle {
+  appearance: none;
+  border: 0;
+  background: none;
   padding: 10px 1px 8px;
   color: var(--text-muted);
+  font: inherit;
   font-size: 11px;
   letter-spacing: 0.4px;
   cursor: pointer;
 }
 
+.content-photo-archive__toggle::before {
+  content: '▶';
+  display: inline-block;
+  margin-right: 5px;
+  font-size: 8px;
+  transition: transform 0.15s ease;
+}
+
+.content-photo-archive__toggle[aria-expanded='true']::before {
+  transform: rotate(90deg);
+}
+
 .content-photo-archive__grid {
   padding-top: 2px;
+}
+
+.content-show-more {
+  align-self: center;
+  padding-inline: 18px;
 }
 
 .content-photo-legacy {

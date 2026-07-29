@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type SVGProps } from 'react';
+import { memo, useState, useEffect, useRef, useMemo, type ReactNode, type SVGProps } from 'react';
 import { createPortal } from 'react-dom';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
@@ -52,7 +52,8 @@ import {
   type ContentSharePhoto,
 } from '../lib/contentShare';
 export { shareOrDownloadJSON } from '../lib/contentShare';
-import { downsizeToPreview } from '../lib/imagePreview';
+import { downsizePhotosSequentially } from '../lib/imagePreview';
+import { createContentEntryCardRevision } from '../lib/contentCardMemo';
 import {
   confirmContentEntry,
   createContentEntryId,
@@ -4071,8 +4072,11 @@ type ContentShareFeedback = {
   message: string;
 };
 
+const CONTENT_ENTRY_PAGE_SIZE = 8;
+
 function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
   const [viewerPhoto, setViewerPhoto] = useState<ResolvedContentPhoto | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const input = { photos: entry.photos, photoIds: entry.photoIds, contentDraft: entry.contentDraft };
   const hasSelectionContract = hasContentPhotoSelectionContract(entry.contentDraft);
   const publicationSets = resolveContentPhotoPublicationSets(input);
@@ -4137,14 +4141,21 @@ function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
               )}
             </div>
           )}
-          <details className="content-photo-archive">
-            <summary>Все фотографии · {allPhotos.length}</summary>
-            {allPhotos.length > 0 && (
+          <div className="content-photo-archive">
+            <button
+              type="button"
+              className="content-photo-archive__toggle"
+              aria-expanded={archiveOpen}
+              onClick={() => setArchiveOpen((open) => !open)}
+            >
+              Все фотографии · {allPhotos.length}
+            </button>
+            {archiveOpen && allPhotos.length > 0 && (
               <div className="content-photo-archive__grid">
                 {allPhotos.map((photo) => photoButton(photo, 'content-photo-tile'))}
               </div>
             )}
-          </details>
+          </div>
         </div>
       ) : entry.photos.length > 0 ? (
         <div className="content-photo-legacy">
@@ -4170,6 +4181,38 @@ function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
     </>
   );
 }
+
+type ContentEntryCardProps = {
+  entry: ContentEntry;
+  highlighted: boolean;
+  clients: Client[];
+  projects: Project[];
+  revision: string;
+  children: ReactNode;
+};
+
+const ContentEntryCard = memo(function ContentEntryCard({ entry, highlighted, children }: ContentEntryCardProps) {
+  return (
+    <div
+      id={`content-entry-${entry.id}`}
+      style={
+        highlighted
+          ? { boxShadow: '0 0 0 2px var(--gold)', borderRadius: 3, transition: 'box-shadow 0.3s ease' }
+          : undefined
+      }
+    >
+      <GoldFrame plain style={{ padding: '14px 16px' }}>
+        {children}
+      </GoldFrame>
+    </div>
+  );
+}, (previous, next) =>
+  previous.entry === next.entry &&
+  previous.highlighted === next.highlighted &&
+  previous.clients === next.clients &&
+  previous.projects === next.projects &&
+  previous.revision === next.revision,
+);
 
 // Полноценный рабочий интерфейс ContentINKA — отдельная страница
 // (NavFab → «Контент»). Здесь собирается материал с нуля или из выбранной
@@ -4385,6 +4428,7 @@ function ContentINKAScreen({
   const knownContentEntryIds = useRef(new Set(contentEntries.map((entry) => entry.id)));
   const [filterClientId, setFilterClientId] = useState<string>('all'); // 'all' | 'studio' | clientId
   const [focusedSource, setFocusedSource] = useState<ContentSourceRef | null>(null);
+  const [visibleEntryLimit, setVisibleEntryLimit] = useState(CONTENT_ENTRY_PAGE_SIZE);
   // Кратковременная подсветка записи, раскрытой через focusEntryId (клик по
   // карточке в разделе «Контент» экрана проекта) — гаснет сама, ничего не
   // меняет в данных.
@@ -4460,6 +4504,7 @@ function ContentINKAScreen({
     setComposerClientId(client?.id ?? navigation.clientId);
     setComposerItemKey(contentComposerItemKey(source));
     setFilterClientId(client?.id ?? 'all');
+    setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
 
     if (navigation.mode === 'compose') {
       setFocusedSource(null);
@@ -4495,6 +4540,10 @@ function ContentINKAScreen({
     if (target) {
       setFocusedSource(null);
       setFilterClientId('all');
+      const targetIndex = contentEntries
+        .filter((entry) => !entry.removedFromWorkspace || entry.id === target.id)
+        .findIndex((entry) => entry.id === target.id);
+      setVisibleEntryLimit(Math.max(CONTENT_ENTRY_PAGE_SIZE, targetIndex + 1));
       setHighlightedEntryId(target.id);
       requestAnimationFrame(() => {
         document.getElementById(`content-entry-${target.id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -4553,9 +4602,7 @@ function ContentINKAScreen({
       const createdDate = new Date().toISOString();
       const sessionId = sourceId ?? `freeform-${entryId}`;
       const context = { client: clientName, work, zone, style, description };
-      const previews = await Promise.all(
-        photos.map(async (photo, index) => ({ id: photoIds[index], preview_data_url: await downsizeToPreview(photo) })),
-      );
+      const previews = await downsizePhotosSequentially(photos, photoIds);
       const params: ContentIngestParams = {
         sessionId,
         sourceType,
@@ -4618,9 +4665,7 @@ function ContentINKAScreen({
           : currentEntry.contentDraft?.length === currentEntry.photos.length
             ? currentEntry.contentDraft.map((media) => media.id)
             : currentEntry.photos.map((_, index) => `${currentEntry.id}-${index}`);
-      const previews = await Promise.all(
-        currentEntry.photos.map(async (photo, index) => ({ id: requestPhotoIds[index], preview_data_url: await downsizeToPreview(photo) })),
-      );
+      const previews = await downsizePhotosSequentially(currentEntry.photos, requestPhotoIds);
       const masterInstruction = instruction || primaryTextArchetype?.instruction;
       const params: ContentIngestParams = {
         sessionId: currentEntry.sourceId ?? currentEntry.id,
@@ -4682,9 +4727,8 @@ function ContentINKAScreen({
         : entry?.photoIds?.length === photos.length
           ? entry.photoIds
           : job.request.mediaIds;
-      const previews = await Promise.all(
-        photos.map(async (photo, index) => ({ id: mediaIds[index] ?? `${job.id}-${index}`, preview_data_url: await downsizeToPreview(photo) })),
-      );
+      const previewIds = photos.map((_, index) => mediaIds[index] ?? `${job.id}-${index}`);
+      const previews = await downsizePhotosSequentially(photos, previewIds);
       const created = await createContentIngestJob({
         sessionId: job.request.sessionId,
         sourceType: job.request.sourceType,
@@ -4945,6 +4989,72 @@ function ContentINKAScreen({
     await shareContentEntry(currentEntry.id, currentEntry.photos, currentEntry.textDraft);
   };
 
+  // ContentEntryCard intentionally ignores the freshly-created children prop
+  // while its per-entry revision is unchanged. Keep every event handler inside
+  // those children stable and delegate to the latest render's implementation,
+  // so memoization cannot retain stale state or parent callbacks.
+  const contentCardActionHandlersRef = useRef({
+    updateExemplar,
+    approveEntry,
+    openLinkPicker,
+    saveTextEdit,
+    cancelTextEdit,
+    startTextEdit,
+    copyContentTranslation,
+    translateEntry,
+    regenerate,
+    retryContentJob,
+    onDeleteContentIngestJob,
+    copyContentDraft,
+    toggleTranslationMenu,
+    openContentShareMenu,
+    deleteContentEntry,
+    shareContentToInstagram,
+    shareContentToOtherApps,
+  });
+  contentCardActionHandlersRef.current = {
+    updateExemplar,
+    approveEntry,
+    openLinkPicker,
+    saveTextEdit,
+    cancelTextEdit,
+    startTextEdit,
+    copyContentTranslation,
+    translateEntry,
+    regenerate,
+    retryContentJob,
+    onDeleteContentIngestJob,
+    copyContentDraft,
+    toggleTranslationMenu,
+    openContentShareMenu,
+    deleteContentEntry,
+    shareContentToInstagram,
+    shareContentToOtherApps,
+  };
+  const contentCardActions = useMemo(() => ({
+    updateExemplar: (entry: ContentEntry, value: boolean) => contentCardActionHandlersRef.current.updateExemplar(entry, value),
+    approveEntry: (entry: ContentEntry) => contentCardActionHandlersRef.current.approveEntry(entry),
+    openLinkPicker: (entryId: string) => contentCardActionHandlersRef.current.openLinkPicker(entryId),
+    saveTextEdit: (entry: ContentEntry) => contentCardActionHandlersRef.current.saveTextEdit(entry),
+    cancelTextEdit: (entryId: string) => contentCardActionHandlersRef.current.cancelTextEdit(entryId),
+    startTextEdit: (entry: ContentEntry) => contentCardActionHandlersRef.current.startTextEdit(entry),
+    copyContentTranslation: (entry: ContentEntry, language: ContentTranslationLanguage) =>
+      contentCardActionHandlersRef.current.copyContentTranslation(entry, language),
+    translateEntry: (entry: ContentEntry, language: ContentTranslationLanguage) =>
+      contentCardActionHandlersRef.current.translateEntry(entry, language),
+    regenerate: (entry: ContentEntry, instruction: string, selectedArchetype?: string) =>
+      contentCardActionHandlersRef.current.regenerate(entry, instruction, selectedArchetype),
+    retryContentJob: (job: ContentIngestJobRecord) => contentCardActionHandlersRef.current.retryContentJob(job),
+    deleteContentIngestJob: (jobId: string) => contentCardActionHandlersRef.current.onDeleteContentIngestJob(jobId),
+    copyContentDraft: (entry: ContentEntry) => contentCardActionHandlersRef.current.copyContentDraft(entry),
+    toggleTranslationMenu: (entryId: string) => contentCardActionHandlersRef.current.toggleTranslationMenu(entryId),
+    openContentShareMenu: (entryId: string) => contentCardActionHandlersRef.current.openContentShareMenu(entryId),
+    deleteContentEntry: (entryId: string) => contentCardActionHandlersRef.current.deleteContentEntry(entryId),
+    shareContentToInstagram: (entry: ContentEntry, target: 'carousel' | 'stories') =>
+      contentCardActionHandlersRef.current.shareContentToInstagram(entry, target),
+    shareContentToOtherApps: (entry: ContentEntry) => contentCardActionHandlersRef.current.shareContentToOtherApps(entry),
+  }), []);
+
   // Linked entries "deleted" from POSTiNKA (see deleteContentEntry above)
   // stay in the store but drop out of this workspace's own list — except
   // the one explicitly being focused (opened from its linked project/
@@ -4956,6 +5066,7 @@ function ContentINKAScreen({
     clientFilter: filterClientId,
     focusedSource,
   });
+  const pagedVisibleEntries = visibleEntries.slice(0, visibleEntryLimit);
 
   const clientLabel = (clientId: string | null) => {
     if (clientId === null) return 'Мастерская';
@@ -5092,6 +5203,7 @@ function ContentINKAScreen({
             onClick={() => {
               setFocusedSource(null);
               setFilterClientId('all');
+              setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
             }}
           >
             Все
@@ -5103,6 +5215,7 @@ function ContentINKAScreen({
             onClick={() => {
               setFocusedSource(null);
               setFilterClientId('studio');
+              setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
             }}
           >
             Мастерская
@@ -5116,6 +5229,7 @@ function ContentINKAScreen({
               onClick={() => {
                 setFocusedSource(null);
                 setFilterClientId(c.id);
+                setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
               }}
             >
               {`${c.name} ${c.surname}`.trim()}
@@ -5128,7 +5242,10 @@ function ContentINKAScreen({
           {focusedSource && (
             <div className="content-linked-heading">
               <span>Связанные черновики · {visibleEntries.length}</span>
-              <button type="button" onClick={() => setFocusedSource(null)}>
+              <button type="button" onClick={() => {
+                setFocusedSource(null);
+                setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
+              }}>
                 Показать все
               </button>
             </div>
@@ -5136,17 +5253,31 @@ function ContentINKAScreen({
           {visibleEntries.length === 0 && (
             <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока пусто.</div>
           )}
-          {visibleEntries.map((entry) => (
-            <div
+          {pagedVisibleEntries.map((entry) => {
+            const revision = createContentEntryCardRevision(entry.id, [
+              refreshingEntryIds.has(entry.id),
+              refreshJobByEntry.get(entry.id),
+              selectedArchetypeByEntry[entry.id],
+              textEditorsByEntry[entry.id],
+              textEditFeedbackByEntry[entry.id],
+              copyFeedbackByEntry[entry.id],
+              translationMenuEntryIds.has(entry.id),
+              CONTENT_TRANSLATION_OPTIONS.map((option) => {
+                const key = contentTranslationKey(entry.id, option.language);
+                return [translationFeedbackByKey[key], translationCopyFeedbackByKey[key]];
+              }),
+              shareMenuEntryId === entry.id,
+              shareFeedbackByEntry[entry.id],
+            ], refreshFeedbackByEntry);
+            return (
+            <ContentEntryCard
               key={entry.id}
-              id={`content-entry-${entry.id}`}
-              style={
-                highlightedEntryId === entry.id
-                  ? { boxShadow: '0 0 0 2px var(--gold)', borderRadius: 3, transition: 'box-shadow 0.3s ease' }
-                  : undefined
-              }
+              entry={entry}
+              highlighted={highlightedEntryId === entry.id}
+              clients={clients}
+              projects={projects}
+              revision={revision}
             >
-            <GoldFrame plain style={{ padding: '14px 16px' }}>
               <div className="content-card-header">
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '0.5px' }}>
                   {clientLabel(entry.clientId)}
@@ -5160,7 +5291,7 @@ function ContentINKAScreen({
                         <input
                           type="checkbox"
                           checked={entry.isExemplar}
-                          onChange={(event) => updateExemplar(entry, event.target.checked)}
+                          onChange={(event) => contentCardActions.updateExemplar(entry, event.target.checked)}
                         />
                         <span>Эталон</span>
                       </label>
@@ -5170,7 +5301,7 @@ function ContentINKAScreen({
                       type="button"
                       className="content-approve-action"
                       disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry) || isEntryRefreshing(entry.id)}
-                      onClick={() => approveEntry(entry)}
+                      onClick={() => contentCardActions.approveEntry(entry)}
                     >
                       Одобрить текст
                     </button>
@@ -5180,7 +5311,7 @@ function ContentINKAScreen({
                   entry={entry}
                   projects={projects}
                   clients={clients}
-                  onOpenPicker={() => openLinkPicker(entry.id)}
+                  onOpenPicker={() => contentCardActions.openLinkPicker(entry.id)}
                 />
               </div>
               {hasUnsavedTextEdit(entry) && (
@@ -5228,16 +5359,16 @@ function ContentINKAScreen({
                         !textEditorsByEntry[entry.id].editedText.trim() ||
                         contentTextLength(textEditorsByEntry[entry.id].editedText.trim()) > MAX_CONTENT_TEXT_CHARACTERS
                       }
-                      onClick={() => saveTextEdit(entry)}
+                      onClick={() => contentCardActions.saveTextEdit(entry)}
                     />
-                    <ActionButton icon="cancel" label="Отмена" onClick={() => cancelTextEdit(entry.id)} />
+                    <ActionButton icon="cancel" label="Отмена" onClick={() => contentCardActions.cancelTextEdit(entry.id)} />
                   </div>
                 </div>
               ) : entry.textDraft ? (
                 <div className="content-text-output">
                   <div dir="auto" className="content-text-output__body">{entry.textDraft}</div>
                   {entry.status === 'draft' && !isEntryRefreshing(entry.id) && (
-                    <ActionButton icon="edit" label="Редактировать" onClick={() => startTextEdit(entry)} />
+                    <ActionButton icon="edit" label="Редактировать" onClick={() => contentCardActions.startTextEdit(entry)} />
                   )}
                 </div>
               ) : null}
@@ -5267,7 +5398,7 @@ function ContentINKAScreen({
                       {translation.translatedText}
                     </div>
                     <div className="content-translation-block__actions">
-                      <button type="button" onClick={() => copyContentTranslation(entry, option.language)}>
+                      <button type="button" onClick={() => contentCardActions.copyContentTranslation(entry, option.language)}>
                         {copyFeedback === 'success'
                           ? 'Скопировано'
                           : copyFeedback === 'error'
@@ -5278,7 +5409,7 @@ function ContentINKAScreen({
                         <button
                           type="button"
                           disabled={feedback?.state === 'loading' || !entry.textDraft.trim() || hasUnsavedTextEdit(entry) || isEntryRefreshing(entry.id)}
-                          onClick={() => translateEntry(entry, option.language)}
+                          onClick={() => contentCardActions.translateEntry(entry, option.language)}
                         >
                           {feedback?.state === 'loading' ? 'Перевожу…' : 'Обновить перевод'}
                         </button>
@@ -5313,7 +5444,7 @@ function ContentINKAScreen({
                 ariaLabel="Перегенерировать текст публикации"
                 onSelect={(label) => {
                   const preset = ARCHETYPE_CHIPS.find((candidate) => candidate.label === label);
-                  if (preset) regenerate(entry, preset.instruction, preset.label);
+                  if (preset) contentCardActions.regenerate(entry, preset.instruction, preset.label);
                 }}
               />
               {entry.status === 'draft' && (
@@ -5328,12 +5459,12 @@ function ContentINKAScreen({
                         {refreshJobByEntry.get(entry.id)?.retryable !== false && (
                           <button type="button" onClick={() => {
                             const job = refreshJobByEntry.get(entry.id);
-                            if (job) retryContentJob(job);
+                            if (job) contentCardActions.retryContentJob(job);
                           }}>Повторить</button>
                         )}
                         <button type="button" onClick={() => {
                           const job = refreshJobByEntry.get(entry.id);
-                          if (job) onDeleteContentIngestJob(job.id);
+                          if (job) contentCardActions.deleteContentIngestJob(job.id);
                         }}>Удалить</button>
                       </div>
                     </div>
@@ -5342,7 +5473,7 @@ function ContentINKAScreen({
                     type="button"
                     className="content-refresh-action"
                     disabled={refreshingEntryIds.has(entry.id) || hasUnsavedTextEdit(entry)}
-                    onClick={() => regenerate(entry, '')}
+                    onClick={() => contentCardActions.regenerate(entry, '')}
                   >
                     <span className={refreshingEntryIds.has(entry.id) ? 'is-spinning' : ''} aria-hidden="true">
                       ↻
@@ -5368,7 +5499,7 @@ function ContentINKAScreen({
                       aria-label="Копировать текст публикации"
                       aria-live="polite"
                       disabled={!entry.textDraft.trim()}
-                      onClick={() => copyContentDraft(entry)}
+                      onClick={() => contentCardActions.copyContentDraft(entry)}
                     >
                       {copyFeedbackByEntry[entry.id] === 'success'
                         ? 'Скопировано'
@@ -5381,7 +5512,7 @@ function ContentINKAScreen({
                       className="content-action-button content-translate-action"
                       aria-expanded={translationMenuEntryIds.has(entry.id)}
                       disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry)}
-                      onClick={() => toggleTranslationMenu(entry.id)}
+                      onClick={() => contentCardActions.toggleTranslationMenu(entry.id)}
                     >
                       Перевести
                     </button>
@@ -5389,7 +5520,7 @@ function ContentINKAScreen({
                     <button
                       type="button"
                       className="content-action-button content-share-action"
-                      onClick={() => openContentShareMenu(entry.id)}
+                      onClick={() => contentCardActions.openContentShareMenu(entry.id)}
                     >
                       Поделиться
                     </button>
@@ -5400,7 +5531,7 @@ function ContentINKAScreen({
                     icon="delete"
                     label="Удалить"
                     variant="danger"
-                    onClick={() => deleteContentEntry(entry.id)}
+                    onClick={() => contentCardActions.deleteContentEntry(entry.id)}
                   />
                 }
               />
@@ -5416,9 +5547,9 @@ function ContentINKAScreen({
                 <ContentShareSheet
                   carouselCount={contentPublicationSets(entry).carousel.length}
                   storiesCount={contentPublicationSets(entry).stories.length}
-                  onInstagramCarousel={() => void shareContentToInstagram(entry, 'carousel')}
-                  onInstagramStories={() => void shareContentToInstagram(entry, 'stories')}
-                  onOtherApps={() => void shareContentToOtherApps(entry)}
+                  onInstagramCarousel={() => void contentCardActions.shareContentToInstagram(entry, 'carousel')}
+                  onInstagramStories={() => void contentCardActions.shareContentToInstagram(entry, 'stories')}
+                  onOtherApps={() => void contentCardActions.shareContentToOtherApps(entry)}
                   onClose={() => setShareMenuEntryId(null)}
                 />
               )}
@@ -5433,7 +5564,7 @@ function ContentINKAScreen({
                         <button
                           type="button"
                           disabled={!entry.textDraft.trim() || hasUnsavedTextEdit(entry) || feedback?.state === 'loading' || hasCurrentTranslation}
-                          onClick={() => translateEntry(entry, option.language)}
+                          onClick={() => contentCardActions.translateEntry(entry, option.language)}
                         >
                           {feedback?.state === 'loading' ? 'Перевожу…' : option.actionLabel}
                         </button>
@@ -5462,9 +5593,18 @@ function ContentINKAScreen({
                   })}
                 </div>
               )}
-            </GoldFrame>
-            </div>
-          ))}
+            </ContentEntryCard>
+            );
+          })}
+          {pagedVisibleEntries.length < visibleEntries.length && (
+            <button
+              type="button"
+              className="content-filter-chip content-show-more"
+              onClick={() => setVisibleEntryLimit((current) => Math.min(current + CONTENT_ENTRY_PAGE_SIZE, visibleEntries.length))}
+            >
+              Показать ещё
+            </button>
+          )}
         </div>
       </div>
       <ContentLinkPickerSheet
