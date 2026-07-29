@@ -10583,7 +10583,7 @@ function ContentPhotoGallery({ entry }: { entry: ContentEntry }) {
       onClick={() => setViewerPhoto(photo)}
       aria-label={`Открыть фотографию ${photo.originalIndex + 1}`}
     >
-      <img src={photo.src} alt="" />
+      <img src={photo.src} alt="" loading="lazy" decoding="async" />
       {roleBadge(photo)}
       {hasSelectionContract && !photo.selected && <span className="content-photo-not-selected">Не выбрано</span>}
     </button>
