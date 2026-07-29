@@ -23,6 +23,8 @@
     "src/lib/contentLink.ts",
     "src/lib/contentProject.ts",
     "src/lib/sessionSave.ts",
+    "src/lib/calendarSync.ts",
+    "src/lib/normalize.ts",
     "src/domain/project.ts",
     "src/domain/projectSelectors.ts",
     "src/domain/client.ts",

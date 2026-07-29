@@ -63,7 +63,7 @@ export function upsertClientSession(
     sessions = client.sessions.map((s) => (s.id === editingSessionId ? { ...s, ...fields } : s));
     sessionId = editingSessionId;
   } else {
-    sessionId = Date.now().toString();
+    sessionId = crypto.randomUUID();
     sessions = [...client.sessions, { id: sessionId, cancelled: false, ...fields }];
   }
   const styles = clientStyles(client);
@@ -87,7 +87,7 @@ export function upsertProjectSession(
     sessions = project.sessions.map((s) => (s.id === editingSessionId ? { ...s, ...fields } : s));
     sessionId = editingSessionId;
   } else {
-    sessionId = Date.now().toString();
+    sessionId = crypto.randomUUID();
     sessions = [...project.sessions, { id: sessionId, cancelled: false, ...fields }];
   }
   return { project: { ...project, sessions }, sessionId };

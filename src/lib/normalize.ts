@@ -5,9 +5,9 @@
 import { type Session } from '../domain/session';
 import { type Consultation } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
-import { URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency';
-import { isValidISODate } from '../utils/dates';
-import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, MARKER_COLORS, type Client } from '../domain/client';
+import { URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency.js';
+import { isValidISODate } from '../utils/dates.js';
+import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, MARKER_COLORS, type Client } from '../domain/client.js';
 import {
   PROJECT_CATEGORIES,
   PROJECT_STAGES,
@@ -16,7 +16,7 @@ import {
   PROJECT_PRIORITIES,
   NEXT_ACTION_TYPES,
   type Project,
-} from '../domain/project';
+} from '../domain/project.js';
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.

@@ -1053,7 +1053,7 @@ export default function TattoDiary() {
 
   const handleQuickCreateClient = (data: { name: string; color: string; phone: string }) => {
     const client: Client = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       name: data.name.trim(),
       surname: '',
       styles: [],
@@ -1127,7 +1127,7 @@ export default function TattoDiary() {
     } else {
       consultations = [
         ...selectedClient.consultations,
-        { id: Date.now().toString(), createdDate: new Date().toISOString(), cancelled: false, ...fields },
+        { id: crypto.randomUUID(), createdDate: new Date().toISOString(), cancelled: false, ...fields },
       ];
     }
     saveClient({ ...selectedClient, consultations });
@@ -1182,7 +1182,7 @@ export default function TattoDiary() {
         saveProject({ ...editProject, ...data });
       }
     } else {
-      const newProjectId = Date.now().toString();
+      const newProjectId = crypto.randomUUID();
       saveProject({ id: newProjectId, createdDate: new Date().toISOString(), sessions: [], ...data });
       // Проект создан из ContentLinkPickerSheet «Сохранить в…».
       if (pendingContentLinkRef.current) {
@@ -1502,7 +1502,7 @@ export default function TattoDiary() {
     note: string;
   }) => {
     const client: Client = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       name: data.name.trim(),
       surname: data.surname.trim(),
       styles: data.styles,
@@ -2188,7 +2188,7 @@ export default function TattoDiary() {
                 ...masterInfo,
                 notes: [
                   ...masterInfo.notes,
-                  { id: Date.now().toString(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId: null, dueDate },
+                  { id: crypto.randomUUID(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId: null, dueDate },
                 ],
               })
             }
@@ -2402,7 +2402,7 @@ export default function TattoDiary() {
             // tasks they thought they'd saved. Notes always save immediately.
             onAddNote={(text, urgency, photos, dueDate) =>
               upsertNote(selectedClient.id, {
-                id: Date.now().toString(),
+                id: crypto.randomUUID(),
                 text,
                 urgency,
                 done: false,
@@ -3372,7 +3372,7 @@ function MasterDashboardScreen({
   const style = mostUsedStyle(clients);
 
   const addMasterLink = (label: string, value: string) => {
-    const link: MasterLink = { id: Date.now().toString(), label: label.trim(), value: value.trim() };
+    const link: MasterLink = { id: crypto.randomUUID(), label: label.trim(), value: value.trim() };
     onChangeMasterInfo({ ...masterInfo, links: [...masterInfo.links, link] });
   };
   const removeMasterLink = (id: string) => {
@@ -3422,7 +3422,7 @@ function MasterDashboardScreen({
   // платформ, что у контактов клиента, но тап по строке копирует ссылку в
   // буфер (а не открывает её), как и остальные блоки на этом экране.
   const addChatLink = (platform: ChatPlatform, raw: string) => {
-    const link: ChatLink = { id: Date.now().toString(), platform, url: buildChatLink(platform, raw) };
+    const link: ChatLink = { id: crypto.randomUUID(), platform, url: buildChatLink(platform, raw) };
     onChangeMasterInfo({ ...masterInfo, chatLinks: [...masterInfo.chatLinks, link] });
   };
   const removeChatLink = (id: string) => {

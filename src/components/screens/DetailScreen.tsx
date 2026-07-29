@@ -22,16 +22,14 @@ import { buildChatLink } from '../../lib/chatLink';
 import { normalizeClient } from '../../lib/normalize';
 import { type ContentWorkspaceNavigation } from '../../lib/contentWorkspace';
 import { ISO_DATE_RE, formatDate } from '../../utils/dates';
+import { COLORS, fs, DONE_EMOJI } from '../ui/designTokens';
+import { type ContentEntry } from '../../domain/content';
 import {
-  COLORS,
-  fs,
-  DONE_EMOJI,
   SKIN_TYPES,
   INPUT_STYLE,
   ContentPanel,
   useSwipeToReveal,
   shareOrDownloadJSON,
-  type ContentEntry,
 } from '../TattoDiary';
 import { SessionPhotos, SkinTonePalette, UrgencyChips } from '../client/ClientControls';
 import { GoldFrame } from '../ui/Stripes';
@@ -1006,7 +1004,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
   };
 
   const addLink = (platform: ChatPlatform, raw: string) => {
-    const link: ChatLink = { id: Date.now().toString(), platform, url: buildChatLink(platform, raw) };
+    const link: ChatLink = { id: crypto.randomUUID(), platform, url: buildChatLink(platform, raw) };
     onSave({ ...client, chatLinks: [...(client.chatLinks || []), link] });
   };
   const removeLink = (id: string) => onSave({ ...client, chatLinks: (client.chatLinks || []).filter((l) => l.id !== id) });
@@ -2273,7 +2271,7 @@ function AttachmentsSection({
     const reader = new FileReader();
     reader.onload = () => {
       onAddDocument({
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         name: file.name,
         fileUrl: reader.result as string,
         kind: file.type.startsWith('image/') ? 'photo' : 'document',
