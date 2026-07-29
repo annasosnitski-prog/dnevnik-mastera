@@ -2258,6 +2258,7 @@ export default function TattoDiary() {
             onDeleteContentIngestJob={removeContentIngestJob}
             onCreateProjectForLink={openCreateProjectForContentLink}
             onCreateSessionForLink={openCreateSessionForContentLink}
+            onBack={goBack}
           />
         )}
       </div>
@@ -4235,6 +4236,7 @@ function ContentINKAScreen({
   onDeleteContentIngestJob,
   onCreateProjectForLink,
   onCreateSessionForLink,
+  onBack,
 }: {
   clients: Client[];
   projects: Project[];
@@ -4258,6 +4260,7 @@ function ContentINKAScreen({
   // ProjectSessionPickerSheet+NewSessionSheet).
   onCreateProjectForLink: (entryId: string, preferredClientId: string | null) => void;
   onCreateSessionForLink: (entryId: string, preferredClientId: string | null) => void;
+  onBack: () => void;
 }) {
   const [composerClientId, setComposerClientId] = useState<string | null>(null); // null = мастерская
   const [composerItemKey, setComposerItemKey] = useState<string>(''); // '' | 's:<id>' | 'c:<id>'
@@ -4491,6 +4494,9 @@ function ContentINKAScreen({
     if (kind === 'c') return { kind: 'consultation' as const, item: composerClient.consultations.find((c) => c.id === id) };
     return null;
   })();
+  // Mirrors the guard at the top of handleGenerate — kept in sync so the
+  // button can show *why* it's inert instead of silently no-opping on tap.
+  const canGenerate = !!composerText.trim() || composerPhotos.length > 0 || !!composerItem;
 
   useEffect(() => {
     if (!navigation) return;
@@ -5083,6 +5089,12 @@ function ContentINKAScreen({
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       {/* ── Шапка POSTiNKA ── */}
       <div style={{ padding: '6px 24px 12px' }}>
+        <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginBottom: 8 }}>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+        </div>
         <InkaLogo height={fs(15)} />
         <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>POSTiNKA</div>
         <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 2 }}>Собрать материал</div>
@@ -5190,11 +5202,21 @@ function ContentINKAScreen({
 
           <div
             className="inka-submit"
-            onClick={sending ? undefined : handleGenerate}
-            style={{ ...SUBMIT_STYLE, marginTop: 12, opacity: sending ? 0.6 : 1, cursor: sending ? 'default' : 'pointer' }}
+            onClick={sending || !canGenerate ? undefined : handleGenerate}
+            style={{
+              ...SUBMIT_STYLE,
+              marginTop: 12,
+              opacity: sending ? 0.6 : canGenerate ? 1 : 0.4,
+              cursor: sending || !canGenerate ? 'default' : 'pointer',
+            }}
           >
             {sending ? 'Отправляю…' : 'Сгенерировать'}
           </div>
+          {!sending && !canGenerate && (
+            <div style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 6 }}>
+              Впишите тему, добавьте фото или выберите сессию/консультацию.
+            </div>
+          )}
           {error && <div style={{ fontSize: fs(12), color: 'var(--urgent, #c0392b)', marginTop: 8 }}>{error}</div>}
         </GoldFrame>
 
