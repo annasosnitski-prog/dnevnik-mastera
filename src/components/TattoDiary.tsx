@@ -1751,12 +1751,16 @@ export default function TattoDiary() {
     const entry = contentEntries.find((candidate) => candidate.id === entryId);
     if (entry) saveContentEntry(setContentEntryLink(entry, link));
   };
-  // Пользователь отменил создание Project/Session, запущенное отсюда —
-  // ContentINKAScreen снова открывает ContentLinkPickerSheet на той же
-  // записи и вкладке вместо тупикового пустого экрана.
-  const [reopenContentLinkPicker, setReopenContentLinkPicker] = useState<
-    { entryId: string; target: 'project' | 'session' } | null
-  >(null);
+  // Пользователь отменил создание Project/Session, запущенное из
+  // ContentLinkPickerSheet («Создать проект»/«Создать сессию») — цепочка
+  // просто обрывается (см. pendingContentLinkRef.current = null в
+  // closeNewSession/onClose ниже), sheet не переоткрывается сам. Раньше он
+  // переоткрывался автоматически («чтобы не оставлять тупиковый экран»), но
+  // это переоткрытие срабатывало и после того, как мастер уже переключился
+  // на другую вкладку/фильтр внутри экрана контента — sheet «Сохранить в…»
+  // возникал заново поверх никак не связанного с ним содержимого и выглядел
+  // так, будто вообще не закрывается. Запись остаётся непривязанной и
+  // доступна для привязки вручную через «Привязать»/«Изменить привязку».
   // Month calendar overlay, opened by tapping the «Ближайшая» badge.
   const [showCalendar, setShowCalendar] = useState(false);
   // Блокнот's new-note composer — lifted (not local to SummaryScreen) so the
@@ -2109,11 +2113,8 @@ export default function TattoDiary() {
     setSessionTargetProjectId(null);
     // Called both after a successful project-session save (handleAddProjectSession
     // already cleared the ref there) and on a plain cancel — only the latter
-    // still has a pending 'session' chain to unwind back to the picker.
-    if (pendingContentLinkRef.current?.target === 'session') {
-      setReopenContentLinkPicker({ entryId: pendingContentLinkRef.current.entryId, target: 'session' });
-      pendingContentLinkRef.current = null;
-    }
+    // still has a pending chain left to unwind.
+    pendingContentLinkRef.current = null;
   };
   const closeNewConsultation = () => {
     setShowNewConsultationForm(false);
@@ -3360,9 +3361,6 @@ export default function TattoDiary() {
             onDeleteContentIngestJob={removeContentIngestJob}
             onCreateProjectForLink={openCreateProjectForContentLink}
             onCreateSessionForLink={openCreateSessionForContentLink}
-            reopenLinkPickerEntryId={reopenContentLinkPicker?.entryId ?? null}
-            reopenLinkPickerTarget={reopenContentLinkPicker?.target ?? null}
-            onReopenLinkPickerApplied={() => setReopenContentLinkPicker(null)}
           />
         )}
       </div>
@@ -3619,10 +3617,7 @@ export default function TattoDiary() {
         clientId={pendingContentLinkRef.current?.preferredClientId ?? null}
         onClose={() => {
           setShowProjectSessionPicker(false);
-          if (pendingContentLinkRef.current?.target === 'session') {
-            setReopenContentLinkPicker({ entryId: pendingContentLinkRef.current.entryId, target: 'session' });
-            pendingContentLinkRef.current = null;
-          }
+          pendingContentLinkRef.current = null;
         }}
         onPick={(project) => {
           setShowProjectSessionPicker(false);
@@ -3663,13 +3658,7 @@ export default function TattoDiary() {
           setShowNewProjectForm(false);
           setEditProject(null);
           setNewProjectClientId(null);
-          if (pendingContentLinkRef.current) {
-            setReopenContentLinkPicker({
-              entryId: pendingContentLinkRef.current.entryId,
-              target: pendingContentLinkRef.current.target,
-            });
-            pendingContentLinkRef.current = null;
-          }
+          pendingContentLinkRef.current = null;
         }}
         onAdd={handleAddProject}
         onDelete={editProject ? () => deleteProject(editProject.id) : undefined}
@@ -11277,9 +11266,6 @@ function ContentINKAScreen({
   onDeleteContentIngestJob,
   onCreateProjectForLink,
   onCreateSessionForLink,
-  reopenLinkPickerEntryId,
-  reopenLinkPickerTarget,
-  onReopenLinkPickerApplied,
 }: {
   clients: Client[];
   projects: Project[];
@@ -11303,12 +11289,6 @@ function ContentINKAScreen({
   // ProjectSessionPickerSheet+NewSessionSheet).
   onCreateProjectForLink: (entryId: string, preferredClientId: string | null) => void;
   onCreateSessionForLink: (entryId: string, preferredClientId: string | null) => void;
-  // Если пользователь отменяет создание Project/Session, запущенное отсюда,
-  // родитель просит снова открыть ContentLinkPickerSheet на той же записи и
-  // вкладке — тот же паттерн, что и focusEntryId/onFocusEntryApplied выше.
-  reopenLinkPickerEntryId: string | null;
-  reopenLinkPickerTarget: 'project' | 'session' | null;
-  onReopenLinkPickerApplied: () => void;
 }) {
   const [composerClientId, setComposerClientId] = useState<string | null>(null); // null = мастерская
   const [composerItemKey, setComposerItemKey] = useState<string>(''); // '' | 's:<id>' | 'c:<id>'
@@ -11603,17 +11583,6 @@ function ContentINKAScreen({
     const timer = setTimeout(() => setHighlightedEntryId(null), 2500);
     return () => clearTimeout(timer);
   }, [highlightedEntryId]);
-
-  // Отмена создания Project/Session, запущенного из ContentLinkPickerSheet
-  // (см. onCreateProjectForLink/onCreateSessionForLink), просит снова
-  // открыть sheet на той же записи и вкладке — тот же паттерн, что и
-  // focusEntryId/onFocusEntryApplied выше.
-  useEffect(() => {
-    if (!reopenLinkPickerEntryId) return;
-    setLinkPickerTarget(reopenLinkPickerTarget ?? 'project');
-    setLinkPickerEntryId(reopenLinkPickerEntryId);
-    onReopenLinkPickerApplied();
-  }, [reopenLinkPickerEntryId, reopenLinkPickerTarget, onReopenLinkPickerApplied]);
 
   const resetComposer = () => {
     setComposerText('');
@@ -12767,8 +12736,17 @@ function BottomSheet({
         borderBottom: 'none',
         zIndex: 15,
         overflowY: 'auto',
-        transform: open ? 'translateY(0)' : 'translateY(105%)',
+        // Closed state must clear the bottom of the viewport by a lot more
+        // than "the sheet's own height" — translateY is a % of the element's
+        // OWN box, so the old 105% only bought ~5% of the sheet's height as
+        // clearance (a few dozen px on a full-height screen). That's thin
+        // enough for ordinary desktop browser-chrome/viewport-height
+        // differences to leave the "closed" sheet peeking up from the
+        // bottom of the page. The extra 100vh guarantees real clearance
+        // regardless of the sheet's own height or the viewport's.
+        transform: open ? 'translateY(0)' : 'translateY(calc(100% + 100vh))',
         transition: 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        pointerEvents: open ? 'auto' : 'none',
       }}
     >
       <div style={{ width: 36, height: 3, background: 'rgba(var(--gold-rgb),0.2)', borderRadius: 2, margin: '14px auto 0' }} />
