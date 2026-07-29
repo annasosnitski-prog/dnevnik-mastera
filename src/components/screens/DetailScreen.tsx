@@ -225,7 +225,7 @@ export function DetailScreen({
     transition: 'color 0.25s, border-color 0.25s',
   });
 
-  const gemMarker = (kind: 'sessions' | 'consultations' | 'content' | 'info', tab: typeof activeTab) => (
+  const gemMarker = (kind: 'sessions' | 'consultations' | 'content' | 'notes' | 'info', tab: typeof activeTab) => (
     <img
       src={`/gem-icons.svg#${kind}`}
       alt=""
@@ -506,7 +506,7 @@ export function DetailScreen({
           <span>Контент</span>
         </div>
         <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
-          <span aria-hidden="true" style={{ display: 'block', width: 15, height: 15 }} />
+          {gemMarker('notes', 'extra')}
           <span>Заметки</span>
         </div>
         <div onClick={() => onTab('info')} style={tabStyle('info')}>
