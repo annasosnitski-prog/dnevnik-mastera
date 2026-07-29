@@ -8,7 +8,10 @@ const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.m
 // definitions читаются оттуда; JSX usage (<ProjectSessionPickerSheet ...>) и
 // корневые обработчики остаются в TattoDiary.tsx.
 const sheetsSource = readFileSync(new URL('../src/components/sheets/SessionAndProjectSheets.tsx', import.meta.url), 'utf8');
-const sheet = source.slice(source.indexOf('function ContentLinkPickerSheet('), source.indexOf('// ===================== CALENDAR SHEET ====================='));
+// ContentLinkPickerSheet/CalendarSheet вынесены в отдельный модуль тоже (PR 7
+// рефакторинга) — их definitions читаются из него же.
+const contentCalendarSource = readFileSync(new URL('../src/components/sheets/ContentAndCalendarSheets.tsx', import.meta.url), 'utf8');
+const sheet = contentCalendarSource.slice(contentCalendarSource.indexOf('export function ContentLinkPickerSheet('), contentCalendarSource.indexOf('// ===================== CALENDAR SHEET ====================='));
 const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
 const handleAddProject = source.slice(source.indexOf('const handleAddProject = (data'), source.indexOf('const handleAddProjectSession ='));
 const handleAddProjectSession = source.slice(source.indexOf('const handleAddProjectSession ='), source.indexOf('const saveSessionFromNewSessionSheet ='));
