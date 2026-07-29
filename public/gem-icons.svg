@@ -78,6 +78,58 @@
       <stop offset="1" stop-color="#000000" stop-opacity=".58"/>
     </linearGradient>
 
+    <!-- Cut lines follow the same upper-left light source as the facets. -->
+    <linearGradient id="edge-upper-left"
+                    gradientUnits="userSpaceOnUse"
+                    x1="32" y1="3" x2="14" y2="31.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".98"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".76"/>
+      <stop offset="1" stop-color="#243020" stop-opacity=".34"/>
+    </linearGradient>
+    <linearGradient id="edge-upper-right"
+                    gradientUnits="userSpaceOnUse"
+                    x1="32" y1="3" x2="50" y2="31.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".92"/>
+      <stop offset=".42" stop-color="#FFFFFF" stop-opacity=".46"/>
+      <stop offset="1" stop-color="#171717" stop-opacity=".66"/>
+    </linearGradient>
+    <linearGradient id="edge-lower-left"
+                    gradientUnits="userSpaceOnUse"
+                    x1="14" y1="31.5" x2="32" y2="61">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".58"/>
+      <stop offset=".52" stop-color="#FFFFFF" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#151515" stop-opacity=".72"/>
+    </linearGradient>
+    <linearGradient id="edge-lower-right"
+                    gradientUnits="userSpaceOnUse"
+                    x1="50" y1="31.5" x2="32" y2="61">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".18"/>
+      <stop offset=".38" stop-color="#111111" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#080808" stop-opacity=".8"/>
+    </linearGradient>
+    <linearGradient id="edge-belt"
+                    gradientUnits="userSpaceOnUse"
+                    x1="14" y1="31.5" x2="50" y2="31.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".92"/>
+      <stop offset=".26" stop-color="#FFFFFF" stop-opacity=".68"/>
+      <stop offset=".62" stop-color="#FFFFFF" stop-opacity=".24"/>
+      <stop offset="1" stop-color="#101010" stop-opacity=".72"/>
+    </linearGradient>
+    <linearGradient id="edge-inner-light"
+                    gradientUnits="userSpaceOnUse"
+                    x1="27" y1="7" x2="24" y2="56">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".9"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".52"/>
+      <stop offset="1" stop-color="#141414" stop-opacity=".58"/>
+    </linearGradient>
+    <linearGradient id="edge-inner-shadow"
+                    gradientUnits="userSpaceOnUse"
+                    x1="35" y1="7" x2="40" y2="56">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".52"/>
+      <stop offset=".4" stop-color="#FFFFFF" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#080808" stop-opacity=".78"/>
+    </linearGradient>
+
     <!-- One narrow, pointed cut shared by all five colors. -->
     <g id="stone-cut">
       <path d="M32 3 50 31.5 32 61 14 31.5Z" fill="currentColor"/>
@@ -94,14 +146,19 @@
       <path d="M32 31.5 32 61 40 31.5Z" fill="url(#shade-bottom)"/>
       <path d="M40 31.5 32 61 50 31.5Z" fill="url(#shade-deep)"/>
 
-      <!-- Every cut edge is lighter than both neighbouring planes. -->
-      <path d="M32 3 50 31.5 32 61 14 31.5ZM14 31.5H50M32 3 24 31.5M32 3 40 31.5M32 61 24 31.5M32 61 40 31.5"
-            fill="none"
-            stroke="#FFFFFF"
-            stroke-opacity=".82"
-            stroke-width="1.15"
-            stroke-linecap="round"
-            stroke-linejoin="miter"/>
+      <!-- Each edge brightens at the highlight and darkens through the shadow. -->
+      <g fill="none"
+         stroke-width="1.15"
+         stroke-linecap="round"
+         stroke-linejoin="miter">
+        <path d="M32 3 14 31.5" stroke="url(#edge-upper-left)"/>
+        <path d="M32 3 50 31.5" stroke="url(#edge-upper-right)"/>
+        <path d="M14 31.5 32 61" stroke="url(#edge-lower-left)"/>
+        <path d="M50 31.5 32 61" stroke="url(#edge-lower-right)"/>
+        <path d="M14 31.5H50" stroke="url(#edge-belt)"/>
+        <path d="M32 3 24 31.5 32 61" stroke="url(#edge-inner-light)"/>
+        <path d="M32 3 40 31.5 32 61" stroke="url(#edge-inner-shadow)"/>
+      </g>
       <path d="M20.5 30.25 24.1 29.5 22.8 32.1Z" fill="#FFFFFF" opacity=".94"/>
     </g>
   </defs>
