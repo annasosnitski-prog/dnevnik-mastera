@@ -207,16 +207,40 @@ export function DetailScreen({
 }) {
   const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
     flex: 1,
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
     textAlign: 'center',
-    padding: '11px 0',
-    fontSize: fs(11),
-    letterSpacing: '1px',
-    textTransform: 'uppercase',
+    padding: '7px 1px 6px',
+    fontSize: fs(9.5),
+    lineHeight: 1.05,
+    letterSpacing: '0.15px',
+    whiteSpace: 'nowrap',
     color: activeTab === tab ? COLORS.gold : 'var(--ink-faint)',
     borderBottom: activeTab === tab ? `1px solid ${COLORS.gold}` : '1px solid transparent',
     cursor: 'pointer',
-    transition: 'color 0.25s',
+    transition: 'color 0.25s, border-color 0.25s',
   });
+
+  const gemMarker = (kind: 'sessions' | 'consultations' | 'content' | 'notes' | 'info', tab: typeof activeTab) => (
+    <img
+      src={`/gem-icons.svg#${kind}`}
+      alt=""
+      aria-hidden="true"
+      width={15}
+      height={15}
+      style={{
+        display: 'block',
+        flexShrink: 0,
+        opacity: activeTab === tab ? 1 : 0.62,
+        filter: activeTab === tab ? 'none' : 'saturate(0.72) brightness(0.82)',
+        transition: 'opacity 0.25s, filter 0.25s',
+      }}
+    />
+  );
 
   // The tab-content scroller is a single reused DOM node across every client
   // and every tab, so its scrollTop otherwise carries over — opening a new
@@ -466,22 +490,28 @@ export function DetailScreen({
         <div style={{ height: 3, background: client.color, width: '100%', flexShrink: 0 }} />
       </div>
 
-      {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 24px', background: COLORS.bg, flexShrink: 0 }}>
+      {/* Compact tab bar: square-cut colour markers keep long labels readable
+          on narrow screens without changing the existing tab structure. */}
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 8px', background: COLORS.bg, flexShrink: 0 }}>
         <div onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
-          Сессии
+          {gemMarker('sessions', 'sessions')}
+          <span>Сессии</span>
         </div>
         <div onClick={() => onTab('consultations')} style={tabStyle('consultations')}>
-          Консультации
+          {gemMarker('consultations', 'consultations')}
+          <span>Консультации</span>
         </div>
         <div onClick={() => onTab('content')} style={tabStyle('content')}>
-          Контент
+          {gemMarker('content', 'content')}
+          <span>Контент</span>
         </div>
         <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
-          Заметки
+          {gemMarker('notes', 'extra')}
+          <span>Заметки</span>
         </div>
         <div onClick={() => onTab('info')} style={tabStyle('info')}>
-          Инфо
+          {gemMarker('info', 'info')}
+          <span>Инфо</span>
         </div>
       </div>
 
