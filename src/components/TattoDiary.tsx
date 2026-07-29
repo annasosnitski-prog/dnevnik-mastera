@@ -12736,16 +12736,26 @@ function BottomSheet({
         borderBottom: 'none',
         zIndex: 15,
         overflowY: 'auto',
-        // Closed state must clear the bottom of the viewport by a lot more
-        // than "the sheet's own height" — translateY is a % of the element's
-        // OWN box, so the old 105% only bought ~5% of the sheet's height as
-        // clearance (a few dozen px on a full-height screen). That's thin
-        // enough for ordinary desktop browser-chrome/viewport-height
-        // differences to leave the "closed" sheet peeking up from the
-        // bottom of the page. The extra 100vh guarantees real clearance
-        // regardless of the sheet's own height or the viewport's.
-        transform: open ? 'translateY(0)' : 'translateY(calc(100% + 100vh))',
-        transition: 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        // Closed state must be reliably invisible AND must not enlarge this
+        // screen's own scrollable area. A translateY(105%) alone only buys
+        // ~5% of the sheet's own height as clearance (a few dozen px on a
+        // full-height screen) — thin enough for ordinary desktop
+        // browser-chrome/viewport-height differences to leave it peeking up
+        // from the bottom of the page. Pushing it further via transform
+        // (e.g. +100vh) "fixes" that but backfires badly: transform still
+        // contributes to the ancestor's scrollable overflow, and every
+        // closed BottomSheet across the whole app (there are dozens mounted
+        // at once) would each add a full extra viewport's worth of
+        // scrollable height, bloating the screen's scroll area and causing
+        // real jank. visibility:hidden is what actually guarantees nothing
+        // is painted or clickable while closed, independent of the exact
+        // transform distance — the delayed transition below keeps it
+        // visible for the full slide-down close animation, then hides it.
+        transform: open ? 'translateY(0)' : 'translateY(105%)',
+        visibility: open ? 'visible' : 'hidden',
+        transition: open
+          ? 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94), visibility 0s'
+          : 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94), visibility 0s linear 0.42s',
         pointerEvents: open ? 'auto' : 'none',
       }}
     >
