@@ -15,6 +15,7 @@
     "src/lib/clipboard.ts",
     "src/lib/contentWorkspace.ts",
     "src/lib/contentSync.ts",
+    "src/lib/contentJobQueue.ts",
     "src/lib/contentTranslation.ts",
     "src/lib/contentLink.ts",
     "src/lib/contentProject.ts",

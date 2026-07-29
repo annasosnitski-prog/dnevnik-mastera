@@ -1,24 +1,5 @@
 // ============================================================
-// ДНЕВНИК МАСТЕРА — синхронизация с ContentINKA
-// (мост Дневник → ContentINKA, по образцу calendarSync.ts)
-//
-// Генерация — асинхронная: POST /api/ingest-jobs создаёт job (202 +
-// job_id + status: queued), дальше опрашиваем GET /api/ingest-jobs/{id}
-// каждые ~2с, пока не придёт completed (результат) или failed (ошибка).
-// Старый синхронный POST /api/ingest больше не вызывается — по этому же
-// job_id и polling-механизму работает и первая генерация, и
-// перегенерация с master_instruction/previous_draft. Готовый текст
-// отдельно переводится через POST /api/translate — без ingest вообще.
-//
-// БЕЗОПАСНОСТЬ: свой секрет, отдельный от inka-calendar-sync — хранится в
-// своём ключе localStorage, не в бэкапе (тот же принцип, что у секрета
-// календаря — см. calendarSync.ts).
-//
-// В отличие от календаря, это НЕ fire-and-forget: мастер ждёт ответ
-// (разметку), чтобы увидеть результат, поэтому вызывающий код сам
-// показывает состояние загрузки/ошибки. Job id нигде не сохраняется
-// (ни в IndexedDB, ни в localStorage) — переживание reload посреди
-// генерации осознанно не входит в этот milestone.
+// ДНЕВНИК МАСТЕРА — синхронизация с POSTiNKA
 // ============================================================
 
 export interface ContentSyncSettings {
@@ -28,21 +9,21 @@ export interface ContentSyncSettings {
 }
 
 const STORAGE_KEY = 'inka-content-sync';
-export const DEFAULT_CONTENT_ENDPOINT = ''; // мастер вписывает свой URL деплоя ContentINKA
+export const DEFAULT_CONTENT_ENDPOINT = '';
 
 export function readContentSyncSettings(): ContentSyncSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const p = JSON.parse(raw);
+      const parsed = JSON.parse(raw);
       return {
-        enabled: p.enabled === true,
-        endpoint: typeof p.endpoint === 'string' ? p.endpoint : DEFAULT_CONTENT_ENDPOINT,
-        secret: typeof p.secret === 'string' ? p.secret : '',
+        enabled: parsed.enabled === true,
+        endpoint: typeof parsed.endpoint === 'string' ? parsed.endpoint : DEFAULT_CONTENT_ENDPOINT,
+        secret: typeof parsed.secret === 'string' ? parsed.secret : '',
       };
     }
   } catch {
-    /* ignore */
+    /* ignore invalid local settings */
   }
   return { enabled: false, endpoint: DEFAULT_CONTENT_ENDPOINT, secret: '' };
 }
@@ -51,10 +32,6 @@ export function writeContentSyncSettings(settings: ContentSyncSettings): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
-// Разметка одного фото — без text_draft/visual_archetype/text_triad,
-// которые теперь приходят один раз на весь материал (см. IngestResult
-// ниже), не дублируются на каждый кадр. См. contentinka-diary-handoff.md
-// (inka-bot repo) для полного контракта.
 export type ContentSelectionRole =
   | 'cover'
   | 'placement'
@@ -94,7 +71,12 @@ export interface IngestResult {
   text_draft: string;
 }
 
-export class ContentSyncError extends Error {}
+export class ContentSyncError extends Error {
+  constructor(message: string, public readonly retryable = false) {
+    super(message);
+    this.name = 'ContentSyncError';
+  }
+}
 
 export type ContentTranslationLanguage = 'he' | 'en';
 
@@ -108,9 +90,6 @@ export interface ContentTranslationEnvironment {
   fetch?: typeof fetch;
 }
 
-// Отдельная операция над уже готовым textDraft. Использует те же endpoint и
-// secret, что ingest, но никогда не вызывает /api/ingest и не передаёт фото,
-// архетипы или prompt генерации.
 export async function translateContentText(
   params: { sourceText: string; targetLanguage: ContentTranslationLanguage },
   environment: ContentTranslationEnvironment = {},
@@ -119,7 +98,7 @@ export async function translateContentText(
 
   const settings = (environment.readSettings ?? readContentSyncSettings)();
   if (!settings.endpoint || !settings.secret) {
-    throw new ContentSyncError('ContentINKA не настроен.');
+    throw new ContentSyncError('POSTiNKA не настроена.');
   }
 
   let response: Response;
@@ -136,10 +115,10 @@ export async function translateContentText(
       }),
     });
   } catch {
-    throw new ContentSyncError('Не удалось связаться с ContentINKA.');
+    throw new ContentSyncError('Не удалось связаться с POSTiNKA.');
   }
 
-  if (!response.ok) throw new ContentSyncError('ContentINKA ответил ошибкой.');
+  if (!response.ok) throw new ContentSyncError('POSTiNKA ответила ошибкой.');
 
   const data = await response.json().catch(() => null);
   if (
@@ -157,128 +136,90 @@ export async function translateContentText(
   };
 }
 
-// Точки расширения для тестов — реальный fetch/таймер по умолчанию, в
-// unit-тестах подменяются на детерминированные фейки (без сетевых вызовов
-// и без реальных задержек). readSettings — тот же приём, что и у
-// translateContentText ниже.
+export interface ContentIngestParams {
+  sessionId: string;
+  sourceType: 'session' | 'consultation' | 'freeform';
+  session: ContentSessionContext;
+  media: { id: string; preview_data_url: string }[];
+  masterInstruction?: string;
+  previousDraft?: string;
+}
+
 export interface ContentIngestEnvironment {
   readSettings?: () => ContentSyncSettings;
   fetch?: typeof fetch;
-  // Ожидание между поллами — по умолчанию настоящий таймер (~2с); тесты
-  // подставляют мгновенный резолв, чтобы не полагаться на реальные часы.
   wait?: (ms: number) => Promise<void>;
-  // Часы для общего таймаута ожидания — по умолчанию Date.now.
   now?: () => number;
   pollIntervalMs?: number;
   maxWaitMs?: number;
 }
 
+export type ContentIngestJobStatus =
+  | { status: 'running' }
+  | { status: 'completed'; result: IngestResult }
+  | { status: 'failed'; error: string };
+
+export interface CreatedContentIngestJob {
+  jobId: string;
+  status: 'queued';
+}
+
 const DEFAULT_POLL_INTERVAL_MS = 2000;
-const DEFAULT_MAX_WAIT_MS = 120_000; // ограниченный общий срок ожидания
+const DEFAULT_MAX_WAIT_MS = 120_000;
 const MAX_CONSECUTIVE_POLL_NETWORK_ERRORS = 3;
 
 function defaultWait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Один job опрашивается строго последовательно (await в цикле — новый GET
-// уходит только после того, как предыдущий ответ обработан), с фиксированным
-// интервалом и ограниченным сроком ожидания. Временная сетевая ошибка
-// polling (fetch бросил, а не «job ответил ошибкой») даёт ограниченное
-// число повторов подряд — но никогда не создаёт новый job.
-async function pollIngestJob(
-  jobId: string,
-  settings: ContentSyncSettings,
-  environment: ContentIngestEnvironment,
-): Promise<IngestResult> {
-  const fetchImpl = environment.fetch ?? fetch;
-  const wait = environment.wait ?? defaultWait;
-  const now = environment.now ?? Date.now;
-  const pollIntervalMs = environment.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-  const maxWaitMs = environment.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
-  const baseUrl = settings.endpoint.replace(/\/$/, '');
-  const startedAt = now();
-  let consecutiveNetworkErrors = 0;
-
-  for (;;) {
-    if (now() - startedAt > maxWaitMs) {
-      throw new ContentSyncError('ContentINKA слишком долго не отвечает — попробуйте ещё раз позже.');
-    }
-
-    await wait(pollIntervalMs);
-
-    let res: Response;
-    try {
-      res = await fetchImpl(`${baseUrl}/api/ingest-jobs/${jobId}`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${settings.secret}` },
-      });
-    } catch {
-      consecutiveNetworkErrors += 1;
-      if (consecutiveNetworkErrors > MAX_CONSECUTIVE_POLL_NETWORK_ERRORS) {
-        throw new ContentSyncError('Не удалось связаться с ContentINKA — проверь сеть.');
-      }
-      continue;
-    }
-    consecutiveNetworkErrors = 0;
-
-    if (!res.ok) {
-      throw new ContentSyncError(`ContentINKA не нашёл задачу генерации (${res.status}).`);
-    }
-
-    const data = await res.json().catch(() => null);
-    if (!data || typeof data.job_id !== 'string' || typeof data.status !== 'string') {
-      throw new ContentSyncError('ContentINKA вернул неожиданный ответ.');
-    }
-
-    if (data.status === 'running') continue;
-
-    if (data.status === 'completed') {
-      if (!data.result || !Array.isArray(data.result.media)) {
-        throw new ContentSyncError('ContentINKA вернул неожиданный ответ.');
-      }
-      return data.result as IngestResult;
-    }
-
-    if (data.status === 'failed') {
-      throw new ContentSyncError(typeof data.error === 'string' && data.error ? data.error : 'ContentINKA не смог собрать материал.');
-    }
-
-    throw new ContentSyncError('ContentINKA вернул неожиданный ответ.');
-  }
-}
-
-// media — уже сжатые превью (data URL), не оригиналы; см. downsizeToPreview
-// в src/lib/imagePreview.ts. Может быть пустым массивом только при
-// sourceType "freeform" (нужен непустой session.description). Бросает
-// ContentSyncError с человекочитаемым сообщением при сетевой ошибке/
-// неправильной настройке/отказе сервера. Ровно один POST /api/ingest-jobs
-// за вызов — дальше только GET-polling, второй POST не выполняется.
-export async function sendToContent(
-  params: {
-    sessionId: string;
-    sourceType: 'session' | 'consultation' | 'freeform';
-    session: ContentSessionContext;
-    media: { id: string; preview_data_url: string }[];
-    masterInstruction?: string;
-    // Уже написанный черновик (при перегенерации кнопкой архетипа) — backend
-    // ищет в нём фразы/образы, которые стоит сохранить, вместо переписывания
-    // с нуля. Не передаётся при первой генерации — там его ещё нет.
-    previousDraft?: string;
-  },
-  environment: ContentIngestEnvironment = {},
-): Promise<IngestResult> {
+function settingsFor(environment: ContentIngestEnvironment): ContentSyncSettings {
   const settings = (environment.readSettings ?? readContentSyncSettings)();
   if (!settings.endpoint || !settings.secret) {
-    throw new ContentSyncError('ContentINKA не настроен — впиши endpoint и секрет в настройках.');
+    throw new ContentSyncError('POSTiNKA не настроена — впишите endpoint и секрет в настройках.');
   }
+  return settings;
+}
 
+function isIngestResult(value: unknown): value is IngestResult {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<IngestResult>;
+  const validMedia =
+    Array.isArray(candidate.media) &&
+    candidate.media.every((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const media = item as Partial<ContentDraftMedia>;
+      return (
+        typeof media.id === 'string' &&
+        media.id.trim().length > 0 &&
+        (media.technical_status === 'kept' ||
+          media.technical_status === 'background' ||
+          media.technical_status === 'rejected')
+      );
+    });
+  return (
+    validMedia &&
+    typeof candidate.text_draft === 'string' &&
+    candidate.text_draft.trim().length > 0 &&
+    (candidate.visual_archetype === null || typeof candidate.visual_archetype === 'string') &&
+    (candidate.text_triad === null ||
+      (!!candidate.text_triad &&
+        typeof candidate.text_triad.opens === 'string' &&
+        typeof candidate.text_triad.leads === 'string' &&
+        typeof candidate.text_triad.closes === 'string'))
+  );
+}
+
+export async function createContentIngestJob(
+  params: ContentIngestParams,
+  environment: ContentIngestEnvironment = {},
+): Promise<CreatedContentIngestJob> {
+  const settings = settingsFor(environment);
   const fetchImpl = environment.fetch ?? fetch;
   const baseUrl = settings.endpoint.replace(/\/$/, '');
 
-  let res: Response;
+  let response: Response;
   try {
-    res = await fetchImpl(`${baseUrl}/api/ingest-jobs`, {
+    response = await fetchImpl(`${baseUrl}/api/ingest-jobs`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -294,18 +235,109 @@ export async function sendToContent(
       }),
     });
   } catch {
-    throw new ContentSyncError('Не удалось связаться с ContentINKA — проверь сеть.');
+    throw new ContentSyncError('Не удалось связаться с POSTiNKA — проверьте сеть.', true);
   }
 
-  if (res.status !== 202) {
-    const text = await res.text().catch(() => '');
-    throw new ContentSyncError(`ContentINKA ответил ошибкой (${res.status}): ${text.slice(0, 200)}`);
+  if (response.status !== 202) {
+    throw new ContentSyncError(`POSTiNKA ответила ошибкой (${response.status}).`);
   }
 
-  const data = await res.json().catch(() => null);
+  const data = await response.json().catch(() => null);
   if (!data || typeof data.job_id !== 'string' || !data.job_id || data.status !== 'queued') {
-    throw new ContentSyncError('ContentINKA вернул неожиданный ответ.');
+    throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
   }
 
-  return pollIngestJob(data.job_id, settings, environment);
+  return { jobId: data.job_id, status: 'queued' };
+}
+
+export async function getContentIngestJob(
+  jobId: string,
+  environment: ContentIngestEnvironment = {},
+): Promise<ContentIngestJobStatus> {
+  if (!jobId.trim()) throw new ContentSyncError('Не указан идентификатор задачи POSTiNKA.');
+  const settings = settingsFor(environment);
+  const fetchImpl = environment.fetch ?? fetch;
+  const baseUrl = settings.endpoint.replace(/\/$/, '');
+
+  let response: Response;
+  try {
+    response = await fetchImpl(`${baseUrl}/api/ingest-jobs/${encodeURIComponent(jobId)}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${settings.secret}` },
+    });
+  } catch {
+    throw new ContentSyncError('Не удалось связаться с POSTiNKA — проверьте сеть.', true);
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    throw new ContentSyncError('Проверьте настройки POSTiNKA.');
+  }
+  if (response.status === 404) {
+    throw new ContentSyncError('Задача генерации больше не найдена (404).');
+  }
+  if (!response.ok) {
+    throw new ContentSyncError(`POSTiNKA не смогла проверить задачу (${response.status}).`);
+  }
+
+  const data = await response.json().catch(() => null);
+  if (!data || data.job_id !== jobId || typeof data.status !== 'string') {
+    throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
+  }
+
+  if (data.status === 'queued' || data.status === 'running') return { status: 'running' };
+  if (data.status === 'completed') {
+    if (!isIngestResult(data.result)) throw new ContentSyncError('POSTiNKA вернула повреждённый результат.');
+    return { status: 'completed', result: data.result };
+  }
+  if (data.status === 'failed') {
+    return { status: 'failed', error: 'POSTiNKA не смогла собрать материал.' };
+  }
+
+  throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
+}
+
+async function pollIngestJob(
+  jobId: string,
+  environment: ContentIngestEnvironment,
+): Promise<IngestResult> {
+  const wait = environment.wait ?? defaultWait;
+  const now = environment.now ?? Date.now;
+  const pollIntervalMs = environment.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const maxWaitMs = environment.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
+  const startedAt = now();
+  let consecutiveNetworkErrors = 0;
+
+  for (;;) {
+    if (now() - startedAt > maxWaitMs) {
+      throw new ContentSyncError('POSTiNKA слишком долго не отвечает — попробуйте ещё раз позже.');
+    }
+
+    await wait(pollIntervalMs);
+
+    let status: ContentIngestJobStatus;
+    try {
+      status = await getContentIngestJob(jobId, environment);
+      consecutiveNetworkErrors = 0;
+    } catch (error) {
+      if (error instanceof ContentSyncError && error.retryable) {
+        consecutiveNetworkErrors += 1;
+        if (consecutiveNetworkErrors <= MAX_CONSECUTIVE_POLL_NETWORK_ERRORS) continue;
+      }
+      throw error;
+    }
+
+    if (status.status === 'running') continue;
+    if (status.status === 'completed') return status.result;
+    throw new ContentSyncError(status.error);
+  }
+}
+
+// Совместимый wrapper для старых вызывающих мест и тестов. Новый durable-flow
+// использует createContentIngestJob/getContentIngestJob напрямую.
+export async function sendToContent(
+  params: ContentIngestParams,
+  environment: ContentIngestEnvironment = {},
+): Promise<IngestResult> {
+  const created = await createContentIngestJob(params, environment);
+  return pollIngestJob(created.jobId, environment);
 }

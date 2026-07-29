@@ -240,27 +240,23 @@ test('keeps the previous text and unlocks refresh after a real error', async () 
 test('refresh UI keeps loading and feedback local to each entry', () => {
   const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
   const refreshImplementation = source.slice(source.indexOf('const regenerate ='), source.indexOf('const visibleEntries'));
-  const refreshCatch = refreshImplementation.slice(refreshImplementation.indexOf('} catch (err)'), refreshImplementation.indexOf('} finally'));
+  const refreshCatch = refreshImplementation.slice(refreshImplementation.indexOf('} catch (refreshError)'), refreshImplementation.indexOf('const retryContentJob'));
 
   assert.match(refreshImplementation, /currentEntry\.status === 'confirmed'/);
-  assert.match(refreshImplementation, /refreshRunner\.isRunning\(currentEntry\.id\)/);
-  assert.match(refreshImplementation, /getCurrentEntry:/);
+  assert.match(refreshImplementation, /isEntryRefreshing\(currentEntry\.id\)/);
   assert.match(refreshImplementation, /setError\(null\)/);
-  assert.match(refreshImplementation, /setRefreshingEntryIds/);
-  assert.match(refreshImplementation, /next\.add\(entry\.id\)/);
-  assert.match(refreshImplementation, /next\.delete\(entry\.id\)/);
-  assert.match(refreshImplementation, /setRefreshFeedbackByEntry\(\(current\) => \(\{/);
-  assert.match(refreshImplementation, /\.\.\.current,\s*\[entry\.id\]: \{ kind: 'success'/s);
-  assert.match(refreshImplementation, /kind: 'success', message: 'Черновик обновлён'/);
+  assert.match(refreshImplementation, /createContentIngestJob\(params\)/);
+  assert.match(refreshImplementation, /onSaveContentIngestJob/);
+  assert.match(refreshImplementation, /operation: 'refresh'/);
+  assert.match(refreshImplementation, /baseTextDraft: currentEntry\.textDraft/);
+  assert.match(refreshImplementation, /requestedArchetype: selectedArchetype \?\? null/);
   assert.match(refreshCatch, /setRefreshFeedbackByEntry/);
   assert.match(refreshCatch, /kind: 'error'/);
   assert.doesNotMatch(refreshCatch, /setError\(/);
-  assert.match(source, /useState<Set<string>>/);
-  assert.match(source, /useState<Record<string, \{/);
-  assert.match(source, /disabled=\{refreshingEntryIds\.has\(entry\.id\) \|\| hasUnsavedTextEdit\(entry\)\}/);
   assert.match(source, /refreshFeedbackByEntry\[entry\.id\]/);
-  assert.match(source, /Обновляю…/);
+  assert.match(source, /POSTiNKA обновляет черновик…/);
   assert.match(source, /Обновить черновик/);
+  assert.match(source, /isEntryRefreshing\(entry\.id\)/);
 });
 
 test('archetype controls use the existing labels through the shared icon toolbar without emoji', () => {
