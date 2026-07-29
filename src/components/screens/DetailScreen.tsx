@@ -209,20 +209,17 @@ export function DetailScreen({
     flex: 1,
     minWidth: 0,
     display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    textAlign: 'center',
-    padding: '7px 1px 6px',
-    fontSize: fs(9.5),
-    lineHeight: 1.05,
-    letterSpacing: '0.15px',
-    whiteSpace: 'nowrap',
-    color: activeTab === tab ? COLORS.gold : 'var(--ink-faint)',
+    appearance: 'none',
+    padding: '4px 1px 3px',
+    background: 'none',
+    borderTop: 'none',
+    borderRight: 'none',
+    borderLeft: 'none',
     borderBottom: activeTab === tab ? `1px solid ${COLORS.gold}` : '1px solid transparent',
     cursor: 'pointer',
-    transition: 'color 0.25s, border-color 0.25s',
+    transition: 'border-color 0.25s',
   });
 
   const gemMarker = (kind: 'sessions' | 'consultations' | 'content' | 'notes' | 'info', tab: typeof activeTab) => (
@@ -230,8 +227,8 @@ export function DetailScreen({
       src={`/gem-icons.svg#${kind}`}
       alt=""
       aria-hidden="true"
-      width={15}
-      height={15}
+      width={54}
+      height={54}
       style={{
         display: 'block',
         flexShrink: 0,
@@ -490,29 +487,24 @@ export function DetailScreen({
         <div style={{ height: 3, background: client.color, width: '100%', flexShrink: 0 }} />
       </div>
 
-      {/* Compact tab bar: square-cut colour markers keep long labels readable
-          on narrow screens without changing the existing tab structure. */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 8px', background: COLORS.bg, flexShrink: 0 }}>
-        <div onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
+      {/* One large gemstone per tab; labels stay available to assistive
+          technology and hover tooltips without competing for horizontal room. */}
+      <div role="tablist" aria-label="Разделы клиента" style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 8px', background: COLORS.bg, flexShrink: 0 }}>
+        <button type="button" role="tab" aria-selected={activeTab === 'sessions'} aria-label="Сессии" title="Сессии" onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
           {gemMarker('sessions', 'sessions')}
-          <span>Сессии</span>
-        </div>
-        <div onClick={() => onTab('consultations')} style={tabStyle('consultations')}>
+        </button>
+        <button type="button" role="tab" aria-selected={activeTab === 'consultations'} aria-label="Консультации" title="Консультации" onClick={() => onTab('consultations')} style={tabStyle('consultations')}>
           {gemMarker('consultations', 'consultations')}
-          <span>Консультации</span>
-        </div>
-        <div onClick={() => onTab('content')} style={tabStyle('content')}>
+        </button>
+        <button type="button" role="tab" aria-selected={activeTab === 'content'} aria-label="Контент" title="Контент" onClick={() => onTab('content')} style={tabStyle('content')}>
           {gemMarker('content', 'content')}
-          <span>Контент</span>
-        </div>
-        <div onClick={() => onTab('extra')} style={tabStyle('extra')}>
+        </button>
+        <button type="button" role="tab" aria-selected={activeTab === 'extra'} aria-label="Заметки" title="Заметки" onClick={() => onTab('extra')} style={tabStyle('extra')}>
           {gemMarker('notes', 'extra')}
-          <span>Заметки</span>
-        </div>
-        <div onClick={() => onTab('info')} style={tabStyle('info')}>
+        </button>
+        <button type="button" role="tab" aria-selected={activeTab === 'info'} aria-label="Инфо" title="Инфо" onClick={() => onTab('info')} style={tabStyle('info')}>
           {gemMarker('info', 'info')}
-          <span>Инфо</span>
-        </div>
+        </button>
       </div>
 
       {/* Sub-header — pinned below the tab bar (never scrolls), shown on
