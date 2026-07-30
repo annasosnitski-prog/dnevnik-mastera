@@ -34,16 +34,19 @@ const NAV_ITEMS: {
   { id: "content", label: "Контент", screen: "content", isActive: (a) => a === "content" },
 ];
 
-// The open toolbar is a true semicircle. Every destination — including the
-// contextual «Создать» action — sits on the same radius, so all visible rays
-// have exactly the same length. At 128px, seven 62px buttons separated by
-// 30° keep a small gap and still fit a 320px-wide viewport edge to edge.
+// The open toolbar is a half-ellipse, not a true semicircle: the horizontal
+// radius keeps the sides fitting a 320px-wide viewport edge to edge (seven
+// 62px buttons at 30° apart), but the vertical radius is taller, so the
+// centre rays reach higher and the ones toward the ends taper evenly back
+// down to that same horizontal radius rather than all sitting at one
+// uniform distance from the hub.
 const ARC_SPAN_DEG = 180;
-const FAN_RADIUS = 128;
+const FAN_RADIUS_X = 128;
+const FAN_RADIUS_Y = 172;
 
-function arcOffset(angleDeg: number, radius: number): { dx: number; dy: number } {
+function arcOffset(angleDeg: number, radiusX: number, radiusY: number): { dx: number; dy: number } {
   const angleRad = (angleDeg * Math.PI) / 180;
-  return { dx: radius * Math.cos(angleRad), dy: -radius * Math.sin(angleRad) };
+  return { dx: radiusX * Math.cos(angleRad), dy: -radiusY * Math.sin(angleRad) };
 }
 
 // A tapered quad instead of a fixed-width stroke — narrow at (x1,y1),
@@ -102,9 +105,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   // first and last entries sit at 180°/0°; the rest split the arc evenly.
   const positions = fanEntries.map((_, i) => {
     const angleDeg = fanEntries.length <= 1 ? 90 : ARC_SPAN_DEG - i * (ARC_SPAN_DEG / (fanEntries.length - 1));
-    return arcOffset(angleDeg, FAN_RADIUS);
+    return arcOffset(angleDeg, FAN_RADIUS_X, FAN_RADIUS_Y);
   });
-  const rayExtent = FAN_RADIUS + 40;
+  const rayExtent = Math.max(FAN_RADIUS_X, FAN_RADIUS_Y) + 40;
 
   return (
     <>

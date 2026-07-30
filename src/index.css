@@ -140,9 +140,10 @@
 .nav-fab {
   position: absolute;
   left: 50%;
-  /* The 180° end buttons share the hub's vertical centre. Keep enough
-     clearance for their 31px radius and the hub's enlarged open state. */
-  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  /* Dropped to the very bottom of the screen — just enough clearance for the
+     closed hub's own 27px radius plus its glow, and the device's safe area
+     (home indicator / gesture bar) on top of that. */
+  bottom: calc(34px + env(safe-area-inset-bottom, 0px));
   z-index: 56;
   width: 0;
   height: 0;

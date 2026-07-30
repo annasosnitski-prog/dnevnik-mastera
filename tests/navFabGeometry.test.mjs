@@ -11,11 +11,12 @@ const iconSource = readSource('../src/components/navigation/ToolbarIcons.tsx');
 const appSource = readSource('../src/components/TattoDiary.tsx');
 const cssSource = readSource('../src/index.css');
 
-test('NavFab uses one radius and equal spacing across a semicircle', () => {
+test('NavFab uses equal angular spacing across a half-ellipse, taller than it is wide', () => {
   assert.match(navSource, /const ARC_SPAN_DEG = 180/);
-  assert.match(navSource, /const FAN_RADIUS = 128/);
+  assert.match(navSource, /const FAN_RADIUS_X = 128/);
+  assert.match(navSource, /const FAN_RADIUS_Y = 172/);
   assert.match(navSource, /ARC_SPAN_DEG - i \* \(ARC_SPAN_DEG \/ \(fanEntries\.length - 1\)\)/);
-  assert.match(navSource, /arcOffset\(angleDeg, FAN_RADIUS\)/);
+  assert.match(navSource, /arcOffset\(angleDeg, FAN_RADIUS_X, FAN_RADIUS_Y\)/);
 });
 
 test('NavFab exposes the renamed destinations', () => {
@@ -33,6 +34,9 @@ test('the four navigation buttons use the requested SVG pictograms', () => {
   assert.match(iconSource, /case "brush":\s*return <JewelryAtomIcon/);
 });
 
-test('the horizontal fan buttons stay above the bottom viewport edge', () => {
-  assert.match(cssSource, /\.nav-fab \{[\s\S]*?bottom: calc\(70px \+ env\(safe-area-inset-bottom, 0px\)\)/);
+test('the hub sits near the bottom viewport edge without clipping off it', () => {
+  // 34px clears the closed hub's own 27px radius (plus its glow) by a few
+  // px — enough to stay fully on-screen while still reading as pinned to
+  // the very bottom, with the device safe area added on top of that.
+  assert.match(cssSource, /\.nav-fab \{[\s\S]*?bottom: calc\(34px \+ env\(safe-area-inset-bottom, 0px\)\)/);
 });
