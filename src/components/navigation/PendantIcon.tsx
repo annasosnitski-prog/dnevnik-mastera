@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useId } from "react";
 
 // A small round gold-pendant medallion — same jewellery family as the client
 // tab pendants (gold-metal gradient, pavé-diamond halo, hue-independent
@@ -6,31 +6,31 @@ import { useId, type ReactNode } from "react";
 // the tabs' diamond-cut silhouette, to match the NavFab's own round buttons
 // and the round reference pendants. Sized to fill its own button almost
 // edge to edge, so it sits fully inside the button's ambient glow halo
-// rather than floating inside it with a gap. Each instance gets its own
-// gradient/filter ids (via useId) so multiple copies can render on the same
-// page without colliding.
-export function PendantIcon({
-  color,
-  size,
-  icon,
-}: {
-  color: string;
-  size: number;
-  icon?: ReactNode;
-}) {
+// rather than floating inside it with a gap. The gold rim stays narrow so
+// the coloured stone — the actual destination marker — gets most of the
+// medallion, cut into eight alternating facets rather than carrying a
+// glyph. Each instance gets its own gradient/filter ids (via useId) so
+// multiple copies can render on the same page without colliding.
+export function PendantIcon({ color, size }: { color: string; size: number }) {
   const uid = useId();
   const gold = `pendant-gold-${uid}`;
   const pave = `pendant-pave-${uid}`;
   const hi = `pendant-hi-${uid}`;
   const sh = `pendant-sh-${uid}`;
   const shadow = `pendant-shadow-${uid}`;
-  // The glyph reads as carved into the stone rather than floating on top —
-  // a few shades lighter than the stone's own colour, not a foreign tint.
-  const engraved = `color-mix(in srgb, ${color} 78%, white 22%)`;
 
   const cx = 32;
   const cy = 32;
   const paveAngles = [0, 45, 90, 135, 180, 225, 270, 315];
+  const stoneR = 21.6;
+  // Eight brilliant-cut facets radiating from the centre, alternating a
+  // light and a dark overlay so the cut reads clearly regardless of the
+  // stone's own hue.
+  const facetAngles = [0, 45, 90, 135, 180, 225, 270, 315, 360];
+  const facetPoints = facetAngles.map((deg) => {
+    const rad = (deg * Math.PI) / 180;
+    return [cx + stoneR * Math.sin(rad), cy - stoneR * Math.cos(rad)];
+  });
 
   return (
     <span style={{ position: "relative", display: "block", width: size, height: size }}>
@@ -47,14 +47,14 @@ export function PendantIcon({
             <stop offset=".55" stopColor="#EFF4F8" />
             <stop offset="1" stopColor="#C3CFD8" />
           </radialGradient>
-          <radialGradient id={hi} cx=".32" cy=".28" r=".75">
-            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".6" />
+          <radialGradient id={hi} cx=".32" cy=".28" r=".78">
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".5" />
             <stop offset=".6" stopColor="#FFFFFF" stopOpacity="0" />
           </radialGradient>
           <radialGradient id={sh} cx=".5" cy=".5" r=".62">
             <stop offset="0" stopColor="#000000" stopOpacity="0" />
             <stop offset=".7" stopColor="#000000" stopOpacity="0" />
-            <stop offset="1" stopColor="#000000" stopOpacity=".4" />
+            <stop offset="1" stopColor="#000000" stopOpacity=".38" />
           </radialGradient>
           <filter id={shadow} x="-40%" y="-30%" width="180%" height="170%">
             <feGaussianBlur in="SourceAlpha" stdDeviation="1.1" result="blur" />
@@ -70,50 +70,50 @@ export function PendantIcon({
         </defs>
 
         <g filter={`url(#${shadow})`}>
-          {/* gold rim + pavé halo + cream bezel — filling almost the whole
-              viewBox now that there's no bail to leave headroom for. */}
+          {/* Narrow gold rim + pavé halo + a thin cream bezel line, leaving
+              most of the medallion to the stone. */}
           <circle cx={cx} cy={cy} r="29" fill={`url(#${gold})`} stroke="#5A3B10" strokeWidth="1.1" />
           {paveAngles.map((deg) => {
             const rad = (deg * Math.PI) / 180;
-            const r = deg % 90 === 0 ? 25.9 : 24.9;
+            const r = deg % 90 === 0 ? 26.6 : 25.7;
             return (
               <circle
                 key={deg}
                 cx={cx + r * Math.sin(rad)}
                 cy={cy - r * Math.cos(rad)}
-                r={deg % 90 === 0 ? 3.2 : 2.7}
+                r={deg % 90 === 0 ? 2.15 : 1.85}
                 fill={`url(#${pave})`}
                 stroke="#8B98A4"
-                strokeWidth=".4"
+                strokeWidth=".3"
               />
             );
           })}
-          <circle cx={cx} cy={cy} r="21.5" fill="#FCEFD8" stroke={`url(#${gold})`} strokeWidth=".9" />
+          <circle cx={cx} cy={cy} r="23.2" fill="none" stroke={`url(#${gold})`} strokeWidth="1.1" />
 
-          {/* stone */}
-          <circle cx={cx} cy={cy} r="16.6" fill="#241608" />
-          <circle cx={cx} cy={cy} r="15.3" fill={color} stroke="#000000" strokeOpacity=".3" strokeWidth=".6" />
-          <circle cx={cx} cy={cy} r="15.3" fill={`url(#${hi})`} />
-          <circle cx={cx} cy={cy} r="15.3" fill={`url(#${sh})`} />
-          <path d="M24.7 23.5 29.5 29" stroke="#FFFFFF" strokeWidth="1.4" strokeLinecap="round" opacity=".6" />
+          {/* Stone, cut into eight alternating facets. */}
+          <circle cx={cx} cy={cy} r={stoneR + 0.8} fill="#241608" />
+          <circle cx={cx} cy={cy} r={stoneR} fill={color} stroke="#000000" strokeOpacity=".32" strokeWidth=".6" />
+          <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${hi})`} />
+          <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${sh})`} />
+          {facetPoints.slice(0, -1).map(([x1, y1], i) => {
+            const [x2, y2] = facetPoints[i + 1];
+            const light = i % 2 === 0;
+            return (
+              <polygon
+                key={i}
+                points={`${cx},${cy} ${x1},${y1} ${x2},${y2}`}
+                fill={light ? "#FFFFFF" : "#000000"}
+                opacity={light ? 0.16 : 0.22}
+              />
+            );
+          })}
+          {facetPoints.slice(0, -1).map(([x, y], i) => (
+            <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#FFFFFF" strokeWidth=".45" strokeOpacity=".4" />
+          ))}
+          <circle cx={cx} cy={cy} r={stoneR} fill="none" stroke="#FFFFFF" strokeOpacity=".3" strokeWidth=".5" />
+          <path d="M23.5 22.2 29 28" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" opacity=".65" />
         </g>
       </svg>
-      {icon && (
-        <span
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: `${(cy / 64) * 100}%`,
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            display: "flex",
-            color: engraved,
-            filter: "drop-shadow(.5px .6px 0 rgba(0,0,0,.55)) drop-shadow(-.4px -.5px 0 rgba(255,255,255,.32))",
-          }}
-        >
-          {icon}
-        </span>
-      )}
     </span>
   );
 }

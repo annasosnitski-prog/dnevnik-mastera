@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ToolbarIcon } from "./ToolbarIcons";
 import { PendantIcon } from "./PendantIcon";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
@@ -272,15 +271,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   setOpen(false);
                 }}
               >
-                {/* Each destination is its own gem colour, with the glyph
-                    engraved into the stone rather than sized to fill the
-                    button — the pendant medallion itself is already sized
-                    to the button (see PendantIcon). */}
-                <PendantIcon
-                  color={item.color}
-                  size={ITEM_SIZE}
-                  icon={<ToolbarIcon name={item.id} size={item.id === "gear" ? 8 : 11} />}
-                />
+                {/* Each destination is its own faceted gem colour — no
+                    glyph, the cut itself is the detail (see PendantIcon). */}
+                <PendantIcon color={item.color} size={ITEM_SIZE} />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
@@ -298,11 +291,10 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          {/* The hub always shows the $ sign — a fixed identity, not a
-              current-screen indicator — regardless of which of the four
-              destinations is active. Its own red pendant medallion is
-              already sized to the button (see PendantIcon). */}
-          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} icon={<ToolbarIcon name="tasks" size={9} />} />
+          {/* The hub always shows its own red faceted stone — a fixed
+              identity, not a current-screen indicator — regardless of which
+              destination is active. */}
+          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
