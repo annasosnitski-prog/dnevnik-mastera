@@ -1643,6 +1643,34 @@ input[type='date'] {
   }
 }
 
+/* Client-tab pendant, swinging on its jump-ring the moment its tab is
+   selected — pivots near the top where the ring attaches, like a hanging
+   charm nudged into motion, then settles back to rest. */
+@keyframes pendant-swing {
+  0% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(11deg);
+  }
+  40% {
+    transform: rotate(-7deg);
+  }
+  60% {
+    transform: rotate(4deg);
+  }
+  80% {
+    transform: rotate(-2deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+.pendant-swing {
+  transform-origin: 50% 10%;
+  animation: pendant-swing 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
 /* New-client celebration (see <CelebrationBurst>): one star pops in, then a
    shower of smaller stars scatters outward/downward from the same point. */
 @keyframes inkaCelebratePop {
