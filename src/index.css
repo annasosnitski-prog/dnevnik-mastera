@@ -140,9 +140,10 @@
 .nav-fab {
   position: absolute;
   left: 50%;
-  /* The 180° end buttons share the hub's vertical centre. Keep enough
-     clearance for their 31px radius and the hub's enlarged open state. */
-  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  /* Dropped to the very bottom of the screen — just enough clearance for the
+     closed hub's own 27px radius plus its glow, and the device's safe area
+     (home indicator / gesture bar) on top of that. */
+  bottom: calc(34px + env(safe-area-inset-bottom, 0px));
   z-index: 56;
   width: 0;
   height: 0;
@@ -214,21 +215,18 @@
   }
 }
 
-/* Every button on the fan — main and items alike — sits on a solid black
-   disc now, in both themes: a consistent dark stage for the gold ring/glow/
-   icon to stand on, rather than the items showing whatever's behind them
-   (stars, clouds) through a transparent centre. Both share the --nav-scale
-   custom property for the :active press-down, since each one's resting
-   `transform` already carries its own translate (arc position for items,
-   dead-centre for main) that a plain `transform: scale()` override would
-   otherwise clobber. */
+/* Every button on the fan is a gold-pendant medallion now (see PendantIcon)
+   except «Создать», which stays a plain solid disc — so the shared rule
+   below carries no disc chrome of its own; only layout, sizing and the
+   :active press-down. Both share the --nav-scale custom property for that
+   press-down, since each one's resting `transform` already carries its own
+   translate (arc position for items, dead-centre for main) that a plain
+   `transform: scale()` override would otherwise clobber. */
 .nav-fab__main,
 .nav-fab__item {
   appearance: none;
   padding: 0;
   border-radius: 50%;
-  background: #000;
-  border: 1px solid rgba(var(--gold-rgb), 0.45);
   color: var(--toolbar-icon-active);
   display: flex;
   align-items: center;
@@ -241,30 +239,11 @@
   transition: transform 0.15s ease;
 }
 
-/* Light theme's stage is the parchment background itself, not black — a
-   black disc read as a hole punched through the page. Filling with --bg
-   makes the button read as raised parchment (ring/glow/icon on top),
-   matching the same "disc as stage" idea as the dark theme's black. Only
-   the secondary (destination) buttons get this swap — the main button
-   keeps its black fill in both themes. */
-:root[data-theme="light"] .nav-fab__item:not(.nav-fab__item--create) {
-  background: var(--bg);
-}
-
-/* The current destination's own circle shares the main hub's plate — same
-   translucent surface gradient — instead of the flat dark/parchment fill the
-   other destinations get, so it reads as "you are here" even though its size
-   matches every other fan item. The light-theme override above is a higher-
-   specificity selector (:root[attr] + class + :not()), so this needs a
-   matching :not(.nav-fab__item--create) compound — and an explicit
-   light-scoped copy, placed after that override so the tie breaks by source
-   order — to actually win in both themes rather than just in dark. */
+/* "You are here": since a pendant button has no background disc left to
+   re-tint, the current destination instead gets its own medallion glowing
+   a little brighter than the rest. */
 .nav-fab__item--current:not(.nav-fab__item--create) {
-  background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
-}
-
-:root[data-theme="light"] .nav-fab__item--current:not(.nav-fab__item--create) {
-  background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
+  filter: drop-shadow(0 0 5px rgba(var(--gold-rgb), 0.9));
 }
 
 /* A small pale spotlight sitting behind each icon, a third of the button's
@@ -297,9 +276,9 @@
 .nav-fab__main {
   width: 54px;
   height: 54px;
-  background: linear-gradient(160deg, rgba(var(--surface-rgb), 0.16), rgba(var(--surface-rgb), 0.06)), var(--bg);
-  border: 1px solid rgba(var(--gold-rgb), 0.65);
-  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495), 0 4px 16px rgba(0, 0, 0, 0.28);
+  /* No disc chrome of its own any more — PendantIcon supplies the gold rim
+     and shadow — just the ambient halo marking it as the primary button. */
+  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495);
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
@@ -337,7 +316,7 @@
    farthest out on the arc so it also reads as the most prominent item. */
 .nav-fab__item--create {
   background: var(--gold);
-  border-color: var(--gold);
+  border: 1px solid var(--gold);
   color: var(--bg);
 }
 
@@ -1641,6 +1620,34 @@ input[type='date'] {
   50% {
     filter: drop-shadow(0 0 12px rgba(var(--gold-rgb), 0.55));
   }
+}
+
+/* Client-tab pendant, swinging on its jump-ring the moment its tab is
+   selected — pivots near the top where the ring attaches, like a hanging
+   charm nudged into motion, then settles back to rest. */
+@keyframes pendant-swing {
+  0% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(11deg);
+  }
+  40% {
+    transform: rotate(-7deg);
+  }
+  60% {
+    transform: rotate(4deg);
+  }
+  80% {
+    transform: rotate(-2deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+.pendant-swing {
+  transform-origin: 50% 10%;
+  animation: pendant-swing 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
 /* New-client celebration (see <CelebrationBurst>): one star pops in, then a

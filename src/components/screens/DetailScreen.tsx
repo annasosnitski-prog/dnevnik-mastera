@@ -228,25 +228,59 @@ export function DetailScreen({
     borderBottom: activeTab === tab ? `1px solid ${COLORS.gold}` : '1px solid transparent',
     cursor: 'pointer',
     transition: 'border-color 0.25s',
+    position: 'relative',
   });
 
+  // Each pendant hangs from a small gold jump-ring that hooks right onto the
+  // client-colour rod (overlapping its 4px band, like a bail threaded onto a
+  // chain) plus a link bridging down to the pendant's own bail — the rod
+  // itself never changes colour or shape, only the pendant below it swaps
+  // per tab.
+  const gemLink = (
+    <span aria-hidden="true" style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
+      <span
+        style={{
+          display: 'block',
+          width: 4,
+          height: 4,
+          margin: '0 auto',
+          borderRadius: '50%',
+          border: '1.2px solid rgba(var(--gold-rgb),0.95)',
+        }}
+      />
+      <span
+        style={{
+          display: 'block',
+          width: 1.4,
+          height: 8,
+          margin: '0 auto',
+          background: 'linear-gradient(180deg, rgba(var(--gold-rgb),0.85), rgba(var(--gold-rgb),0.3))',
+        }}
+      />
+    </span>
+  );
+
   const gemMarker = (kind: ClientTabGem, tab: typeof activeTab) => (
-    <span
-      aria-hidden="true"
-      style={{
-        display: 'block',
-        width: CLIENT_TAB_GEM_SIZE,
-        height: CLIENT_TAB_GEM_SIZE,
-        flexShrink: 0,
-        backgroundImage: 'url(/gem-icons.svg)',
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: `${CLIENT_TAB_GEM_SIZE * 5}px ${CLIENT_TAB_GEM_SIZE}px`,
-        backgroundPosition: `${-CLIENT_TAB_GEM_INDEX[kind] * CLIENT_TAB_GEM_SIZE}px 0`,
-        opacity: activeTab === tab ? 1 : 0.62,
-        filter: activeTab === tab ? 'none' : 'saturate(0.72) brightness(0.82)',
-        transition: 'opacity 0.25s, filter 0.25s',
-      }}
-    />
+    <>
+      {gemLink}
+      <span
+        aria-hidden="true"
+        className={activeTab === tab ? 'pendant-swing' : undefined}
+        style={{
+          display: 'block',
+          width: CLIENT_TAB_GEM_SIZE,
+          height: CLIENT_TAB_GEM_SIZE,
+          flexShrink: 0,
+          backgroundImage: 'url(/gem-icons.svg)',
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: `${CLIENT_TAB_GEM_SIZE * 5}px ${CLIENT_TAB_GEM_SIZE}px`,
+          backgroundPosition: `${-CLIENT_TAB_GEM_INDEX[kind] * CLIENT_TAB_GEM_SIZE}px 0`,
+          opacity: activeTab === tab ? 1 : 0.62,
+          filter: activeTab === tab ? 'none' : 'saturate(0.72) brightness(0.82)',
+          transition: 'opacity 0.25s, filter 0.25s',
+        }}
+      />
+    </>
   );
 
   // The tab-content scroller is a single reused DOM node across every client
@@ -493,8 +527,24 @@ export function DetailScreen({
           </div>
         )}
 
-        {/* Client marker stripe */}
-        <div style={{ height: 3, background: client.color, width: '100%', flexShrink: 0 }} />
+        {/* Client marker stripe — the "rod" the tab pendants hang from below.
+            Stays the client's own colour; a light-glint band and a shadow
+            terminator band are laid across it so it reads as a lit metal bar
+            rather than a flat rectangle. */}
+        <div
+          style={{
+            height: 4,
+            width: '100%',
+            flexShrink: 0,
+            background: `linear-gradient(90deg,
+              color-mix(in srgb, ${client.color} 100%, black 32%) 0%,
+              ${client.color} 18%,
+              ${client.color} 36%,
+              color-mix(in srgb, ${client.color} 55%, white 45%) 50%,
+              ${client.color} 64%,
+              ${client.color} 100%)`,
+          }}
+        />
       </div>
 
       {/* One large gemstone per tab; labels stay available to assistive
