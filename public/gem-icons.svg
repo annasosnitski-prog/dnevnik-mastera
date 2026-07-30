@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
      width="320"
      height="64"
      viewBox="0 0 320 64"
      role="img"
      aria-labelledby="title desc">
-  <title id="title">Faceted diamond navigation icons</title>
+  <title id="title">Transparent faceted diamond navigation icons</title>
   <desc id="desc">Green sessions, blue consultations, violet content, amber notes, and red info icons.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
@@ -15,147 +16,246 @@
   <view id="info" viewBox="256 0 64 64"/>
 
   <defs>
-    <filter id="glow-green" x="-55%" y="-55%" width="210%" height="210%">
-      <feGaussianBlur stdDeviation="2.4" result="blur"/>
-      <feFlood flood-color="#CFE2C2" flood-opacity=".56" result="color"/>
-      <feComposite in="color" in2="blur" operator="in" result="halo"/>
-      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="glow-green" x="-55%" y="-35%" width="210%" height="170%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
+      <feFlood flood-color="#8EFF45" flood-opacity=".9" result="tight-color"/>
+      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
+      <feFlood flood-color="#5FD51F" flood-opacity=".48" result="wide-color"/>
+      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
+      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="glow-blue" x="-55%" y="-55%" width="210%" height="210%">
-      <feGaussianBlur stdDeviation="2.4" result="blur"/>
-      <feFlood flood-color="#C8DDEA" flood-opacity=".58" result="color"/>
-      <feComposite in="color" in2="blur" operator="in" result="halo"/>
-      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="glow-blue" x="-55%" y="-35%" width="210%" height="170%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
+      <feFlood flood-color="#62D8FF" flood-opacity=".92" result="tight-color"/>
+      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
+      <feFlood flood-color="#229DDE" flood-opacity=".5" result="wide-color"/>
+      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
+      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="glow-violet" x="-55%" y="-55%" width="210%" height="210%">
-      <feGaussianBlur stdDeviation="2.4" result="blur"/>
-      <feFlood flood-color="#D8CCE4" flood-opacity=".6" result="color"/>
-      <feComposite in="color" in2="blur" operator="in" result="halo"/>
-      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="glow-violet" x="-55%" y="-35%" width="210%" height="170%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
+      <feFlood flood-color="#D78BFF" flood-opacity=".94" result="tight-color"/>
+      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
+      <feFlood flood-color="#9A3DE0" flood-opacity=".52" result="wide-color"/>
+      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
+      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="glow-amber" x="-55%" y="-55%" width="210%" height="210%">
-      <feGaussianBlur stdDeviation="2.4" result="blur"/>
-      <feFlood flood-color="#E8D1A8" flood-opacity=".58" result="color"/>
-      <feComposite in="color" in2="blur" operator="in" result="halo"/>
-      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="glow-amber" x="-55%" y="-35%" width="210%" height="170%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
+      <feFlood flood-color="#FFD85A" flood-opacity=".94" result="tight-color"/>
+      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
+      <feFlood flood-color="#E6A51F" flood-opacity=".52" result="wide-color"/>
+      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
+      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="glow-red" x="-55%" y="-55%" width="210%" height="210%">
-      <feGaussianBlur stdDeviation="2.4" result="blur"/>
-      <feFlood flood-color="#E6B6B3" flood-opacity=".58" result="color"/>
-      <feComposite in="color" in2="blur" operator="in" result="halo"/>
-      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="glow-red" x="-55%" y="-35%" width="210%" height="170%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
+      <feFlood flood-color="#FF8C89" flood-opacity=".94" result="tight-color"/>
+      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
+      <feFlood flood-color="#E63A45" flood-opacity=".52" result="wide-color"/>
+      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
+      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="specular-bloom" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation=".9" result="soft"/>
+      <feMerge><feMergeNode in="soft"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
 
-    <!-- Universal light/shadow overlays keep every colored stone identically cut. -->
-    <linearGradient id="facet-top-light" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".52"/>
-      <stop offset=".52" stop-color="#FFFFFF" stop-opacity=".12"/>
+    <!-- Facets stay partly translucent so the body reads as coloured glass. -->
+    <linearGradient id="facet-entry" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".78"/>
+      <stop offset=".22" stop-color="#FFFFFF" stop-opacity=".44"/>
+      <stop offset=".58" stop-color="#FFFFFF" stop-opacity=".08"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="facet-left-light" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".26"/>
-      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".05"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".18"/>
-    </linearGradient>
-    <linearGradient id="facet-right-shadow" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".04"/>
-      <stop offset=".54" stop-color="#000000" stop-opacity=".18"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".48"/>
-    </linearGradient>
-    <linearGradient id="facet-bottom-shadow" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#000000" stop-opacity=".08"/>
-      <stop offset=".5" stop-color="#000000" stop-opacity=".3"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".58"/>
-    </linearGradient>
-    <radialGradient id="core-glass" cx=".34" cy=".28" r=".82">
+    <linearGradient id="facet-bright" x1=".1" y1="0" x2=".8" y2="1">
       <stop offset="0" stop-color="#FFFFFF" stop-opacity=".54"/>
-      <stop offset=".34" stop-color="#FFFFFF" stop-opacity=".1"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".3"/>
-    </radialGradient>
+      <stop offset=".44" stop-color="#FFFFFF" stop-opacity=".12"/>
+      <stop offset=".72" stop-color="#000000" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".32"/>
+    </linearGradient>
+    <linearGradient id="facet-mid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".14"/>
+      <stop offset=".46" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".56"/>
+    </linearGradient>
+    <linearGradient id="facet-shadow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#000000" stop-opacity=".18"/>
+      <stop offset=".52" stop-color="#000000" stop-opacity=".58"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".86"/>
+    </linearGradient>
+    <linearGradient id="facet-transmitted" x1=".08" y1="0" x2=".86" y2="1">
+      <stop offset="0" stop-color="#000000" stop-opacity=".34"/>
+      <stop offset=".42" stop-color="#FFFFFF" stop-opacity=".08"/>
+      <stop offset=".76" stop-color="#FFFFFF" stop-opacity=".64"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".94"/>
+    </linearGradient>
+    <linearGradient id="facet-exit" x1=".15" y1="0" x2=".75" y2="1">
+      <stop offset="0" stop-color="#000000" stop-opacity=".42"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".06"/>
+      <stop offset=".8" stop-color="#FFFFFF" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".82"/>
+    </linearGradient>
+    <linearGradient id="internal-ray"
+                    gradientUnits="userSpaceOnUse"
+                    x1="18" y1="15" x2="45" y2="50">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".36"/>
+      <stop offset=".36" stop-color="#FFFFFF" stop-opacity=".04"/>
+      <stop offset=".68" stop-color="#FFFFFF" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".72"/>
+    </linearGradient>
 
+    <!-- Every edge has its own light path; the contour is brightest only at reflection points. -->
+    <linearGradient id="edge-upper-left"
+                    gradientUnits="userSpaceOnUse"
+                    x1="32" y1="3" x2="14" y2="31.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset=".18" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset=".54" stop-color="#FFFFFF" stop-opacity=".8"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".24"/>
+    </linearGradient>
+    <linearGradient id="edge-upper-right"
+                    gradientUnits="userSpaceOnUse"
+                    x1="32" y1="3" x2="50" y2="31.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset=".28" stop-color="#FFFFFF" stop-opacity=".72"/>
+      <stop offset=".68" stop-color="#FFFFFF" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#080808" stop-opacity=".62"/>
+    </linearGradient>
+    <linearGradient id="edge-lower-left"
+                    gradientUnits="userSpaceOnUse"
+                    x1="14" y1="31.5" x2="32" y2="61">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".7"/>
+      <stop offset=".46" stop-color="#FFFFFF" stop-opacity=".22"/>
+      <stop offset=".82" stop-color="#FFFFFF" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".9"/>
+    </linearGradient>
+    <linearGradient id="edge-lower-right"
+                    gradientUnits="userSpaceOnUse"
+                    x1="50" y1="31.5" x2="32" y2="61">
+      <stop offset="0" stop-color="#0A0A0A" stop-opacity=".62"/>
+      <stop offset=".38" stop-color="#FFFFFF" stop-opacity=".1"/>
+      <stop offset=".78" stop-color="#FFFFFF" stop-opacity=".72"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".98"/>
+    </linearGradient>
+    <linearGradient id="edge-belt"
+                    gradientUnits="userSpaceOnUse"
+                    x1="14" y1="31.5" x2="50" y2="31.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset=".14" stop-color="#FFFFFF" stop-opacity=".94"/>
+      <stop offset=".42" stop-color="#FFFFFF" stop-opacity=".42"/>
+      <stop offset=".72" stop-color="#FFFFFF" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#090909" stop-opacity=".68"/>
+    </linearGradient>
+    <linearGradient id="edge-inner-left"
+                    gradientUnits="userSpaceOnUse"
+                    x1="32" y1="3" x2="32" y2="61">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset=".34" stop-color="#FFFFFF" stop-opacity=".62"/>
+      <stop offset=".62" stop-color="#FFFFFF" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".88"/>
+    </linearGradient>
+    <linearGradient id="edge-inner-right"
+                    gradientUnits="userSpaceOnUse"
+                    x1="32" y1="3" x2="32" y2="61">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".82"/>
+      <stop offset=".38" stop-color="#FFFFFF" stop-opacity=".18"/>
+      <stop offset=".68" stop-color="#090909" stop-opacity=".62"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".8"/>
+    </linearGradient>
+
+    <g id="stone-cut">
+      <!-- The coloured body is genuinely translucent; facets and refraction rebuild its volume. -->
+      <path d="M32 3 50 31.5 32 61 14 31.5Z"
+            fill="currentColor"
+            fill-opacity=".78"/>
+
+      <!-- Coloured refractions keep the glass saturated without making it opaque. -->
+      <path d="M32 3 24 31.5 32 45 40 31.5Z"
+            fill="currentColor"
+            fill-opacity=".38"/>
+      <path d="M14 31.5 32 61 40 31.5 32 45 24 31.5Z"
+            fill="currentColor"
+            fill-opacity=".28"/>
+
+      <path d="M32 3 14 31.5 24 31.5Z" fill="url(#facet-entry)"/>
+      <path d="M32 3 24 31.5 32 31.5Z" fill="url(#facet-bright)"/>
+      <path d="M32 3 32 31.5 40 31.5Z" fill="url(#facet-mid)"/>
+      <path d="M32 3 40 31.5 50 31.5Z" fill="url(#facet-shadow)"/>
+
+      <path d="M14 31.5 32 61 24 31.5Z" fill="url(#facet-mid)"/>
+      <path d="M24 31.5 32 61 32 31.5Z" fill="url(#facet-shadow)"/>
+      <path d="M32 31.5 32 61 40 31.5Z" fill="url(#facet-transmitted)"/>
+      <path d="M40 31.5 32 61 50 31.5Z" fill="url(#facet-exit)"/>
+
+      <!-- A soft internal path bends the entering light toward the opposite edge. -->
+      <path d="M20 25 27 14 43 38 35 52Z"
+            fill="url(#internal-ray)"
+            opacity=".52"/>
+      <path d="M24 31.5 32 22 40 31.5 32 45Z"
+            fill="none"
+            stroke="#FFFFFF"
+            stroke-width=".72"
+            stroke-opacity=".34"/>
+
+      <g fill="none"
+         stroke-width="1.35"
+         stroke-linecap="round"
+         stroke-linejoin="miter">
+        <path d="M32 3 14 31.5" stroke="url(#edge-upper-left)"/>
+        <path d="M32 3 50 31.5" stroke="url(#edge-upper-right)"/>
+        <path d="M14 31.5 32 61" stroke="url(#edge-lower-left)"/>
+        <path d="M50 31.5 32 61" stroke="url(#edge-lower-right)"/>
+        <path d="M14 31.5H50" stroke="url(#edge-belt)"/>
+        <path d="M32 3 24 31.5 32 61" stroke="url(#edge-inner-left)"/>
+        <path d="M32 3 40 31.5 32 61" stroke="url(#edge-inner-right)"/>
+      </g>
+
+      <!-- Hard specular flashes sit on the contour, not in the middle of the stone. -->
+      <g fill="none"
+         stroke="#FFFFFF"
+         stroke-linecap="round"
+         filter="url(#specular-bloom)">
+        <path d="M31.9 3.4 27.6 10.2" stroke-width="1.65" opacity="1"/>
+        <path d="M15 30.9 20 31.5" stroke-width="1.55" opacity=".98"/>
+        <path d="M35.4 55.4 32.2 60.5" stroke-width="1.18" opacity=".86"/>
+      </g>
+      <circle cx="31.9" cy="3.6" r="1.15" fill="#FFFFFF" opacity=".98"/>
+    </g>
   </defs>
 
-  <g id="sessions-icon"
-     filter="url(#glow-green)">
-    <path d="M32 5 44 25 32 21 20 25Z" fill="#5E8C4A"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="#5E8C4A"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="#5E8C4A"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="#5E8C4A"/>
-    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
-    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#5E8C4A"/>
-    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
-    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#E7F2E0" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
-    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
-  </g>
-
-  <g id="consultations-icon"
-     transform="translate(64 0)"
-     filter="url(#glow-blue)">
-    <path d="M32 5 44 25 32 21 20 25Z" fill="#3E7CA6"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="#3E7CA6"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="#3E7CA6"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="#3E7CA6"/>
-    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
-    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#3E7CA6"/>
-    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
-    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#E1EFF6" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
-    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
-  </g>
-
-  <g id="content-icon"
-     transform="translate(128 0)"
-     filter="url(#glow-violet)">
-    <path d="M32 5 44 25 32 21 20 25Z" fill="#7A5AA0"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="#7A5AA0"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="#7A5AA0"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="#7A5AA0"/>
-    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
-    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#7A5AA0"/>
-    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
-    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#F0E9F5" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
-    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
-  </g>
-
-  <g id="notes-icon"
-     transform="translate(192 0)"
-     filter="url(#glow-amber)">
-    <path d="M32 5 44 25 32 21 20 25Z" fill="#B48745"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="#B48745"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="#B48745"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="#B48745"/>
-    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
-    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#B48745"/>
-    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
-    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#F8ECD8" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
-    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
-  </g>
-
-  <g id="info-icon"
-     transform="translate(256 0)"
-     filter="url(#glow-red)">
-    <path d="M32 5 44 25 32 21 20 25Z" fill="#B0413E"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="#B0413E"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="#B0413E"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="#B0413E"/>
-    <path d="M32 5 44 25 32 21 20 25Z" fill="url(#facet-top-light)"/>
-    <path d="M59 32 44 39 44 25 32 5Z" fill="url(#facet-right-shadow)"/>
-    <path d="M32 59 20 39 32 43 44 39Z" fill="url(#facet-bottom-shadow)"/>
-    <path d="M5 32 20 25 20 39 32 59Z" fill="url(#facet-left-light)"/>
-    <path d="M32 21 44 25 32 32 20 25ZM44 25 44 39 32 32ZM44 39 32 43 20 39 32 32ZM20 39 20 25 32 32Z" fill="#B0413E"/>
-    <path d="M32 21 44 25 44 39 32 43 20 39 20 25Z" fill="url(#core-glass)"/>
-    <path d="M32 5 59 32 32 59 5 32ZM32 5 20 25 5 32M32 5 44 25 59 32M59 32 44 39 32 59M32 59 20 39 5 32M20 25 32 21 44 25 44 39 32 43 20 39ZM32 21V43M20 25 32 32 44 25M20 39 32 32 44 39" fill="none" stroke="#F7E3E1" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="miter" opacity=".98"/>
-    <path d="M25 23 29 24 27 27Z" fill="#FFFFFF" opacity=".92"/>
-  </g>
+  <use id="sessions-icon"
+       href="#stone-cut"
+       xlink:href="#stone-cut"
+       color="#72C83E"
+       filter="url(#glow-green)"/>
+  <use id="consultations-icon"
+       href="#stone-cut"
+       xlink:href="#stone-cut"
+       x="64"
+       color="#319FD9"
+       filter="url(#glow-blue)"/>
+  <use id="content-icon"
+       href="#stone-cut"
+       xlink:href="#stone-cut"
+       x="128"
+       color="#A14ED8"
+       filter="url(#glow-violet)"/>
+  <use id="notes-icon"
+       href="#stone-cut"
+       xlink:href="#stone-cut"
+       x="192"
+       color="#D89A24"
+       filter="url(#glow-amber)"/>
+  <use id="info-icon"
+       href="#stone-cut"
+       xlink:href="#stone-cut"
+       x="256"
+       color="#D94750"
+       filter="url(#glow-red)"/>
 </svg>
