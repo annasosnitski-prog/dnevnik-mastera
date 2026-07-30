@@ -342,7 +342,22 @@ const initDB = (): Promise<IDBDatabase> =>
     };
   });
 
-
+// iOS/WebKit sometimes fails the very first indexedDB.open() right after a
+// cold launch (the storage subsystem isn't ready yet) — this is NOT the same
+// as private browsing, which the previous error message wrongly assumed. A
+// couple of quick retries clears up that transient case before we bother the
+// user at all.
+const initDBWithRetry = async (attempts = 3, delayMs = 400): Promise<IDBDatabase> => {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await initDB();
+    } catch (err) {
+      if (attempt === attempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
+  }
+  throw new Error('unreachable');
+};
 
 
 export const INPUT_STYLE: React.CSSProperties = {
@@ -744,9 +759,10 @@ export default function TattoDiary() {
     };
   }, []);
 
-  useEffect(() => {
-    initDB()
+  const connectDb = () => {
+    initDBWithRetry()
       .then((database) => {
+        setDbError(null);
         setDb(database);
         loadClients(database);
         loadProjects(database);
@@ -755,8 +771,12 @@ export default function TattoDiary() {
       })
       .catch((err) => {
         console.error('IndexedDB init failed:', err);
-        setDbError('Хранилище недоступно. В режиме приватного просмотра переключитесь на обычную вкладку.');
+        setDbError('Хранилище недоступно. Если открыт режим приватного просмотра — переключитесь на обычную вкладку, иначе попробуйте ещё раз.');
       });
+  };
+
+  useEffect(() => {
+    connectDb();
   }, []);
 
   const loadClients = (database: IDBDatabase) => {
@@ -1968,6 +1988,23 @@ export default function TattoDiary() {
             }}
           >
             <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
+            {!db && (
+              <button
+                onClick={connectDb}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(201,153,153,0.5)',
+                  borderRadius: 2,
+                  padding: '2px 8px',
+                  color: '#C99',
+                  fontSize: fs(13),
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                Повторить
+              </button>
+            )}
             <button
               onClick={() => setDbError(null)}
               style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
