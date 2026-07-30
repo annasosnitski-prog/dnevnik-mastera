@@ -6,8 +6,8 @@
      viewBox="0 0 320 64"
      role="img"
      aria-labelledby="title desc">
-  <title id="title">Transparent faceted diamond navigation icons</title>
-  <desc id="desc">Green sessions, blue consultations, violet content, amber notes, and red info icons.</desc>
+  <title id="title">Gold pendant navigation icons</title>
+  <desc id="desc">A small gold pendant with a diamond halo and a coloured centre stone: green sessions, blue consultations, violet content, amber notes, and red info icons.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -16,247 +16,94 @@
   <view id="info" viewBox="256 0 64 64"/>
 
   <defs>
-    <filter id="glow-green" x="-55%" y="-35%" width="210%" height="170%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
-      <feFlood flood-color="#8EFF45" flood-opacity=".9" result="tight-color"/>
-      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
-      <feFlood flood-color="#5FD51F" flood-opacity=".48" result="wide-color"/>
-      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
-      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glow-blue" x="-55%" y="-35%" width="210%" height="170%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
-      <feFlood flood-color="#62D8FF" flood-opacity=".92" result="tight-color"/>
-      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
-      <feFlood flood-color="#229DDE" flood-opacity=".5" result="wide-color"/>
-      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
-      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glow-violet" x="-55%" y="-35%" width="210%" height="170%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
-      <feFlood flood-color="#D78BFF" flood-opacity=".94" result="tight-color"/>
-      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
-      <feFlood flood-color="#9A3DE0" flood-opacity=".52" result="wide-color"/>
-      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
-      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glow-amber" x="-55%" y="-35%" width="210%" height="170%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
-      <feFlood flood-color="#FFD85A" flood-opacity=".94" result="tight-color"/>
-      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
-      <feFlood flood-color="#E6A51F" flood-opacity=".52" result="wide-color"/>
-      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
-      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glow-red" x="-55%" y="-35%" width="210%" height="170%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.05" result="tight-blur"/>
-      <feFlood flood-color="#FF8C89" flood-opacity=".94" result="tight-color"/>
-      <feComposite in="tight-color" in2="tight-blur" operator="in" result="tight-glow"/>
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="wide-blur"/>
-      <feFlood flood-color="#E63A45" flood-opacity=".52" result="wide-color"/>
-      <feComposite in="wide-color" in2="wide-blur" operator="in" result="wide-glow"/>
-      <feMerge><feMergeNode in="wide-glow"/><feMergeNode in="tight-glow"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="specular-bloom" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation=".9" result="soft"/>
-      <feMerge><feMergeNode in="soft"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
+    <linearGradient id="gold-metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7E4B8"/>
+      <stop offset=".35" stop-color="#D8A94A"/>
+      <stop offset=".7" stop-color="#A3722A"/>
+      <stop offset="1" stop-color="#6E4A16"/>
+    </linearGradient>
 
-    <!-- Facets stay partly translucent so the body reads as coloured glass. -->
-    <linearGradient id="facet-entry" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".78"/>
-      <stop offset=".22" stop-color="#FFFFFF" stop-opacity=".44"/>
-      <stop offset=".58" stop-color="#FFFFFF" stop-opacity=".08"/>
+    <radialGradient id="pave-diamond" cx=".35" cy=".3" r=".8">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".55" stop-color="#EFF4F8"/>
+      <stop offset="1" stop-color="#C3CFD8"/>
+    </radialGradient>
+
+    <!-- Hue-independent facet shading laid over each currentColor stone. -->
+    <linearGradient id="stone-facet-highlight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".65"/>
+      <stop offset=".5" stop-color="#FFFFFF" stop-opacity=".14"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="facet-bright" x1=".1" y1="0" x2=".8" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".54"/>
-      <stop offset=".44" stop-color="#FFFFFF" stop-opacity=".12"/>
-      <stop offset=".72" stop-color="#000000" stop-opacity=".08"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".32"/>
-    </linearGradient>
-    <linearGradient id="facet-mid" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".14"/>
-      <stop offset=".46" stop-color="#FFFFFF" stop-opacity="0"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".56"/>
-    </linearGradient>
-    <linearGradient id="facet-shadow" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#000000" stop-opacity=".18"/>
-      <stop offset=".52" stop-color="#000000" stop-opacity=".58"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".86"/>
-    </linearGradient>
-    <linearGradient id="facet-transmitted" x1=".08" y1="0" x2=".86" y2="1">
-      <stop offset="0" stop-color="#000000" stop-opacity=".34"/>
-      <stop offset=".42" stop-color="#FFFFFF" stop-opacity=".08"/>
-      <stop offset=".76" stop-color="#FFFFFF" stop-opacity=".64"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".94"/>
-    </linearGradient>
-    <linearGradient id="facet-exit" x1=".15" y1="0" x2=".75" y2="1">
-      <stop offset="0" stop-color="#000000" stop-opacity=".42"/>
-      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".06"/>
-      <stop offset=".8" stop-color="#FFFFFF" stop-opacity=".5"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".82"/>
-    </linearGradient>
-    <linearGradient id="internal-ray"
-                    gradientUnits="userSpaceOnUse"
-                    x1="18" y1="15" x2="45" y2="50">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".36"/>
-      <stop offset=".36" stop-color="#FFFFFF" stop-opacity=".04"/>
-      <stop offset=".68" stop-color="#FFFFFF" stop-opacity=".28"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".72"/>
+    <linearGradient id="stone-facet-shadow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#000000" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#000000" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".5"/>
     </linearGradient>
 
-    <!-- Every edge has its own light path; the contour is brightest only at reflection points. -->
-    <linearGradient id="edge-upper-left"
-                    gradientUnits="userSpaceOnUse"
-                    x1="32" y1="3" x2="14" y2="31.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
-      <stop offset=".18" stop-color="#FFFFFF" stop-opacity="1"/>
-      <stop offset=".54" stop-color="#FFFFFF" stop-opacity=".8"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".24"/>
-    </linearGradient>
-    <linearGradient id="edge-upper-right"
-                    gradientUnits="userSpaceOnUse"
-                    x1="32" y1="3" x2="50" y2="31.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
-      <stop offset=".28" stop-color="#FFFFFF" stop-opacity=".72"/>
-      <stop offset=".68" stop-color="#FFFFFF" stop-opacity=".2"/>
-      <stop offset="1" stop-color="#080808" stop-opacity=".62"/>
-    </linearGradient>
-    <linearGradient id="edge-lower-left"
-                    gradientUnits="userSpaceOnUse"
-                    x1="14" y1="31.5" x2="32" y2="61">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".7"/>
-      <stop offset=".46" stop-color="#FFFFFF" stop-opacity=".22"/>
-      <stop offset=".82" stop-color="#FFFFFF" stop-opacity=".5"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".9"/>
-    </linearGradient>
-    <linearGradient id="edge-lower-right"
-                    gradientUnits="userSpaceOnUse"
-                    x1="50" y1="31.5" x2="32" y2="61">
-      <stop offset="0" stop-color="#0A0A0A" stop-opacity=".62"/>
-      <stop offset=".38" stop-color="#FFFFFF" stop-opacity=".1"/>
-      <stop offset=".78" stop-color="#FFFFFF" stop-opacity=".72"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".98"/>
-    </linearGradient>
-    <linearGradient id="edge-belt"
-                    gradientUnits="userSpaceOnUse"
-                    x1="14" y1="31.5" x2="50" y2="31.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
-      <stop offset=".14" stop-color="#FFFFFF" stop-opacity=".94"/>
-      <stop offset=".42" stop-color="#FFFFFF" stop-opacity=".42"/>
-      <stop offset=".72" stop-color="#FFFFFF" stop-opacity=".12"/>
-      <stop offset="1" stop-color="#090909" stop-opacity=".68"/>
-    </linearGradient>
-    <linearGradient id="edge-inner-left"
-                    gradientUnits="userSpaceOnUse"
-                    x1="32" y1="3" x2="32" y2="61">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
-      <stop offset=".34" stop-color="#FFFFFF" stop-opacity=".62"/>
-      <stop offset=".62" stop-color="#FFFFFF" stop-opacity=".18"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".88"/>
-    </linearGradient>
-    <linearGradient id="edge-inner-right"
-                    gradientUnits="userSpaceOnUse"
-                    x1="32" y1="3" x2="32" y2="61">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".82"/>
-      <stop offset=".38" stop-color="#FFFFFF" stop-opacity=".18"/>
-      <stop offset=".68" stop-color="#090909" stop-opacity=".62"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".8"/>
-    </linearGradient>
+    <!-- Soft ambient shadow instead of a neon glow — reads as real metal, not a video-game gem. -->
+    <filter id="pendant-shadow" x="-40%" y="-30%" width="180%" height="170%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.1" result="blur"/>
+      <feOffset in="blur" dy=".8" result="off"/>
+      <feComponentTransfer in="off" result="shadow"><feFuncA type="linear" slope=".38"/></feComponentTransfer>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
 
-    <g id="stone-cut" transform="translate(32 31.5) scale(.62 .74) translate(-32 -31.5)">
-      <!-- Shrunk and elongated (vs. the wide kite this used to be) for a slimmer, marquise-like silhouette. -->
-      <!-- The coloured body is genuinely translucent; facets and refraction rebuild its volume. -->
-      <path d="M32 3 50 31.5 32 61 14 31.5Z"
-            fill="currentColor"
-            fill-opacity=".78"/>
+    <!-- Colourless chrome: bail, gold diamond-shaped frame, pavé halo, prong beads. -->
+    <g id="pendant-chrome">
+      <circle cx="32" cy="9" r="2.8" fill="none" stroke="url(#gold-metal)" stroke-width="1.8"/>
+      <line x1="32" y1="11.6" x2="32" y2="16.3" stroke="url(#gold-metal)" stroke-width="1.8" stroke-linecap="round"/>
 
-      <!-- Coloured refractions keep the glass saturated without making it opaque. -->
-      <path d="M32 3 24 31.5 32 45 40 31.5Z"
-            fill="currentColor"
-            fill-opacity=".38"/>
-      <path d="M14 31.5 32 61 40 31.5 32 45 24 31.5Z"
-            fill="currentColor"
-            fill-opacity=".28"/>
+      <g transform="translate(32 34) rotate(45)">
+        <rect x="-12.5" y="-12.5" width="25" height="25" rx="3.2" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".9"/>
+        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx="2.4" fill="#FCEFD8" stroke="url(#gold-metal)" stroke-width=".7"/>
 
-      <path d="M32 3 14 31.5 24 31.5Z" fill="url(#facet-entry)"/>
-      <path d="M32 3 24 31.5 32 31.5Z" fill="url(#facet-bright)"/>
-      <path d="M32 3 32 31.5 40 31.5Z" fill="url(#facet-mid)"/>
-      <path d="M32 3 40 31.5 50 31.5Z" fill="url(#facet-shadow)"/>
+        <circle cx="-9.8" cy="-9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
+        <circle cx="9.8" cy="-9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
+        <circle cx="9.8" cy="9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
+        <circle cx="-9.8" cy="9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
+        <circle cx="0" cy="-9.8" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
+        <circle cx="9.8" cy="0" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
+        <circle cx="0" cy="9.8" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
+        <circle cx="-9.8" cy="0" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
 
-      <path d="M14 31.5 32 61 24 31.5Z" fill="url(#facet-mid)"/>
-      <path d="M24 31.5 32 61 32 31.5Z" fill="url(#facet-shadow)"/>
-      <path d="M32 31.5 32 61 40 31.5Z" fill="url(#facet-transmitted)"/>
-      <path d="M40 31.5 32 61 50 31.5Z" fill="url(#facet-exit)"/>
-
-      <!-- A soft internal path bends the entering light toward the opposite edge. -->
-      <path d="M20 25 27 14 43 38 35 52Z"
-            fill="url(#internal-ray)"
-            opacity=".52"/>
-      <path d="M24 31.5 32 22 40 31.5 32 45Z"
-            fill="none"
-            stroke="#FFFFFF"
-            stroke-width=".72"
-            stroke-opacity=".34"/>
-
-      <g fill="none"
-         stroke-width="1.35"
-         stroke-linecap="round"
-         stroke-linejoin="miter">
-        <path d="M32 3 14 31.5" stroke="url(#edge-upper-left)"/>
-        <path d="M32 3 50 31.5" stroke="url(#edge-upper-right)"/>
-        <path d="M14 31.5 32 61" stroke="url(#edge-lower-left)"/>
-        <path d="M50 31.5 32 61" stroke="url(#edge-lower-right)"/>
-        <path d="M14 31.5H50" stroke="url(#edge-belt)"/>
-        <path d="M32 3 24 31.5 32 61" stroke="url(#edge-inner-left)"/>
-        <path d="M32 3 40 31.5 32 61" stroke="url(#edge-inner-right)"/>
+        <circle cx="-12.5" cy="-12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
+        <circle cx="12.5" cy="-12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
+        <circle cx="12.5" cy="12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
+        <circle cx="-12.5" cy="12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
       </g>
+    </g>
 
-      <!-- Hard specular flashes sit on the contour, not in the middle of the stone. -->
-      <g fill="none"
-         stroke="#FFFFFF"
-         stroke-linecap="round"
-         filter="url(#specular-bloom)">
-        <path d="M31.9 3.4 27.6 10.2" stroke-width="1.65" opacity="1"/>
-        <path d="M15 30.9 20 31.5" stroke-width="1.55" opacity=".98"/>
-        <path d="M35.4 55.4 32.2 60.5" stroke-width="1.18" opacity=".86"/>
+    <!-- Coloured centre stone; recoloured per icon via currentColor. -->
+    <g id="pendant-stone">
+      <g transform="translate(32 34) rotate(45)">
+        <rect x="-7.6" y="-7.6" width="15.2" height="15.2" rx="1.9" fill="#241608"/>
+        <rect x="-7" y="-7" width="14" height="14" rx="1.8" fill="currentColor" stroke="#000000" stroke-opacity=".3" stroke-width=".4"/>
+        <path d="M-7 -7 7 -7 -7 7Z" fill="url(#stone-facet-highlight)"/>
+        <path d="M7 -7 7 7 -7 7Z" fill="url(#stone-facet-shadow)"/>
+        <path d="M-4.3 -4.3 -1.2 -1.2" stroke="#FFFFFF" stroke-width=".9" stroke-linecap="round" opacity=".6"/>
       </g>
-      <circle cx="31.9" cy="3.6" r="1.15" fill="#FFFFFF" opacity=".98"/>
     </g>
   </defs>
 
-  <use id="sessions-icon"
-       href="#stone-cut"
-       xlink:href="#stone-cut"
-       color="#72C83E"
-       filter="url(#glow-green)"/>
-  <use id="consultations-icon"
-       href="#stone-cut"
-       xlink:href="#stone-cut"
-       x="64"
-       color="#319FD9"
-       filter="url(#glow-blue)"/>
-  <use id="content-icon"
-       href="#stone-cut"
-       xlink:href="#stone-cut"
-       x="128"
-       color="#A14ED8"
-       filter="url(#glow-violet)"/>
-  <use id="notes-icon"
-       href="#stone-cut"
-       xlink:href="#stone-cut"
-       x="192"
-       color="#D89A24"
-       filter="url(#glow-amber)"/>
-  <use id="info-icon"
-       href="#stone-cut"
-       xlink:href="#stone-cut"
-       x="256"
-       color="#D94750"
-       filter="url(#glow-red)"/>
+  <g id="sessions-icon" filter="url(#pendant-shadow)">
+    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#72C83E"/>
+  </g>
+  <g id="consultations-icon" transform="translate(64 0)" filter="url(#pendant-shadow)">
+    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#319FD9"/>
+  </g>
+  <g id="content-icon" transform="translate(128 0)" filter="url(#pendant-shadow)">
+    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#A14ED8"/>
+  </g>
+  <g id="notes-icon" transform="translate(192 0)" filter="url(#pendant-shadow)">
+    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#D89A24"/>
+  </g>
+  <g id="info-icon" transform="translate(256 0)" filter="url(#pendant-shadow)">
+    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#D94750"/>
+  </g>
 </svg>
