@@ -231,11 +231,13 @@ export function DetailScreen({
     position: 'relative',
   });
 
-  // Each pendant hangs from a small gold jump-ring + link that bridges up to
-  // the client-colour rod above the tab bar — the rod itself never changes
-  // colour or shape, only the pendant below it swaps per tab.
+  // Each pendant hangs from a small gold jump-ring that hooks right onto the
+  // client-colour rod (overlapping its 4px band, like a bail threaded onto a
+  // chain) plus a link bridging down to the pendant's own bail — the rod
+  // itself never changes colour or shape, only the pendant below it swaps
+  // per tab.
   const gemLink = (
-    <span aria-hidden="true" style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
+    <span aria-hidden="true" style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
       <span
         style={{
           display: 'block',
@@ -243,7 +245,7 @@ export function DetailScreen({
           height: 4,
           margin: '0 auto',
           borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.85)',
+          border: '1.2px solid rgba(var(--gold-rgb),0.95)',
         }}
       />
       <span
