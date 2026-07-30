@@ -169,7 +169,8 @@
       <stop offset="1" stop-color="#FFFFFF" stop-opacity=".8"/>
     </linearGradient>
 
-    <g id="stone-cut">
+    <g id="stone-cut" transform="translate(32 31.5) scale(.62 .74) translate(-32 -31.5)">
+      <!-- Shrunk and elongated (vs. the wide kite this used to be) for a slimmer, marquise-like silhouette. -->
       <!-- The coloured body is genuinely translucent; facets and refraction rebuild its volume. -->
       <path d="M32 3 50 31.5 32 61 14 31.5Z"
             fill="currentColor"
