@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcons";
+import { PendantIcon } from "./PendantIcon";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
 
@@ -18,21 +19,28 @@ interface NavFabProps {
 
 // Clockwise order of destinations in the open semicircle. Internal ids and
 // screens stay stable so the renamed entries keep their existing routes.
+// Each destination is its own gem colour — the same jewel language as the
+// client tab pendants, so the whole app reads as one collection.
 const NAV_ITEMS: {
   id: "sketchbook" | "content" | "clients" | "brush" | "profile" | "gear";
   label: string;
   screen: AppScreen;
   isActive: (active: AppScreen) => boolean;
+  color: string;
 }[] = [
-  { id: "gear", label: "Личный кабинет", screen: "master", isActive: (a) => a === "master" },
+  { id: "gear", label: "Личный кабинет", screen: "master", isActive: (a) => a === "master", color: "#DD7A2B" },
   // «Клиенты» stays lit for Настройки and a client's Detail screen too —
   // both are reached from the roster, not a separate section.
-  { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail" },
-  { id: "brush", label: "Проекты", screen: "workshop", isActive: (a) => a === "workshop" },
-  { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin" },
-  { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary" },
-  { id: "content", label: "Контент", screen: "content", isActive: (a) => a === "content" },
+  { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail", color: "#72C83E" },
+  { id: "brush", label: "Проекты", screen: "workshop", isActive: (a) => a === "workshop", color: "#319FD9" },
+  { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin", color: "#D94750" },
+  { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary", color: "#D89A24" },
+  { id: "content", label: "Контент", screen: "content", isActive: (a) => a === "content", color: "#A14ED8" },
 ];
+
+// The hub's own fixed pendant colour — shares the "Админка" red rather than
+// getting a colour of its own, per the requested mapping.
+const HUB_COLOR = "#D94750";
 
 // The open toolbar is a half-ellipse, not a true semicircle: the horizontal
 // radius keeps the sides fitting a 320px-wide viewport edge to edge (seven
@@ -72,10 +80,6 @@ const HUB_HALF = 27;
 const ITEM_HALF = 31;
 const HUB_SIZE = HUB_HALF * 2;
 const ITEM_SIZE = ITEM_HALF * 2;
-
-// The key fills its viewBox corner-to-corner on the diagonal, so it is sized
-// by diagonal rather than height. Other glyphs keep their built-in margins.
-const DIAGONAL_ICON_SIZE = Math.round((ITEM_SIZE * 2) / 3 / Math.SQRT2);
 
 // Single circular button, bottom-centre — replaces the full-width bottom bar.
 // Closed, it shows the icon for whatever screen is currently open (so you
@@ -268,13 +272,14 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   setOpen(false);
                 }}
               >
-                {/* Icons fill 2/3 of their own button's height, matching the
-                    hub's own icon-to-button ratio — except the brush and
-                    wrench, sized by their own diagonal instead (see
-                    DIAGONAL_ICON_SIZE above). */}
-                <ToolbarIcon
-                  name={item.id}
-                  size={item.id === "gear" ? DIAGONAL_ICON_SIZE : Math.round((ITEM_SIZE * 2) / 3)}
+                {/* Each destination is its own gem colour, with the glyph
+                    engraved into the stone rather than sized to fill the
+                    button — the pendant medallion itself is already sized
+                    to the button (see PendantIcon). */}
+                <PendantIcon
+                  color={item.color}
+                  size={ITEM_SIZE}
+                  icon={<ToolbarIcon name={item.id} size={item.id === "gear" ? 8 : 11} />}
                 />
                 {badges?.map((kind, bi) => (
                   <span
@@ -295,10 +300,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         >
           {/* The hub always shows the $ sign — a fixed identity, not a
               current-screen indicator — regardless of which of the four
-              destinations is active. 2/3 of the button's own height
-              (HUB_HALF * 2), matching the fan items' own icon-to-button
-              ratio. */}
-          <ToolbarIcon name="tasks" size={Math.round((HUB_SIZE * 2) / 3)} />
+              destinations is active. Its own red pendant medallion is
+              already sized to the button (see PendantIcon). */}
+          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} icon={<ToolbarIcon name="tasks" size={9} />} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
