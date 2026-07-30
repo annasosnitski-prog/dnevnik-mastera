@@ -4,9 +4,11 @@ import { useId, type ReactNode } from "react";
 // tab pendants (gold-metal gradient, pavé-diamond halo, hue-independent
 // facet shading over a currentColor-free stone), just circular instead of
 // the tabs' diamond-cut silhouette, to match the NavFab's own round buttons
-// and the round reference pendants. Each instance gets its own gradient/
-// filter ids (via useId) so multiple copies can render on the same page
-// without colliding.
+// and the round reference pendants. Sized to fill its own button almost
+// edge to edge, so it sits fully inside the button's ambient glow halo
+// rather than floating inside it with a gap. Each instance gets its own
+// gradient/filter ids (via useId) so multiple copies can render on the same
+// page without colliding.
 export function PendantIcon({
   color,
   size,
@@ -23,11 +25,11 @@ export function PendantIcon({
   const sh = `pendant-sh-${uid}`;
   const shadow = `pendant-shadow-${uid}`;
   // The glyph reads as carved into the stone rather than floating on top —
-  // a darker shade of the stone's own colour, not a foreign tint.
-  const engraved = `color-mix(in srgb, ${color} 55%, black 45%)`;
+  // a few shades lighter than the stone's own colour, not a foreign tint.
+  const engraved = `color-mix(in srgb, ${color} 78%, white 22%)`;
 
   const cx = 32;
-  const cy = 34;
+  const cy = 32;
   const paveAngles = [0, 45, 90, 135, 180, 225, 270, 315];
 
   return (
@@ -68,35 +70,32 @@ export function PendantIcon({
         </defs>
 
         <g filter={`url(#${shadow})`}>
-          {/* bail */}
-          <circle cx={cx} cy="8" r="2.8" fill="none" stroke={`url(#${gold})`} strokeWidth="1.8" />
-          <line x1={cx} y1="10.6" x2={cx} y2={cy - 17} stroke={`url(#${gold})`} strokeWidth="1.8" strokeLinecap="round" />
-
-          {/* gold rim + pavé halo + cream bezel */}
-          <circle cx={cx} cy={cy} r="17" fill={`url(#${gold})`} stroke="#5A3B10" strokeWidth=".9" />
+          {/* gold rim + pavé halo + cream bezel — filling almost the whole
+              viewBox now that there's no bail to leave headroom for. */}
+          <circle cx={cx} cy={cy} r="29" fill={`url(#${gold})`} stroke="#5A3B10" strokeWidth="1.1" />
           {paveAngles.map((deg) => {
             const rad = (deg * Math.PI) / 180;
-            const r = deg % 90 === 0 ? 15.2 : 14.6;
+            const r = deg % 90 === 0 ? 25.9 : 24.9;
             return (
               <circle
                 key={deg}
                 cx={cx + r * Math.sin(rad)}
                 cy={cy - r * Math.cos(rad)}
-                r={deg % 90 === 0 ? 1.9 : 1.6}
+                r={deg % 90 === 0 ? 3.2 : 2.7}
                 fill={`url(#${pave})`}
                 stroke="#8B98A4"
-                strokeWidth=".35"
+                strokeWidth=".4"
               />
             );
           })}
-          <circle cx={cx} cy={cy} r="12.6" fill="#FCEFD8" stroke={`url(#${gold})`} strokeWidth=".7" />
+          <circle cx={cx} cy={cy} r="21.5" fill="#FCEFD8" stroke={`url(#${gold})`} strokeWidth=".9" />
 
           {/* stone */}
-          <circle cx={cx} cy={cy} r="9.7" fill="#241608" />
-          <circle cx={cx} cy={cy} r="9" fill={color} stroke="#000000" strokeOpacity=".3" strokeWidth=".45" />
-          <circle cx={cx} cy={cy} r="9" fill={`url(#${hi})`} />
-          <circle cx={cx} cy={cy} r="9" fill={`url(#${sh})`} />
-          <path d="M27.7 29 30.5 32.2" stroke="#FFFFFF" strokeWidth="1" strokeLinecap="round" opacity=".6" />
+          <circle cx={cx} cy={cy} r="16.6" fill="#241608" />
+          <circle cx={cx} cy={cy} r="15.3" fill={color} stroke="#000000" strokeOpacity=".3" strokeWidth=".6" />
+          <circle cx={cx} cy={cy} r="15.3" fill={`url(#${hi})`} />
+          <circle cx={cx} cy={cy} r="15.3" fill={`url(#${sh})`} />
+          <path d="M24.7 23.5 29.5 29" stroke="#FFFFFF" strokeWidth="1.4" strokeLinecap="round" opacity=".6" />
         </g>
       </svg>
       {icon && (
