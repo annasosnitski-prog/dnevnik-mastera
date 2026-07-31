@@ -205,9 +205,9 @@ export function PendantIcon({
               drawn under the quadrant facets so their translucent colour
               still tints it, rather than a flat reflective surface. */}
           <radialGradient id={coreGlow} cx=".5" cy=".5" r=".5">
-            <stop offset="0" stopColor={mix(70, "white")} />
-            <stop offset=".4" stopColor={mix(35, "white")} stopOpacity=".85" />
-            <stop offset=".7" stopColor={color} stopOpacity=".45" />
+            <stop offset="0" stopColor={mix(70, "white")} stopOpacity=".67" />
+            <stop offset=".4" stopColor={mix(35, "white")} stopOpacity=".57" />
+            <stop offset=".7" stopColor={color} stopOpacity=".3" />
             <stop offset="1" stopColor={color} stopOpacity="0" />
           </radialGradient>
           {/* Fixed to the stone's true centre (userSpaceOnUse, not each
@@ -217,8 +217,8 @@ export function PendantIcon({
               diffusing through a translucent stone doesn't stop at a facet
               edge. */}
           <radialGradient id={coreBleed} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r={stoneR * 0.95}>
-            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".45" />
-            <stop offset=".5" stopColor="#FFFFFF" stopOpacity=".16" />
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".3" />
+            <stop offset=".5" stopColor="#FFFFFF" stopOpacity=".11" />
             <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
           </radialGradient>
           {/* The table facet's own tone follows the same light-to-shadow
