@@ -256,7 +256,7 @@ export function PendantIcon({
         </g>
 
         {plate ? (
-          <g filter={`url(#${stoneGlow})`}>
+          <g className="pendant-stone" filter={`url(#${stoneGlow})`}>
             <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${plateFace})`} stroke="#4B1A00" strokeWidth=".5" />
             <circle cx={cx} cy={cy} r={stoneR - 3} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />
             <path d="M22 20 30 15" stroke="#FFF0B3" strokeWidth="1.2" strokeLinecap="round" opacity=".4" />
@@ -272,7 +272,7 @@ export function PendantIcon({
             )}
           </g>
         ) : (
-          <g filter={`url(#${stoneGlow})`}>
+          <g className="pendant-stone" filter={`url(#${stoneGlow})`}>
             {/* Soft haze bleeding out past the stone's own edge, like light
                 escaping a lit potion bottle rather than staying inside a
                 solid surface. */}

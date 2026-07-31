@@ -261,11 +261,12 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
 
             const { item } = entry;
             const badges = item.screen === "admin" ? adminBadges : undefined;
+            const isCurrent = item === current;
             return (
               <button
                 key={item.id}
                 type="button"
-                className="nav-fab__item"
+                className={isCurrent ? "nav-fab__item" : "nav-fab__item nav-fab__item--dim"}
                 style={style}
                 aria-label={item.label}
                 onClick={() => {
@@ -274,7 +275,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 }}
               >
                 {/* Each destination is its own faceted gem colour — no
-                    glyph, the cut itself is the detail (see PendantIcon). */}
+                    glyph, the cut itself is the detail (see PendantIcon).
+                    The current destination stays full brightness; the rest
+                    dim, the same treatment as the client-card tab gems. */}
                 <PendantIcon color={item.color} size={ITEM_SIZE} />
                 {badges?.map((kind, bi) => (
                   <span

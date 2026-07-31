@@ -236,7 +236,15 @@
   position: absolute;
   left: 0;
   top: 0;
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.25s ease, filter 0.25s ease;
+}
+
+/* Every destination but the current one dims — the same treatment as the
+   client-card tab gems (see DetailScreen's gemMarker) — so the fan reads at
+   a glance which one you're already on. */
+.nav-fab__item--dim {
+  opacity: 0.62;
+  filter: saturate(0.72) brightness(0.82);
 }
 
 /* A small pale spotlight sitting behind each icon, a third of the button's
@@ -269,9 +277,7 @@
 .nav-fab__main {
   width: 54px;
   height: 54px;
-  /* No disc chrome or glow of its own any more — PendantIcon draws its own
-     ambient halo as one continuous gradient, so there's no separate CSS
-     glow left to seam against it. */
+  /* No disc chrome of its own — PendantIcon draws the whole button. */
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
@@ -298,6 +304,20 @@
 
 .nav-fab__item:active {
   --nav-scale: 0.92;
+}
+
+/* On top of the whole button's own press-down scale, the stone recedes a
+   little further and darkens on its own — reading as the gem sinking into
+   its gold setting rather than the whole medallion just shrinking evenly. */
+.pendant-stone {
+  transform-origin: 32px 32px;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.nav-fab__main:active .pendant-stone,
+.nav-fab__item:active .pendant-stone {
+  transform: scale(0.82) translateY(1px);
+  filter: brightness(0.8);
 }
 
 /* Both keyframes read the same --dx/--dy/--nav-scale custom properties as
