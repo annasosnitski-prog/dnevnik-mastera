@@ -311,38 +311,6 @@
   --nav-scale: 0.92;
 }
 
-/* «Создать» reads differently from the plain nav destinations — a solid
-   gold fill, since it's an action rather than a place to go, and it sits
-   farthest out on the arc so it also reads as the most prominent item. */
-.nav-fab__item--create {
-  background: var(--gold);
-  border: 1px solid var(--gold);
-  color: var(--bg);
-}
-
-/* An inset ring, dark like the other buttons' own plate colour, outline only
-   (no fill) — echoes the family of dark circles it sits among, just inverted
-   (gold outside, dark ring inside) since Create is the one solid-gold button. */
-.nav-fab__item--create::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 90%;
-  height: 90%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 1.5px solid #000;
-  pointer-events: none;
-}
-
-/* The plus glyph is a raw inline <svg> (not routed through ToolbarIcon), so
-   it isn't shielded from the global `svg { color: var(--gold) }` default
-   below — without this it paints gold-on-gold and disappears. */
-.nav-fab__item--create svg {
-  color: inherit;
-}
-
 /* Both keyframes read the same --dx/--dy/--nav-scale custom properties as
    the resting `transform` above (rather than a fixed translateY), so every
    item animates in along its own straight line from the hub outward,

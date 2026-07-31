@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 function point(cx: number, cy: number, deg: number, r: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
@@ -11,12 +11,25 @@ function point(cx: number, cy: number, deg: number, r: number): [number, number]
 // reference became a `color-mix` off the `color` prop instead, at the same
 // relative light/dark ratios. Structure, outer to inner:
 //   gold disc + edge ring -> dark bezel groove -> the stone itself, cut
-//   into a darker octagon core with four lighter/coloured quadrant facets
-//   and a bright highlight flash -> a pavé halo of small faceted diamonds
-//   with a few sparkle glints. Each instance gets its own gradient/filter
-//   ids (via useId) so multiple copies can render on the same page without
-//   colliding.
-export function PendantIcon({ color, size }: { color: string; size: number }) {
+//   into a darker octagon core with four lighter/coloured quadrant facets,
+//   a bright highlight flash, and an inner glow bleeding through them like
+//   a lit potion bottle -> a pavé halo of small faceted diamonds with a
+//   few sparkle glints. `plate` swaps the coloured stone for a plain gold
+//   disc (for «Создать», which marks an action rather than a destination)
+//   and renders `children` centred on top of it. Each instance gets its
+//   own gradient/filter ids (via useId) so multiple copies can render on
+//   the same page without colliding.
+export function PendantIcon({
+  color,
+  size,
+  plate = false,
+  children,
+}: {
+  color: string;
+  size: number;
+  plate?: boolean;
+  children?: ReactNode;
+}) {
   const uid = useId();
   const goldFace = `pendant-goldface-${uid}`;
   const goldEdge = `pendant-goldedge-${uid}`;
@@ -27,6 +40,7 @@ export function PendantIcon({ color, size }: { color: string; size: number }) {
   const qLeft = `pendant-qleft-${uid}`;
   const flash = `pendant-flash-${uid}`;
   const transmit = `pendant-transmit-${uid}`;
+  const coreGlow = `pendant-coreglow-${uid}`;
   const goldGlow = `pendant-goldglow-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
@@ -135,6 +149,15 @@ export function PendantIcon({ color, size }: { color: string; size: number }) {
             <stop offset=".55" stopColor={mix(35, "white")} stopOpacity=".4" />
             <stop offset="1" stopColor={color} stopOpacity="0" />
           </linearGradient>
+          {/* A lit-from-within core, like a magic potion's glowing liquid —
+              drawn under the quadrant facets so their translucent colour
+              still tints it, rather than a flat reflective surface. */}
+          <radialGradient id={coreGlow} cx=".5" cy=".5" r=".5">
+            <stop offset="0" stopColor={mix(70, "white")} />
+            <stop offset=".4" stopColor={mix(35, "white")} stopOpacity=".85" />
+            <stop offset=".7" stopColor={color} stopOpacity=".45" />
+            <stop offset="1" stopColor={color} stopOpacity="0" />
+          </radialGradient>
           <filter id={goldGlow} x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="1" result="blur" />
             <feFlood floodColor="#EF9D24" floodOpacity=".34" />
@@ -162,30 +185,53 @@ export function PendantIcon({ color, size }: { color: string; size: number }) {
           <circle cx={cx} cy={cy} r={outerR - 5.35} fill="none" stroke="#6A2702" strokeWidth=".4" />
         </g>
 
-        <g filter={`url(#${stoneGlow})`}>
-          <circle cx={cx} cy={cy} r={stoneR} fill={mix(40, "black")} />
-          <polygon points={quadrant(0)} fill={`url(#${qTop})`} />
-          <polygon points={quadrant(2)} fill={`url(#${qRight})`} />
-          <polygon points={quadrant(4)} fill={`url(#${qBottom})`} />
-          <polygon points={quadrant(6)} fill={`url(#${qLeft})`} />
-          <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} fill={mix(60, "black")} opacity=".67" />
-          <polygon
-            points={`${outerPts[7].join(",")} ${point(cx, cy, -12, stoneR * 0.97).join(",")} ${point(cx, cy, 12, stoneR * 0.97).join(",")} ${point(cx, cy, 0, innerR * 1.08).join(",")}`}
-            fill={`url(#${flash})`}
-          />
-          <polygon
-            points={`${outerPts[3].join(",")} ${point(cx, cy, 168, stoneR * 0.97).join(",")} ${point(cx, cy, 192, stoneR * 0.97).join(",")} ${point(cx, cy, 180, innerR * 1.08).join(",")}`}
-            fill={`url(#${transmit})`}
-          />
-          <g fill="none" stroke={mix(45, "white")} strokeOpacity=".3" strokeWidth=".28">
-            <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} />
-            {[45, 135, 225, 315].map((deg) => {
-              const [x1, y1] = outerPts[angles.indexOf(deg)];
-              const [x2, y2] = innerPts[angles.indexOf(deg)];
-              return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} />;
-            })}
+        {plate ? (
+          <g filter={`url(#${stoneGlow})`}>
+            <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${goldFace})`} stroke="#4B1A00" strokeWidth=".5" />
+            <circle cx={cx} cy={cy} r={stoneR - 3} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".7" />
+            <path d="M22 20 30 15" stroke="#FFF0B3" strokeWidth="1.6" strokeLinecap="round" opacity=".55" />
+            {children && (
+              <g
+                transform={`translate(${cx} ${cy})`}
+                fill="#4B1A00"
+                stroke="#4B1A00"
+                style={{ filter: "drop-shadow(-.4px -.5px 0 rgba(255,240,179,.6))" }}
+              >
+                {children}
+              </g>
+            )}
           </g>
-        </g>
+        ) : (
+          <g filter={`url(#${stoneGlow})`}>
+            {/* Soft haze bleeding out past the stone's own edge, like light
+                escaping a lit potion bottle rather than staying inside a
+                solid surface. */}
+            <circle cx={cx} cy={cy} r={stoneR * 1.08} fill={mix(30, "white")} opacity=".3" style={{ filter: "blur(1.4px)" }} />
+            <circle cx={cx} cy={cy} r={stoneR} fill={mix(40, "black")} />
+            <circle cx={cx} cy={cy} r={stoneR * 0.72} fill={`url(#${coreGlow})`} style={{ filter: "blur(.5px)" }} />
+            <polygon points={quadrant(0)} fill={`url(#${qTop})`} />
+            <polygon points={quadrant(2)} fill={`url(#${qRight})`} />
+            <polygon points={quadrant(4)} fill={`url(#${qBottom})`} />
+            <polygon points={quadrant(6)} fill={`url(#${qLeft})`} />
+            <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} fill={mix(60, "black")} opacity=".5" />
+            <polygon
+              points={`${outerPts[7].join(",")} ${point(cx, cy, -12, stoneR * 0.97).join(",")} ${point(cx, cy, 12, stoneR * 0.97).join(",")} ${point(cx, cy, 0, innerR * 1.08).join(",")}`}
+              fill={`url(#${flash})`}
+            />
+            <polygon
+              points={`${outerPts[3].join(",")} ${point(cx, cy, 168, stoneR * 0.97).join(",")} ${point(cx, cy, 192, stoneR * 0.97).join(",")} ${point(cx, cy, 180, innerR * 1.08).join(",")}`}
+              fill={`url(#${transmit})`}
+            />
+            <g fill="none" stroke={mix(45, "white")} strokeOpacity=".3" strokeWidth=".28">
+              <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} />
+              {[45, 135, 225, 315].map((deg) => {
+                const [x1, y1] = outerPts[angles.indexOf(deg)];
+                const [x2, y2] = innerPts[angles.indexOf(deg)];
+                return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} />;
+              })}
+            </g>
+          </g>
+        )}
 
         <circle cx={cx} cy={cy} r={stoneR + 0.6} fill="none" stroke="#4F1700" strokeWidth=".5" />
         <circle cx={cx} cy={cy} r={stoneR + 1.1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />

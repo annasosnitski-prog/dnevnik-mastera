@@ -248,10 +248,13 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                     setOpen(false);
                   }}
                 >
-                  <svg width="26" height="26" viewBox="0 0 20 20" fill="none">
-                    <line x1="10" y1="3" x2="10" y2="17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                    <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
+                  {/* Same gold rim + pavé halo as every other pendant, but a
+                      plain gold plate at the centre instead of a coloured
+                      stone — this marks an action, not a destination. */}
+                  <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
+                    <line x1="0" y1="-6" x2="0" y2="6" strokeWidth="1.8" strokeLinecap="round" />
+                    <line x1="-6" y1="0" x2="6" y2="0" strokeWidth="1.8" strokeLinecap="round" />
+                  </PendantIcon>
                 </button>
               );
             }
