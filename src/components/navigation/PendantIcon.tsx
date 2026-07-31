@@ -5,138 +5,182 @@ function point(cx: number, cy: number, deg: number, r: number): [number, number]
   return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)];
 }
 
-// A small round gold-pendant medallion — same jewellery family as the client
-// tab pendants (gold-metal gradient, pavé-diamond halo, hue-independent
-// facet shading over a currentColor-free stone), just circular instead of
-// the tabs' diamond-cut silhouette, to match the NavFab's own round buttons
-// and the round reference pendants. Sized to fill its own button almost
-// edge to edge, so it sits fully inside the button's ambient glow halo
-// rather than floating inside it with a gap. The gold rim stays narrow so
-// the coloured stone — the actual destination marker — gets most of the
-// medallion, cut like a real round-brilliant crown (two candidate patterns,
-// picked via `cut`) rather than carrying a glyph. Each instance gets its
-// own gradient/filter ids (via useId) so multiple copies can render on the
-// same page without colliding.
-export function PendantIcon({
-  color,
-  size,
-  cut = "a",
-}: {
-  color: string;
-  size: number;
-  cut?: "a" | "b";
-}) {
+// A small round gold-pendant medallion, ported from a richer reference (a
+// faceted ruby-and-diamond pendant render) and generalised so any of the
+// seven destination colours can drop in: every ruby-specific hex in that
+// reference became a `color-mix` off the `color` prop instead, at the same
+// relative light/dark ratios. Structure, outer to inner:
+//   gold disc + edge ring -> dark bezel groove -> the stone itself, cut
+//   into a darker octagon core with four lighter/coloured quadrant facets
+//   and a bright highlight flash -> a pavé halo of small faceted diamonds
+//   with a few sparkle glints. Each instance gets its own gradient/filter
+//   ids (via useId) so multiple copies can render on the same page without
+//   colliding.
+export function PendantIcon({ color, size }: { color: string; size: number }) {
   const uid = useId();
-  const gold = `pendant-gold-${uid}`;
-  const pave = `pendant-pave-${uid}`;
-  const hi = `pendant-hi-${uid}`;
-  const sh = `pendant-sh-${uid}`;
-  const shadow = `pendant-shadow-${uid}`;
+  const goldFace = `pendant-goldface-${uid}`;
+  const goldEdge = `pendant-goldedge-${uid}`;
+  const diamondBase = `pendant-diamondbase-${uid}`;
+  const qTop = `pendant-qtop-${uid}`;
+  const qRight = `pendant-qright-${uid}`;
+  const qBottom = `pendant-qbottom-${uid}`;
+  const qLeft = `pendant-qleft-${uid}`;
+  const flash = `pendant-flash-${uid}`;
+  const goldGlow = `pendant-goldglow-${uid}`;
+  const stoneGlow = `pendant-stoneglow-${uid}`;
+
+  const mix = (pct: number, tint: "white" | "black") => `color-mix(in srgb, ${color} ${100 - pct}%, ${tint} ${pct}%)`;
 
   const cx = 32;
   const cy = 32;
-  const paveAngles = [0, 45, 90, 135, 180, 225, 270, 315];
-  const stoneR = 23.5;
+  const outerR = 29;
+  const stoneR = 23;
+  const innerR = stoneR * 0.7;
+  const angles = [0, 45, 90, 135, 180, 225, 270, 315];
+  const outerPts = angles.map((deg) => point(cx, cy, deg, stoneR));
+  const innerPts = angles.map((deg) => point(cx, cy, deg, innerR));
+  // k is an index into angles/outerPts/innerPts (0=top, 2=right, 4=bottom,
+  // 6=left) — each quadrant spans that centre point and its two neighbours,
+  // outer rim arc first, then back along the inner octagon.
+  const quadrant = (k: number) => {
+    const o1 = outerPts[(k + 7) % 8];
+    const o2 = outerPts[k];
+    const o3 = outerPts[(k + 1) % 8];
+    const i3 = innerPts[(k + 1) % 8];
+    const i2 = innerPts[k];
+    const i1 = innerPts[(k + 7) % 8];
+    return [o1, o2, o3, i3, i2, i1].map(([x, y]) => `${x},${y}`).join(" ");
+  };
 
-  // Round-brilliant crown facets: a table octagon in the centre, star
-  // facets fanning out from each table vertex to its two neighbouring
-  // girdle points. Pattern B nests a second, smaller star inside that same
-  // octagon for a denser cut.
-  const girdle = paveAngles.map((deg) => point(cx, cy, deg, stoneR));
-  const tableAngles = [22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5];
-  const table = tableAngles.map((deg) => point(cx, cy, deg, stoneR * 0.4));
-  const facetLines: [number, number, number, number][] = [];
-  table.forEach(([tx, ty], i) => {
-    const [gx1, gy1] = girdle[i];
-    const [gx2, gy2] = girdle[(i + 1) % 8];
-    facetLines.push([tx, ty, gx1, gy1], [tx, ty, gx2, gy2]);
-  });
-  table.forEach(([x1, y1], i) => {
-    const [x2, y2] = table[(i + 1) % 8];
-    facetLines.push([x1, y1, x2, y2]);
-  });
-  if (cut === "b") {
-    const inner = paveAngles.map((deg) => point(cx, cy, deg, stoneR * 0.18));
-    inner.forEach(([ix, iy], i) => {
-      const [t1x, t1y] = table[(i + 7) % 8];
-      const [t2x, t2y] = table[i];
-      facetLines.push([ix, iy, t1x, t1y], [ix, iy, t2x, t2y]);
-    });
-    inner.forEach(([x1, y1], i) => {
-      const [x2, y2] = inner[(i + 1) % 8];
-      facetLines.push([x1, y1, x2, y2]);
-    });
-  }
+  const diamond = (x: number, y: number, id: string) => (
+    <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
+      <circle r="2" fill="#7D5A2A" opacity=".7" />
+      <circle r="1.5" fill={`url(#${id})`} stroke="#FFFFFF" strokeWidth=".22" />
+      <path d="M0,-1.15 .55,-.35 0,0 -.55,-.35Z" fill="#FFFFFF" opacity=".95" />
+      <path d="M1.15,0 .45,.55 0,0 .55,-.35Z" fill="#C7D2DF" opacity=".9" />
+      <path d="M0,1.15 -.45,.42 0,0 .45,.55Z" fill="#FFFFFF" opacity=".82" />
+      <path d="M-1.15,0 -.55,-.35 0,0 -.45,.42Z" fill="#AEB9C5" opacity=".9" />
+      <circle r=".28" fill="#FFFFFF" opacity=".9" />
+    </g>
+  );
+
+  const sparkle = (x: number, y: number) => (
+    <g key={`s-${x}-${y}`} transform={`translate(${x} ${y}) scale(.055)`} opacity=".85">
+      <path d="M-18 0 H18 M0 -18 V18" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round" />
+      <path d="M-10 -10 L10 10 M10 -10 L-10 10" stroke="#FFF2E6" strokeWidth="2.2" strokeLinecap="round" />
+      <circle r="4" fill="#FFFFFF" />
+    </g>
+  );
 
   return (
     <span style={{ position: "relative", display: "block", width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
         <defs>
-          <linearGradient id={gold} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#F7E4B8" />
-            <stop offset=".35" stopColor="#D8A94A" />
-            <stop offset=".7" stopColor="#A3722A" />
-            <stop offset="1" stopColor="#6E4A16" />
+          <radialGradient id={goldFace} cx=".34" cy=".2" r=".84">
+            <stop offset="0" stopColor="#FFF8D7" />
+            <stop offset=".14" stopColor="#FFD777" />
+            <stop offset=".34" stopColor="#C77A14" />
+            <stop offset=".56" stopColor="#793804" />
+            <stop offset=".76" stopColor="#EFAD3C" />
+            <stop offset=".91" stopColor="#8E4709" />
+            <stop offset="1" stopColor="#431A00" />
+          </radialGradient>
+          <linearGradient id={goldEdge} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#6B2C00" />
+            <stop offset=".16" stopColor="#FFF0B3" />
+            <stop offset=".35" stopColor="#B45F0B" />
+            <stop offset=".55" stopColor="#FFD36E" />
+            <stop offset=".75" stopColor="#7D3603" />
+            <stop offset="1" stopColor="#F1B54A" />
           </linearGradient>
-          <radialGradient id={pave} cx=".35" cy=".3" r=".8">
+          <radialGradient id={diamondBase} cx=".32" cy=".26" r=".75">
             <stop offset="0" stopColor="#FFFFFF" />
-            <stop offset=".55" stopColor="#EFF4F8" />
-            <stop offset="1" stopColor="#C3CFD8" />
+            <stop offset=".32" stopColor="#F8FBFF" />
+            <stop offset=".63" stopColor="#CBD5DF" />
+            <stop offset=".82" stopColor="#FFFFFF" />
+            <stop offset="1" stopColor="#929DAA" />
           </radialGradient>
-          <radialGradient id={hi} cx=".32" cy=".28" r=".78">
-            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".5" />
-            <stop offset=".6" stopColor="#FFFFFF" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id={sh} cx=".5" cy=".5" r=".62">
-            <stop offset="0" stopColor="#000000" stopOpacity="0" />
-            <stop offset=".7" stopColor="#000000" stopOpacity="0" />
-            <stop offset="1" stopColor="#000000" stopOpacity=".38" />
-          </radialGradient>
-          <filter id={shadow} x="-40%" y="-30%" width="180%" height="170%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="1.1" result="blur" />
-            <feOffset in="blur" dy=".8" result="off" />
-            <feComponentTransfer in="off" result="cast">
-              <feFuncA type="linear" slope=".38" />
-            </feComponentTransfer>
+          <linearGradient id={qTop} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={mix(55, "white")} stopOpacity=".62" />
+            <stop offset=".48" stopColor={color} stopOpacity=".38" />
+            <stop offset="1" stopColor={mix(55, "black")} stopOpacity=".12" />
+          </linearGradient>
+          <linearGradient id={qRight} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={mix(45, "white")} stopOpacity=".6" />
+            <stop offset=".62" stopColor={mix(65, "black")} stopOpacity=".18" />
+            <stop offset="1" stopColor={mix(85, "black")} stopOpacity=".55" />
+          </linearGradient>
+          <linearGradient id={qBottom} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={mix(30, "white")} stopOpacity=".48" />
+            <stop offset=".55" stopColor={mix(60, "black")} stopOpacity=".18" />
+            <stop offset="1" stopColor={mix(90, "black")} stopOpacity=".55" />
+          </linearGradient>
+          <linearGradient id={qLeft} x1="1" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={color} stopOpacity=".34" />
+            <stop offset=".58" stopColor={mix(75, "black")} stopOpacity=".28" />
+            <stop offset="1" stopColor={mix(92, "black")} stopOpacity=".58" />
+          </linearGradient>
+          <linearGradient id={flash} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".98" />
+            <stop offset=".55" stopColor="#FFF8F5" stopOpacity=".88" />
+            <stop offset="1" stopColor={mix(20, "white")} stopOpacity=".18" />
+          </linearGradient>
+          <filter id={goldGlow} x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="1" result="blur" />
+            <feFlood floodColor="#EF9D24" floodOpacity=".34" />
+            <feComposite in2="blur" operator="in" />
             <feMerge>
-              <feMergeNode in="cast" />
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id={stoneGlow} x="-25%" y="-25%" width="150%" height="150%">
+            <feGaussianBlur stdDeviation=".7" result="blur" />
+            <feFlood floodColor={color} floodOpacity=".32" />
+            <feComposite in2="blur" operator="in" />
+            <feMerge>
+              <feMergeNode />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
 
-        <g filter={`url(#${shadow})`}>
-          {/* Narrowed further — a thin gold rim + a hairline cream bezel,
-              leaving almost the whole medallion to the stone. */}
-          <circle cx={cx} cy={cy} r="29" fill={`url(#${gold})`} stroke="#5A3B10" strokeWidth="1" />
-          {paveAngles.map((deg) => {
-            const r = deg % 90 === 0 ? 27.5 : 26.8;
-            const [x, y] = point(cx, cy, deg, r);
-            return (
-              <circle
-                key={deg}
-                cx={x}
-                cy={y}
-                r={deg % 90 === 0 ? 1.7 : 1.5}
-                fill={`url(#${pave})`}
-                stroke="#8B98A4"
-                strokeWidth=".28"
-              />
-            );
-          })}
-          <circle cx={cx} cy={cy} r="25.1" fill="none" stroke={`url(#${gold})`} strokeWidth="1" />
-
-          {/* Stone, cut like a round-brilliant crown. */}
-          <circle cx={cx} cy={cy} r={stoneR + 0.8} fill="#241608" />
-          <circle cx={cx} cy={cy} r={stoneR} fill={color} stroke="#000000" strokeOpacity=".32" strokeWidth=".6" />
-          <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${hi})`} />
-          <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${sh})`} />
-          {facetLines.map(([x1, y1, x2, y2], i) => (
-            <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#FFFFFF" strokeWidth=".5" strokeOpacity=".45" />
-          ))}
-          <circle cx={cx} cy={cy} r={stoneR} fill="none" stroke="#FFFFFF" strokeOpacity=".3" strokeWidth=".5" />
-          <path d="M25.5 24 31 30" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" opacity=".65" />
+        <g filter={`url(#${goldGlow})`}>
+          <circle cx={cx} cy={cy} r={outerR} fill={`url(#${goldFace})`} stroke="#4B1A00" strokeWidth=".7" />
+          <circle cx={cx} cy={cy} r={outerR - 1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".95" />
+          <circle cx={cx} cy={cy} r={outerR - 4.5} fill="#2C0A00" stroke="#FFCF68" strokeWidth=".8" />
+          <circle cx={cx} cy={cy} r={outerR - 5.35} fill="none" stroke="#6A2702" strokeWidth=".4" />
         </g>
+
+        <g filter={`url(#${stoneGlow})`}>
+          <circle cx={cx} cy={cy} r={stoneR} fill={mix(40, "black")} />
+          <polygon points={quadrant(0)} fill={`url(#${qTop})`} />
+          <polygon points={quadrant(2)} fill={`url(#${qRight})`} />
+          <polygon points={quadrant(4)} fill={`url(#${qBottom})`} />
+          <polygon points={quadrant(6)} fill={`url(#${qLeft})`} />
+          <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} fill={mix(60, "black")} opacity=".67" />
+          <polygon
+            points={`${outerPts[7].join(",")} ${point(cx, cy, -12, stoneR * 0.97).join(",")} ${point(cx, cy, 12, stoneR * 0.97).join(",")} ${point(cx, cy, 0, innerR * 1.08).join(",")}`}
+            fill={`url(#${flash})`}
+          />
+          <g fill="none" stroke={mix(45, "white")} strokeOpacity=".3" strokeWidth=".28">
+            <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} />
+            {[45, 135, 225, 315].map((deg) => {
+              const [x1, y1] = outerPts[angles.indexOf(deg)];
+              const [x2, y2] = innerPts[angles.indexOf(deg)];
+              return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} />;
+            })}
+          </g>
+        </g>
+
+        <circle cx={cx} cy={cy} r={stoneR + 0.6} fill="none" stroke="#4F1700" strokeWidth=".5" />
+        <circle cx={cx} cy={cy} r={stoneR + 1.1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />
+
+        {angles.map((deg) => {
+          const [x, y] = point(cx, cy, deg, 26.8);
+          return diamond(x, y, diamondBase);
+        })}
+        {[45, 135, 225, 315].map((deg) => sparkle(...point(cx, cy, deg, 26.8)))}
       </svg>
     </span>
   );

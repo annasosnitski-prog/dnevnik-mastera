@@ -273,7 +273,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
               >
                 {/* Each destination is its own faceted gem colour — no
                     glyph, the cut itself is the detail (see PendantIcon). */}
-                <PendantIcon color={item.color} size={ITEM_SIZE} cut="b" />
+                <PendantIcon color={item.color} size={ITEM_SIZE} />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
@@ -294,7 +294,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           {/* The hub always shows its own red faceted stone — a fixed
               identity, not a current-screen indicator — regardless of which
               destination is active. */}
-          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} cut="b" />
+          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
