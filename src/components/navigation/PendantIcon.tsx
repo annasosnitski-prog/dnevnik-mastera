@@ -51,12 +51,7 @@ export function PendantIcon({
 
   const cx = 32;
   const cy = 32;
-  // Close to the viewBox's own edge (32 is half of 64) — any bigger margin
-  // here leaves a ring of plain transparent canvas between the gold disc
-  // and the button's CSS box-shadow glow, which starts right at the
-  // button's actual edge and reads as a dark gap sandwiched between two
-  // brighter things.
-  const outerR = 31.5;
+  const outerR = 29;
   const stoneR = 23;
   // The central table facet, shrunk by about a third from its first pass —
   // every wedge below is derived from innerR, so the surrounding crown
@@ -137,7 +132,7 @@ export function PendantIcon({
 
   return (
     <span style={{ position: "relative", display: "block", width: size, height: size }}>
-      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
+      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block", overflow: "visible" }}>
         <defs>
           <radialGradient id={goldFace} cx=".34" cy=".2" r=".84">
             <stop offset="0" stopColor="#FFF8D7" />
@@ -243,15 +238,20 @@ export function PendantIcon({
             <stop offset=".45" stopColor={color} stopOpacity=".4" />
             <stop offset="1" stopColor={mix(55, "black")} stopOpacity=".6" />
           </linearGradient>
-          <filter id={goldGlow} x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="1" result="blur" />
-            <feFlood floodColor="#EF9D24" floodOpacity=".34" />
-            <feComposite in2="blur" operator="in" />
-            <feMerge>
-              <feMergeNode />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
+          {/* A literal ring, not a blurred silhouette: full brightness all
+              the way out to the disc's own radius (outerR), only fading
+              beyond that — so its "inner diameter" matches the disc
+              exactly, no gap. This is now the button's *only* glow (the
+              CSS box-shadow that used to add a second, separately-timed
+              one is gone), reaching out over a much bigger radius than the
+              svg's own viewBox — the svg has overflow:visible so it isn't
+              clipped there. */}
+          <radialGradient id={goldGlow} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r="90">
+            <stop offset="0" stopColor="#EF9D24" stopOpacity=".6" />
+            <stop offset={outerR / 90} stopColor="#EF9D24" stopOpacity=".6" />
+            <stop offset={(outerR + 16) / 90} stopColor="#EF9D24" stopOpacity=".22" />
+            <stop offset="1" stopColor="#EF9D24" stopOpacity="0" />
+          </radialGradient>
           <filter id={stoneGlow} x="-25%" y="-25%" width="150%" height="150%">
             <feGaussianBlur stdDeviation=".7" result="blur" />
             <feFlood floodColor={color} floodOpacity=".32" />
@@ -263,7 +263,8 @@ export function PendantIcon({
           </filter>
         </defs>
 
-        <g filter={`url(#${goldGlow})`}>
+        <g>
+          <circle cx={cx} cy={cy} r="90" fill={`url(#${goldGlow})`} />
           <circle cx={cx} cy={cy} r={outerR} fill={`url(#${goldFace})`} stroke="#4B1A00" strokeWidth=".7" />
           <circle cx={cx} cy={cy} r={outerR - 1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".95" />
           <circle cx={cx} cy={cy} r={outerR - 4.5} fill="#2C0A00" stroke="#FFCF68" strokeWidth=".8" />

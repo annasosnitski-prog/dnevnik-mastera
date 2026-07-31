@@ -276,9 +276,9 @@
 .nav-fab__main {
   width: 54px;
   height: 54px;
-  /* No disc chrome of its own any more — PendantIcon supplies the gold rim
-     and shadow — just the ambient halo marking it as the primary button. */
-  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495);
+  /* No disc chrome or glow of its own any more — PendantIcon draws its own
+     ambient halo as one continuous gradient, so there's no separate CSS
+     glow left to seam against it. */
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
@@ -298,10 +298,6 @@
   width: 62px;
   height: 62px;
   color: var(--toolbar-icon);
-  /* Same glow intensity as the main button (below) — the size difference
-     between them already carries hierarchy, the halo brightness doesn't
-     need to repeat it. */
-  box-shadow: 0 0 4px rgba(var(--gold-rgb), 0.585), 0 0 20px rgba(var(--gold-rgb), 0.495);
   transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(var(--nav-scale, 1));
   animation: nav-fab-in 0.2s ease both;
   animation-delay: calc(var(--i, 0) * 40ms);
