@@ -13,13 +13,16 @@ interface NavFabProps {
   onCreate?: () => void;
 }
 
+// INKA palette: saturated jewel colours, but not neon. These are the same
+// families already used elsewhere in the diary, brought back after the
+// previous pass pushed them too far toward fluorescent RGB.
 const NAV_ITEMS = [
   {
     id: "clients",
     label: "Клиенты",
     screen: "list",
     isActive: (active: AppScreen) => active === "list" || active === "settings" || active === "detail",
-    color: "#3DCF4A",
+    color: "#72C83E",
     durationMs: 2000,
   },
   {
@@ -27,7 +30,7 @@ const NAV_ITEMS = [
     label: "Личный кабинет",
     screen: "master",
     isActive: (active: AppScreen) => active === "master",
-    color: "#FFD400",
+    color: "#E2B62D",
     durationMs: 3600,
   },
   {
@@ -35,7 +38,7 @@ const NAV_ITEMS = [
     label: "POSTiNKA",
     screen: "content",
     isActive: (active: AppScreen) => active === "content",
-    color: "#9B32F6",
+    color: "#A14ED8",
     durationMs: 3200,
   },
   {
@@ -43,7 +46,7 @@ const NAV_ITEMS = [
     label: "Проекты",
     screen: "workshop",
     isActive: (active: AppScreen) => active === "workshop",
-    color: "#19D6F3",
+    color: "#319FD9",
     durationMs: 2100,
   },
   {
@@ -51,7 +54,7 @@ const NAV_ITEMS = [
     label: "Заметки",
     screen: "summary",
     isActive: (active: AppScreen) => active === "summary",
-    color: "#FF8A00",
+    color: "#DF8427",
     durationMs: 1800,
   },
   {
@@ -59,7 +62,7 @@ const NAV_ITEMS = [
     label: "Админка",
     screen: "admin",
     isActive: (active: AppScreen) => active === "admin",
-    color: "#FF2055",
+    color: "#D8402C",
     durationMs: 3800,
   },
 ] as const;
