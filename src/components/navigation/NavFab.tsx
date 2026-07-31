@@ -13,16 +13,15 @@ interface NavFabProps {
   onCreate?: () => void;
 }
 
-// INKA palette: deliberately high-chroma jewel colours. PendantIcon adds its
-// own dark facets, gold reflections and internal shading, so the source hues
-// need to stay brighter and more saturated than flat UI tokens.
+// Deliberately high-chroma source colours. PendantIcon darkens them through
+// facet shading, so these values are brighter than ordinary flat UI tokens.
 const NAV_ITEMS = [
   {
     id: "clients",
     label: "Клиенты",
     screen: "list",
     isActive: (active: AppScreen) => active === "list" || active === "settings" || active === "detail",
-    color: "#58E52E",
+    color: "#5CFF24",
     durationMs: 2000,
   },
   {
@@ -30,7 +29,7 @@ const NAV_ITEMS = [
     label: "Личный кабинет",
     screen: "master",
     isActive: (active: AppScreen) => active === "master",
-    color: "#FFD21A",
+    color: "#FFE000",
     durationMs: 3600,
   },
   {
@@ -38,7 +37,7 @@ const NAV_ITEMS = [
     label: "POSTiNKA",
     screen: "content",
     isActive: (active: AppScreen) => active === "content",
-    color: "#B83CFF",
+    color: "#C12FFF",
     durationMs: 3200,
   },
   {
@@ -46,7 +45,7 @@ const NAV_ITEMS = [
     label: "Проекты",
     screen: "workshop",
     isActive: (active: AppScreen) => active === "workshop",
-    color: "#1ABEF2",
+    color: "#00CFFF",
     durationMs: 2100,
   },
   {
@@ -54,7 +53,7 @@ const NAV_ITEMS = [
     label: "Заметки",
     screen: "summary",
     isActive: (active: AppScreen) => active === "summary",
-    color: "#FF8A00",
+    color: "#FF8900",
     durationMs: 1800,
   },
   {
@@ -62,7 +61,7 @@ const NAV_ITEMS = [
     label: "Админка",
     screen: "admin",
     isActive: (active: AppScreen) => active === "admin",
-    color: "#F2383A",
+    color: "#FF3342",
     durationMs: 3800,
   },
 ] as const;
@@ -172,10 +171,8 @@ export function NavFab({ active, onNavigate, adminBadges }: NavFabProps) {
         {open &&
           NAV_ITEMS.map((item, index) => {
             const { dx, dy } = positions[index];
-            const isCurrent = item === current;
             const classes = ["nav-fab__item", "nav-fab__item--ice"];
 
-            if (!isCurrent) classes.push("nav-fab__item--dim");
             if (pressedId === item.id) classes.push("nav-fab__item--pressed");
 
             return (
@@ -199,7 +196,15 @@ export function NavFab({ active, onNavigate, adminBadges }: NavFabProps) {
                   setOpen(false);
                 }}
               >
-                <PendantIcon color={item.color} size={ITEM_SIZE} />
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: "block",
+                    filter: `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
+                  }}
+                >
+                  <PendantIcon color={item.color} size={ITEM_SIZE} />
+                </span>
                 {item.screen === "admin" &&
                   adminBadges?.map((kind, badgeIndex) => (
                     <span
