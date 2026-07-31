@@ -116,6 +116,6 @@
   </g>
   <g id="info-icon" transform="translate(256 0)" filter="url(#pendant-shadow)">
     <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#D94750"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#D8402C"/>
   </g>
 </svg>

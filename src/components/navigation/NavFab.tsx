@@ -32,14 +32,14 @@ const NAV_ITEMS: {
   // both are reached from the roster, not a separate section.
   { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail", color: "#72C83E" },
   { id: "brush", label: "Проекты", screen: "workshop", isActive: (a) => a === "workshop", color: "#319FD9" },
-  { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin", color: "#D94750" },
+  { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin", color: "#D8402C" },
   { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary", color: "#D89A24" },
   { id: "content", label: "Контент", screen: "content", isActive: (a) => a === "content", color: "#A14ED8" },
 ];
 
 // The hub's own fixed pendant colour — shares the "Админка" red rather than
 // getting a colour of its own, per the requested mapping.
-const HUB_COLOR = "#D94750";
+const HUB_COLOR = "#D8402C";
 
 // The open toolbar is a half-ellipse, not a true semicircle: the horizontal
 // radius keeps the sides fitting a 320px-wide viewport edge to edge (seven
