@@ -43,6 +43,7 @@ export function PendantIcon({
   const transmit = `pendant-transmit-${uid}`;
   const coreGlow = `pendant-coreglow-${uid}`;
   const coreBleed = `pendant-corebleed-${uid}`;
+  const tableFace = `pendant-tableface-${uid}`;
   const goldGlow = `pendant-goldglow-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
@@ -220,6 +221,23 @@ export function PendantIcon({
             <stop offset=".5" stopColor="#FFFFFF" stopOpacity=".16" />
             <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
           </radialGradient>
+          {/* The table facet's own tone follows the same light-to-shadow
+              diagonal as the flash/transmit pair (upper-left to
+              lower-right) instead of a symmetric radial bloom — light
+              doesn't enter and leave a stone symmetrically in every
+              direction. */}
+          <linearGradient
+            id={tableFace}
+            gradientUnits="userSpaceOnUse"
+            x1={innerPts[7][0]}
+            y1={innerPts[7][1]}
+            x2={innerPts[3][0]}
+            y2={innerPts[3][1]}
+          >
+            <stop offset="0" stopColor={mix(25, "white")} stopOpacity=".5" />
+            <stop offset=".45" stopColor={color} stopOpacity=".4" />
+            <stop offset="1" stopColor={mix(55, "black")} stopOpacity=".6" />
+          </linearGradient>
           <filter id={goldGlow} x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="1" result="blur" />
             <feFlood floodColor="#EF9D24" floodOpacity=".34" />
@@ -275,7 +293,7 @@ export function PendantIcon({
             <polygon points={quadrant(2)} fill={`url(#${qRight})`} />
             <polygon points={quadrant(4)} fill={`url(#${qBottom})`} />
             <polygon points={quadrant(6)} fill={`url(#${qLeft})`} />
-            <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} fill={mix(60, "black")} opacity=".5" />
+            <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} fill={`url(#${tableFace})`} />
             {/* Sixteen individual flat facets (not one smooth gradient per
                 quadrant) so each plane visibly steps a little brighter or
                 darker than its neighbour, the way real cut facets each
