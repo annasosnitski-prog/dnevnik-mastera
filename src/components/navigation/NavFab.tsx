@@ -275,7 +275,6 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             const isCurrent = item === current;
             const itemClasses = ["nav-fab__item"];
             if (!isCurrent) itemClasses.push("nav-fab__item--dim");
-            if (isCurrent) itemClasses.push("nav-fab__item--current");
             if (pressedId === item.id) itemClasses.push("nav-fab__item--pressed");
             return (
               <button
@@ -299,6 +298,13 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                     and gets the gold underline — the same three-part "you
                     are here" language as the client-card tab gems. */}
                 <PendantIcon color={item.color} size={ITEM_SIZE} glow={isCurrent} />
+                {isCurrent && (
+                  // A straight bar, not a CSS border-bottom — on a fully
+                  // rounded button, border-radius folds a lone border-bottom
+                  // into a thin arc that all but disappears, unlike the
+                  // client-card tab's own plainly visible underline.
+                  <span aria-hidden="true" className="nav-fab__item-underline" />
+                )}
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
