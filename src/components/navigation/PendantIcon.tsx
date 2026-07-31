@@ -23,16 +23,11 @@ export function PendantIcon({
   color,
   size,
   plate = false,
-  glow = false,
   children,
 }: {
   color: string;
   size: number;
   plate?: boolean;
-  // Marks this one pendant as "the page you're on" — an ambient halo in
-  // the stone's own colour, off by default so a whole fan of these doesn't
-  // turn into the overlapping-halo mess a previous round had to remove.
-  glow?: boolean;
   children?: ReactNode;
 }) {
   const uid = useId();
@@ -136,26 +131,6 @@ export function PendantIcon({
 
   return (
     <span style={{ position: "relative", display: "block", width: size, height: size }}>
-      {glow && (
-        // Same glow mechanic as the client-card tab gems (see DetailScreen's
-        // gemMarker): a plain CSS radial-gradient sibling, not a gradient
-        // baked into the SVG — sized well past the disc itself so it reads
-        // as a bold halo, not a tight rim-hugging fringe.
-        <span
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            width: size * 1.7,
-            height: size * 1.7,
-            transform: "translate(-50%, -50%)",
-            borderRadius: "50%",
-            background: `radial-gradient(circle, ${color}73 0%, ${color}73 45%, transparent 100%)`,
-            pointerEvents: "none",
-          }}
-        />
-      )}
       <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
         <defs>
           <radialGradient id={goldFace} cx=".34" cy=".2" r=".84">

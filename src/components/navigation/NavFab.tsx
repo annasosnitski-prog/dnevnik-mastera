@@ -294,10 +294,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
               >
                 {/* Each destination is its own faceted gem colour — no
                     glyph, the cut itself is the detail (see PendantIcon).
-                    The one matching the page you're on dims the rest, glows,
-                    and gets the gold underline — the same three-part "you
-                    are here" language as the client-card tab gems. */}
-                <PendantIcon color={item.color} size={ITEM_SIZE} glow={isCurrent} />
+                    The one matching the page you're on dims the rest and
+                    gets the gold underline. */}
+                <PendantIcon color={item.color} size={ITEM_SIZE} />
                 {isCurrent && (
                   // A straight bar, not a CSS border-bottom — on a fully
                   // rounded button, border-radius folds a lone border-bottom
@@ -328,11 +327,8 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         >
           {/* The hub always shows its own red faceted stone — a fixed
               identity, not a current-screen indicator — regardless of which
-              destination is active. It glows shut, marking "you are here
-              somewhere"; once open, that job passes to the one fan item
-              that actually matches the current screen, so only one thing
-              is ever glowing at a time. */}
-          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} glow={!open} />
+              destination is active. */}
+          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
