@@ -236,7 +236,21 @@
   position: absolute;
   left: 0;
   top: 0;
-  transition: transform 0.15s ease;
+  border-bottom: 1px solid transparent;
+  transition: transform 0.15s ease, opacity 0.25s ease, filter 0.25s ease, border-color 0.25s ease;
+}
+
+/* The same "you are here" language as the client-card tab gems: every
+   destination but the current one dims (opacity + a desaturating,
+   darkening filter — identical values to DetailScreen's gemMarker), and
+   the current one gets a matching gold underline. */
+.nav-fab__item--dim {
+  opacity: 0.62;
+  filter: saturate(0.72) brightness(0.82);
+}
+
+.nav-fab__item--current {
+  border-bottom-color: var(--gold);
 }
 
 /* A small pale spotlight sitting behind each icon, a third of the button's
