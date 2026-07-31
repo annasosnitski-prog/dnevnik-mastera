@@ -51,7 +51,12 @@ export function PendantIcon({
 
   const cx = 32;
   const cy = 32;
-  const outerR = 29;
+  // Close to the viewBox's own edge (32 is half of 64) — any bigger margin
+  // here leaves a ring of plain transparent canvas between the gold disc
+  // and the button's CSS box-shadow glow, which starts right at the
+  // button's actual edge and reads as a dark gap sandwiched between two
+  // brighter things.
+  const outerR = 31.5;
   const stoneR = 23;
   // The central table facet, shrunk by about a third from its first pass —
   // every wedge below is derived from innerR, so the surrounding crown
