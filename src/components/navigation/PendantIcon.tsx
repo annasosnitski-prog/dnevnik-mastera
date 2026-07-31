@@ -248,6 +248,39 @@ export function PendantIcon({
             <polygon points={quadrant(4)} fill={`url(#${qBottom})`} />
             <polygon points={quadrant(6)} fill={`url(#${qLeft})`} />
             <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} fill={mix(60, "black")} opacity=".5" />
+            {/* Sixteen individual flat facets (not one smooth gradient per
+                quadrant) so each plane visibly steps a little brighter or
+                darker than its neighbour, the way real cut facets each
+                catch the light differently. */}
+            {angles.map((deg, i) => {
+              // This wedge spans angles[i-1]..angles[i], centred at deg-22.5;
+              // the light sits at -22.5°, so its angular distance from that
+              // centre works out to exactly `deg`.
+              const shade = Math.cos((deg * Math.PI) / 180);
+              const pts = [outerPts[(i + 7) % 8], outerPts[i], innerPts[i]].map(([x, y]) => `${x},${y}`).join(" ");
+              return (
+                <polygon
+                  key={`ow-${i}`}
+                  points={pts}
+                  fill={shade >= 0 ? "#FFFFFF" : "#000000"}
+                  opacity={Math.abs(shade) * (shade >= 0 ? 0.22 : 0.28)}
+                />
+              );
+            })}
+            {angles.map((deg, i) => {
+              // Spans angles[i]..angles[i+1], centred at deg+22.5; distance
+              // from the -22.5° light works out to `deg + 45`.
+              const shade = Math.cos(((deg + 45) * Math.PI) / 180);
+              const pts = [outerPts[i], innerPts[i], innerPts[(i + 1) % 8]].map(([x, y]) => `${x},${y}`).join(" ");
+              return (
+                <polygon
+                  key={`iw-${i}`}
+                  points={pts}
+                  fill={shade >= 0 ? "#FFFFFF" : "#000000"}
+                  opacity={Math.abs(shade) * (shade >= 0 ? 0.15 : 0.22)}
+                />
+              );
+            })}
             <polygon
               points={`${outerPts[7].join(",")} ${point(cx, cy, -12, stoneR * 0.97).join(",")} ${point(cx, cy, 12, stoneR * 0.97).join(",")} ${point(cx, cy, 0, innerR * 1.08).join(",")}`}
               fill={`url(#${flash})`}
