@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ToolbarIcon } from "./ToolbarIcons";
 import { PendantIcon } from "./PendantIcon";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
@@ -33,14 +32,14 @@ const NAV_ITEMS: {
   // both are reached from the roster, not a separate section.
   { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail", color: "#72C83E" },
   { id: "brush", label: "Проекты", screen: "workshop", isActive: (a) => a === "workshop", color: "#319FD9" },
-  { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin", color: "#D94750" },
+  { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin", color: "#D8402C" },
   { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary", color: "#D89A24" },
   { id: "content", label: "Контент", screen: "content", isActive: (a) => a === "content", color: "#A14ED8" },
 ];
 
 // The hub's own fixed pendant colour — shares the "Админка" red rather than
 // getting a colour of its own, per the requested mapping.
-const HUB_COLOR = "#D94750";
+const HUB_COLOR = "#D8402C";
 
 // The open toolbar is a half-ellipse, not a true semicircle: the horizontal
 // radius keeps the sides fitting a 320px-wide viewport edge to edge (seven
@@ -87,6 +86,13 @@ const ITEM_SIZE = ITEM_HALF * 2;
 // other destinations out around it in an arc.
 export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProps) {
   const [open, setOpen] = useState(false);
+  // The press-down feel (whole button scale + stone sinking into its
+  // setting) is tracked explicitly rather than via CSS :active — :active
+  // is known to stick past release on touch devices, which would leave
+  // whichever button you just tapped to navigate looking permanently
+  // smaller/sunken the next time the fan opens.
+  const [pressedId, setPressedId] = useState<string | null>(null);
+  const releasePress = (id: string) => setPressedId((p) => (p === id ? null : p));
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
   type FanEntry = { kind: "create" } | { kind: "nav"; item: (typeof NAV_ITEMS)[number] };
   // «Создать» is spliced into the middle of the (frequency-ordered) others,
@@ -103,6 +109,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   // it's closed and Админка isn't the current page, the dot moves to the
   // main button instead, so an outstanding reminder is never invisible.
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
+  const mainClasses = ["nav-fab__main"];
+  if (open) mainClasses.push("nav-fab__main--open");
+  if (pressedId === "hub") mainClasses.push("nav-fab__main--pressed");
 
   // Computed once so the connecting rays (drawn first, underneath) and the
   // buttons themselves (drawn on top) agree on exactly the same points. The
@@ -241,46 +250,54 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 <button
                   key="create"
                   type="button"
-                  className="nav-fab__item nav-fab__item--create"
+                  className={
+                    pressedId === "create" ? "nav-fab__item nav-fab__item--create nav-fab__item--pressed" : "nav-fab__item nav-fab__item--create"
+                  }
                   style={style}
                   aria-label="Создать"
+                  onPointerDown={() => setPressedId("create")}
+                  onPointerUp={() => releasePress("create")}
+                  onPointerCancel={() => releasePress("create")}
+                  onPointerLeave={() => releasePress("create")}
                   onClick={() => {
                     onCreate?.();
                     setOpen(false);
                   }}
                 >
-                  <svg width="26" height="26" viewBox="0 0 20 20" fill="none">
-                    <line x1="10" y1="3" x2="10" y2="17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                    <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
+                  {/* Same gold rim + pavé halo as every other pendant, but a
+                      plain gold plate at the centre instead of a coloured
+                      stone — this marks an action, not a destination. */}
+                  <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
+                    <line x1="0" y1="-6" x2="0" y2="6" strokeWidth="1.8" strokeLinecap="round" />
+                    <line x1="-6" y1="0" x2="6" y2="0" strokeWidth="1.8" strokeLinecap="round" />
+                  </PendantIcon>
                 </button>
               );
             }
 
             const { item } = entry;
             const badges = item.screen === "admin" ? adminBadges : undefined;
-            const isCurrent = item === current;
+            const itemClasses = ["nav-fab__item"];
+            if (pressedId === item.id) itemClasses.push("nav-fab__item--pressed");
             return (
               <button
                 key={item.id}
                 type="button"
-                className={isCurrent ? "nav-fab__item nav-fab__item--current" : "nav-fab__item"}
+                className={itemClasses.join(" ")}
                 style={style}
                 aria-label={item.label}
+                onPointerDown={() => setPressedId(item.id)}
+                onPointerUp={() => releasePress(item.id)}
+                onPointerCancel={() => releasePress(item.id)}
+                onPointerLeave={() => releasePress(item.id)}
                 onClick={() => {
                   onNavigate(item.screen);
                   setOpen(false);
                 }}
               >
-                {/* Each destination is its own gem colour, with the glyph
-                    engraved into the stone rather than sized to fill the
-                    button — the pendant medallion itself is already sized
-                    to the button (see PendantIcon). */}
-                <PendantIcon
-                  color={item.color}
-                  size={ITEM_SIZE}
-                  icon={<ToolbarIcon name={item.id} size={item.id === "gear" ? 8 : 11} />}
-                />
+                {/* Each destination is its own faceted gem colour — no
+                    glyph, the cut itself is the detail (see PendantIcon). */}
+                <PendantIcon color={item.color} size={ITEM_SIZE} />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
@@ -293,16 +310,19 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           })}
         <button
           type="button"
-          className={open ? "nav-fab__main nav-fab__main--open" : "nav-fab__main"}
+          className={mainClasses.join(" ")}
           aria-label={open ? "Закрыть меню" : `Раздел: ${current.label}`}
           aria-expanded={open}
+          onPointerDown={() => setPressedId("hub")}
+          onPointerUp={() => releasePress("hub")}
+          onPointerCancel={() => releasePress("hub")}
+          onPointerLeave={() => releasePress("hub")}
           onClick={() => setOpen((v) => !v)}
         >
-          {/* The hub always shows the $ sign — a fixed identity, not a
-              current-screen indicator — regardless of which of the four
-              destinations is active. Its own red pendant medallion is
-              already sized to the button (see PendantIcon). */}
-          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} icon={<ToolbarIcon name="tasks" size={9} />} />
+          {/* The hub always shows its own red faceted stone — a fixed
+              identity, not a current-screen indicator — regardless of which
+              destination is active. */}
+          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}

@@ -218,7 +218,7 @@
 /* Every button on the fan is a gold-pendant medallion now (see PendantIcon)
    except «Создать», which stays a plain solid disc — so the shared rule
    below carries no disc chrome of its own; only layout, sizing and the
-   :active press-down. Both share the --nav-scale custom property for that
+   press-down. Both share the --nav-scale custom property for that
    press-down, since each one's resting `transform` already carries its own
    translate (arc position for items, dead-centre for main) that a plain
    `transform: scale()` override would otherwise clobber. */
@@ -237,13 +237,6 @@
   left: 0;
   top: 0;
   transition: transform 0.15s ease;
-}
-
-/* "You are here": since a pendant button has no background disc left to
-   re-tint, the current destination instead gets its own medallion glowing
-   a little brighter than the rest. */
-.nav-fab__item--current:not(.nav-fab__item--create) {
-  filter: drop-shadow(0 0 5px rgba(var(--gold-rgb), 0.9));
 }
 
 /* A small pale spotlight sitting behind each icon, a third of the button's
@@ -276,9 +269,7 @@
 .nav-fab__main {
   width: 54px;
   height: 54px;
-  /* No disc chrome of its own any more — PendantIcon supplies the gold rim
-     and shadow — just the ambient halo marking it as the primary button. */
-  box-shadow: 0 0 5px rgba(var(--gold-rgb), 0.585), 0 0 30px rgba(var(--gold-rgb), 0.495);
+  /* No disc chrome of its own — PendantIcon draws the whole button. */
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
@@ -290,7 +281,11 @@
   --nav-scale: 1.667;
 }
 
-.nav-fab__main:active {
+/* Press-down state is tracked in JS (pointerdown/up/cancel/leave), not via
+   :active — :active is known to stick past release on touch devices, which
+   would leave whichever button you just tapped to navigate looking
+   permanently smaller/sunken the next time the fan opens. */
+.nav-fab__main--pressed {
   --nav-scale: 0.92;
 }
 
@@ -298,49 +293,27 @@
   width: 62px;
   height: 62px;
   color: var(--toolbar-icon);
-  /* Same glow intensity as the main button (below) — the size difference
-     between them already carries hierarchy, the halo brightness doesn't
-     need to repeat it. */
-  box-shadow: 0 0 4px rgba(var(--gold-rgb), 0.585), 0 0 20px rgba(var(--gold-rgb), 0.495);
   transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(var(--nav-scale, 1));
   animation: nav-fab-in 0.2s ease both;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 
-.nav-fab__item:active {
+.nav-fab__item--pressed {
   --nav-scale: 0.92;
 }
 
-/* «Создать» reads differently from the plain nav destinations — a solid
-   gold fill, since it's an action rather than a place to go, and it sits
-   farthest out on the arc so it also reads as the most prominent item. */
-.nav-fab__item--create {
-  background: var(--gold);
-  border: 1px solid var(--gold);
-  color: var(--bg);
+/* On top of the whole button's own press-down scale, the stone recedes a
+   little further and darkens on its own — reading as the gem sinking into
+   its gold setting rather than the whole medallion just shrinking evenly. */
+.pendant-stone {
+  transform-origin: 32px 32px;
+  transition: transform 0.1s ease, filter 0.1s ease;
 }
 
-/* An inset ring, dark like the other buttons' own plate colour, outline only
-   (no fill) — echoes the family of dark circles it sits among, just inverted
-   (gold outside, dark ring inside) since Create is the one solid-gold button. */
-.nav-fab__item--create::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 90%;
-  height: 90%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 1.5px solid #000;
-  pointer-events: none;
-}
-
-/* The plus glyph is a raw inline <svg> (not routed through ToolbarIcon), so
-   it isn't shielded from the global `svg { color: var(--gold) }` default
-   below — without this it paints gold-on-gold and disappears. */
-.nav-fab__item--create svg {
-  color: inherit;
+.nav-fab__main--pressed .pendant-stone,
+.nav-fab__item--pressed .pendant-stone {
+  transform: scale(0.82) translateY(1px);
+  filter: brightness(0.8);
 }
 
 /* Both keyframes read the same --dx/--dy/--nav-scale custom properties as
@@ -1609,16 +1582,6 @@ input[type='date'] {
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes goldGlow {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 4px rgba(var(--gold-rgb), 0.25));
-  }
-  50% {
-    filter: drop-shadow(0 0 12px rgba(var(--gold-rgb), 0.55));
   }
 }
 
