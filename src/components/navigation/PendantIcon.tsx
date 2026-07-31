@@ -26,6 +26,7 @@ export function PendantIcon({ color, size }: { color: string; size: number }) {
   const qBottom = `pendant-qbottom-${uid}`;
   const qLeft = `pendant-qleft-${uid}`;
   const flash = `pendant-flash-${uid}`;
+  const transmit = `pendant-transmit-${uid}`;
   const goldGlow = `pendant-goldglow-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
@@ -125,6 +126,15 @@ export function PendantIcon({ color, size }: { color: string; size: number }) {
             <stop offset=".55" stopColor="#FFF8F5" stopOpacity=".88" />
             <stop offset="1" stopColor={mix(20, "white")} stopOpacity=".18" />
           </linearGradient>
+          {/* Light entering at the flash doesn't just stop there — some of
+              it passes through the stone and exits the diagonally opposite
+              side, so that corner gets its own lighter patch too (tinted by
+              the stone's own colour, not neutral white like a reflection). */}
+          <linearGradient id={transmit} x1="1" y1="1" x2="0" y2="0">
+            <stop offset="0" stopColor={mix(55, "white")} stopOpacity=".62" />
+            <stop offset=".55" stopColor={mix(35, "white")} stopOpacity=".4" />
+            <stop offset="1" stopColor={color} stopOpacity="0" />
+          </linearGradient>
           <filter id={goldGlow} x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="1" result="blur" />
             <feFlood floodColor="#EF9D24" floodOpacity=".34" />
@@ -162,6 +172,10 @@ export function PendantIcon({ color, size }: { color: string; size: number }) {
           <polygon
             points={`${outerPts[7].join(",")} ${point(cx, cy, -12, stoneR * 0.97).join(",")} ${point(cx, cy, 12, stoneR * 0.97).join(",")} ${point(cx, cy, 0, innerR * 1.08).join(",")}`}
             fill={`url(#${flash})`}
+          />
+          <polygon
+            points={`${outerPts[3].join(",")} ${point(cx, cy, 168, stoneR * 0.97).join(",")} ${point(cx, cy, 192, stoneR * 0.97).join(",")} ${point(cx, cy, 180, innerR * 1.08).join(",")}`}
+            fill={`url(#${transmit})`}
           />
           <g fill="none" stroke={mix(45, "white")} strokeOpacity=".3" strokeWidth=".28">
             <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} />
