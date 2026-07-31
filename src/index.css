@@ -236,15 +236,7 @@
   position: absolute;
   left: 0;
   top: 0;
-  transition: transform 0.15s ease, opacity 0.25s ease, filter 0.25s ease;
-}
-
-/* Every destination but the current one dims — the same treatment as the
-   client-card tab gems (see DetailScreen's gemMarker) — so the fan reads at
-   a glance which one you're already on. */
-.nav-fab__item--dim {
-  opacity: 0.62;
-  filter: saturate(0.72) brightness(0.82);
+  transition: transform 0.15s ease;
 }
 
 /* A small pale spotlight sitting behind each icon, a third of the button's
