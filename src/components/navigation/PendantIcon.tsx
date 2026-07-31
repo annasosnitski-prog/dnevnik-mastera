@@ -23,17 +23,11 @@ export function PendantIcon({
   color,
   size,
   plate = false,
-  current = false,
   children,
 }: {
   color: string;
   size: number;
   plate?: boolean;
-  // The «you are here» destination glows a little brighter than the rest —
-  // baked into this same gradient instead of a second, separately-timed
-  // CSS glow layered on top (that used to create a visible seam, the same
-  // failure mode as the earlier box-shadow-vs-SVG black ring).
-  current?: boolean;
   children?: ReactNode;
 }) {
   const uid = useId();
@@ -50,7 +44,6 @@ export function PendantIcon({
   const coreGlow = `pendant-coreglow-${uid}`;
   const coreBleed = `pendant-corebleed-${uid}`;
   const tableFace = `pendant-tableface-${uid}`;
-  const goldGlow = `pendant-goldglow-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
   const mix = (pct: number, tint: "white" | "black") => `color-mix(in srgb, ${color} ${100 - pct}%, ${tint} ${pct}%)`;
@@ -138,7 +131,7 @@ export function PendantIcon({
 
   return (
     <span style={{ position: "relative", display: "block", width: size, height: size }}>
-      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block", overflow: "visible" }}>
+      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
         <defs>
           <radialGradient id={goldFace} cx=".34" cy=".2" r=".84">
             <stop offset="0" stopColor="#FFF8D7" />
@@ -244,23 +237,6 @@ export function PendantIcon({
             <stop offset=".45" stopColor={color} stopOpacity=".4" />
             <stop offset="1" stopColor={mix(55, "black")} stopOpacity=".6" />
           </linearGradient>
-          {/* A literal ring, not a blurred silhouette: full brightness all
-              the way out to the disc's own radius (outerR), only fading
-              beyond that — so its "inner diameter" matches the disc
-              exactly, no gap. This is the button's *only* glow (no CSS
-              box-shadow or filter layered on top — two independently-timed
-              glow systems is what caused both the earlier black ring and
-              the "looks like two halos" banding: a flat plateau followed by
-              a steep drop and then a gentle one reads as two rings once
-              several of these overlap in the fan, so this is a single
-              monotonic fade instead). Tinted by the stone's own colour
-              rather than a fixed gold, so each destination's glow matches
-              its gem. */}
-          <radialGradient id={goldGlow} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r="90">
-            <stop offset="0" stopColor={color} stopOpacity={current ? ".58" : ".38"} />
-            <stop offset={outerR / 90} stopColor={color} stopOpacity={current ? ".58" : ".38"} />
-            <stop offset="1" stopColor={color} stopOpacity="0" />
-          </radialGradient>
           <filter id={stoneGlow} x="-25%" y="-25%" width="150%" height="150%">
             <feGaussianBlur stdDeviation=".7" result="blur" />
             <feFlood floodColor={color} floodOpacity=".32" />
@@ -273,7 +249,6 @@ export function PendantIcon({
         </defs>
 
         <g>
-          <circle cx={cx} cy={cy} r="90" fill={`url(#${goldGlow})`} />
           <circle cx={cx} cy={cy} r={outerR} fill={`url(#${goldFace})`} stroke="#4B1A00" strokeWidth=".7" />
           <circle cx={cx} cy={cy} r={outerR - 1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".95" />
           <circle cx={cx} cy={cy} r={outerR - 4.5} fill="#2C0A00" stroke="#FFCF68" strokeWidth=".8" />

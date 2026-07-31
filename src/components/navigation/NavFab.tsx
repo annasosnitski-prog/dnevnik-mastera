@@ -261,7 +261,6 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
 
             const { item } = entry;
             const badges = item.screen === "admin" ? adminBadges : undefined;
-            const isCurrent = item === current;
             return (
               <button
                 key={item.id}
@@ -275,10 +274,8 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 }}
               >
                 {/* Each destination is its own faceted gem colour — no
-                    glyph, the cut itself is the detail (see PendantIcon).
-                    The current destination's own halo brightens instead of
-                    a separate "you are here" glow stacked via CSS. */}
-                <PendantIcon color={item.color} size={ITEM_SIZE} current={isCurrent} />
+                    glyph, the cut itself is the detail (see PendantIcon). */}
+                <PendantIcon color={item.color} size={ITEM_SIZE} />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
