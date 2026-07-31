@@ -266,16 +266,10 @@
   width: 62px;
   height: 62px;
   /* No disc chrome of its own — PendantIcon draws the whole button. Same
-     footprint as a closed fan item; it only grows once the fan opens. */
+     footprint as a closed fan item, open or shut — it no longer grows, so
+     the ray/dot geometry meeting its rim (see NavFab.tsx's HUB_RIM) stays
+     accurate either way. */
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
-}
-
-/* Grows by two-thirds while the fan is open — the hub reads as "in charge"
-   of the ring around it rather than just one more circle sitting there.
-   HUB_HALF (31px) scaled by 5/3 is still well inside the closest fan item's
-   own radius, so it never overlaps a destination. */
-.nav-fab__main--open {
-  --nav-scale: 1.667;
 }
 
 /* Press-down state is tracked in JS (pointerdown/up/cancel/leave), not via

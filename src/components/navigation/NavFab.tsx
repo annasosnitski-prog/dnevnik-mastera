@@ -56,30 +56,33 @@ function arcOffset(angleDeg: number, radiusX: number, radiusY: number): { dx: nu
   return { dx: radiusX * Math.cos(angleRad), dy: -radiusY * Math.sin(angleRad) };
 }
 
-// A tapered quad instead of a fixed-width stroke — narrow at (x1,y1),
-// widest at (x2,y2) — so a ray can actually narrow toward the hub rather
-// than just fading in opacity. wNear/wFar are each half the width at that
-// end, measured perpendicular to the ray's own direction.
-function rayShape(x1: number, y1: number, x2: number, y2: number, wNear: number, wFar: number): string {
+// A lens, not a fixed-width stroke — tapered to an actual point at both
+// (x1,y1) and (x2,y2) rather than just fading in opacity, widest at the
+// midpoint. So a ray visually vanishes right at the dot marking each end,
+// however closely you look, instead of meeting it as a flat-capped wedge.
+function rayLens(x1: number, y1: number, x2: number, y2: number, maxWidth: number): string {
   const len = Math.hypot(x2 - x1, y2 - y1) || 1;
   const px = -(y2 - y1) / len;
   const py = (x2 - x1) / len;
-  const p1 = [x1 + px * wNear, y1 + py * wNear];
-  const p2 = [x2 + px * wFar, y2 + py * wFar];
-  const p3 = [x2 - px * wFar, y2 - py * wFar];
-  const p4 = [x1 - px * wNear, y1 - py * wNear];
-  return [p1, p2, p3, p4].map((p) => p.join(",")).join(" ");
+  const w = maxWidth / 2;
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+  return `M${x1},${y1} Q${mx + px * w},${my + py * w} ${x2},${y2} Q${mx - px * w},${my - py * w} ${x1},${y1}Z`;
 }
 
-// Half the main button's / a fan item's own width — a ray is drawn only
-// between the two circles' edges, not centre-to-centre, so it reads as
-// deliberately meeting each button's outline rather than just being hidden
-// underneath it. The hub matches the fan items' own size while closed (it
-// still grows once the fan opens, via --nav-scale on .nav-fab__main--open).
+// Half the main button's / a fan item's own width — used to size the
+// PendantIcon itself. The hub matches the fan items' own size.
 const ITEM_HALF = 31;
 const HUB_HALF = ITEM_HALF;
 const HUB_SIZE = HUB_HALF * 2;
 const ITEM_SIZE = ITEM_HALF * 2;
+// PendantIcon's own gold disc doesn't quite fill its full pixel box (its
+// outerR is 29 out of a 64-wide viewBox, i.e. ~90.6% of the half-width) —
+// a ray/dot meeting HUB_HALF/ITEM_HALF itself would float in the small
+// margin outside the actual rim instead of sitting flush against it.
+const DISC_EDGE_RATIO = 29 / 32;
+const HUB_RIM = HUB_HALF * DISC_EDGE_RATIO;
+const ITEM_RIM = ITEM_HALF * DISC_EDGE_RATIO;
 
 // Single circular button, bottom-centre — replaces the full-width bottom bar.
 // Closed, it shows the icon for whatever screen is currently open (so you
@@ -111,7 +114,6 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   // main button instead, so an outstanding reminder is never invisible.
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
   const mainClasses = ["nav-fab__main"];
-  if (open) mainClasses.push("nav-fab__main--open");
   if (pressedId === "hub") mainClasses.push("nav-fab__main--pressed");
 
   // Computed once so the connecting rays (drawn first, underneath) and the
@@ -149,9 +151,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 nothing is ever visible past those circles' actual edges. */}
             <mask id="navFabRayMask">
               <rect x={-rayExtent} y={-rayExtent} width={rayExtent * 2} height={rayExtent * 2} fill="white" />
-              <circle cx={0} cy={0} r={HUB_HALF} fill="black" />
+              <circle cx={0} cy={0} r={HUB_RIM} fill="black" />
               {positions.map(({ dx, dy }, i) => (
-                <circle key={i} cx={dx} cy={dy} r={ITEM_HALF} fill="black" />
+                <circle key={i} cx={dx} cy={dy} r={ITEM_RIM} fill="black" />
               ))}
             </mask>
             <defs>
@@ -163,8 +165,8 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 const len = Math.hypot(dx, dy) || 1;
                 const ux = dx / len;
                 const uy = dy / len;
-                const x1 = ux * HUB_HALF;
-                const y1 = uy * HUB_HALF;
+                const x1 = ux * HUB_RIM;
+                const y1 = uy * HUB_RIM;
                 return (
                   <linearGradient key={i} id={`navFabRayGrad-${i}`} gradientUnits="userSpaceOnUse" x1={x1} y1={y1} x2={dx} y2={dy}>
                     <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.05} />
@@ -173,9 +175,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 );
               })}
             </defs>
-            {/* Each ray is a tapered shape, not a fixed-width stroke — thin
-                and faint at the hub, widening and brightening toward the
-                button, like natural beam falloff run in reverse. Drawn
+            {/* Each ray is a lens, not a fixed-width stroke — tapered to a
+                point at both the hub and the button, widest at the middle,
+                like natural beam falloff run in both directions. Drawn
                 under the mask above so neither the shape nor its blur ever
                 crosses into a button's interior. */}
             <g mask="url(#navFabRayMask)">
@@ -183,22 +185,14 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 const len = Math.hypot(dx, dy) || 1;
                 const ux = dx / len;
                 const uy = dy / len;
-                const x1 = ux * HUB_HALF;
-                const y1 = uy * HUB_HALF;
-                const x2 = dx - ux * ITEM_HALF;
-                const y2 = dy - uy * ITEM_HALF;
+                const x1 = ux * HUB_RIM;
+                const y1 = uy * HUB_RIM;
+                const x2 = dx - ux * ITEM_RIM;
+                const y2 = dy - uy * ITEM_RIM;
                 return (
                   <g key={i}>
-                    <polygon
-                      className="nav-fab__ray-glow"
-                      fill={`url(#navFabRayGrad-${i})`}
-                      points={rayShape(x1, y1, x2, y2, 0.4, 2.8)}
-                    />
-                    <polygon
-                      className="nav-fab__ray"
-                      fill={`url(#navFabRayGrad-${i})`}
-                      points={rayShape(x1, y1, x2, y2, 0.2, 0.8)}
-                    />
+                    <path className="nav-fab__ray-glow" fill={`url(#navFabRayGrad-${i})`} d={rayLens(x1, y1, x2, y2, 2.8)} />
+                    <path className="nav-fab__ray" fill={`url(#navFabRayGrad-${i})`} d={rayLens(x1, y1, x2, y2, 0.8)} />
                   </g>
                 );
               })}
@@ -214,10 +208,10 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
               const len = Math.hypot(dx, dy) || 1;
               const ux = dx / len;
               const uy = dy / len;
-              const hubX = ux * HUB_HALF;
-              const hubY = uy * HUB_HALF;
-              const itemX = dx - ux * ITEM_HALF;
-              const itemY = dy - uy * ITEM_HALF;
+              const hubX = ux * HUB_RIM;
+              const hubY = uy * HUB_RIM;
+              const itemX = dx - ux * ITEM_RIM;
+              const itemY = dy - uy * ITEM_RIM;
               return (
                 <g key={i}>
                   <circle className="nav-fab__ray-dot-glow" cx={hubX} cy={hubY} r={4.5} />
@@ -232,8 +226,8 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 const uy = dy / len;
                 return (
                   <g key={i}>
-                    <circle className="nav-fab__ray-dot" cx={ux * HUB_HALF} cy={uy * HUB_HALF} r={2.4} />
-                    <circle className="nav-fab__ray-dot" cx={dx - ux * ITEM_HALF} cy={dy - uy * ITEM_HALF} r={2.4} />
+                    <circle className="nav-fab__ray-dot" cx={ux * HUB_RIM} cy={uy * HUB_RIM} r={2.4} />
+                    <circle className="nav-fab__ray-dot" cx={dx - ux * ITEM_RIM} cy={dy - uy * ITEM_RIM} r={2.4} />
                   </g>
                 );
               })}
@@ -324,8 +318,11 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         >
           {/* The hub always shows its own red faceted stone — a fixed
               identity, not a current-screen indicator — regardless of which
-              destination is active. */}
-          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} />
+              destination is active. It glows shut, marking "you are here
+              somewhere"; once open, that job passes to the one fan item
+              that actually matches the current screen, so only one thing
+              is ever glowing at a time. */}
+          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} glow={!open} />
           {mainBadgeKind && (
             <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
           )}
