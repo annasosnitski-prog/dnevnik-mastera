@@ -79,6 +79,36 @@ export function PendantIcon({
     </g>
   );
 
+  // A short, bowed catch-light on one facet — a cut stone sparkles at
+  // several separate points where it happens to catch the light, not just
+  // one big highlight, so a handful of these scattered around (not evenly
+  // spaced — real facets don't all light up at once) reads as properly cut.
+  const glint = (deg: number, r: number, len: number, bow: number, width: number, opacity: number) => {
+    const rad = (deg * Math.PI) / 180;
+    const ux = Math.sin(rad);
+    const uy = -Math.cos(rad);
+    const tx = uy;
+    const ty = -ux;
+    const [px, py] = point(cx, cy, deg, r);
+    const x1 = px - (tx * len) / 2;
+    const y1 = py - (ty * len) / 2;
+    const x2 = px + (tx * len) / 2;
+    const y2 = py + (ty * len) / 2;
+    const qx = px + ux * bow;
+    const qy = py + uy * bow;
+    return (
+      <path
+        key={`glint-${deg}-${r}`}
+        d={`M${x1},${y1} Q${qx},${qy} ${x2},${y2}`}
+        fill="none"
+        stroke="#FFFFFF"
+        strokeWidth={width}
+        strokeLinecap="round"
+        opacity={opacity}
+      />
+    );
+  };
+
   const sparkle = (x: number, y: number) => (
     <g key={`s-${x}-${y}`} transform={`translate(${x} ${y}) scale(.055)`} opacity=".85">
       <path d="M-18 0 H18 M0 -18 V18" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round" />
@@ -230,6 +260,10 @@ export function PendantIcon({
                 return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} />;
               })}
             </g>
+            {glint(23, stoneR * 0.58, stoneR * 0.42, 1.6, 0.6, 0.85)}
+            {glint(203, stoneR * 0.52, stoneR * 0.4, -1.6, 0.55, 0.7)}
+            {glint(108, stoneR * 0.66, stoneR * 0.3, 1.1, 0.42, 0.55)}
+            {glint(332, stoneR * 0.48, stoneR * 0.28, -1.1, 0.42, 0.5)}
           </g>
         )}
 
