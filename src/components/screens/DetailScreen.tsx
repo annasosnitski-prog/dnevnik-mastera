@@ -155,6 +155,15 @@ const CLIENT_TAB_GEM_INDEX = {
   notes: 3,
   info: 4,
 } as const;
+// Same five stones as gem-icons.svg itself, so the tab's own glow (below)
+// can be tinted to match without parsing the sprite.
+const CLIENT_TAB_GEM_COLOR = {
+  sessions: '#72C83E',
+  consultations: '#319FD9',
+  content: '#A14ED8',
+  notes: '#D89A24',
+  info: '#D8402C',
+} as const;
 type ClientTabGem = keyof typeof CLIENT_TAB_GEM_INDEX;
 
 export function DetailScreen({
@@ -263,6 +272,25 @@ export function DetailScreen({
   const gemMarker = (kind: ClientTabGem, tab: typeof activeTab) => (
     <>
       {gemLink}
+      {activeTab === tab && (
+        // The same "one glow, tinted by the stone's own colour, single
+        // smooth fade" language as the nav pendants — marks the tab you're
+        // on rather than just dimming the rest.
+        <span
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: CLIENT_TAB_GEM_SIZE * 1.7,
+            height: CLIENT_TAB_GEM_SIZE * 1.7,
+            transform: 'translate(-50%, -50%)',
+            borderRadius: '50%',
+            background: `radial-gradient(circle, ${CLIENT_TAB_GEM_COLOR[kind]}73 0%, ${CLIENT_TAB_GEM_COLOR[kind]}73 45%, transparent 100%)`,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
       <span
         aria-hidden="true"
         className={activeTab === tab ? 'pendant-swing' : undefined}
