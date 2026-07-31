@@ -42,6 +42,7 @@ export function PendantIcon({
   const flash = `pendant-flash-${uid}`;
   const transmit = `pendant-transmit-${uid}`;
   const coreGlow = `pendant-coreglow-${uid}`;
+  const coreBleed = `pendant-corebleed-${uid}`;
   const goldGlow = `pendant-goldglow-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
@@ -208,6 +209,17 @@ export function PendantIcon({
             <stop offset=".7" stopColor={color} stopOpacity=".45" />
             <stop offset="1" stopColor={color} stopOpacity="0" />
           </radialGradient>
+          {/* Fixed to the stone's true centre (userSpaceOnUse, not each
+              facet's own bounding box) so this one gradient washes every
+              facet by its real distance from the glowing core, however dark
+              that facet's own angled tone happens to be — the light
+              diffusing through a translucent stone doesn't stop at a facet
+              edge. */}
+          <radialGradient id={coreBleed} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r={stoneR * 0.95}>
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".45" />
+            <stop offset=".5" stopColor="#FFFFFF" stopOpacity=".16" />
+            <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+          </radialGradient>
           <filter id={goldGlow} x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="1" result="blur" />
             <feFlood floodColor="#EF9D24" floodOpacity=".34" />
@@ -279,7 +291,7 @@ export function PendantIcon({
                   key={`ow-${i}`}
                   points={pts}
                   fill={shade >= 0 ? "#FFFFFF" : "#000000"}
-                  opacity={Math.abs(shade) * (shade >= 0 ? 0.22 : 0.28)}
+                  opacity={Math.abs(shade) * (shade >= 0 ? 0.22 : 0.17)}
                 />
               );
             })}
@@ -293,10 +305,14 @@ export function PendantIcon({
                   key={`iw-${i}`}
                   points={pts}
                   fill={shade >= 0 ? "#FFFFFF" : "#000000"}
-                  opacity={Math.abs(shade) * (shade >= 0 ? 0.15 : 0.22)}
+                  opacity={Math.abs(shade) * (shade >= 0 ? 0.15 : 0.14)}
                 />
               );
             })}
+            {/* The core's glow diffusing outward through the translucent
+                stone, re-lighting every facet by true distance from centre
+                regardless of how dark its own angled tone reads. */}
+            <circle cx={cx} cy={cy} r={stoneR * 0.95} fill={`url(#${coreBleed})`} />
             <polygon
               points={`${outerPts[7].join(",")} ${point(cx, cy, -12, stoneR * 0.97).join(",")} ${point(cx, cy, 12, stoneR * 0.97).join(",")} ${point(cx, cy, 0, innerR * 1.08).join(",")}`}
               fill={`url(#${flash})`}
