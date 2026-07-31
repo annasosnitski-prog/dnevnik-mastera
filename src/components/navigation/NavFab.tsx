@@ -74,9 +74,10 @@ function rayShape(x1: number, y1: number, x2: number, y2: number, wNear: number,
 // Half the main button's / a fan item's own width — a ray is drawn only
 // between the two circles' edges, not centre-to-centre, so it reads as
 // deliberately meeting each button's outline rather than just being hidden
-// underneath it.
-const HUB_HALF = 27;
+// underneath it. The hub matches the fan items' own size while closed (it
+// still grows once the fan opens, via --nav-scale on .nav-fab__main--open).
 const ITEM_HALF = 31;
+const HUB_HALF = ITEM_HALF;
 const HUB_SIZE = HUB_HALF * 2;
 const ITEM_SIZE = ITEM_HALF * 2;
 
@@ -277,6 +278,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
 
             const { item } = entry;
             const badges = item.screen === "admin" ? adminBadges : undefined;
+            const isCurrent = item === current;
             const itemClasses = ["nav-fab__item"];
             if (pressedId === item.id) itemClasses.push("nav-fab__item--pressed");
             return (
@@ -296,8 +298,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 }}
               >
                 {/* Each destination is its own faceted gem colour — no
-                    glyph, the cut itself is the detail (see PendantIcon). */}
-                <PendantIcon color={item.color} size={ITEM_SIZE} />
+                    glyph, the cut itself is the detail (see PendantIcon).
+                    The one matching the page you're on glows. */}
+                <PendantIcon color={item.color} size={ITEM_SIZE} glow={isCurrent} />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}

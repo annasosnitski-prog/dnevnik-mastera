@@ -262,20 +262,17 @@
   pointer-events: none;
 }
 
-/* The main button keeps the plate it had before this round of NavFab
-   tweaks — a translucent surface gradient over the theme background,
-   rather than the flat black the secondary buttons now use — since it's
-   always on screen and stays the fixed anchor of the whole control. */
 .nav-fab__main {
-  width: 54px;
-  height: 54px;
-  /* No disc chrome of its own — PendantIcon draws the whole button. */
+  width: 62px;
+  height: 62px;
+  /* No disc chrome of its own — PendantIcon draws the whole button. Same
+     footprint as a closed fan item; it only grows once the fan opens. */
   transform: translate(-50%, -50%) scale(var(--nav-scale, 1));
 }
 
 /* Grows by two-thirds while the fan is open — the hub reads as "in charge"
    of the ring around it rather than just one more circle sitting there.
-   HUB_HALF (27px) scaled by 5/3 is still well inside the closest fan item's
+   HUB_HALF (31px) scaled by 5/3 is still well inside the closest fan item's
    own radius, so it never overlaps a destination. */
 .nav-fab__main--open {
   --nav-scale: 1.667;
