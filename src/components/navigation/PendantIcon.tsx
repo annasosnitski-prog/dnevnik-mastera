@@ -247,9 +247,9 @@ export function PendantIcon({
               svg's own viewBox — the svg has overflow:visible so it isn't
               clipped there. */}
           <radialGradient id={goldGlow} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r="90">
-            <stop offset="0" stopColor="#EF9D24" stopOpacity=".6" />
-            <stop offset={outerR / 90} stopColor="#EF9D24" stopOpacity=".6" />
-            <stop offset={(outerR + 16) / 90} stopColor="#EF9D24" stopOpacity=".22" />
+            <stop offset="0" stopColor="#EF9D24" stopOpacity=".38" />
+            <stop offset={outerR / 90} stopColor="#EF9D24" stopOpacity=".38" />
+            <stop offset={(outerR + 16) / 90} stopColor="#EF9D24" stopOpacity=".13" />
             <stop offset="1" stopColor="#EF9D24" stopOpacity="0" />
           </radialGradient>
           <filter id={stoneGlow} x="-25%" y="-25%" width="150%" height="150%">

@@ -1576,16 +1576,6 @@ input[type='date'] {
   }
 }
 
-@keyframes goldGlow {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 4px rgba(var(--gold-rgb), 0.25));
-  }
-  50% {
-    filter: drop-shadow(0 0 12px rgba(var(--gold-rgb), 0.55));
-  }
-}
-
 /* Client-tab pendant, swinging on its jump-ring the moment its tab is
    selected — pivots near the top where the ring attaches, like a hanging
    charm nudged into motion, then settles back to rest. */
