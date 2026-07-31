@@ -40,7 +40,6 @@ export function PendantIcon({
   const plateFace = `pendant-plateface-${uid}`;
   const goldEdge = `pendant-goldedge-${uid}`;
   const diamondBase = `pendant-diamondbase-${uid}`;
-  const pendantGlow = `pendant-glow-${uid}`;
   const qTop = `pendant-qtop-${uid}`;
   const qRight = `pendant-qright-${uid}`;
   const qBottom = `pendant-qbottom-${uid}`;
@@ -137,7 +136,27 @@ export function PendantIcon({
 
   return (
     <span style={{ position: "relative", display: "block", width: size, height: size }}>
-      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block", overflow: glow ? "visible" : undefined }}>
+      {glow && (
+        // Same glow mechanic as the client-card tab gems (see DetailScreen's
+        // gemMarker): a plain CSS radial-gradient sibling, not a gradient
+        // baked into the SVG — sized well past the disc itself so it reads
+        // as a bold halo, not a tight rim-hugging fringe.
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: size * 1.7,
+            height: size * 1.7,
+            transform: "translate(-50%, -50%)",
+            borderRadius: "50%",
+            background: `radial-gradient(circle, ${color}73 0%, ${color}73 45%, transparent 100%)`,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
         <defs>
           <radialGradient id={goldFace} cx=".34" cy=".2" r=".84">
             <stop offset="0" stopColor="#FFF8D7" />
@@ -252,22 +271,9 @@ export function PendantIcon({
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          {glow && (
-            // A literal ring, not a blurred silhouette: full brightness all
-            // the way out to the disc's own radius (outerR), then one single
-            // monotonic fade to nothing — a flat plateau followed by two
-            // different fade rates is what read as "two halos" the last
-            // time this existed. Tinted by the stone's own colour.
-            <radialGradient id={pendantGlow} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r="48">
-              <stop offset="0" stopColor={color} stopOpacity=".45" />
-              <stop offset={outerR / 48} stopColor={color} stopOpacity=".45" />
-              <stop offset="1" stopColor={color} stopOpacity="0" />
-            </radialGradient>
-          )}
         </defs>
 
         <g>
-          {glow && <circle cx={cx} cy={cy} r="48" fill={`url(#${pendantGlow})`} />}
           <circle cx={cx} cy={cy} r={outerR} fill={`url(#${goldFace})`} stroke="#4B1A00" strokeWidth=".7" />
           <circle cx={cx} cy={cy} r={outerR - 1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".95" />
           <circle cx={cx} cy={cy} r={outerR - 4.5} fill="#2C0A00" stroke="#FFCF68" strokeWidth=".8" />
