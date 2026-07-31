@@ -108,6 +108,7 @@ export function PendantIcon({
         strokeWidth={width}
         strokeLinecap="round"
         opacity={opacity}
+        style={{ filter: "blur(.3px)" }}
       />
     );
   };
@@ -263,10 +264,10 @@ export function PendantIcon({
                 return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} />;
               })}
             </g>
-            {glint(innerPts[0], innerPts[1], 0.12, 0.88, 0.75, 0.9)}
-            {glint(innerPts[4], innerPts[5], 0.15, 0.85, 0.6, 0.75)}
-            {glint(outerPts[2], innerPts[2], 0.25, 0.75, 0.55, 0.6)}
-            {glint(innerPts[6], innerPts[7], 0.2, 0.8, 0.45, 0.45)}
+            {glint(innerPts[0], innerPts[1], 0.12, 0.88, 1.3, 0.9)}
+            {glint(innerPts[4], innerPts[5], 0.15, 0.85, 1.1, 0.75)}
+            {glint(outerPts[2], innerPts[2], 0.25, 0.75, 1, 0.6)}
+            {glint(innerPts[6], innerPts[7], 0.2, 0.8, 0.85, 0.45)}
           </g>
         )}
 
