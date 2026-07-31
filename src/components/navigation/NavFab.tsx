@@ -8,8 +8,6 @@ interface NavFabProps {
   active: AppScreen;
   onNavigate: (screen: AppScreen) => void;
   adminBadges?: ("urgent" | "reminder")[];
-  // Kept in the public contract for existing callers. The radial menu itself
-  // now contains destinations only; contextual creation stays on its screen.
   onCreate?: () => void;
 }
 
@@ -66,6 +64,7 @@ const NAV_ITEMS = [
   },
 ] as const;
 
+const CREATE_DURATION_MS = 2400;
 const FAN_RADIUS_X = 126;
 const FAN_RADIUS_Y = 150;
 const ITEM_HALF = 31;
@@ -77,8 +76,6 @@ const HUB_RIM = HUB_HALF * DISC_EDGE_RATIO;
 const ITEM_RIM = ITEM_HALF * DISC_EDGE_RATIO;
 
 function radialOffset(index: number, count: number): { dx: number; dy: number } {
-  // Start at the left. With six destinations, index 3 lands exactly on the
-  // right, keeping Клиенты and Проекты on opposite sides.
   const angleDeg = 180 - index * (360 / count);
   const angleRad = (angleDeg * Math.PI) / 180;
   return {
@@ -97,12 +94,28 @@ function rayLens(x1: number, y1: number, x2: number, y2: number, maxWidth: numbe
   return `M${x1},${y1} Q${mx + px * width},${my + py * width} ${x2},${y2} Q${mx - px * width},${my - py * width} ${x1},${y1}Z`;
 }
 
-export function NavFab({ active, onNavigate, adminBadges }: NavFabProps) {
+export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProps) {
   const [open, setOpen] = useState(false);
   const [pressedId, setPressedId] = useState<string | null>(null);
   const releasePress = (id: string) => setPressedId((current) => (current === id ? null : current));
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
-  const positions = NAV_ITEMS.map((_, index) => radialOffset(index, NAV_ITEMS.length));
+
+  type FanEntry =
+    | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
+    | { kind: "create"; id: "create"; label: "Создать"; durationMs: number };
+
+  // «Создать» is a separate gold action between Личный кабинет and POSTiNKA.
+  // It is not the hub and it is not another destination.
+  const fanEntries: FanEntry[] = onCreate
+    ? [
+        { kind: "nav", item: NAV_ITEMS[0] },
+        { kind: "nav", item: NAV_ITEMS[1] },
+        { kind: "create", id: "create", label: "Создать", durationMs: CREATE_DURATION_MS },
+        ...NAV_ITEMS.slice(2).map((item) => ({ kind: "nav" as const, item })),
+      ]
+    : NAV_ITEMS.map((item) => ({ kind: "nav" as const, item }));
+
+  const positions = fanEntries.map((_, index) => radialOffset(index, fanEntries.length));
   const rayExtent = Math.max(FAN_RADIUS_X, FAN_RADIUS_Y) + 44;
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
   const mainClasses = ["nav-fab__main", "nav-fab__main--gold"];
@@ -148,7 +161,8 @@ export function NavFab({ active, onNavigate, adminBadges }: NavFabProps) {
                 const y1 = uy * HUB_RIM;
                 const x2 = dx - ux * ITEM_RIM;
                 const y2 = dy - uy * ITEM_RIM;
-                const durationMs = NAV_ITEMS[index].durationMs;
+                const entry = fanEntries[index];
+                const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
 
                 return (
                   <g
@@ -169,12 +183,46 @@ export function NavFab({ active, onNavigate, adminBadges }: NavFabProps) {
         )}
 
         {open &&
-          NAV_ITEMS.map((item, index) => {
+          fanEntries.map((entry, index) => {
             const { dx, dy } = positions[index];
+            const id = entry.kind === "create" ? entry.id : entry.item.id;
+            const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
             const classes = ["nav-fab__item", "nav-fab__item--ice"];
 
-            if (pressedId === item.id) classes.push("nav-fab__item--pressed");
+            if (entry.kind === "create") classes.push("nav-fab__item--create");
+            if (pressedId === id) classes.push("nav-fab__item--pressed");
 
+            if (entry.kind === "create") {
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className={classes.join(" ")}
+                  style={{
+                    ["--dx" as string]: `${dx}px`,
+                    ["--dy" as string]: `${dy}px`,
+                    ["--travel-duration" as string]: `${durationMs}ms`,
+                    ["--travel-delay" as string]: `${120 + index * 65}ms`,
+                  }}
+                  aria-label={entry.label}
+                  onPointerDown={() => setPressedId(entry.id)}
+                  onPointerUp={() => releasePress(entry.id)}
+                  onPointerCancel={() => releasePress(entry.id)}
+                  onPointerLeave={() => releasePress(entry.id)}
+                  onClick={() => {
+                    onCreate?.();
+                    setOpen(false);
+                  }}
+                >
+                  <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
+                    <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
+                    <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
+                  </PendantIcon>
+                </button>
+              );
+            }
+
+            const { item } = entry;
             return (
               <button
                 key={item.id}
@@ -183,7 +231,7 @@ export function NavFab({ active, onNavigate, adminBadges }: NavFabProps) {
                 style={{
                   ["--dx" as string]: `${dx}px`,
                   ["--dy" as string]: `${dy}px`,
-                  ["--travel-duration" as string]: `${item.durationMs}ms`,
+                  ["--travel-duration" as string]: `${durationMs}ms`,
                   ["--travel-delay" as string]: `${120 + index * 65}ms`,
                 }}
                 aria-label={item.label}
