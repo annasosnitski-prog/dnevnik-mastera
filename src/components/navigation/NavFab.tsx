@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { PendantIcon } from "./PendantIcon";
 import "./NavFabReveal.css";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
+
+type NavItemId = "clients" | "gear" | "content" | "brush" | "sketchbook" | "profile";
 
 interface NavFabProps {
   active: AppScreen;
@@ -11,8 +13,6 @@ interface NavFabProps {
   onCreate?: () => void;
 }
 
-// Deliberately high-chroma source colours. PendantIcon darkens them through
-// facet shading, so these values are brighter than ordinary flat UI tokens.
 const NAV_ITEMS = [
   {
     id: "clients",
@@ -94,6 +94,62 @@ function rayLens(x1: number, y1: number, x2: number, y2: number, maxWidth: numbe
   return `M${x1},${y1} Q${mx + px * width},${my + py * width} ${x2},${y2} Q${mx - px * width},${my - py * width} ${x1},${y1}Z`;
 }
 
+function GemGlyph({ id }: { id: NavItemId }): ReactNode {
+  const common = {
+    fill: "none",
+    strokeWidth: 1.45,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  switch (id) {
+    case "clients":
+      return (
+        <g {...common}>
+          <circle cx="-3.2" cy="-3" r="2.4" />
+          <circle cx="3.2" cy="-3" r="2.4" />
+          <path d="M-8 6c.7-3.4 2.6-5.1 5.5-5.1S2.2 2.6 2.8 6" />
+          <path d="M-2.8 6C-2.2 2.6-.4.9 2.5.9S7.3 2.6 8 6" />
+        </g>
+      );
+    case "gear":
+      return (
+        <g {...common}>
+          <circle cx="0" cy="-3.5" r="3" />
+          <path d="M-6.5 7c.6-4.4 2.8-6.6 6.5-6.6S5.9 2.6 6.5 7" />
+        </g>
+      );
+    case "content":
+      return (
+        <g {...common}>
+          <path d="M-6 6C-2.8-1.7 1.6-6.3 7-7c-.7 5.5-4.6 10.4-10.9 12" />
+          <path d="M-4 7 4-2" />
+        </g>
+      );
+    case "brush":
+      return (
+        <g {...common}>
+          <path d="M-8-4h6l2 2h8v9H-8z" />
+          <path d="M-8-2h16" />
+        </g>
+      );
+    case "sketchbook":
+      return (
+        <g {...common}>
+          <rect x="-6" y="-7" width="12" height="14" rx="1.4" />
+          <path d="M-3-3h6M-3 0h6M-3 3h4" />
+        </g>
+      );
+    case "profile":
+      return (
+        <g {...common}>
+          <path d="M-7-2 0-7l7 5-1.3 6.2L0 8l-5.7-3.8z" />
+          <path d="M-3.2-1.3 0-3.6l3.2 2.3-.6 3.3L0 4.1-2.6 2z" />
+        </g>
+      );
+  }
+}
+
 export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProps) {
   const [open, setOpen] = useState(false);
   const [pressedId, setPressedId] = useState<string | null>(null);
@@ -104,8 +160,6 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
     | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
     | { kind: "create"; id: "create"; label: "Создать"; durationMs: number };
 
-  // «Создать» is a separate gold action between Личный кабинет and POSTiNKA.
-  // It is not the hub and it is not another destination.
   const fanEntries: FanEntry[] = onCreate
     ? [
         { kind: "nav", item: NAV_ITEMS[0] },
@@ -251,7 +305,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                     filter: `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
                   }}
                 >
-                  <PendantIcon color={item.color} size={ITEM_SIZE} />
+                  <PendantIcon color={item.color} size={ITEM_SIZE}>
+                    <GemGlyph id={item.id as NavItemId} />
+                  </PendantIcon>
                 </span>
                 {item.screen === "admin" &&
                   adminBadges?.map((kind, badgeIndex) => (
