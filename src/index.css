@@ -247,21 +247,6 @@
   filter: saturate(0.72) brightness(0.82);
 }
 
-/* A plain straight bar rather than a border — sits just under the button's
-   own circle, reading as clearly as the client-card tab's underline
-   instead of getting folded into a near-invisible arc by border-radius. */
-.nav-fab__item-underline {
-  position: absolute;
-  bottom: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 24px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--gold);
-  pointer-events: none;
-}
-
 /* A small pale spotlight sitting behind each icon, a third of the button's
    own diameter — brighter than the icon itself so the glyph reads as
    silhouetted against its own little glow rather than floating on flat

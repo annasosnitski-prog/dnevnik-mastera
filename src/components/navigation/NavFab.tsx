@@ -294,16 +294,8 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
               >
                 {/* Each destination is its own faceted gem colour — no
                     glyph, the cut itself is the detail (see PendantIcon).
-                    The one matching the page you're on dims the rest and
-                    gets the gold underline. */}
+                    The one matching the page you're on dims the rest. */}
                 <PendantIcon color={item.color} size={ITEM_SIZE} />
-                {isCurrent && (
-                  // A straight bar, not a CSS border-bottom — on a fully
-                  // rounded button, border-radius folds a lone border-bottom
-                  // into a thin arc that all but disappears, unlike the
-                  // client-card tab's own plainly visible underline.
-                  <span aria-hidden="true" className="nav-fab__item-underline" />
-                )}
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}
