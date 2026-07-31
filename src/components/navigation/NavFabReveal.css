@@ -13,26 +13,61 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   background: rgba(0, 0, 0, 0.22);
-  animation: nav-fab-scrim-in 180ms ease-out both;
+  animation: nav-fab-scrim-in 240ms ease-out both;
 }
 
+/* The invitation glow is a real circular layer. It does not rely on a
+   rectangular filter box, so no square can appear behind the gold hub. */
 .nav-fab__main--gold {
-  filter: drop-shadow(0 0 5px rgba(var(--gold-rgb), 0.46)) drop-shadow(0 0 14px rgba(var(--gold-rgb), 0.2));
-  animation: nav-fab-invite 3.6s ease-in-out infinite;
+  isolation: isolate;
+  box-shadow: none !important;
+  filter: none !important;
+  background: transparent !important;
 }
 
-.nav-fab--open .nav-fab__main--gold {
+.nav-fab__main--gold::before {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(var(--gold-rgb), 0.34) 0%,
+    rgba(var(--gold-rgb), 0.16) 38%,
+    rgba(var(--gold-rgb), 0.05) 62%,
+    transparent 76%
+  );
+  transform: scale(0.94);
+  animation: nav-fab-invite 3.8s ease-in-out infinite;
+}
+
+.nav-fab--open .nav-fab__main--gold::before {
   animation: none;
-  filter: drop-shadow(0 0 7px rgba(var(--gold-rgb), 0.56)) drop-shadow(0 0 18px rgba(var(--gold-rgb), 0.26));
-}
-
-.nav-fab--open .nav-fab__item {
-  animation-duration: 260ms;
-  animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1.08);
+  transform: scale(1.08);
+  opacity: 0.95;
 }
 
 .nav-fab--open .nav-fab__rays {
-  animation: nav-fab-rays-in 220ms ease-out 70ms both;
+  overflow: visible;
+}
+
+.nav-fab__ray-group {
+  opacity: 0;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  animation: nav-fab-ray-slide var(--ray-duration) cubic-bezier(0.16, 1, 0.3, 1) var(--ray-delay) both;
+}
+
+/* Each stone starts at the hub and glides all the way out. Durations are set
+   per destination in NavFab.tsx, deliberately far apart from one another. */
+.nav-fab--open .nav-fab__item--ice {
+  animation-name: nav-fab-ice-slide !important;
+  animation-duration: var(--travel-duration) !important;
+  animation-delay: var(--travel-delay) !important;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+  animation-fill-mode: both !important;
 }
 
 @keyframes nav-fab-scrim-in {
@@ -40,25 +75,75 @@
   to { opacity: 1; }
 }
 
-@keyframes nav-fab-rays-in {
-  from { opacity: 0; transform: scale(0.76); }
-  to { opacity: 1; transform: scale(1); }
+@keyframes nav-fab-ray-slide {
+  0% {
+    opacity: 0;
+    transform: scale(0.08);
+  }
+  18% {
+    opacity: 0.28;
+  }
+  76% {
+    opacity: 0.92;
+    transform: scale(1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes nav-fab-ice-slide {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.72) rotate(-2.5deg);
+  }
+  12% {
+    opacity: 0.72;
+  }
+  72% {
+    opacity: 1;
+    transform: translate(
+      calc(-50% + var(--dx) * 0.94),
+      calc(-50% + var(--dy) * 0.94)
+    ) scale(1.025) rotate(1.2deg);
+  }
+  88% {
+    transform: translate(
+      calc(-50% + var(--dx) * 1.012),
+      calc(-50% + var(--dy) * 1.012)
+    ) scale(0.995) rotate(-0.45deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(
+      calc(-50% + var(--dx)),
+      calc(-50% + var(--dy))
+    ) scale(1) rotate(0deg);
+  }
 }
 
 @keyframes nav-fab-invite {
   0%, 100% {
-    filter: drop-shadow(0 0 4px rgba(var(--gold-rgb), 0.38)) drop-shadow(0 0 10px rgba(var(--gold-rgb), 0.14));
+    opacity: 0.62;
+    transform: scale(0.92);
   }
   50% {
-    filter: drop-shadow(0 0 6px rgba(var(--gold-rgb), 0.54)) drop-shadow(0 0 16px rgba(var(--gold-rgb), 0.23));
+    opacity: 1;
+    transform: scale(1.04);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .nav-fab__scrim,
-  .nav-fab__main--gold,
-  .nav-fab--open .nav-fab__item,
-  .nav-fab--open .nav-fab__rays {
+  .nav-fab__main--gold::before,
+  .nav-fab__ray-group,
+  .nav-fab--open .nav-fab__item--ice {
     animation: none !important;
+  }
+
+  .nav-fab__ray-group {
+    opacity: 1;
+    transform: none;
   }
 }
