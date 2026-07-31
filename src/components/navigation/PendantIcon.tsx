@@ -32,6 +32,7 @@ export function PendantIcon({
 }) {
   const uid = useId();
   const goldFace = `pendant-goldface-${uid}`;
+  const plateFace = `pendant-plateface-${uid}`;
   const goldEdge = `pendant-goldedge-${uid}`;
   const diamondBase = `pendant-diamondbase-${uid}`;
   const qTop = `pendant-qtop-${uid}`;
@@ -50,7 +51,10 @@ export function PendantIcon({
   const cy = 32;
   const outerR = 29;
   const stoneR = 23;
-  const innerR = stoneR * 0.7;
+  // The central table facet, shrunk by about a third from its first pass —
+  // every wedge below is derived from innerR, so the surrounding crown
+  // facets widen to fill the space this gives up automatically.
+  const innerR = stoneR * 0.47;
   const angles = [0, 45, 90, 135, 180, 225, 270, 315];
   const outerPts = angles.map((deg) => point(cx, cy, deg, stoneR));
   const innerPts = angles.map((deg) => point(cx, cy, deg, innerR));
@@ -82,13 +86,15 @@ export function PendantIcon({
   // A catch-light along an *actual* facet edge — a real cut stone sparkles
   // where a specific edge happens to catch the light, so this brightens a
   // sub-segment of a real edge (t1..t2 along p1→p2) rather than a shape
-  // floating free in the middle of a facet.
+  // floating free in the middle of a facet. Drawn as a pointed lens (thin
+  // at both tips, widest at the centre) instead of a flat-capped stroke, so
+  // it tapers off like a real specular streak rather than ending abruptly.
   const glint = (
     p1: readonly [number, number],
     p2: readonly [number, number],
     t1: number,
     t2: number,
-    width: number,
+    maxWidth: number,
     opacity: number,
   ) => {
     const [ax, ay] = p1;
@@ -97,16 +103,17 @@ export function PendantIcon({
     const y1 = ay + (by - ay) * t1;
     const x2 = ax + (bx - ax) * t2;
     const y2 = ay + (by - ay) * t2;
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const px = -(y2 - y1) / len;
+    const py = (x2 - x1) / len;
+    const w = maxWidth / 2;
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
     return (
-      <line
+      <path
         key={`glint-${x1}-${y1}-${x2}-${y2}`}
-        x1={x1}
-        y1={y1}
-        x2={x2}
-        y2={y2}
-        stroke="#FFFFFF"
-        strokeWidth={width}
-        strokeLinecap="round"
+        d={`M${x1},${y1} Q${mx + px * w},${my + py * w} ${x2},${y2} Q${mx - px * w},${my - py * w} ${x1},${y1}Z`}
+        fill="#FFFFFF"
         opacity={opacity}
         style={{ filter: "blur(.3px)" }}
       />
@@ -134,6 +141,15 @@ export function PendantIcon({
             <stop offset=".91" stopColor="#8E4709" />
             <stop offset="1" stopColor="#431A00" />
           </radialGradient>
+          {/* A much gentler sheen than goldFace's dramatic dome-lit radial —
+              «Создать» reads as a flat stamped plate, not another curved
+              gemstone. */}
+          <linearGradient id={plateFace} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#F7E4B8" />
+            <stop offset=".35" stopColor="#D8A94A" />
+            <stop offset=".7" stopColor="#A3722A" />
+            <stop offset="1" stopColor="#6E4A16" />
+          </linearGradient>
           <linearGradient id={goldEdge} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor="#6B2C00" />
             <stop offset=".16" stopColor="#FFF0B3" />
@@ -221,9 +237,9 @@ export function PendantIcon({
 
         {plate ? (
           <g filter={`url(#${stoneGlow})`}>
-            <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${goldFace})`} stroke="#4B1A00" strokeWidth=".5" />
-            <circle cx={cx} cy={cy} r={stoneR - 3} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".7" />
-            <path d="M22 20 30 15" stroke="#FFF0B3" strokeWidth="1.6" strokeLinecap="round" opacity=".55" />
+            <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${plateFace})`} stroke="#4B1A00" strokeWidth=".5" />
+            <circle cx={cx} cy={cy} r={stoneR - 3} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />
+            <path d="M22 20 30 15" stroke="#FFF0B3" strokeWidth="1.2" strokeLinecap="round" opacity=".4" />
             {children && (
               <g
                 transform={`translate(${cx} ${cy})`}
