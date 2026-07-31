@@ -86,6 +86,13 @@ const ITEM_SIZE = ITEM_HALF * 2;
 // other destinations out around it in an arc.
 export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProps) {
   const [open, setOpen] = useState(false);
+  // The press-down feel (whole button scale + stone sinking into its
+  // setting) is tracked explicitly rather than via CSS :active — :active
+  // is known to stick past release on touch devices, which would leave
+  // whichever button you just tapped to navigate looking permanently
+  // smaller/sunken the next time the fan opens.
+  const [pressedId, setPressedId] = useState<string | null>(null);
+  const releasePress = (id: string) => setPressedId((p) => (p === id ? null : p));
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
   type FanEntry = { kind: "create" } | { kind: "nav"; item: (typeof NAV_ITEMS)[number] };
   // «Создать» is spliced into the middle of the (frequency-ordered) others,
@@ -102,6 +109,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   // it's closed and Админка isn't the current page, the dot moves to the
   // main button instead, so an outstanding reminder is never invisible.
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
+  const mainClasses = ["nav-fab__main"];
+  if (open) mainClasses.push("nav-fab__main--open");
+  if (pressedId === "hub") mainClasses.push("nav-fab__main--pressed");
 
   // Computed once so the connecting rays (drawn first, underneath) and the
   // buttons themselves (drawn on top) agree on exactly the same points. The
@@ -240,9 +250,15 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 <button
                   key="create"
                   type="button"
-                  className="nav-fab__item nav-fab__item--create"
+                  className={
+                    pressedId === "create" ? "nav-fab__item nav-fab__item--create nav-fab__item--pressed" : "nav-fab__item nav-fab__item--create"
+                  }
                   style={style}
                   aria-label="Создать"
+                  onPointerDown={() => setPressedId("create")}
+                  onPointerUp={() => releasePress("create")}
+                  onPointerCancel={() => releasePress("create")}
+                  onPointerLeave={() => releasePress("create")}
                   onClick={() => {
                     onCreate?.();
                     setOpen(false);
@@ -262,13 +278,20 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             const { item } = entry;
             const badges = item.screen === "admin" ? adminBadges : undefined;
             const isCurrent = item === current;
+            const itemClasses = ["nav-fab__item"];
+            if (!isCurrent) itemClasses.push("nav-fab__item--dim");
+            if (pressedId === item.id) itemClasses.push("nav-fab__item--pressed");
             return (
               <button
                 key={item.id}
                 type="button"
-                className={isCurrent ? "nav-fab__item" : "nav-fab__item nav-fab__item--dim"}
+                className={itemClasses.join(" ")}
                 style={style}
                 aria-label={item.label}
+                onPointerDown={() => setPressedId(item.id)}
+                onPointerUp={() => releasePress(item.id)}
+                onPointerCancel={() => releasePress(item.id)}
+                onPointerLeave={() => releasePress(item.id)}
                 onClick={() => {
                   onNavigate(item.screen);
                   setOpen(false);
@@ -291,9 +314,13 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           })}
         <button
           type="button"
-          className={open ? "nav-fab__main nav-fab__main--open" : "nav-fab__main"}
+          className={mainClasses.join(" ")}
           aria-label={open ? "Закрыть меню" : `Раздел: ${current.label}`}
           aria-expanded={open}
+          onPointerDown={() => setPressedId("hub")}
+          onPointerUp={() => releasePress("hub")}
+          onPointerCancel={() => releasePress("hub")}
+          onPointerLeave={() => releasePress("hub")}
           onClick={() => setOpen((v) => !v)}
         >
           {/* The hub always shows its own red faceted stone — a fixed

@@ -218,7 +218,7 @@
 /* Every button on the fan is a gold-pendant medallion now (see PendantIcon)
    except «Создать», which stays a plain solid disc — so the shared rule
    below carries no disc chrome of its own; only layout, sizing and the
-   :active press-down. Both share the --nav-scale custom property for that
+   press-down. Both share the --nav-scale custom property for that
    press-down, since each one's resting `transform` already carries its own
    translate (arc position for items, dead-centre for main) that a plain
    `transform: scale()` override would otherwise clobber. */
@@ -289,7 +289,11 @@
   --nav-scale: 1.667;
 }
 
-.nav-fab__main:active {
+/* Press-down state is tracked in JS (pointerdown/up/cancel/leave), not via
+   :active — :active is known to stick past release on touch devices, which
+   would leave whichever button you just tapped to navigate looking
+   permanently smaller/sunken the next time the fan opens. */
+.nav-fab__main--pressed {
   --nav-scale: 0.92;
 }
 
@@ -302,7 +306,7 @@
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 
-.nav-fab__item:active {
+.nav-fab__item--pressed {
   --nav-scale: 0.92;
 }
 
@@ -314,8 +318,8 @@
   transition: transform 0.1s ease, filter 0.1s ease;
 }
 
-.nav-fab__main:active .pendant-stone,
-.nav-fab__item:active .pendant-stone {
+.nav-fab__main--pressed .pendant-stone,
+.nav-fab__item--pressed .pendant-stone {
   transform: scale(0.82) translateY(1px);
   filter: brightness(0.8);
 }
