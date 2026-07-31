@@ -13,16 +13,16 @@ interface NavFabProps {
   onCreate?: () => void;
 }
 
-// INKA palette: saturated jewel colours, but not neon. These are the same
-// families already used elsewhere in the diary, brought back after the
-// previous pass pushed them too far toward fluorescent RGB.
+// INKA palette: deliberately high-chroma jewel colours. PendantIcon adds its
+// own dark facets, gold reflections and internal shading, so the source hues
+// need to stay brighter and more saturated than flat UI tokens.
 const NAV_ITEMS = [
   {
     id: "clients",
     label: "Клиенты",
     screen: "list",
     isActive: (active: AppScreen) => active === "list" || active === "settings" || active === "detail",
-    color: "#72C83E",
+    color: "#58E52E",
     durationMs: 2000,
   },
   {
@@ -30,7 +30,7 @@ const NAV_ITEMS = [
     label: "Личный кабинет",
     screen: "master",
     isActive: (active: AppScreen) => active === "master",
-    color: "#E2B62D",
+    color: "#FFD21A",
     durationMs: 3600,
   },
   {
@@ -38,7 +38,7 @@ const NAV_ITEMS = [
     label: "POSTiNKA",
     screen: "content",
     isActive: (active: AppScreen) => active === "content",
-    color: "#A14ED8",
+    color: "#B83CFF",
     durationMs: 3200,
   },
   {
@@ -46,7 +46,7 @@ const NAV_ITEMS = [
     label: "Проекты",
     screen: "workshop",
     isActive: (active: AppScreen) => active === "workshop",
-    color: "#319FD9",
+    color: "#1ABEF2",
     durationMs: 2100,
   },
   {
@@ -54,7 +54,7 @@ const NAV_ITEMS = [
     label: "Заметки",
     screen: "summary",
     isActive: (active: AppScreen) => active === "summary",
-    color: "#DF8427",
+    color: "#FF8A00",
     durationMs: 1800,
   },
   {
@@ -62,7 +62,7 @@ const NAV_ITEMS = [
     label: "Админка",
     screen: "admin",
     isActive: (active: AppScreen) => active === "admin",
-    color: "#D8402C",
+    color: "#F2383A",
     durationMs: 3800,
   },
 ] as const;
