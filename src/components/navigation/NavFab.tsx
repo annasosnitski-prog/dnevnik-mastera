@@ -266,7 +266,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
               <button
                 key={item.id}
                 type="button"
-                className={isCurrent ? "nav-fab__item nav-fab__item--current" : "nav-fab__item"}
+                className="nav-fab__item"
                 style={style}
                 aria-label={item.label}
                 onClick={() => {
@@ -275,8 +275,10 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 }}
               >
                 {/* Each destination is its own faceted gem colour — no
-                    glyph, the cut itself is the detail (see PendantIcon). */}
-                <PendantIcon color={item.color} size={ITEM_SIZE} />
+                    glyph, the cut itself is the detail (see PendantIcon).
+                    The current destination's own halo brightens instead of
+                    a separate "you are here" glow stacked via CSS. */}
+                <PendantIcon color={item.color} size={ITEM_SIZE} current={isCurrent} />
                 {badges?.map((kind, bi) => (
                   <span
                     key={kind}

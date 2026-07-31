@@ -239,13 +239,6 @@
   transition: transform 0.15s ease;
 }
 
-/* "You are here": since a pendant button has no background disc left to
-   re-tint, the current destination instead gets its own medallion glowing
-   a little brighter than the rest. */
-.nav-fab__item--current:not(.nav-fab__item--create) {
-  filter: drop-shadow(0 0 5px rgba(var(--gold-rgb), 0.9));
-}
-
 /* A small pale spotlight sitting behind each icon, a third of the button's
    own diameter — brighter than the icon itself so the glyph reads as
    silhouetted against its own little glow rather than floating on flat

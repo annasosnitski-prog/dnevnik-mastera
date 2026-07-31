@@ -23,11 +23,17 @@ export function PendantIcon({
   color,
   size,
   plate = false,
+  current = false,
   children,
 }: {
   color: string;
   size: number;
   plate?: boolean;
+  // The «you are here» destination glows a little brighter than the rest —
+  // baked into this same gradient instead of a second, separately-timed
+  // CSS glow layered on top (that used to create a visible seam, the same
+  // failure mode as the earlier box-shadow-vs-SVG black ring).
+  current?: boolean;
   children?: ReactNode;
 }) {
   const uid = useId();
@@ -241,16 +247,19 @@ export function PendantIcon({
           {/* A literal ring, not a blurred silhouette: full brightness all
               the way out to the disc's own radius (outerR), only fading
               beyond that — so its "inner diameter" matches the disc
-              exactly, no gap. This is now the button's *only* glow (the
-              CSS box-shadow that used to add a second, separately-timed
-              one is gone), reaching out over a much bigger radius than the
-              svg's own viewBox — the svg has overflow:visible so it isn't
-              clipped there. */}
+              exactly, no gap. This is the button's *only* glow (no CSS
+              box-shadow or filter layered on top — two independently-timed
+              glow systems is what caused both the earlier black ring and
+              the "looks like two halos" banding: a flat plateau followed by
+              a steep drop and then a gentle one reads as two rings once
+              several of these overlap in the fan, so this is a single
+              monotonic fade instead). Tinted by the stone's own colour
+              rather than a fixed gold, so each destination's glow matches
+              its gem. */}
           <radialGradient id={goldGlow} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r="90">
-            <stop offset="0" stopColor="#EF9D24" stopOpacity=".38" />
-            <stop offset={outerR / 90} stopColor="#EF9D24" stopOpacity=".38" />
-            <stop offset={(outerR + 16) / 90} stopColor="#EF9D24" stopOpacity=".13" />
-            <stop offset="1" stopColor="#EF9D24" stopOpacity="0" />
+            <stop offset="0" stopColor={color} stopOpacity={current ? ".58" : ".38"} />
+            <stop offset={outerR / 90} stopColor={color} stopOpacity={current ? ".58" : ".38"} />
+            <stop offset="1" stopColor={color} stopOpacity="0" />
           </radialGradient>
           <filter id={stoneGlow} x="-25%" y="-25%" width="150%" height="150%">
             <feGaussianBlur stdDeviation=".7" result="blur" />
