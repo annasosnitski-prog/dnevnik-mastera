@@ -17,6 +17,27 @@
   animation: nav-fab-scrim-in 420ms ease-out both;
 }
 
+/* Four non-interactive ornament rays extend beyond the functional stones.
+   Their small gold terminals are one quarter of the hub diameter and sit at
+   deliberately different distances, so the mechanism feels assembled rather
+   than mathematically uniform. */
+.nav-fab.nav-fab--open::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 460px;
+  height: 460px;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.12) rotate(-2deg);
+  transform-origin: 50% 50%;
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 460 460'%3E%3Cg fill='none' stroke='%23c9922e' stroke-linecap='round'%3E%3Cpath d='M230 230 L317 56' stroke-width='1.1' stroke-opacity='.62'/%3E%3Cpath d='M230 230 L415 164' stroke-width='.9' stroke-opacity='.48'/%3E%3Cpath d='M230 230 L79 391' stroke-width='1' stroke-opacity='.55'/%3E%3Cpath d='M230 230 L42 117' stroke-width='.8' stroke-opacity='.42'/%3E%3C/g%3E%3Cg fill='%23c9922e' stroke='%23ffe7a0' stroke-width='1'%3E%3Ccircle cx='317' cy='56' r='8'/%3E%3Ccircle cx='415' cy='164' r='8'/%3E%3Ccircle cx='79' cy='391' r='8'/%3E%3Ccircle cx='42' cy='117' r='8'/%3E%3C/g%3E%3Cg fill='none' stroke='%23fff4c8' stroke-width='.8' stroke-opacity='.78'%3E%3Ccircle cx='317' cy='56' r='4.8'/%3E%3Ccircle cx='415' cy='164' r='4.8'/%3E%3Ccircle cx='79' cy='391' r='4.8'/%3E%3Ccircle cx='42' cy='117' r='4.8'/%3E%3C/g%3E%3C/svg%3E");
+  filter: drop-shadow(0 0 4px rgba(var(--gold-rgb), 0.42));
+  animation: nav-fab-ornaments-open 1800ms cubic-bezier(0.16, 1, 0.3, 1) 760ms both;
+}
+
 /* The invitation glow is a real circular layer. It does not rely on a
    rectangular filter box, so no square can appear behind the gold hub. */
 .nav-fab__main--gold {
@@ -137,6 +158,24 @@
   }
 }
 
+@keyframes nav-fab-ornaments-open {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.12) rotate(-2deg);
+  }
+  48% {
+    opacity: 0.56;
+  }
+  78% {
+    opacity: 0.92;
+    transform: translate(-50%, -50%) scale(1.018) rotate(0.35deg);
+  }
+  100% {
+    opacity: 0.82;
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+  }
+}
+
 @keyframes nav-fab-ray-slide {
   0% {
     opacity: 0;
@@ -198,6 +237,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .nav-fab.nav-fab--open,
+  .nav-fab.nav-fab--open::before,
   .nav-fab__scrim,
   .nav-fab__main--gold::before,
   .nav-fab__main--gold::after,
@@ -207,6 +247,11 @@
   }
 
   .nav-fab.nav-fab--open {
+    transform: translate(-50%, -50%);
+  }
+
+  .nav-fab.nav-fab--open::before {
+    opacity: 0.82;
     transform: translate(-50%, -50%);
   }
 
