@@ -568,8 +568,8 @@ export default function TattoDiary() {
     return () => setConflictHandler(null);
   }, []);
 
-  // Reminder cards (see RemindersSection) the master has hidden (via the «⋯»
-  // menu's «Скрыть», or a swipe) or snoozed («Отложить …») — so they stay out
+  // Reminder cards (see RemindersSection) the master has deleted (via the «⋯»
+  // menu's «Удалить», or a swipe) or snoozed («Отложить …») — so they stay out
   // of the feed even though the underlying overdue/healing condition hasn't
   // changed. Keyed by a stable per-reminder string (see reminderKeys), not by
   // anything that would naturally clear this — marking done, rescheduling, or
