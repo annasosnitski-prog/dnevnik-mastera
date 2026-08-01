@@ -2271,6 +2271,18 @@ export default function TattoDiary() {
                 ],
               })
             }
+            onAddNote={(clientId, text, urgency, photos, dueDate) =>
+              upsertNote(clientId, {
+                id: crypto.randomUUID(),
+                text,
+                urgency,
+                done: false,
+                createdDate: new Date().toISOString(),
+                photos,
+                projectId: null,
+                dueDate,
+              })
+            }
             onToggleMasterDone={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
             onEditMasterNote={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
             onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}

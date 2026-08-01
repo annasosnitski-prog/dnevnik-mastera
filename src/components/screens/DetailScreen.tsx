@@ -2186,19 +2186,31 @@ export function NoteItem({
 
 // Compose a new note: text + urgency marker + any photos, all attached before
 // the note is saved (photos live on the note from the moment it's created).
-export function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void }) {
+// `clients`, when passed, adds a client picker so the note can be attached to
+// a client right from creation (e.g. from «Сводка», where there's no single
+// client already in scope) — omitted where the note is already scoped to one
+// client (the «Дополнительно» tab composer) and the field would be redundant.
+export function NoteComposer({
+  onAdd,
+  clients,
+}: {
+  onAdd: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, clientId: string | null) => void;
+  clients?: Client[];
+}) {
   const [text, setText] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
+  const [clientId, setClientId] = useState<string | null>(null);
   const submit = () => {
     const t = text.trim();
     if (!t) return;
-    onAdd(t, urgency, photos, dueDate || null);
+    onAdd(t, urgency, photos, dueDate || null, clientId);
     setText('');
     setUrgency('important');
     setPhotos([]);
     setDueDate('');
+    setClientId(null);
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2224,6 +2236,21 @@ export function NoteComposer({ onAdd }: { onAdd: (text: string, urgency: Urgency
         }}
       />
       <UrgencyChips value={urgency} onPick={setUrgency} />
+      {clients && clients.length > 0 && (
+        <div>
+          <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+            Клиент (необязательно)
+          </div>
+          <select value={clientId ?? ''} onChange={(e) => setClientId(e.target.value || null)} style={INPUT_STYLE}>
+            <option value="">— без клиента —</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {`${c.name} ${c.surname}`.trim()}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div>
         <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
           Срок (необязательно)
