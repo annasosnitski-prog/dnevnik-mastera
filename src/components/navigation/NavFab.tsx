@@ -1,141 +1,203 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { PendantIcon } from "./PendantIcon";
+import "./NavFabReveal.css";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
+type NavItemId = "clients" | "gear" | "content" | "brush" | "sketchbook" | "profile";
 
 interface NavFabProps {
   active: AppScreen;
   onNavigate: (screen: AppScreen) => void;
-  // «Админка» can carry an urgent reminder, a healing check-in, or both at
-  // once — every outstanding kind shows, stacked, rather than one hiding
-  // the other.
   adminBadges?: ("urgent" | "reminder")[];
-  // Contextual «create» action (new client / new note / schedule…) — its
-  // meaning depends on which screen is current, decided by the caller.
-  // Omit to hide the create button entirely (Личный кабинет has no create action).
   onCreate?: () => void;
 }
 
-// Clockwise order of destinations in the open semicircle. Internal ids and
-// screens stay stable so the renamed entries keep their existing routes.
-// Each destination is its own gem colour — the same jewel language as the
-// client tab pendants, so the whole app reads as one collection.
-const NAV_ITEMS: {
-  id: "sketchbook" | "content" | "clients" | "brush" | "profile" | "gear";
-  label: string;
-  screen: AppScreen;
-  isActive: (active: AppScreen) => boolean;
-  color: string;
-}[] = [
-  { id: "gear", label: "Личный кабинет", screen: "master", isActive: (a) => a === "master", color: "#DD7A2B" },
-  // «Клиенты» stays lit for Настройки and a client's Detail screen too —
-  // both are reached from the roster, not a separate section.
-  { id: "clients", label: "Клиенты", screen: "list", isActive: (a) => a === "list" || a === "settings" || a === "detail", color: "#72C83E" },
-  { id: "brush", label: "Проекты", screen: "workshop", isActive: (a) => a === "workshop", color: "#319FD9" },
-  { id: "profile", label: "Админка", screen: "admin", isActive: (a) => a === "admin", color: "#D8402C" },
-  { id: "sketchbook", label: "Планнер", screen: "summary", isActive: (a) => a === "summary", color: "#D89A24" },
-  { id: "content", label: "Контент", screen: "content", isActive: (a) => a === "content", color: "#A14ED8" },
-];
+const NAV_ITEMS = [
+  {
+    id: "clients",
+    label: "Клиенты",
+    screen: "list",
+    isActive: (active: AppScreen) => active === "list" || active === "settings" || active === "detail",
+    color: "#5CFF24",
+    durationMs: 2000,
+  },
+  {
+    id: "gear",
+    label: "Личный кабинет",
+    screen: "master",
+    isActive: (active: AppScreen) => active === "master",
+    color: "#FFE000",
+    durationMs: 3600,
+  },
+  {
+    id: "content",
+    label: "POSTiNKA",
+    screen: "content",
+    isActive: (active: AppScreen) => active === "content",
+    color: "#C12FFF",
+    durationMs: 3200,
+  },
+  {
+    id: "brush",
+    label: "Проекты",
+    screen: "workshop",
+    isActive: (active: AppScreen) => active === "workshop",
+    color: "#00CFFF",
+    durationMs: 2100,
+  },
+  {
+    id: "sketchbook",
+    label: "Заметки",
+    screen: "summary",
+    isActive: (active: AppScreen) => active === "summary",
+    color: "#FF8900",
+    durationMs: 1800,
+  },
+  {
+    id: "profile",
+    label: "Админка",
+    screen: "admin",
+    isActive: (active: AppScreen) => active === "admin",
+    color: "#FF3342",
+    durationMs: 3800,
+  },
+] as const;
 
-// The hub's own fixed pendant colour — shares the "Админка" red rather than
-// getting a colour of its own, per the requested mapping.
-const HUB_COLOR = "#D8402C";
-
-// The open toolbar is a half-ellipse, not a true semicircle: the horizontal
-// radius keeps the sides fitting a 320px-wide viewport edge to edge (seven
-// 62px buttons at 30° apart), but the vertical radius is taller, so the
-// centre rays reach higher and the ones toward the ends taper evenly back
-// down to that same horizontal radius rather than all sitting at one
-// uniform distance from the hub.
-const ARC_SPAN_DEG = 180;
-const FAN_RADIUS_X = 128;
-const FAN_RADIUS_Y = 172;
-
-function arcOffset(angleDeg: number, radiusX: number, radiusY: number): { dx: number; dy: number } {
-  const angleRad = (angleDeg * Math.PI) / 180;
-  return { dx: radiusX * Math.cos(angleRad), dy: -radiusY * Math.sin(angleRad) };
-}
-
-// A lens, not a fixed-width stroke — tapered to an actual point at both
-// (x1,y1) and (x2,y2) rather than just fading in opacity, widest at the
-// midpoint. So a ray visually vanishes right at the dot marking each end,
-// however closely you look, instead of meeting it as a flat-capped wedge.
-function rayLens(x1: number, y1: number, x2: number, y2: number, maxWidth: number): string {
-  const len = Math.hypot(x2 - x1, y2 - y1) || 1;
-  const px = -(y2 - y1) / len;
-  const py = (x2 - x1) / len;
-  const w = maxWidth / 2;
-  const mx = (x1 + x2) / 2;
-  const my = (y1 + y2) / 2;
-  return `M${x1},${y1} Q${mx + px * w},${my + py * w} ${x2},${y2} Q${mx - px * w},${my - py * w} ${x1},${y1}Z`;
-}
-
-// Half the main button's / a fan item's own width — used to size the
-// PendantIcon itself. The hub matches the fan items' own size.
-const ITEM_HALF = 31;
-const HUB_HALF = ITEM_HALF;
+const CREATE_DURATION_MS = 2400;
+const ITEM_HALF = 35;
+const HUB_HALF = 31;
 const HUB_SIZE = HUB_HALF * 2;
 const ITEM_SIZE = ITEM_HALF * 2;
-// PendantIcon's own gold disc doesn't quite fill its full pixel box (its
-// outerR is 29 out of a 64-wide viewBox, i.e. ~90.6% of the half-width) —
-// a ray/dot meeting HUB_HALF/ITEM_HALF itself would float in the small
-// margin outside the actual rim instead of sitting flush against it.
 const DISC_EDGE_RATIO = 29 / 32;
 const HUB_RIM = HUB_HALF * DISC_EDGE_RATIO;
 const ITEM_RIM = ITEM_HALF * DISC_EDGE_RATIO;
 
-// Single circular button, bottom-centre — replaces the full-width bottom bar.
-// Closed, it shows the icon for whatever screen is currently open (so you
-// always know where you are without expanding it); tapping it fans the
-// other destinations out around it in an arc.
+type FanEntry =
+  | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
+  | { kind: "create"; id: "create"; label: "Создать"; durationMs: number };
+
+function ergonomicOffset(entry: FanEntry): { dx: number; dy: number } {
+  const id = entry.kind === "create" ? "create" : entry.item.id;
+
+  // Right-handed layout. Frequent actions sit on the right and lower-right.
+  // Projects and Admin are deliberately swapped: Admin gets the easy
+  // upper-right position, Projects move to the left.
+  const positions: Record<string, { dx: number; dy: number }> = {
+    gear: { dx: 0, dy: -162 },
+    profile: { dx: 118, dy: -92 },
+    clients: { dx: 148, dy: 0 },
+    create: { dx: 112, dy: 108 },
+    content: { dx: 0, dy: 158 },
+    sketchbook: { dx: -108, dy: 108 },
+    brush: { dx: -146, dy: 0 },
+  };
+
+  return positions[id] ?? { dx: 0, dy: 0 };
+}
+
+function rayLens(x1: number, y1: number, x2: number, y2: number, maxWidth: number): string {
+  const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+  const px = -(y2 - y1) / len;
+  const py = (x2 - x1) / len;
+  const width = maxWidth / 2;
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+  return `M${x1},${y1} Q${mx + px * width},${my + py * width} ${x2},${y2} Q${mx - px * width},${my - py * width} ${x1},${y1}Z`;
+}
+
+function GemGlyph({ id }: { id: NavItemId }): ReactNode {
+  const common = {
+    fill: "none",
+    strokeWidth: 1.45,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  switch (id) {
+    case "clients":
+      return (
+        <g {...common}>
+          <circle cx="-3.2" cy="-3" r="2.4" />
+          <circle cx="3.2" cy="-3" r="2.4" />
+          <path d="M-8 6c.7-3.4 2.6-5.1 5.5-5.1S2.2 2.6 2.8 6" />
+          <path d="M-2.8 6C-2.2 2.6-.4.9 2.5.9S7.3 2.6 8 6" />
+        </g>
+      );
+    case "gear":
+      return (
+        <g {...common}>
+          <circle cx="0" cy="-3.5" r="3" />
+          <path d="M-6.5 7c.6-4.4 2.8-6.6 6.5-6.6S5.9 2.6 6.5 7" />
+        </g>
+      );
+    case "content":
+      return (
+        <g {...common}>
+          <path d="M-6 6C-2.8-1.7 1.6-6.3 7-7c-.7 5.5-4.6 10.4-10.9 12" />
+          <path d="M-4 7 4-2" />
+        </g>
+      );
+    case "brush":
+      return (
+        <g {...common}>
+          <path d="M-8-4h6l2 2h8v9H-8z" />
+          <path d="M-8-2h16" />
+        </g>
+      );
+    case "sketchbook":
+      return (
+        <g {...common}>
+          <rect x="-6" y="-7" width="12" height="14" rx="1.4" />
+          <path d="M-3-3h6M-3 0h6M-3 3h4" />
+        </g>
+      );
+    case "profile":
+      return (
+        <g {...common}>
+          <path d="M-7-2 0-7l7 5-1.3 6.2L0 8l-5.7-3.8z" />
+          <path d="M-3.2-1.3 0-3.6l3.2 2.3-.6 3.3L0 4.1-2.6 2z" />
+        </g>
+      );
+  }
+}
+
 export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProps) {
   const [open, setOpen] = useState(false);
-  // The press-down feel (whole button scale + stone sinking into its
-  // setting) is tracked explicitly rather than via CSS :active — :active
-  // is known to stick past release on touch devices, which would leave
-  // whichever button you just tapped to navigate looking permanently
-  // smaller/sunken the next time the fan opens.
   const [pressedId, setPressedId] = useState<string | null>(null);
-  const releasePress = (id: string) => setPressedId((p) => (p === id ? null : p));
+  const releasePress = (id: string) => setPressedId((current) => (current === id ? null : current));
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
-  type FanEntry = { kind: "create" } | { kind: "nav"; item: (typeof NAV_ITEMS)[number] };
-  // «Создать» is spliced into the middle of the (frequency-ordered) others,
-  // not just appended — see ARC_SPAN_DEG above for why that keeps it near
-  // the centre of the arc regardless of which destination is missing.
+
   const fanEntries: FanEntry[] = onCreate
     ? [
-        ...NAV_ITEMS.slice(0, Math.ceil(NAV_ITEMS.length / 2)).map((item) => ({ kind: "nav" as const, item })),
-        { kind: "create" as const },
-        ...NAV_ITEMS.slice(Math.ceil(NAV_ITEMS.length / 2)).map((item) => ({ kind: "nav" as const, item })),
+        { kind: "nav", item: NAV_ITEMS[1] },
+        { kind: "nav", item: NAV_ITEMS[5] },
+        { kind: "nav", item: NAV_ITEMS[0] },
+        { kind: "create", id: "create", label: "Создать", durationMs: CREATE_DURATION_MS },
+        { kind: "nav", item: NAV_ITEMS[2] },
+        { kind: "nav", item: NAV_ITEMS[4] },
+        { kind: "nav", item: NAV_ITEMS[3] },
       ]
-    : NAV_ITEMS.map((item) => ({ kind: "nav" as const, item }));
-  // «Админка» badges surface on its own circle when the menu is open; when
-  // it's closed and Админка isn't the current page, the dot moves to the
-  // main button instead, so an outstanding reminder is never invisible.
-  const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
-  const mainClasses = ["nav-fab__main"];
-  if (pressedId === "hub") mainClasses.push("nav-fab__main--pressed");
+    : [
+        { kind: "nav", item: NAV_ITEMS[1] },
+        { kind: "nav", item: NAV_ITEMS[5] },
+        { kind: "nav", item: NAV_ITEMS[0] },
+        { kind: "nav", item: NAV_ITEMS[2] },
+        { kind: "nav", item: NAV_ITEMS[4] },
+        { kind: "nav", item: NAV_ITEMS[3] },
+      ];
 
-  // Computed once so the connecting rays (drawn first, underneath) and the
-  // buttons themselves (drawn on top) agree on exactly the same points. The
-  // first and last entries sit at 180°/0°; the rest split the arc evenly.
-  const positions = fanEntries.map((_, i) => {
-    const angleDeg = fanEntries.length <= 1 ? 90 : ARC_SPAN_DEG - i * (ARC_SPAN_DEG / (fanEntries.length - 1));
-    return arcOffset(angleDeg, FAN_RADIUS_X, FAN_RADIUS_Y);
-  });
-  const rayExtent = Math.max(FAN_RADIUS_X, FAN_RADIUS_Y) + 40;
+  const positions = fanEntries.map(ergonomicOffset);
+  const rayExtent = 214;
+  const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
+  const mainClasses = ["nav-fab__main", "nav-fab__main--gold"];
+
+  if (pressedId === "hub") mainClasses.push("nav-fab__main--pressed");
 
   return (
     <>
-      {open && (
-        <div
-          className="nav-fab__scrim"
-          onClick={() => setOpen(false)}
-          aria-hidden="true"
-          style={{ position: "absolute", inset: 0, zIndex: 55 }}
-        />
-      )}
-      <div className="nav-fab">
+      {open && <div className="nav-fab__scrim" onClick={() => setOpen(false)} aria-hidden="true" />}
+
+      <div className={open ? "nav-fab nav-fab--open" : "nav-fab"}>
         {open && (
           <svg
             className="nav-fab__rays"
@@ -143,45 +205,26 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             style={{ left: -rayExtent, top: -rayExtent, width: rayExtent * 2, height: rayExtent * 2 }}
             viewBox={`${-rayExtent} ${-rayExtent} ${rayExtent * 2} ${rayExtent * 2}`}
           >
-            {/* A blurred stroke's glow spreads past its own geometry no
-                matter how precisely the line itself is trimmed, so trimming
-                alone still let it bleed into a button's (transparent)
-                interior. This mask hard-clips the whole ray — including its
-                blur — to a disc cut out at the hub and at every button, so
-                nothing is ever visible past those circles' actual edges. */}
             <mask id="navFabRayMask">
               <rect x={-rayExtent} y={-rayExtent} width={rayExtent * 2} height={rayExtent * 2} fill="white" />
               <circle cx={0} cy={0} r={HUB_RIM} fill="black" />
-              {positions.map(({ dx, dy }, i) => (
-                <circle key={i} cx={dx} cy={dy} r={ITEM_RIM} fill="black" />
+              {positions.map(({ dx, dy }, index) => (
+                <circle key={index} cx={dx} cy={dy} r={ITEM_RIM} fill="black" />
               ))}
             </mask>
+
             <defs>
-              {/* One gradient per ray, running along its own length (hub →
-                  button) — dim near the hub, brightest at the button, like
-                  a beam losing intensity over distance rather than a flat
-                  line with uniform brightness. */}
-              {positions.map(({ dx, dy }, i) => {
-                const len = Math.hypot(dx, dy) || 1;
-                const ux = dx / len;
-                const uy = dy / len;
-                const x1 = ux * HUB_RIM;
-                const y1 = uy * HUB_RIM;
-                return (
-                  <linearGradient key={i} id={`navFabRayGrad-${i}`} gradientUnits="userSpaceOnUse" x1={x1} y1={y1} x2={dx} y2={dy}>
-                    <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.05} />
-                    <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.95} />
-                  </linearGradient>
-                );
-              })}
+              {positions.map(({ dx, dy }, index) => (
+                <linearGradient key={index} id={`navFabRayGrad-${index}`} gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={dx} y2={dy}>
+                  <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.05} />
+                  <stop offset="52%" stopColor="var(--gold)" stopOpacity={0.34} />
+                  <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.86} />
+                </linearGradient>
+              ))}
             </defs>
-            {/* Each ray is a lens, not a fixed-width stroke — tapered to a
-                point at both the hub and the button, widest at the middle,
-                like natural beam falloff run in both directions. Drawn
-                under the mask above so neither the shape nor its blur ever
-                crosses into a button's interior. */}
+
             <g mask="url(#navFabRayMask)">
-              {positions.map(({ dx, dy }, i) => {
+              {positions.map(({ dx, dy }, index) => {
                 const len = Math.hypot(dx, dy) || 1;
                 const ux = dx / len;
                 const uy = dy / len;
@@ -189,99 +232,79 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 const y1 = uy * HUB_RIM;
                 const x2 = dx - ux * ITEM_RIM;
                 const y2 = dy - uy * ITEM_RIM;
+                const entry = fanEntries[index];
+                const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
+
                 return (
-                  <g key={i}>
-                    <path className="nav-fab__ray-glow" fill={`url(#navFabRayGrad-${i})`} d={rayLens(x1, y1, x2, y2, 2.8)} />
-                    <path className="nav-fab__ray" fill={`url(#navFabRayGrad-${i})`} d={rayLens(x1, y1, x2, y2, 0.8)} />
-                  </g>
-                );
-              })}
-            </g>
-            {/* Each dot's soft halo sits outside the mask, on purpose — a
-                point of light spilling a little onto the button it marks
-                reads as natural bloom, not the same visual glitch as a
-                straight edge poking through (what the mask above still
-                prevents for the rays themselves). Only the dot's own crisp
-                core is clipped, so its solid disc still doesn't sit on top
-                of the button — just the glow around it. */}
-            {positions.map(({ dx, dy }, i) => {
-              const len = Math.hypot(dx, dy) || 1;
-              const ux = dx / len;
-              const uy = dy / len;
-              const hubX = ux * HUB_RIM;
-              const hubY = uy * HUB_RIM;
-              const itemX = dx - ux * ITEM_RIM;
-              const itemY = dy - uy * ITEM_RIM;
-              return (
-                <g key={i}>
-                  <circle className="nav-fab__ray-dot-glow" cx={hubX} cy={hubY} r={4.5} />
-                  <circle className="nav-fab__ray-dot-glow" cx={itemX} cy={itemY} r={4.5} />
-                </g>
-              );
-            })}
-            <g mask="url(#navFabRayMask)">
-              {positions.map(({ dx, dy }, i) => {
-                const len = Math.hypot(dx, dy) || 1;
-                const ux = dx / len;
-                const uy = dy / len;
-                return (
-                  <g key={i}>
-                    <circle className="nav-fab__ray-dot" cx={ux * HUB_RIM} cy={uy * HUB_RIM} r={2.4} />
-                    <circle className="nav-fab__ray-dot" cx={dx - ux * ITEM_RIM} cy={dy - uy * ITEM_RIM} r={2.4} />
+                  <g
+                    key={index}
+                    className="nav-fab__ray-group"
+                    style={{
+                      ["--ray-duration" as string]: `${Math.max(900, durationMs - 520)}ms`,
+                      ["--ray-delay" as string]: `${90 + index * 70}ms`,
+                    }}
+                  >
+                    <path className="nav-fab__ray-glow" fill={`url(#navFabRayGrad-${index})`} d={rayLens(x1, y1, x2, y2, 2.8)} />
+                    <path className="nav-fab__ray" fill={`url(#navFabRayGrad-${index})`} d={rayLens(x1, y1, x2, y2, 0.8)} />
                   </g>
                 );
               })}
             </g>
           </svg>
         )}
-        {open &&
-          fanEntries.map((entry, i) => {
-            const isCreate = entry.kind === "create";
-            const { dx, dy } = positions[i];
-            const style = { ["--i" as string]: i, ["--dx" as string]: `${dx}px`, ["--dy" as string]: `${dy}px` };
 
-            if (isCreate) {
+        {open &&
+          fanEntries.map((entry, index) => {
+            const { dx, dy } = positions[index];
+            const id = entry.kind === "create" ? entry.id : entry.item.id;
+            const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
+            const classes = ["nav-fab__item", "nav-fab__item--ice"];
+
+            if (entry.kind === "create") classes.push("nav-fab__item--create");
+            if (pressedId === id) classes.push("nav-fab__item--pressed");
+
+            if (entry.kind === "create") {
               return (
                 <button
-                  key="create"
+                  key={entry.id}
                   type="button"
-                  className={
-                    pressedId === "create" ? "nav-fab__item nav-fab__item--create nav-fab__item--pressed" : "nav-fab__item nav-fab__item--create"
-                  }
-                  style={style}
-                  aria-label="Создать"
-                  onPointerDown={() => setPressedId("create")}
-                  onPointerUp={() => releasePress("create")}
-                  onPointerCancel={() => releasePress("create")}
-                  onPointerLeave={() => releasePress("create")}
+                  className={classes.join(" ")}
+                  style={{
+                    ["--dx" as string]: `${dx}px`,
+                    ["--dy" as string]: `${dy}px`,
+                    ["--travel-duration" as string]: `${durationMs}ms`,
+                    ["--travel-delay" as string]: `${120 + index * 65}ms`,
+                  }}
+                  aria-label={entry.label}
+                  onPointerDown={() => setPressedId(entry.id)}
+                  onPointerUp={() => releasePress(entry.id)}
+                  onPointerCancel={() => releasePress(entry.id)}
+                  onPointerLeave={() => releasePress(entry.id)}
                   onClick={() => {
                     onCreate?.();
                     setOpen(false);
                   }}
                 >
-                  {/* Same gold rim + pavé halo as every other pendant, but a
-                      plain gold plate at the centre instead of a coloured
-                      stone — this marks an action, not a destination. */}
                   <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
-                    <line x1="0" y1="-6" x2="0" y2="6" strokeWidth="1.8" strokeLinecap="round" />
-                    <line x1="-6" y1="0" x2="6" y2="0" strokeWidth="1.8" strokeLinecap="round" />
+                    <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
+                    <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
                   </PendantIcon>
                 </button>
               );
             }
 
             const { item } = entry;
-            const badges = item.screen === "admin" ? adminBadges : undefined;
-            const isCurrent = item === current;
-            const itemClasses = ["nav-fab__item"];
-            if (!isCurrent) itemClasses.push("nav-fab__item--dim");
-            if (pressedId === item.id) itemClasses.push("nav-fab__item--pressed");
             return (
               <button
                 key={item.id}
                 type="button"
-                className={itemClasses.join(" ")}
-                style={style}
+                className={classes.join(" ")}
+                style={{
+                  ["--dx" as string]: `${dx}px`,
+                  ["--dy" as string]: `${dy}px`,
+                  ["--travel-duration" as string]: `${durationMs}ms`,
+                  ["--travel-delay" as string]: `${120 + index * 65}ms`,
+                }}
                 aria-label={item.label}
                 onPointerDown={() => setPressedId(item.id)}
                 onPointerUp={() => releasePress(item.id)}
@@ -292,37 +315,50 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   setOpen(false);
                 }}
               >
-                {/* Each destination is its own faceted gem colour — no
-                    glyph, the cut itself is the detail (see PendantIcon).
-                    The one matching the page you're on dims the rest. */}
-                <PendantIcon color={item.color} size={ITEM_SIZE} />
-                {badges?.map((kind, bi) => (
-                  <span
-                    key={kind}
-                    className="nav-fab__badge"
-                    style={{ top: -2 - bi * 7, right: -2 - bi * 7, background: kind === "urgent" ? "var(--urgent)" : "#e0b84a" }}
-                  />
-                ))}
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: "block",
+                    filter: `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
+                  }}
+                >
+                  <PendantIcon color={item.color} size={ITEM_SIZE}>
+                    <GemGlyph id={item.id as NavItemId} />
+                  </PendantIcon>
+                </span>
+                {item.screen === "admin" &&
+                  adminBadges?.map((kind, badgeIndex) => (
+                    <span
+                      key={kind}
+                      className="nav-fab__badge"
+                      style={{
+                        top: -2 - badgeIndex * 7,
+                        right: -2 - badgeIndex * 7,
+                        background: kind === "urgent" ? "var(--urgent)" : "#e0b84a",
+                      }}
+                    />
+                  ))}
               </button>
             );
           })}
+
         <button
           type="button"
           className={mainClasses.join(" ")}
-          aria-label={open ? "Закрыть меню" : `Раздел: ${current.label}`}
+          aria-label={open ? "Закрыть меню" : "Открыть меню"}
           aria-expanded={open}
           onPointerDown={() => setPressedId("hub")}
           onPointerUp={() => releasePress("hub")}
           onPointerCancel={() => releasePress("hub")}
           onPointerLeave={() => releasePress("hub")}
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen((value) => !value)}
         >
-          {/* The hub always shows its own red faceted stone — a fixed
-              identity, not a current-screen indicator — regardless of which
-              destination is active. */}
-          <PendantIcon color={HUB_COLOR} size={HUB_SIZE} />
+          <PendantIcon color="#C9922E" size={HUB_SIZE} plate />
           {mainBadgeKind && (
-            <span className="nav-fab__badge" style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }} />
+            <span
+              className="nav-fab__badge"
+              style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }}
+            />
           )}
         </button>
       </div>
