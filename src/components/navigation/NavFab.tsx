@@ -71,28 +71,18 @@ const ITEM_SIZE = ITEM_HALF * 2;
 const DISC_EDGE_RATIO = 29 / 32;
 const HUB_RIM = HUB_HALF * DISC_EDGE_RATIO;
 const ITEM_RIM = ITEM_HALF * DISC_EDGE_RATIO;
+const FAN_RADIUS = 158;
 
 type FanEntry =
   | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
   | { kind: "create"; id: "create"; label: "Создать"; durationMs: number };
 
-function ergonomicOffset(entry: FanEntry): { dx: number; dy: number } {
-  const id = entry.kind === "create" ? "create" : entry.item.id;
-
-  // Right-handed layout. Frequent actions sit on the right and lower-right.
-  // Projects and Admin are deliberately swapped: Admin gets the easy
-  // upper-right position, Projects move to the left.
-  const positions: Record<string, { dx: number; dy: number }> = {
-    gear: { dx: 0, dy: -162 },
-    profile: { dx: 118, dy: -92 },
-    clients: { dx: 148, dy: 0 },
-    create: { dx: 112, dy: 108 },
-    content: { dx: 0, dy: 158 },
-    sketchbook: { dx: -108, dy: 108 },
-    brush: { dx: -146, dy: 0 },
+function radialOffset(index: number, total: number): { dx: number; dy: number } {
+  const angle = -Math.PI / 2 + (index * Math.PI * 2) / total;
+  return {
+    dx: Math.round(Math.cos(angle) * FAN_RADIUS),
+    dy: Math.round(Math.sin(angle) * FAN_RADIUS),
   };
-
-  return positions[id] ?? { dx: 0, dy: 0 };
 }
 
 function rayLens(x1: number, y1: number, x2: number, y2: number, maxWidth: number): string {
@@ -186,7 +176,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         { kind: "nav", item: NAV_ITEMS[3] },
       ];
 
-  const positions = fanEntries.map(ergonomicOffset);
+  const positions = fanEntries.map((_, index) => radialOffset(index, fanEntries.length));
   const rayExtent = 214;
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
   const mainClasses = ["nav-fab__main", "nav-fab__main--gold"];
