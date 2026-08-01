@@ -535,12 +535,19 @@ export default function TattoDiary() {
   }, [prefs]);
 
   // The master's own contacts/payment/colour-legend card (single record).
+  // Хранится в localStorage, а не IndexedDB — у него гораздо меньше квота
+  // (обычно 5-10 МБ на весь ориджин) и запись синхронная. masterInfo.notes
+  // может нести фото (тот же SessionPhotos, что и у заметок клиента) —
+  // если после сжатия несколько таких заметок всё равно не влезли в квоту,
+  // раньше это молча проглатывалось: заметка выглядела сохранённой в UI, но
+  // пропадала после перезапуска без единого предупреждения.
   const [masterInfo, setMasterInfo] = useState<MasterInfo>(readInitialMasterInfo);
   useEffect(() => {
     try {
       localStorage.setItem('inka-master-info', JSON.stringify(masterInfo));
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error('Failed to persist master info:', err);
+      setDbError('Не удалось сохранить личные заметки — слишком много данных (обычно из-за фото). Удалите часть фото в заметках «Задачи».');
     }
   }, [masterInfo]);
 
@@ -783,9 +790,9 @@ export default function TattoDiary() {
   // закрылось (браузер может закрыть его сам под давлением памяти — вероятнее
   // при больших фото, см. downsizeForStorage). Раньше это исключение никем не
   // ловилось и роняло всё приложение вместо понятной ошибки с «Повторить».
-  const openWriteTx = (storeNames: string | string[], database: IDBDatabase, failMessage: string): IDBTransaction | null => {
+  const openTx = (storeNames: string | string[], database: IDBDatabase, mode: IDBTransactionMode, failMessage: string): IDBTransaction | null => {
     try {
-      return database.transaction(storeNames, 'readwrite');
+      return database.transaction(storeNames, mode);
     } catch (err) {
       console.error('IndexedDB transaction failed to start:', err);
       setDb(null);
@@ -793,9 +800,12 @@ export default function TattoDiary() {
       return null;
     }
   };
+  const openWriteTx = (storeNames: string | string[], database: IDBDatabase, failMessage: string): IDBTransaction | null =>
+    openTx(storeNames, database, 'readwrite', failMessage);
 
   const loadClients = (database: IDBDatabase) => {
-    const tx = database.transaction('clients', 'readonly');
+    const tx = openTx('clients', database, 'readonly', 'Не удалось загрузить клиентов.');
+    if (!tx) return;
     const request = tx.objectStore('clients').getAll();
     request.onsuccess = () => {
       setClients((request.result || []).map(normalizeClient));
@@ -805,7 +815,8 @@ export default function TattoDiary() {
   };
 
   const loadProjects = (database: IDBDatabase) => {
-    const tx = database.transaction('projects', 'readonly');
+    const tx = openTx('projects', database, 'readonly', 'Не удалось загрузить проекты.');
+    if (!tx) return;
     const request = tx.objectStore('projects').getAll();
     request.onsuccess = () => {
       setProjects((request.result || []).map(normalizeProject));
@@ -843,7 +854,8 @@ export default function TattoDiary() {
   };
 
   const loadContentEntries = (database: IDBDatabase) => {
-    const tx = database.transaction('contentEntries', 'readonly');
+    const tx = openTx('contentEntries', database, 'readonly', 'Не удалось загрузить черновики контента.');
+    if (!tx) return;
     const request = tx.objectStore('contentEntries').getAll();
     request.onsuccess = () =>
       setContentEntries((request.result || []).map((entry) => normalizeContentEntry(entry)).map((entry) => normalizeContentEntryLink(entry)));
@@ -862,10 +874,19 @@ export default function TattoDiary() {
     reloadContentIngestJobs(db);
   };
 
+  // «Удалить»/«Отменить» на карточке задачи (см. ContentINKAScreen) зовут это
+  // напрямую из onClick без await — если сохранение упадёт (например,
+  // оборвалось соединение с IndexedDB), это раньше был необработанный reject
+  // без единого следа для мастера. Ловим и показываем ту же плашку dbError.
   const removeContentIngestJob = async (id: string): Promise<void> => {
     if (!db) return;
-    await deleteContentIngestJob(db, id);
-    reloadContentIngestJobs(db);
+    try {
+      await deleteContentIngestJob(db, id);
+      reloadContentIngestJobs(db);
+    } catch (err) {
+      console.error('Failed to delete content ingest job:', err);
+      setDbError('Не удалось удалить задачу POSTiNKA.');
+    }
   };
 
   // Единственная точка записи для contentEntries — по аналогии с
