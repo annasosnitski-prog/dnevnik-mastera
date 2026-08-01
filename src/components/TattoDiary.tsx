@@ -52,7 +52,7 @@ import {
   type ContentSharePhoto,
 } from '../lib/contentShare';
 export { shareOrDownloadJSON } from '../lib/contentShare';
-import { downsizePhotosSequentially } from '../lib/imagePreview';
+import { downsizePhotosSequentially, downsizeForStorage } from '../lib/imagePreview';
 import { createContentEntryCardRevision } from '../lib/contentCardMemo';
 import { buildInitialContentInstruction } from '../lib/contentPrompt';
 import {
@@ -4651,8 +4651,15 @@ function ContentINKAScreen({
               .join('\n\n')
           : '';
       const description = composerText.trim() || noteFallback;
-      const photos = composerPhotos.length > 0 ? composerPhotos : linkedItem?.photos ?? [];
-      const photoIds = createContentPhotoIds(photos.length);
+      const rawPhotos = composerPhotos.length > 0 ? composerPhotos : linkedItem?.photos ?? [];
+      const photoIds = createContentPhotoIds(rawPhotos.length);
+      // linkedItem.photos может быть несжатым оригиналом (сессия создана до
+      // downsizeForStorage) — пересжимаем перед тем как положить в ещё одну
+      // IndexedDB-запись (contentIngestJobs, потом contentEntries), иначе то
+      // же фото временно лежит в базе в 2-3 копиях одновременно, пока
+      // POSTiNKA его обрабатывает.
+      const storedPhotoResults = await downsizePhotosSequentially(rawPhotos, photoIds, (photo) => downsizeForStorage(photo).catch(() => photo));
+      const photos = storedPhotoResults.map((p) => p.preview_data_url);
       const selectedTextArchetype = ARCHETYPE_CHIPS.find((preset) => preset.label === composerTextArchetype);
       const masterInstruction = photos.length > 0
         ? buildInitialContentInstruction(selectedTextArchetype?.instruction)
