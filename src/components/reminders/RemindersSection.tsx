@@ -155,8 +155,8 @@ function snoozeShowAfter(days: number): string {
 }
 
 // Компактное меню карточки напоминания («⋯»): отложить до завтра / на 3 дня /
-// скрыть. Стоит на месте прежней кнопки закрытия, чтобы не громоздить кнопки
-// на карточке. Пункт «скрыть» относится только к текущему reminder-ключу —
+// удалить. Стоит на месте прежней кнопки закрытия, чтобы не громоздить кнопки
+// на карточке. Пункт «удалить» относится только к текущему reminder-ключу —
 // новое событие той же сущности получит другой ключ и покажется снова.
 //
 // Оверлей и выпадашка рендерятся через createPortal в document.body: карточки
@@ -169,11 +169,11 @@ const REMINDER_MENU_MARGIN = 6;
 function ReminderMenuButton({
   onSnoozeTomorrow,
   onSnooze3Days,
-  onHide,
+  onDelete,
 }: {
   onSnoozeTomorrow: () => void;
   onSnooze3Days: () => void;
-  onHide: () => void;
+  onDelete: () => void;
 }) {
   const btnRef = useRef<HTMLSpanElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -260,8 +260,8 @@ function ReminderMenuButton({
               <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)' }} onClick={() => runAndClose(onSnooze3Days)}>
                 Отложить на 3 дня
               </div>
-              <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textFaint }} onClick={() => runAndClose(onHide)}>
-                Скрыть это напоминание
+              <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textFaint }} onClick={() => runAndClose(onDelete)}>
+                Удалить это напоминание
               </div>
             </div>
           </>,
@@ -463,7 +463,7 @@ function OverdueReminderCard({
         <ReminderMenuButton
           onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeShowAfter(1)))}
           onSnooze3Days={() => flyOutThen(() => onSnooze(snoozeShowAfter(3)))}
-          onHide={() => flyOutThen(onDismiss)}
+          onDelete={() => flyOutThen(onDismiss)}
         />
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
@@ -537,7 +537,7 @@ function ProjectSessionReminderCard({
             <ReminderMenuButton
               onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeShowAfter(1)))}
               onSnooze3Days={() => flyOutThen(() => onSnooze(snoozeShowAfter(3)))}
-              onHide={() => flyOutThen(onDismiss)}
+              onDelete={() => flyOutThen(onDismiss)}
             />
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
@@ -676,7 +676,7 @@ export function RemindersSection({
                   <ReminderMenuButton
                     onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
                     onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
-                    onHide={() => flyOutThen(() => onDismiss(key))}
+                    onDelete={() => flyOutThen(() => onDismiss(key))}
                   />
                 </div>
               </div>
@@ -734,7 +734,7 @@ export function RemindersSection({
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
                       onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
-                      onHide={() => flyOutThen(() => onDismiss(key))}
+                      onDelete={() => flyOutThen(() => onDismiss(key))}
                     />
                   </div>
                 </div>
@@ -772,7 +772,7 @@ export function RemindersSection({
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
                       onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
-                      onHide={() => flyOutThen(() => onDismiss(key))}
+                      onDelete={() => flyOutThen(() => onDismiss(key))}
                     />
                   </div>
                 </div>
@@ -781,7 +781,7 @@ export function RemindersSection({
           );
         })}
         {taskList.map((it) => {
-          // Скрыть → reminder.id (с rule); отложить → actionKey (без rule),
+          // Удалить → reminder.id (с rule); отложить → actionKey (без rule),
           // чтобы откладывание пережило переход due→overdue (см. reminderKeys).
           const dismissKey = it.id;
           const snoozeKey = it.actionKey;
@@ -819,7 +819,7 @@ export function RemindersSection({
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfter(1)))}
                       onSnooze3Days={() => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfter(3)))}
-                      onHide={() => flyOutThen(() => onDismiss(dismissKey))}
+                      onDelete={() => flyOutThen(() => onDismiss(dismissKey))}
                     />
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
