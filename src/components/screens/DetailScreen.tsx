@@ -20,6 +20,7 @@ import { lastSessionDate } from '../../domain/plannerSelectors';
 import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
 import { buildChatLink } from '../../lib/chatLink';
 import { normalizeClient } from '../../lib/normalize';
+import { downsizeForStorage } from '../../lib/imagePreview';
 import { type ContentWorkspaceNavigation } from '../../lib/contentWorkspace';
 import { ISO_DATE_RE, formatDate } from '../../utils/dates';
 import { COLORS, fs, DONE_EMOJI } from '../ui/designTokens';
@@ -2318,13 +2319,18 @@ function AttachmentsSection({
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
+    const isImage = file.type.startsWith('image/');
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      // Сжимаем только фото — документы (PDF и т.п.) canvas не умеет
+      // прочитать, и им это не нужно. См. downsizeForStorage.
+      const fileUrl = isImage ? await downsizeForStorage(dataUrl).catch(() => dataUrl) : dataUrl;
       onAddDocument({
         id: crypto.randomUUID(),
         name: file.name,
-        fileUrl: reader.result as string,
-        kind: file.type.startsWith('image/') ? 'photo' : 'document',
+        fileUrl,
+        kind: isImage ? 'photo' : 'document',
         uploadedDate: new Date().toLocaleDateString('ru-RU'),
       });
     };

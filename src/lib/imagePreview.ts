@@ -1,9 +1,7 @@
-// Сжимает фото (уже загруженное в Дневник как base64 data URL) до
-// небольшого превью перед отправкой в ContentINKA — см.
-// contentinka-design.md, «Размер запроса — решено через превью».
-// Оригинал в Session.photos/Consultation.photos не трогаем, это только
-// для передачи модели.
-export function downsizeToPreview(dataUrl: string, maxSide = 768, quality = 0.7): Promise<string> {
+// Общий пайплайн сжатия: рисуем data URL на canvas с ограничением по
+// большей стороне и JPEG-качеством. Два разных use-case (см. ниже) отличаются
+// только параметрами.
+function resizeImage(dataUrl: string, maxSide: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const releaseImage = () => {
@@ -44,6 +42,25 @@ export function downsizeToPreview(dataUrl: string, maxSide = 768, quality = 0.7)
     };
     img.src = dataUrl;
   });
+}
+
+// Сжимает фото (уже загруженное в Дневник как base64 data URL) до
+// небольшого превью перед отправкой в ContentINKA — см.
+// contentinka-design.md, «Размер запроса — решено через превью».
+export function downsizeToPreview(dataUrl: string, maxSide = 768, quality = 0.7): Promise<string> {
+  return resizeImage(dataUrl, maxSide, quality);
+}
+
+// Сжимает фото перед тем как положить его в Session/Consultation/Project.photos
+// или в документы клиента (см. onPick в SessionPhotos и handleFile в
+// AttachmentsSection). Несжатое фото с телефона — это 3–8 МБ; так как весь
+// client записывается в IndexedDB целиком при каждом изменении (saveClient),
+// несколько таких фото делают запись огромной — сохранение подвисает, а на
+// части устройств не хватает памяти и вкладка перезапускается («хранилище
+// недоступно» при следующем холодном старте). 1600px/0.85 — фото остаётся
+// пригодным для показа крупно, но весит на порядок меньше оригинала.
+export function downsizeForStorage(dataUrl: string, maxSide = 1600, quality = 0.85): Promise<string> {
+  return resizeImage(dataUrl, maxSide, quality);
 }
 
 export async function downsizePhotosSequentially(

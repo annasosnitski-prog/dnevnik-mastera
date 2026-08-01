@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { type ClientType, CLIENT_TYPES } from '../../domain/client';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
 import { type ProjectCategory, PROJECT_CATEGORIES } from '../../domain/project';
+import { downsizeForStorage } from '../../lib/imagePreview';
 import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT } from '../TattoDiary';
 
 // Вынесено из TattoDiary.tsx (PR 10 рефакторинга) — общие форм-контролы
@@ -340,7 +341,11 @@ export function SessionPhotos({
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.readAsDataURL(file);
-        }),
+        })
+          // Несжатое фото с камеры телефона — это несколько мегабайт; без
+          // сжатия оно ложится в IndexedDB как есть (см. downsizeForStorage).
+          // Если сжатие почему-то не удалось — не теряем фото, кладём оригинал.
+          .then((dataUrl) => downsizeForStorage(dataUrl).catch(() => dataUrl)),
     );
     Promise.all(readers).then((urls) => onChange([...photos, ...urls]));
   };
