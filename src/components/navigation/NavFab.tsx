@@ -3,7 +3,6 @@ import { PendantIcon } from "./PendantIcon";
 import "./NavFabReveal.css";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
-
 type NavItemId = "clients" | "gear" | "content" | "brush" | "sketchbook" | "profile";
 
 interface NavFabProps {
@@ -65,23 +64,35 @@ const NAV_ITEMS = [
 ] as const;
 
 const CREATE_DURATION_MS = 2400;
-const FAN_RADIUS_X = 126;
-const FAN_RADIUS_Y = 150;
-const ITEM_HALF = 31;
-const HUB_HALF = ITEM_HALF;
+const ITEM_HALF = 35;
+const HUB_HALF = 31;
 const HUB_SIZE = HUB_HALF * 2;
 const ITEM_SIZE = ITEM_HALF * 2;
 const DISC_EDGE_RATIO = 29 / 32;
 const HUB_RIM = HUB_HALF * DISC_EDGE_RATIO;
 const ITEM_RIM = ITEM_HALF * DISC_EDGE_RATIO;
 
-function radialOffset(index: number, count: number): { dx: number; dy: number } {
-  const angleDeg = 180 - index * (360 / count);
-  const angleRad = (angleDeg * Math.PI) / 180;
-  return {
-    dx: FAN_RADIUS_X * Math.cos(angleRad),
-    dy: -FAN_RADIUS_Y * Math.sin(angleRad),
+type FanEntry =
+  | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
+  | { kind: "create"; id: "create"; label: "Создать"; durationMs: number };
+
+function ergonomicOffset(entry: FanEntry): { dx: number; dy: number } {
+  const id = entry.kind === "create" ? "create" : entry.item.id;
+
+  // Right-handed layout. Frequent actions sit on the right and lower-right.
+  // Projects and Admin are deliberately swapped: Admin gets the easy
+  // upper-right position, Projects move to the left.
+  const positions: Record<string, { dx: number; dy: number }> = {
+    gear: { dx: 0, dy: -162 },
+    profile: { dx: 118, dy: -92 },
+    clients: { dx: 148, dy: 0 },
+    create: { dx: 112, dy: 108 },
+    content: { dx: 0, dy: 158 },
+    sketchbook: { dx: -108, dy: 108 },
+    brush: { dx: -146, dy: 0 },
   };
+
+  return positions[id] ?? { dx: 0, dy: 0 };
 }
 
 function rayLens(x1: number, y1: number, x2: number, y2: number, maxWidth: number): string {
@@ -156,21 +167,27 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   const releasePress = (id: string) => setPressedId((current) => (current === id ? null : current));
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
 
-  type FanEntry =
-    | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
-    | { kind: "create"; id: "create"; label: "Создать"; durationMs: number };
-
   const fanEntries: FanEntry[] = onCreate
     ? [
-        { kind: "nav", item: NAV_ITEMS[0] },
         { kind: "nav", item: NAV_ITEMS[1] },
+        { kind: "nav", item: NAV_ITEMS[5] },
+        { kind: "nav", item: NAV_ITEMS[0] },
         { kind: "create", id: "create", label: "Создать", durationMs: CREATE_DURATION_MS },
-        ...NAV_ITEMS.slice(2).map((item) => ({ kind: "nav" as const, item })),
+        { kind: "nav", item: NAV_ITEMS[2] },
+        { kind: "nav", item: NAV_ITEMS[4] },
+        { kind: "nav", item: NAV_ITEMS[3] },
       ]
-    : NAV_ITEMS.map((item) => ({ kind: "nav" as const, item }));
+    : [
+        { kind: "nav", item: NAV_ITEMS[1] },
+        { kind: "nav", item: NAV_ITEMS[5] },
+        { kind: "nav", item: NAV_ITEMS[0] },
+        { kind: "nav", item: NAV_ITEMS[2] },
+        { kind: "nav", item: NAV_ITEMS[4] },
+        { kind: "nav", item: NAV_ITEMS[3] },
+      ];
 
-  const positions = fanEntries.map((_, index) => radialOffset(index, fanEntries.length));
-  const rayExtent = Math.max(FAN_RADIUS_X, FAN_RADIUS_Y) + 44;
+  const positions = fanEntries.map(ergonomicOffset);
+  const rayExtent = 214;
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
   const mainClasses = ["nav-fab__main", "nav-fab__main--gold"];
 
