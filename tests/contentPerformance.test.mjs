@@ -21,7 +21,7 @@ test('content workspace starts with eight entries, shows eight more, and filters
   assert.match(diary, /current \+ CONTENT_ENTRY_PAGE_SIZE/);
   assert.match(diary, />\s*\u041fоказать ещё\s*</);
   const filters = diary.slice(diary.indexOf('aria-label="Фильтр записей"'), diary.indexOf('{/* ── List ── */}'));
-  assert.equal((filters.match(/setVisibleEntryLimit\(CONTENT_ENTRY_PAGE_SIZE\)/g) ?? []).length, 3);
+  assert.equal((filters.match(/setVisibleEntryLimit\(CONTENT_ENTRY_PAGE_SIZE\)/g) ?? []).length, 1);
 });
 
 test('content cards are memoized independently from composer input state', () => {

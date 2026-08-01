@@ -977,16 +977,6 @@ input[type='date'] {
   margin-bottom: 8px;
 }
 
-.content-filter-chips {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 1px 1px 6px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-
 .content-filter-chip {
   appearance: none;
   flex: 0 0 auto;
@@ -1005,12 +995,6 @@ input[type='date'] {
 
 .content-filter-chip:hover {
   border-color: rgba(var(--gold-rgb), 0.6);
-}
-
-.content-filter-chip.is-selected {
-  border-color: rgba(var(--gold-rgb), 0.85);
-  background: rgba(var(--gold-rgb), 0.16);
-  color: var(--gold);
 }
 
 .content-share-action {
@@ -1762,9 +1746,9 @@ input[type='date'] {
 
 /* ── Scrollbar (kept whisper-thin to match the surfaces) ── */
 /* width covers vertical scrollbars, height covers horizontal ones (e.g.
-   .content-filter-chips, .archetype-toolbar) — without it, WebKit/Chrome
-   falls back to the thick default OS scrollbar for horizontal scroll,
-   clashing with the thin gold one used everywhere else. */
+   .archetype-toolbar) — without it, WebKit/Chrome falls back to the thick
+   default OS scrollbar for horizontal scroll, clashing with the thin gold
+   one used everywhere else. */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;

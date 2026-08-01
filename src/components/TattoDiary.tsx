@@ -5314,47 +5314,24 @@ function ContentINKAScreen({
         </GoldFrame>
 
         {/* ── Filter ── */}
-        <div className="content-filter-chips" role="group" aria-label="Фильтр записей">
-          <button
-            type="button"
-            className={`content-filter-chip${filterClientId === 'all' ? ' is-selected' : ''}`}
-            aria-pressed={filterClientId === 'all'}
-            onClick={() => {
-              setFocusedSource(null);
-              setFilterClientId('all');
-              setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
-            }}
-          >
-            Все
-          </button>
-          <button
-            type="button"
-            className={`content-filter-chip${filterClientId === 'studio' ? ' is-selected' : ''}`}
-            aria-pressed={filterClientId === 'studio'}
-            onClick={() => {
-              setFocusedSource(null);
-              setFilterClientId('studio');
-              setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
-            }}
-          >
-            Мастерская
-          </button>
+        <select
+          aria-label="Фильтр записей"
+          value={filterClientId}
+          onChange={(e) => {
+            setFocusedSource(null);
+            setFilterClientId(e.target.value);
+            setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
+          }}
+          style={INPUT_STYLE}
+        >
+          <option value="all">Все</option>
+          <option value="studio">Мастерская</option>
           {clients.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className={`content-filter-chip${filterClientId === c.id ? ' is-selected' : ''}`}
-              aria-pressed={filterClientId === c.id}
-              onClick={() => {
-                setFocusedSource(null);
-                setFilterClientId(c.id);
-                setVisibleEntryLimit(CONTENT_ENTRY_PAGE_SIZE);
-              }}
-            >
+            <option key={c.id} value={c.id}>
               {`${c.name} ${c.surname}`.trim()}
-            </button>
+            </option>
           ))}
-        </div>
+        </select>
 
         {/* ── List ── */}
         <div ref={entriesListRef} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
