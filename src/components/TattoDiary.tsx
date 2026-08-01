@@ -779,6 +779,21 @@ export default function TattoDiary() {
     connectDb();
   }, []);
 
+  // db.transaction() бросает исключение синхронно, если соединение уже
+  // закрылось (браузер может закрыть его сам под давлением памяти — вероятнее
+  // при больших фото, см. downsizeForStorage). Раньше это исключение никем не
+  // ловилось и роняло всё приложение вместо понятной ошибки с «Повторить».
+  const openWriteTx = (storeNames: string | string[], database: IDBDatabase, failMessage: string): IDBTransaction | null => {
+    try {
+      return database.transaction(storeNames, 'readwrite');
+    } catch (err) {
+      console.error('IndexedDB transaction failed to start:', err);
+      setDb(null);
+      setDbError(failMessage);
+      return null;
+    }
+  };
+
   const loadClients = (database: IDBDatabase) => {
     const tx = database.transaction('clients', 'readonly');
     const request = tx.objectStore('clients').getAll();
@@ -804,7 +819,8 @@ export default function TattoDiary() {
       setDbError('Хранилище недоступно — изменения не сохранены.');
       return;
     }
-    const tx = db.transaction('projects', 'readwrite');
+    const tx = openWriteTx('projects', db, 'Хранилище недоступно — изменения не сохранены.');
+    if (!tx) return;
     tx.objectStore('projects').put(project);
     tx.oncomplete = () => loadProjects(db);
     tx.onerror = () => setDbError('Не удалось сохранить изменения.');
@@ -815,7 +831,8 @@ export default function TattoDiary() {
       setDbError('Хранилище недоступно — проект не удалён.');
       return;
     }
-    const tx = db.transaction('projects', 'readwrite');
+    const tx = openWriteTx('projects', db, 'Хранилище недоступно — проект не удалён.');
+    if (!tx) return;
     tx.objectStore('projects').delete(id);
     tx.oncomplete = () => {
       loadProjects(db);
@@ -860,7 +877,8 @@ export default function TattoDiary() {
       return;
     }
     setContentEntries((current) => [entry, ...current.filter((candidate) => candidate.id !== entry.id)]);
-    const tx = db.transaction('contentEntries', 'readwrite');
+    const tx = openWriteTx('contentEntries', db, 'Хранилище недоступно — изменения не сохранены.');
+    if (!tx) return;
     tx.objectStore('contentEntries').put(entry);
     tx.oncomplete = () => loadContentEntries(db);
     tx.onerror = () => {
@@ -901,7 +919,8 @@ export default function TattoDiary() {
     // Снимок старой версии берём ДО записи; сам sync — fire-and-forget
     // после успешного сохранения, он не блокирует и не ломает UI.
     const prevClient = clients.find((c) => c.id === client.id) ?? null;
-    const tx = db.transaction('clients', 'readwrite');
+    const tx = openWriteTx('clients', db, 'Хранилище недоступно — изменения не сохранены.');
+    if (!tx) return;
     tx.objectStore('clients').put(client);
     tx.oncomplete = () => {
       loadClients(db);
@@ -918,7 +937,8 @@ export default function TattoDiary() {
     // Удаление клиента убирает из календаря и все его синхронизированные
     // записи (diffAndSync со "старое есть, нового нет" шлёт delete).
     const prevClient = clients.find((c) => c.id === id) ?? null;
-    const tx = db.transaction('clients', 'readwrite');
+    const tx = openWriteTx('clients', db, 'Хранилище недоступно — клиент не удалён.');
+    if (!tx) return;
     tx.objectStore('clients').delete(id);
     tx.oncomplete = () => {
       loadClients(db);
@@ -947,7 +967,8 @@ export default function TattoDiary() {
     const stores = ['clients'];
     if (bundle.projects) stores.push('projects');
     if (bundle.contentEntries) stores.push('contentEntries', CONTENT_INGEST_JOB_STORE);
-    const tx = db.transaction(stores, 'readwrite');
+    const tx = openWriteTx(stores, db, 'Хранилище недоступно — импорт не выполнен.');
+    if (!tx) return;
     const cs = tx.objectStore('clients');
     cs.clear();
     bundle.clients.forEach((c) => cs.put(c));
@@ -984,7 +1005,8 @@ export default function TattoDiary() {
       setDbError('Хранилище недоступно — импорт не выполнен.');
       return;
     }
-    const tx = db.transaction('clients', 'readwrite');
+    const tx = openWriteTx('clients', db, 'Хранилище недоступно — импорт не выполнен.');
+    if (!tx) return;
     const store = tx.objectStore('clients');
     newClients.forEach((c) => store.put(c));
     tx.oncomplete = () => loadClients(db);
