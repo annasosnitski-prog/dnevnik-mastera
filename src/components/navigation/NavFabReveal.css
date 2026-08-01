@@ -63,9 +63,9 @@
   animation: nav-fab-invite 3.8s ease-in-out infinite;
 }
 
-/* The highlight is attached to the hub. As the button moves upward, the band
-   travels from the top edge of the disc to the bottom edge on the same 980ms
-   timeline and with the same easing. It disappears only after the hub settles. */
+/* The shine and hub use the same duration, easing and progress stops.
+   The band therefore descends through the disc at exactly the same phase
+   in which the button rises from the toolbar to the centre. */
 .nav-fab__main--gold::after {
   content: "";
   position: absolute;
@@ -73,7 +73,7 @@
   z-index: 2;
   border-radius: 50%;
   pointer-events: none;
-  opacity: 0;
+  opacity: 1;
   background: linear-gradient(
     180deg,
     transparent 20%,
@@ -135,23 +135,12 @@
 
 @keyframes nav-fab-disc-shine {
   0% {
-    opacity: 0;
     transform: translateY(-145%);
   }
-  8% {
-    opacity: 0.55;
-  }
-  42% {
-    opacity: 0.98;
-  }
-  78% {
-    opacity: 0.72;
-  }
-  94% {
-    opacity: 0.24;
+  68% {
+    transform: translateY(124%);
   }
   100% {
-    opacity: 0;
     transform: translateY(145%);
   }
 }
