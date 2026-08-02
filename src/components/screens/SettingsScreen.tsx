@@ -108,9 +108,12 @@ export function SettingsScreen({
   );
 
   const handleExport = async () => {
-    // Версия 3 добавляет только задачи мастера. Остальные поля masterInfo
-    // намеренно не экспортируются. Backup version 1/2 продолжают читаться.
-    const payload = { version: 3, exportedAt: new Date().toISOString(), clients, projects, contentEntries, masterNotes };
+    // Версия 4 добавляет Consultation.status/convertedToSessionId и
+    // Session.sourceConsultationId (см. domain/consultation.ts,
+    // domain/session.ts) — сам номер версии нигде на импорте не читается,
+    // normalize.ts дефолтит отсутствующие поля независимо от него; это чисто
+    // информационная метка. Backup version 1/2/3 продолжают читаться.
+    const payload = { version: 4, exportedAt: new Date().toISOString(), clients, projects, contentEntries, masterNotes };
     const json = JSON.stringify(payload, null, 2);
     const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
     await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');

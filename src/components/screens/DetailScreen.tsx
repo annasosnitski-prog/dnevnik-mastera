@@ -1640,6 +1640,7 @@ function ConsultationRow({
           borderRadius: 2,
           padding: '12px 14px',
           cursor: 'pointer',
+          opacity: consultation.status === 'converted' ? 0.55 : 1,
           transition: dragging ? 'none' : 'transform 0.2s ease',
           ...swipeStyle,
         }}
@@ -1655,7 +1656,7 @@ function ConsultationRow({
           {/* Controls sit outside the card's tap-to-view: their own clicks
               must not also open the viewer. */}
           <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
-            {consultation.cancelled && (
+            {(consultation.cancelled || consultation.status === 'converted') && (
               <span
                 style={{
                   fontSize: fs(10),
@@ -1668,15 +1669,16 @@ function ConsultationRow({
                   whiteSpace: 'nowrap',
                 }}
               >
-                Отменена
+                {consultation.status === 'converted' ? 'Переведена в сессию' : 'Отменена'}
               </span>
             )}
             <span style={{ fontSize: fs(13) }} title={meta.label}>{meta.emoji}</span>
             {/* Consultation happened, work session was agreed — moves this
                 record into a session instead of leaving a stale duplicate;
                 see TattoDiary's startConvertConsultationToSession. Hidden for
-                a cancelled consultation — nothing to convert. */}
-            {!consultation.cancelled && (
+                a cancelled or already-converted consultation — nothing left
+                to convert. */}
+            {!consultation.cancelled && consultation.status !== 'converted' && (
               <div
                 className="inka-back"
                 onClick={onConvert}

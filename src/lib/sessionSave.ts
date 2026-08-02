@@ -64,13 +64,30 @@ export function upsertClientSession(
     sessionId = editingSessionId;
   } else {
     sessionId = crypto.randomUUID();
-    sessions = [...client.sessions, { id: sessionId, cancelled: false, ...fields }];
+    sessions = [...client.sessions, { id: sessionId, cancelled: false, sourceConsultationId: null, ...fields }];
   }
   const styles = clientStyles(client);
   const mergedStyles = fields.style && !styles.includes(fields.style) ? [...styles, fields.style] : styles;
   return {
     client: { ...client, styles: mergedStyles, style: mergedStyles.join(' · '), sessions },
     sessionId,
+  };
+}
+
+// «Перевести в сессию» (startConvertConsultationToSession в TattoDiary.tsx) —
+// консультация раньше просто удалялась тем же saveClient, что добавлял
+// сессию (см. PR #198). Теперь она остаётся в истории: status→'converted',
+// done→true (см. normalizeClient в lib/normalize.ts — тот же принцип для
+// данных, прошедших через IndexedDB/бэкап без этого шага), связь на обе
+// стороны — convertedToSessionId на консультации, sourceConsultationId на
+// сессии. Не мутирует client — caller сам решает, чем сохранять (saveClient).
+export function applyConsultationConversion(client: Client, sessionId: string, consultationId: string): Client {
+  return {
+    ...client,
+    sessions: client.sessions.map((s) => (s.id === sessionId ? { ...s, sourceConsultationId: consultationId } : s)),
+    consultations: client.consultations.map((c) =>
+      c.id === consultationId ? { ...c, status: 'converted', convertedToSessionId: sessionId, done: true } : c,
+    ),
   };
 }
 
@@ -88,7 +105,7 @@ export function upsertProjectSession(
     sessionId = editingSessionId;
   } else {
     sessionId = crypto.randomUUID();
-    sessions = [...project.sessions, { id: sessionId, cancelled: false, ...fields }];
+    sessions = [...project.sessions, { id: sessionId, cancelled: false, sourceConsultationId: null, ...fields }];
   }
   return { project: { ...project, sessions }, sessionId };
 }

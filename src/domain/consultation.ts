@@ -2,6 +2,16 @@
 
 import type { UrgencyKey } from './urgency';
 
+// Явное состояние жизненного цикла — добавлено вместе с convertedToSessionId
+// (см. ниже), чтобы «Перевести в сессию» переставало удалять консультацию
+// (PR #198 удалял её тем же saveClient, что добавлял сессию — см.
+// startConvertConsultationToSession/handleAddSession в TattoDiary.tsx).
+// 'active'/'cancelled' пока дублируют done/cancelled (сохранены отдельно
+// для обратной совместимости — см. комментарии на них ниже), 'completed'
+// зарезервировано на будущее (сейчас ничего его не выставляет), 'converted'
+// — единственное новое поведение этого среза.
+export type ConsultationStatus = 'active' | 'completed' | 'converted' | 'cancelled';
+
 export interface Consultation {
   id: string;
   date: string; // ISO yyyy-mm-dd
@@ -14,10 +24,20 @@ export interface Consultation {
   inspirationSources: string; // "Источники вдохновения" — authors, references
   urgency: UrgencyKey;
   photos: string[]; // reference / mood-board images
+  // Оставлены как есть ради обратной совместимости — status добавлен рядом,
+  // а не взамен (см. normalizeClient в lib/normalize.ts: done принудительно
+  // true при status==='converted', чтобы существующие фильтры по done/
+  // cancelled в plannerSelectors.ts/buildReminders.ts продолжали работать
+  // без отдельной правки под новый статус).
   done: boolean;
   // See Session.cancelled — same meaning, set only via the overdue
   // reminder's «Отменить» action.
   cancelled: boolean;
+  status: ConsultationStatus;
+  // Проставляется вместе со status:'converted' — id сессии, в которую эта
+  // консультация «переехала» (см. Session.sourceConsultationId — обратная
+  // ссылка). null для всех остальных статусов.
+  convertedToSessionId: string | null;
   createdDate: string;
   // См. Session.projectId — та же link-семантика (Этап 2).
   projectId: string | null;

@@ -54,7 +54,10 @@ export function overdueEntries(clients: Client[], now: Date): OverdueItem[] {
       result.push({ client, kind: 'session', id: session.id, date: session.date, time: session.time });
     }
     for (const consultation of client.consultations) {
-      if (consultation.done || consultation.cancelled || !ISO_DATE_RE.test(consultation.date) || consultation.date >= today) continue;
+      // status==='converted' уже подразумевает done:true (см. normalizeClient/
+      // applyConsultationConversion), но проверяем явно — понятнее читать и не
+      // зависит от того, что done продолжит форсироваться в будущем.
+      if (consultation.done || consultation.cancelled || consultation.status === 'converted' || !ISO_DATE_RE.test(consultation.date) || consultation.date >= today) continue;
       result.push({ client, kind: 'consultation', id: consultation.id, date: consultation.date, time: consultation.time });
     }
   }

@@ -44,6 +44,16 @@ test('normalizeSession falls back to legacy "notes" and "photoUrl" fields', () =
   assert.deepEqual(s.photos, ['data:img1']);
 });
 
+test('normalizeSession defaults sourceConsultationId to null', () => {
+  const s = normalizeSession({}, 0);
+  assert.equal(s.sourceConsultationId, null);
+});
+
+test('normalizeSession keeps an explicit sourceConsultationId', () => {
+  const s = normalizeSession({ sourceConsultationId: 'consult-1' }, 0);
+  assert.equal(s.sourceConsultationId, 'consult-1');
+});
+
 // ── normalizeClientNote ───────────────────────────────────────────
 
 test('normalizeClientNote maps a legacy urgency value through LEGACY_URGENCY_MAP', () => {
@@ -127,6 +137,45 @@ test('normalizeClient recursively normalizes nested sessions and notes', () => {
 test('normalizeClient defaults an unrecognized consultation urgency to "normal"', () => {
   const c = normalizeClient({ consultations: [{ urgency: 'nonsense' }] }, 0);
   assert.equal(c.consultations[0].urgency, 'normal');
+});
+
+test('normalizeClient defaults a consultation with no status to "active", not converted', () => {
+  const c = normalizeClient({ consultations: [{}] }, 0);
+  assert.equal(c.consultations[0].status, 'active');
+  assert.equal(c.consultations[0].convertedToSessionId, null);
+});
+
+test('normalizeClient rejects an unrecognized consultation status instead of keeping it', () => {
+  const c = normalizeClient({ consultations: [{ status: 'nonsense' }] }, 0);
+  assert.equal(c.consultations[0].status, 'active');
+});
+
+test('normalizeClient keeps a valid converted consultation and its session link', () => {
+  const c = normalizeClient(
+    { consultations: [{ status: 'converted', convertedToSessionId: 'session-1' }] },
+    0,
+  );
+  assert.equal(c.consultations[0].status, 'converted');
+  assert.equal(c.consultations[0].convertedToSessionId, 'session-1');
+});
+
+test('normalizeClient forces done:true on a converted consultation even if the raw record says otherwise', () => {
+  // A converted consultation must never resurface as "not done" in
+  // plannerSelectors.ts (upcomingItems/sessionSortKey) or overdueEntries —
+  // see the comment on Consultation.done in domain/consultation.ts.
+  const c = normalizeClient(
+    { consultations: [{ status: 'converted', convertedToSessionId: 'session-1', done: false }] },
+    0,
+  );
+  assert.equal(c.consultations[0].done, true);
+});
+
+test('normalizeClient drops convertedToSessionId for a non-converted consultation', () => {
+  const c = normalizeClient(
+    { consultations: [{ status: 'active', convertedToSessionId: 'session-1' }] },
+    0,
+  );
+  assert.equal(c.consultations[0].convertedToSessionId, null);
 });
 
 // ── normalizeProject ──────────────────────────────────────────────

@@ -91,6 +91,7 @@ export function TimelineViewSheet({
   onReassignProject,
   onOpenContent,
   onConvertToSession,
+  onOpenConvertedSession,
 }: {
   open: boolean;
   session: Session | null;
@@ -105,8 +106,13 @@ export function TimelineViewSheet({
   onReassignProject: (projectId: string | null) => void;
   onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
   // Consultation happened, work session was agreed — moves this record into
-  // a session. Only rendered for a consultation view (isConsult below).
+  // a session. Only rendered for a consultation view (isConsult below), and
+  // only while it's still convertible (status !== 'converted').
   onConvertToSession?: () => void;
+  // Открыть сессию, в которую эта консультация уже была переведена (см.
+  // Consultation.convertedToSessionId) — рендерится вместо «Перевести в
+  // сессию →» once status === 'converted'.
+  onOpenConvertedSession?: () => void;
 }) {
   const isConsult = !!consultation;
   const dateLine = (() => {
@@ -160,25 +166,47 @@ export function TimelineViewSheet({
             <ViewField label="Креатив" value={consultation.creative} />
             <ViewField label="Техника и стиль" value={consultation.style} />
             {urgency && <ViewField label="Срочность" value={`${urgency.emoji} ${urgency.label}`} />}
-            {onConvertToSession && !consultation.cancelled && (
+            {consultation.status === 'converted' ? (
               <div
-                onClick={onConvertToSession}
-                role="button"
+                onClick={onOpenConvertedSession}
+                role={onOpenConvertedSession ? 'button' : undefined}
                 style={{
                   textAlign: 'center',
                   padding: '9px 12px',
-                  border: '1px solid rgba(var(--gold-rgb),0.3)',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
                   borderRadius: 2,
-                  cursor: 'pointer',
-                  color: COLORS.gold,
+                  cursor: onOpenConvertedSession ? 'pointer' : 'default',
+                  color: COLORS.textFaint,
                   fontSize: fs(12),
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                   fontStyle: 'italic',
                 }}
               >
-                Перевести в сессию →
+                Переведена в сессию{onOpenConvertedSession ? ' →' : ''}
               </div>
+            ) : (
+              onConvertToSession &&
+              !consultation.cancelled && (
+                <div
+                  onClick={onConvertToSession}
+                  role="button"
+                  style={{
+                    textAlign: 'center',
+                    padding: '9px 12px',
+                    border: '1px solid rgba(var(--gold-rgb),0.3)',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    color: COLORS.gold,
+                    fontSize: fs(12),
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Перевести в сессию →
+                </div>
+              )
             )}
             <ContentPanel
               clientId={clientId}
