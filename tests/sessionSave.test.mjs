@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { upsertClientSession, upsertProjectSession } from '../.test-dist/src/lib/sessionSave.js';
+import { upsertClientSession, upsertProjectSession, applyConsultationConversion } from '../.test-dist/src/lib/sessionSave.js';
 
 function makeClient(overrides = {}) {
   return {
@@ -116,6 +116,72 @@ test('upsertProjectSession editing an existing session keeps its id', () => {
   assert.equal(sessionId, 'session-9');
   assert.equal(updated.sessions.length, 1);
   assert.equal(updated.sessions[0].name, 'Обновлённая');
+});
+
+test('upsertClientSession defaults a new session\'s sourceConsultationId to null', () => {
+  const client = makeClient();
+  const { client: updated } = upsertClientSession(client, makeSessionData(), null);
+  assert.equal(updated.sessions[0].sourceConsultationId, null);
+});
+
+function makeConsultation(overrides = {}) {
+  return {
+    id: 'consult-1',
+    date: '2026-01-01',
+    time: '',
+    area: '',
+    style: '',
+    generalNotes: '',
+    feeling: '',
+    creative: '',
+    inspirationSources: '',
+    urgency: 'normal',
+    photos: [],
+    done: false,
+    cancelled: false,
+    status: 'active',
+    convertedToSessionId: null,
+    createdDate: '2026-01-01',
+    projectId: null,
+    ...overrides,
+  };
+}
+
+test('applyConsultationConversion links the session back to the consultation and marks the consultation converted', () => {
+  const consultation = makeConsultation();
+  const session = { id: 'session-1', name: '', cancelled: false, date: '2026-02-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null };
+  const client = makeClient({ sessions: [session], consultations: [consultation] });
+
+  const updated = applyConsultationConversion(client, 'session-1', 'consult-1');
+
+  assert.equal(updated.sessions[0].sourceConsultationId, 'consult-1');
+  assert.equal(updated.consultations[0].status, 'converted');
+  assert.equal(updated.consultations[0].convertedToSessionId, 'session-1');
+  assert.equal(updated.consultations[0].done, true);
+});
+
+test('applyConsultationConversion does not mutate the input client', () => {
+  const consultation = makeConsultation();
+  const session = { id: 'session-1', name: '', cancelled: false, date: '2026-02-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null };
+  const client = makeClient({ sessions: [session], consultations: [consultation] });
+  const snapshot = structuredClone(client);
+
+  applyConsultationConversion(client, 'session-1', 'consult-1');
+
+  assert.deepEqual(client, snapshot);
+});
+
+test('applyConsultationConversion leaves unrelated sessions/consultations untouched', () => {
+  const consultation = makeConsultation({ id: 'consult-1' });
+  const otherConsultation = makeConsultation({ id: 'consult-2' });
+  const session = { id: 'session-1', name: '', cancelled: false, date: '2026-02-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null };
+  const otherSession = { ...session, id: 'session-2' };
+  const client = makeClient({ sessions: [session, otherSession], consultations: [consultation, otherConsultation] });
+
+  const updated = applyConsultationConversion(client, 'session-1', 'consult-1');
+
+  assert.equal(updated.sessions[1].sourceConsultationId, null);
+  assert.equal(updated.consultations[1].status, 'active');
 });
 
 test('neither helper mutates the input client/project', () => {

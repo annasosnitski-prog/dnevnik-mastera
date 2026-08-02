@@ -25,4 +25,9 @@ export interface Session {
   // клиента, но может принадлежать проекту. null = без проекта. НЕ входит
   // в ключ синка календаря, так что привязка не дёргает Инка-календарь.
   projectId: string | null;
+  // Обратная ссылка на Consultation.convertedToSessionId — проставляется,
+  // когда сессия создана через «Перевести в сессию» (см.
+  // startConvertConsultationToSession в TattoDiary.tsx). null для сессий,
+  // созданных напрямую (обычная форма, из ContentLinkPickerSheet и т.п.).
+  sourceConsultationId: string | null;
 }

@@ -3,7 +3,7 @@
 // защищаться от отсутствующих полей. Вынесено из TattoDiary.tsx
 // (PR 3 рефакторинга). Логика не менялась — только перенос.
 import { type Session } from '../domain/session';
-import { type Consultation } from '../domain/consultation';
+import { type Consultation, type ConsultationStatus } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
 import { URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency.js';
 import { isValidISODate } from '../utils/dates.js';
@@ -40,8 +40,11 @@ export function normalizeSession(s: any, i: number): Session {
     healed: s?.healed ?? false,
     cancelled: s?.cancelled ?? false,
     projectId: s?.projectId ?? null,
+    sourceConsultationId: s?.sourceConsultationId ?? null,
   };
 }
+
+const CONSULTATION_STATUSES: ConsultationStatus[] = ['active', 'completed', 'converted', 'cancelled'];
 
 // Единая нормализация ClientNote для клиентских и мастерских задач, включая
 // импорт старых/повреждённых данных. idPrefix сохраняет прежние fallback-id:
@@ -91,23 +94,32 @@ export function normalizeClient(raw: any, index: number): Client {
     chatLinks: Array.isArray(raw?.chatLinks) ? raw.chatLinks : [],
     sessions,
     consultations: Array.isArray(raw?.consultations)
-      ? raw.consultations.map((cn: any, i: number): Consultation => ({
-          id: String(cn?.id ?? `${Date.now()}-c${i}`),
-          date: cn?.date ?? '',
-          time: cn?.time ?? '',
-          area: cn?.area ?? '',
-          style: cn?.style ?? '',
-          generalNotes: cn?.generalNotes ?? '',
-          feeling: cn?.feeling ?? '',
-          creative: cn?.creative ?? '',
-          inspirationSources: cn?.inspirationSources ?? '',
-          urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
-          photos: Array.isArray(cn?.photos) ? cn.photos : [],
-          done: Boolean(cn?.done),
-          cancelled: Boolean(cn?.cancelled),
-          createdDate: cn?.createdDate ?? new Date().toISOString(),
-          projectId: cn?.projectId ?? null,
-        }))
+      ? raw.consultations.map((cn: any, i: number): Consultation => {
+          const status: ConsultationStatus = CONSULTATION_STATUSES.includes(cn?.status) ? cn.status : 'active';
+          return {
+            id: String(cn?.id ?? `${Date.now()}-c${i}`),
+            date: cn?.date ?? '',
+            time: cn?.time ?? '',
+            area: cn?.area ?? '',
+            style: cn?.style ?? '',
+            generalNotes: cn?.generalNotes ?? '',
+            feeling: cn?.feeling ?? '',
+            creative: cn?.creative ?? '',
+            inspirationSources: cn?.inspirationSources ?? '',
+            urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
+            photos: Array.isArray(cn?.photos) ? cn.photos : [],
+            // Конвертированная консультация всегда done — так существующие
+            // фильтры по done/cancelled (plannerSelectors.ts,
+            // buildReminders.ts overdueEntries) не показывают её как
+            // незавершённую, даже если это поле в сыром объекте не выставлено.
+            done: status === 'converted' ? true : Boolean(cn?.done),
+            cancelled: Boolean(cn?.cancelled),
+            status,
+            convertedToSessionId: status === 'converted' ? cn?.convertedToSessionId ?? null : null,
+            createdDate: cn?.createdDate ?? new Date().toISOString(),
+            projectId: cn?.projectId ?? null,
+          };
+        })
       : [],
     documents: Array.isArray(raw?.documents) ? raw.documents : [],
     notes: Array.isArray(raw?.notes) ? raw.notes.map((n: any, i: number) => normalizeClientNote(n, i, 'n')) : [],

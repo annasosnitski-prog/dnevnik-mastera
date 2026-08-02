@@ -89,7 +89,7 @@ import {
   setContentEntryLink,
   type ContentEntryLink,
 } from '../lib/contentLink';
-import { upsertClientSession, upsertProjectSession, type SessionFormData } from '../lib/sessionSave';
+import { upsertClientSession, upsertProjectSession, applyConsultationConversion, type SessionFormData } from '../lib/sessionSave';
 // Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
 // не менялась — только перенос.
 import { isRTL, firstLetter, nameRest } from '../lib/textFormat';
@@ -1196,7 +1196,14 @@ export default function TattoDiary() {
     } else {
       consultations = [
         ...selectedClient.consultations,
-        { id: crypto.randomUUID(), createdDate: new Date().toISOString(), cancelled: false, ...fields },
+        {
+          id: crypto.randomUUID(),
+          createdDate: new Date().toISOString(),
+          cancelled: false,
+          status: 'active',
+          convertedToSessionId: null,
+          ...fields,
+        },
       ];
     }
     saveClient({ ...selectedClient, consultations });
@@ -1622,13 +1629,13 @@ export default function TattoDiary() {
   // же helper со своим явным clientId (см. saveSessionForContentLink ниже).
   const handleAddSession = (data: SessionFormData) => {
     if (!selectedClient) return;
-    const { client: updatedClient } = upsertClientSession(selectedClient, data, editSession?.id ?? null);
-    // Конвертация консультации (см. startConvertConsultationToSession) — сама
-    // консультация убирается тем же saveClient, что добавляет сессию, чтобы
-    // консультация «переехала» одним атомарным изменением, а не оставалась
-    // рядом дублем до следующего сохранения.
+    const { client: updatedClient, sessionId } = upsertClientSession(selectedClient, data, editSession?.id ?? null);
+    // Конвертация консультации (см. startConvertConsultationToSession) — она
+    // остаётся в истории (status:'converted'), а не удаляется, но связывается
+    // с получившейся сессией тем же saveClient, что её добавляет, так что обе
+    // стороны меняются одним атомарным изменением (см. applyConsultationConversion).
     const finalClient = convertingConsultation
-      ? { ...updatedClient, consultations: updatedClient.consultations.filter((c) => c.id !== convertingConsultation.id) }
+      ? applyConsultationConversion(updatedClient, sessionId, convertingConsultation.id)
       : updatedClient;
     saveClient(finalClient);
     // Авто-переход этапа проекта (Этап 3b): выполненная сессия → «В работе»,
@@ -2757,6 +2764,11 @@ export default function TattoDiary() {
                 if (viewEntry) setSelectedId(viewEntry.clientId);
                 startConvertConsultationToSession(viewedConsultation);
               }
+            : undefined
+        }
+        onOpenConvertedSession={
+          viewedConsultation?.convertedToSessionId && viewEntry
+            ? () => setViewEntry({ kind: 'session', clientId: viewEntry.clientId, id: viewedConsultation.convertedToSessionId! })
             : undefined
         }
       />
