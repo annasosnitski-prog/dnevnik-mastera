@@ -17,8 +17,9 @@
   animation: nav-fab-scrim-in 420ms ease-out both;
 }
 
-/* Minimal astrolabe ornament. Decorative terminals sit farther from the hub
-   than every functional button and never intercept touch. */
+/* Seven ornamental rays sit exactly halfway between the seven functional
+   toolbar rays. Their terminals remain farther from the hub than every
+   functional button and never intercept touch. */
 .nav-fab.nav-fab--open::before {
   content: "";
   position: absolute;
@@ -29,9 +30,9 @@
   z-index: -1;
   pointer-events: none;
   opacity: 0;
-  transform: translate(-50%, -50%) scale(0.16) rotate(-1.5deg);
+  transform: translate(-50%, -50%) scale(0.16);
   transform-origin: 50% 50%;
-  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 540'%3E%3Cg fill='none' stroke='%23c9922e' stroke-linecap='round'%3E%3Cpath d='M270 270 L270 24' stroke-width='.85' stroke-opacity='.5'/%3E%3Cpath d='M270 270 L443 63' stroke-width='.72' stroke-opacity='.38'/%3E%3Cpath d='M270 270 L516 178' stroke-width='.82' stroke-opacity='.46'/%3E%3Cpath d='M270 270 L518 352' stroke-width='.68' stroke-opacity='.34'/%3E%3Cpath d='M270 270 L444 480' stroke-width='.78' stroke-opacity='.42'/%3E%3Cpath d='M270 270 L270 520' stroke-width='.7' stroke-opacity='.36'/%3E%3Cpath d='M270 270 L95 482' stroke-width='.76' stroke-opacity='.4'/%3E%3Cpath d='M270 270 L22 354' stroke-width='.66' stroke-opacity='.32'/%3E%3Cpath d='M270 270 L24 176' stroke-width='.74' stroke-opacity='.38'/%3E%3Cpath d='M270 270 L96 61' stroke-width='.7' stroke-opacity='.35'/%3E%3C/g%3E%3Cg fill='%23c9922e' stroke='%23ffe7a0' stroke-width='.8'%3E%3Ccircle cx='270' cy='24' r='7.5'/%3E%3Ccircle cx='516' cy='178' r='7.5'/%3E%3Ccircle cx='444' cy='480' r='7.5'/%3E%3Ccircle cx='95' cy='482' r='7.5'/%3E%3Ccircle cx='24' cy='176' r='7.5'/%3E%3C/g%3E%3Cg fill='%23f7cf69'%3E%3Ccircle cx='270' cy='116' r='1.8'/%3E%3Ccircle cx='386' cy='131' r='2.1'/%3E%3Ccircle cx='430' cy='210' r='1.7'/%3E%3Ccircle cx='442' cy='328' r='2'/%3E%3Ccircle cx='374' cy='406' r='1.8'/%3E%3Ccircle cx='270' cy='430' r='1.7'/%3E%3Ccircle cx='164' cy='410' r='2'/%3E%3Ccircle cx='96' cy='328' r='1.8'/%3E%3Ccircle cx='106' cy='207' r='1.7'/%3E%3Ccircle cx='160' cy='132' r='2'/%3E%3C/g%3E%3Cg fill='none' stroke='%23f7cf69' stroke-width='.7' stroke-opacity='.52'%3E%3Ccircle cx='270' cy='270' r='205' stroke-dasharray='1 13'/%3E%3C/g%3E%3C/svg%3E");
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http%3A//www.w3.org/2000/svg' viewBox='0 0 540 540'%3E%3Cg fill='none' stroke='%23c9922e' stroke-linecap='round'%3E%3Cpath d='M270 270 L377.6 46.6' stroke-width='.82' stroke-opacity='.46'/%3E%3Cpath d='M270 270 L511.8 214.8' stroke-width='.7' stroke-opacity='.36'/%3E%3Cpath d='M270 270 L463.9 424.6' stroke-width='.78' stroke-opacity='.42'/%3E%3Cpath d='M270 270 L270 518' stroke-width='.68' stroke-opacity='.34'/%3E%3Cpath d='M270 270 L76.1 424.6' stroke-width='.76' stroke-opacity='.4'/%3E%3Cpath d='M270 270 L28.2 214.8' stroke-width='.72' stroke-opacity='.38'/%3E%3Cpath d='M270 270 L162.4 46.6' stroke-width='.8' stroke-opacity='.44'/%3E%3C/g%3E%3Cg fill='%23c9922e' stroke='%23ffe7a0' stroke-width='.8'%3E%3Ccircle cx='377.6' cy='46.6' r='7.5'/%3E%3Ccircle cx='511.8' cy='214.8' r='7.5'/%3E%3Ccircle cx='463.9' cy='424.6' r='7.5'/%3E%3Ccircle cx='270' cy='518' r='7.5'/%3E%3Ccircle cx='76.1' cy='424.6' r='7.5'/%3E%3Ccircle cx='28.2' cy='214.8' r='7.5'/%3E%3Ccircle cx='162.4' cy='46.6' r='7.5'/%3E%3C/g%3E%3Cg fill='%23f7cf69'%3E%3Ccircle cx='337.3' cy='130.3' r='1.8'/%3E%3Ccircle cx='421.1' cy='235.5' r='2.1'/%3E%3Ccircle cx='391.2' cy='366.6' r='1.7'/%3E%3Ccircle cx='270' cy='425' r='2'/%3E%3Ccircle cx='148.8' cy='366.6' r='1.8'/%3E%3Ccircle cx='118.9' cy='235.5' r='1.7'/%3E%3Ccircle cx='202.7' cy='130.3' r='2'/%3E%3C/g%3E%3Cg fill='none' stroke='%23f7cf69' stroke-width='.7' stroke-opacity='.52'%3E%3Ccircle cx='270' cy='270' r='205' stroke-dasharray='1 13'/%3E%3C/g%3E%3C/svg%3E");
   filter: drop-shadow(0 0 4px rgba(var(--gold-rgb), 0.34));
   animation: nav-fab-ornaments-open 1680ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
 }
@@ -152,15 +153,15 @@
 @keyframes nav-fab-ornaments-open {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.16) rotate(-1.5deg);
+    transform: translate(-50%, -50%) scale(0.16);
   }
   74% {
     opacity: 0.72;
-    transform: translate(-50%, -50%) scale(0.92) rotate(0deg);
+    transform: translate(-50%, -50%) scale(0.92);
   }
   100% {
     opacity: 0.78;
-    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
