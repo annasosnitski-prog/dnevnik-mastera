@@ -15,22 +15,46 @@ const CLIENT_LOCALE: Record<ClientLanguage, string> = { ru: 'ru-RU', en: 'en-US'
 // day15 промежуточный, day30 — прежний финальный «как зажило».
 const HEALING_TEXTS: Record<ClientLanguage, Record<HealingStage, string>> = {
   ru: {
-    day1: 'Привет! Как ты сегодня, какое самочувствие? Как выглядит кожа на тату — не появилось сильного отёка или покраснения? Напоминаю: первые дни аккуратно очищай тату, наноси тонкий слой средства и не срывай корочки',
-    day4: 'Привет! Как ощущения через несколько дней после сеанса? Началось шелушение — это нормальный этап заживления. Как в целом кожа, ничего не беспокоит?',
-    day15: 'Привет! Как продвигается заживление? Шелушение уже позади? Если ещё чешется — не расчёсывай, кожа всё ещё восстанавливается',
-    day30: 'Привет, как дела? Пишу узнать как зажила татуировка',
+    day1:
+      'Привет! Как ты сегодня, какое самочувствие? Как выглядит кожа на тату — не появилось сильного отёка или покраснения?\n\n' +
+      'Про уход: очищай тату 2 раза в день тёплой водой (можно с жидким мылом), промакивай насухо чистым полотенцем — чтобы не оставалось сукровицы, — и наноси тонкий слой Бепантена. Когда появятся корочки, не срывай их.\n\n' +
+      'Чего нельзя: чесать и сдирать корочки или шелушащуюся кожу — может выпасть цвет; распаривать тату — бани, сауны, горячие ванны и бассейн под запретом на 2–3 недели; загорать и ходить в солярий; носить тесную синтетическую одежду, которая трёт рисунок',
+    day4:
+      'Привет! Как ощущения через несколько дней после сеанса? Началось шелушение — это нормальный этап заживления. Как в целом кожа, ничего не беспокоит?\n\n' +
+      'Не сдирай шелушение — пусть сходит само, и пока избегай бани, сауны, бассейна и солнца',
+    day15:
+      'Привет! Как продвигается заживление? Шелушение уже позади? Если ещё чешется — не расчёсывай, кожа всё ещё восстанавливается.\n\n' +
+      'Продолжай беречь тату от солнца до полного заживления',
+    day30:
+      'Привет! Как ты, уже всё зажило? Если да — было бы здорово встретиться и сфотографировать зажившую работу для портфолио, если тебе будет удобно',
   },
   en: {
-    day1: "Hi! How are you feeling today? How does the skin around the tattoo look — any strong swelling or redness? Quick reminder for the first days: gently clean the tattoo, apply a thin layer of aftercare, and don't pick at the scabs",
-    day4: "Hi! How are you feeling a few days after the session? Peeling should be starting — that's a normal part of healing. How's the skin overall, anything bothering you?",
-    day15: "Hi! How's the healing coming along? Has the peeling stopped? If it still itches, don't scratch — the skin is still recovering",
-    day30: 'Hi, how are you? Just checking in on how the tattoo is healing',
+    day1:
+      "Hi! How are you feeling today? How does the skin around the tattoo look — any strong swelling or redness?\n\n" +
+      "Aftercare: clean the tattoo twice a day with warm water (a mild liquid soap is fine), pat it dry with a clean towel — so no plasma residue is left — and apply a thin layer of Bepanthen. Once scabs form, don't pick at them.\n\n" +
+      "What not to do: don't scratch or pick at scabs or peeling skin — the color can fall out; don't steam the tattoo — no baths, saunas, hot tubs or pools for 2–3 weeks; don't sunbathe or use tanning beds; avoid tight synthetic clothing that rubs against the piece",
+    day4:
+      "Hi! How are you feeling a few days after the session? Peeling should be starting — that's a normal part of healing. How's the skin overall, anything bothering you?\n\n" +
+      "Don't pick at the peeling skin — let it come off on its own, and stay away from baths, saunas, pools and sun for now",
+    day15:
+      "Hi! How's the healing coming along? Has the peeling stopped? If it still itches, don't scratch — the skin is still recovering.\n\n" +
+      "Keep protecting the tattoo from the sun until it's fully healed",
+    day30:
+      "Hi! How are you, has everything healed up? If so, it'd be lovely to meet up and take a photo of the healed piece for my portfolio, whenever suits you",
   },
   he: {
-    day1: 'היי! מה שלומך היום? איך העור נראה - יש נפיחות או אדמומיות חזקה? רק תזכורת לימים הראשונים: לנקות בעדינות, למרוח שכבה דקה של קרם ולא לקלף גלדים',
-    day4: 'היי! מה שלומך כמה ימים אחרי הסשן? הקילוף אמור להתחיל - זה חלק נורמלי בריפוי. איך העור בסך הכל, משהו מטריד?',
-    day15: 'היי! איך מתקדם הריפוי? הקילוף כבר נגמר? אם עדיין מגרד - לא לגרד, העור עדיין מחלים',
-    day30: 'היי, מה שלומך? רק בודקת איך הקעקוע מחלים',
+    day1:
+      'היי! מה שלומך היום? איך העור נראה - יש נפיחות או אדמומיות חזקה?\n\n' +
+      'טיפול: לנקות את הקעקוע פעמיים ביום במים פושרים (אפשר עם סבון נוזלי עדין), לייבש בעדינות במגבת נקייה - כדי שלא יישארו הפרשות - ולמרוח שכבה דקה של בפנטן. כשנוצרים גלדים - לא לקלף אותם.\n\n' +
+      'מה אסור: לגרד או לקלף גלדים או עור מתקלף - הצבע עלול לדהות; לא סאונה, ג\'קוזי, אמבטיה חמה או בריכה למשך 2-3 שבועות; לא להשתזף בשמש או בסולריום; להימנע מבגדים צמודים וסינתטיים שמשפשפים את האזור',
+    day4:
+      'היי! מה שלומך כמה ימים אחרי הסשן? הקילוף אמור להתחיל - זה חלק נורמלי בריפוי. איך העור בסך הכל, משהו מטריד?\n\n' +
+      'אל תקלפי את העור המתקלף - תני לו לרדת לבד, ובינתיים הימנעי מאמבטיה, סאונה, בריכה ושמש',
+    day15:
+      'היי! איך מתקדם הריפוי? הקילוף כבר נגמר? אם עדיין מגרד - לא לגרד, העור עדיין מחלים.\n\n' +
+      'המשיכי להגן על הקעקוע מהשמש עד לריפוי מלא',
+    day30:
+      'היי! מה שלומך, הכל הגליד כבר? אם כן, יהיה נחמד להיפגש ולצלם את העבודה המחלימה לפורטפוליו, מתי שיהיה נוח לך',
   },
 };
 
