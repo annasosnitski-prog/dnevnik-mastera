@@ -13,6 +13,7 @@ import {
 } from '../../reminders/reminderKeys';
 import type {
   HealingItem,
+  HealingStage,
   OverdueItem,
   ProjectSessionReminderItem,
   TaskReminderItem,
@@ -21,6 +22,15 @@ import type {
 import { healingReminderMessage, soonReminderMessage } from '../../lib/reminderMessages';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
+
+// Короткая подпись каждой стадии заживления на карточке — что именно
+// спросить на этом заходе (см. HealingStage/HEALING_STAGES).
+const HEALING_STAGE_LABELS: Record<HealingStage, string> = {
+  day1: 'День после сеанса · самочувствие',
+  day4: '4-й день · шелушение',
+  day15: '15-й день · заживление',
+  day30: 'Узнать про заживление',
+};
 
 // Copies text to the clipboard, showing a brief «Скопировано» confirmation —
 // shared by every healing-reminder card (Задачи + Мастер both render one).
@@ -664,12 +674,12 @@ export function RemindersSection({
                     {it.client.name || '—'}
                   </div>
                   <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
-                    Узнать про заживление · сессия {formatDate(it.date)}
+                    {HEALING_STAGE_LABELS[it.stage]} · сессия {formatDate(it.date)}
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                   <CopyMessageButton
-                    text={healingReminderMessage(it.client)}
+                    text={healingReminderMessage(it.client, it.stage)}
                     client={it.client}
                     onOpenChange={(open) => setRaisedKey(open ? key : null)}
                   />

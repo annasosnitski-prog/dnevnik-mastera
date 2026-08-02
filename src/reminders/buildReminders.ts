@@ -10,10 +10,20 @@
 
 import type { Client } from '../domain/client';
 import type { Project } from '../domain/project';
-import { ISO_DATE_RE, isValidISODate } from '../utils/dates';
-import type { OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
+import { ISO_DATE_RE, isValidISODate } from '../utils/dates.js';
+import type { OverdueItem, HealingItem, HealingStage, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
 
-export const HEALING_REMINDER_DAYS = 30;
+// Заживление проверяется в четыре захода вместо одной точки на 30-й день —
+// у каждой стадии своё окно (minDays включительно, maxDays исключительно).
+// Окна не пересекаются, поэтому у сессии в любой момент активна максимум
+// одна стадия. Последняя (day30) без верхней границы — держится, пока
+// мастер не отметит «Зажив» (session.healed), как и раньше.
+const HEALING_STAGES: { stage: HealingStage; minDays: number; maxDays: number | null }[] = [
+  { stage: 'day1', minDays: 1, maxDays: 4 },
+  { stage: 'day4', minDays: 4, maxDays: 15 },
+  { stage: 'day15', minDays: 15, maxDays: 30 },
+  { stage: 'day30', minDays: 30, maxDays: null },
+];
 export const SOON_REMINDER_MIN_HOURS = 36;
 export const SOON_REMINDER_MAX_HOURS = 48;
 
@@ -51,16 +61,16 @@ export function overdueEntries(clients: Client[], now: Date): OverdueItem[] {
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// Done sessions, not yet marked healed, whose date is at least
-// HEALING_REMINDER_DAYS in the past. Sorted oldest-first.
+// Done sessions, not yet marked healed, currently inside one of the
+// HEALING_STAGES windows. Sorted oldest-first.
 export function healingReminders(clients: Client[], now: Date): HealingItem[] {
   const result: HealingItem[] = [];
   for (const client of clients) {
     for (const session of client.sessions) {
       if (!session.done || session.healed || !ISO_DATE_RE.test(session.date)) continue;
-      if (daysSince(session.date, now) >= HEALING_REMINDER_DAYS) {
-        result.push({ client, sessionId: session.id, date: session.date });
-      }
+      const since = daysSince(session.date, now);
+      const stage = HEALING_STAGES.find((s) => since >= s.minDays && (s.maxDays === null || since < s.maxDays));
+      if (stage) result.push({ client, sessionId: session.id, date: session.date, stage: stage.stage });
     }
   }
   return result.sort((a, b) => a.date.localeCompare(b.date));

@@ -1,8 +1,8 @@
 // Вынесено из TattoDiary.tsx (PR 3 рефакторинга). Логика не менялась —
 // только перенос.
 import { type ClientLanguage, type Client } from '../domain/client';
-import { ISO_DATE_RE } from '../utils/dates';
-import type { UpcomingSoonItem } from '../reminders/types';
+import { ISO_DATE_RE } from '../utils/dates.js';
+import type { HealingStage, UpcomingSoonItem } from '../reminders/types';
 
 // Every client-facing auto-message (healing check-in, upcoming-booking
 // reminder, and whatever gets added next) is written in the client's own
@@ -10,25 +10,40 @@ import type { UpcomingSoonItem } from '../reminders/types';
 // here rather than adding a new bare Russian string elsewhere.
 const CLIENT_LOCALE: Record<ClientLanguage, string> = { ru: 'ru-RU', en: 'en-US', he: 'he-IL' };
 
-const REMINDER_TEXTS: Record<ClientLanguage, { healing: string; soon: (when: string) => string }> = {
+// Один текст на каждую стадию заживления (см. HealingStage/HEALING_STAGES в
+// buildReminders.ts) — day1 про самочувствие/кожу/уход, day4 про шелушение,
+// day15 промежуточный, day30 — прежний финальный «как зажило».
+const HEALING_TEXTS: Record<ClientLanguage, Record<HealingStage, string>> = {
   ru: {
-    healing: 'Привет, как дела? Пишу узнать как зажила татуировка',
-    soon: (when) => `Привет! Как дела? Напоминаю о нашей встрече «${when}»`,
+    day1: 'Привет! Как ты сегодня, какое самочувствие? Как выглядит кожа на тату — не появилось сильного отёка или покраснения? Напоминаю: первые дни аккуратно очищай тату, наноси тонкий слой средства и не срывай корочки',
+    day4: 'Привет! Как ощущения через несколько дней после сеанса? Началось шелушение — это нормальный этап заживления. Как в целом кожа, ничего не беспокоит?',
+    day15: 'Привет! Как продвигается заживление? Шелушение уже позади? Если ещё чешется — не расчёсывай, кожа всё ещё восстанавливается',
+    day30: 'Привет, как дела? Пишу узнать как зажила татуировка',
   },
   en: {
-    healing: 'Hi, how are you? Just checking in on how the tattoo is healing',
-    soon: (when) => `Hi! How are you? Just a reminder about our appointment: ${when}`,
+    day1: "Hi! How are you feeling today? How does the skin around the tattoo look — any strong swelling or redness? Quick reminder for the first days: gently clean the tattoo, apply a thin layer of aftercare, and don't pick at the scabs",
+    day4: "Hi! How are you feeling a few days after the session? Peeling should be starting — that's a normal part of healing. How's the skin overall, anything bothering you?",
+    day15: "Hi! How's the healing coming along? Has the peeling stopped? If it still itches, don't scratch — the skin is still recovering",
+    day30: 'Hi, how are you? Just checking in on how the tattoo is healing',
   },
   he: {
-    healing: 'היי, מה שלומך? רק בודקת איך הקעקוע מחלים',
-    soon: (when) => `היי! מה שלומך? רק תזכורת לפגישה שלנו: ${when}`,
+    day1: 'היי! מה שלומך היום? איך העור נראה - יש נפיחות או אדמומיות חזקה? רק תזכורת לימים הראשונים: לנקות בעדינות, למרוח שכבה דקה של קרם ולא לקלף גלדים',
+    day4: 'היי! מה שלומך כמה ימים אחרי הסשן? הקילוף אמור להתחיל - זה חלק נורמלי בריפוי. איך העור בסך הכל, משהו מטריד?',
+    day15: 'היי! איך מתקדם הריפוי? הקילוף כבר נגמר? אם עדיין מגרד - לא לגרד, העור עדיין מחלים',
+    day30: 'היי, מה שלומך? רק בודקת איך הקעקוע מחלים',
   },
+};
+
+const REMINDER_TEXTS: Record<ClientLanguage, { soon: (when: string) => string }> = {
+  ru: { soon: (when) => `Привет! Как дела? Напоминаю о нашей встрече «${when}»` },
+  en: { soon: (when) => `Hi! How are you? Just a reminder about our appointment: ${when}` },
+  he: { soon: (when) => `היי! מה שלומך? רק תזכורת לפגישה שלנו: ${when}` },
 };
 
 // The message offered for copying on a healing check-in — deliberately not
 // personalised with the client's name (master's preference).
-export function healingReminderMessage(client: Client): string {
-  return REMINDER_TEXTS[client.language].healing;
+export function healingReminderMessage(client: Client, stage: HealingStage): string {
+  return HEALING_TEXTS[client.language][stage];
 }
 
 // "<weekday>, <day> <month>[, <time>]" in the client's own language/locale —
