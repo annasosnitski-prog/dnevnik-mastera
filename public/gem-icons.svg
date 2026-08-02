@@ -7,7 +7,7 @@
      role="img"
      aria-labelledby="title desc">
   <title id="title">INKA client-tab pendant icons</title>
-  <desc id="desc">Five softly cornered diamond pendants using the toolbar palette and jewellery language: vivid translucent faceted stones, dark bezel grooves, rich gold rims and small pavé diamonds.</desc>
+  <desc id="desc">Five enlarged diamond pendants with the original broad gold frame, toolbar colours, translucent faceted centre stones and detailed pavé decorations.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -25,6 +25,7 @@
       <stop offset=".91" stop-color="#8E4709"/>
       <stop offset="1" stop-color="#431A00"/>
     </radialGradient>
+
     <linearGradient id="gold-edge" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#6B2C00"/>
       <stop offset=".16" stop-color="#FFF0B3"/>
@@ -32,6 +33,14 @@
       <stop offset=".55" stop-color="#FFD36E"/>
       <stop offset=".75" stop-color="#7D3603"/>
       <stop offset="1" stop-color="#F1B54A"/>
+    </linearGradient>
+
+    <!-- Exact metal gradient used by the original broad frame. -->
+    <linearGradient id="gold-metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7E4B8"/>
+      <stop offset=".35" stop-color="#D8A94A"/>
+      <stop offset=".7" stop-color="#A3722A"/>
+      <stop offset="1" stop-color="#6E4A16"/>
     </linearGradient>
 
     <linearGradient id="rod-metal" x1="0" y1="0" x2="1" y2="0">
@@ -55,11 +64,13 @@
       <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".2"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
+
     <linearGradient id="facet-dark" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#000000" stop-opacity="0"/>
       <stop offset=".55" stop-color="#000000" stop-opacity=".18"/>
       <stop offset="1" stop-color="#000000" stop-opacity=".62"/>
     </linearGradient>
+
     <linearGradient id="table-sheen" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#FFFFFF" stop-opacity=".5"/>
       <stop offset=".42" stop-color="#FFFFFF" stop-opacity=".08"/>
@@ -70,12 +81,19 @@
     <filter id="pendant-shadow" x="-45%" y="-35%" width="190%" height="180%">
       <feGaussianBlur in="SourceAlpha" stdDeviation="1.05" result="blur"/>
       <feOffset in="blur" dy=".75" result="off"/>
-      <feComponentTransfer in="off" result="shadow"><feFuncA type="linear" slope=".4"/></feComponentTransfer>
-      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <feComponentTransfer in="off" result="shadow">
+        <feFuncA type="linear" slope=".4"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
+
     <filter id="stone-haze" x="-45%" y="-45%" width="190%" height="190%">
       <feGaussianBlur stdDeviation="1.25"/>
     </filter>
+
     <filter id="edge-glint" x="-40%" y="-80%" width="180%" height="260%">
       <feGaussianBlur stdDeviation=".22"/>
     </filter>
@@ -84,6 +102,7 @@
       <rect x="-8.65" y="-8.65" width="17.3" height="17.3" rx=".76"/>
     </clipPath>
 
+    <!-- Detailed pavé decoration retained from the toolbar-family refinement. -->
     <g id="pave-jewel">
       <circle r="1.75" fill="#6A3A12" opacity=".76"/>
       <circle r="1.4" fill="url(#pave-diamond)" stroke="#FFFFFF" stroke-width=".18"/>
@@ -95,28 +114,24 @@
     </g>
 
     <g id="pendant-chrome">
+      <!-- Mount remains exactly as it was. -->
       <circle cx="32" cy="9" r="2.8" fill="none" stroke="url(#gold-face)" stroke-width="1.8"/>
       <rect x="31.05" y="11.3" width="1.9" height="5.4" rx=".95" fill="url(#rod-metal)" stroke="#5A3B10" stroke-width=".35"/>
       <line x1="31.5" y1="11.7" x2="31.5" y2="16" stroke="#FCEFD8" stroke-width=".4" stroke-linecap="round" opacity=".6"/>
 
       <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <!-- Original frame width restored; corners remain recognisably diamond-shaped but are no longer knife-sharp. -->
-        <rect x="-12.5" y="-12.5" width="25" height="25" rx="1.05" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".72"/>
-        <rect x="-11.15" y="-11.15" width="22.3" height="22.3" rx=".92" fill="none" stroke="url(#gold-edge)" stroke-width=".9"/>
-        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx=".82" fill="#2C0A00" stroke="#FFCF68" stroke-width=".55"/>
-        <rect x="-9.2" y="-9.2" width="18.4" height="18.4" rx=".68" fill="none" stroke="#6A2702" stroke-width=".38"/>
+        <!-- Original frame restored in full: original width, radii, fill and strokes. -->
+        <rect x="-12.5" y="-12.5" width="25" height="25" rx="3.2" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".9"/>
+        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx="2.4" fill="#FCEFD8" stroke="url(#gold-metal)" stroke-width=".7"/>
 
-        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-11.7 -11.7)"/>
-        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(0 -11.7)"/>
-        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(11.7 -11.7)"/>
-        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(11.7 0)"/>
-        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(11.7 11.7)"/>
-        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(0 11.7)"/>
-        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-11.7 11.7)"/>
-        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-11.7 0)"/>
-
-        <path d="M-11.95 -11.95 H-4.1" stroke="#FFF4C8" stroke-width=".72" stroke-linecap="round" opacity=".78" filter="url(#edge-glint)"/>
-        <path d="M11.95 3.55 V9.9" stroke="#FFD978" stroke-width=".52" stroke-linecap="round" opacity=".58" filter="url(#edge-glint)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-9.8 -9.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(0 -9.8) scale(.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(9.8 -9.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(9.8 0) scale(.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(9.8 9.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(0 9.8) scale(.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-9.8 9.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-9.8 0) scale(.8)"/>
       </g>
     </g>
 
