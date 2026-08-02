@@ -30,8 +30,10 @@ export function overdueReminderKey(it: OverdueItem): string {
   return `overdue:${it.kind}:${it.id}`;
 }
 
+// Ключ включает stage — у каждой стадии заживления своя карточка, «удалить»
+// один этап не трогает следующий (см. HealingStage/HEALING_STAGES).
 export function healingReminderKey(it: HealingItem): string {
-  return `healing:${it.sessionId}`;
+  return `healing:${it.sessionId}:${it.stage}`;
 }
 
 export function soonReminderKey(it: UpcomingSoonItem): string {

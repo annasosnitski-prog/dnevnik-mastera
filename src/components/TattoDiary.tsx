@@ -2402,9 +2402,6 @@ export default function TattoDiary() {
             prefs={prefs}
             onChangePrefs={setPrefs}
             onOpenSession={openEntryForEdit}
-            onImport={replaceAllData}
-            projects={projects}
-            contentEntries={contentEntries}
             calendarSync={calendarSync}
             overdue={visibleOverdue}
             healing={visibleHealing}
@@ -2424,7 +2421,6 @@ export default function TattoDiary() {
               setSummaryFilter(urgency);
               setScreen('summary');
             }}
-            onMigrateRecords={migrateRecordsIntoProjects}
           />
         )}
       </div>
@@ -2470,6 +2466,12 @@ export default function TattoDiary() {
             prefs={prefs}
             onChange={setPrefs}
             onBack={() => setScreen('master')}
+            clients={clients}
+            masterNotes={masterInfo.notes}
+            projects={projects}
+            contentEntries={contentEntries}
+            onImport={replaceAllData}
+            onMigrateRecords={migrateRecordsIntoProjects}
           />
         )}
       </div>

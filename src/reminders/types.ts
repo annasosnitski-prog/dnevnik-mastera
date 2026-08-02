@@ -11,9 +11,14 @@ import type { UrgencyKey } from '../domain/urgency';
 // or reschedules.
 export type OverdueItem = { client: Client; kind: 'session' | 'consultation'; id: string; date: string; time: string };
 
-// Done sessions, not yet marked healed, whose date is at least
-// HEALING_REMINDER_DAYS in the past — a nudge to check in with the client.
-export type HealingItem = { client: Client; sessionId: string; date: string };
+// Заживление проверяется в несколько заходов вместо одной точки на 30-й
+// день — каждой стадии своё окно дней-после-сессии (см. HEALING_STAGES в
+// buildReminders.ts) и свой текст (см. healingReminderMessage).
+export type HealingStage = 'day1' | 'day4' | 'day15' | 'day30';
+
+// Done sessions, not yet marked healed, currently inside one of the
+// HEALING_STAGES windows — a nudge to check in with the client.
+export type HealingItem = { client: Client; sessionId: string; date: string; stage: HealingStage };
 
 // Sessions/consultations starting 36–48 hours from now — a heads-up to prep
 // materials before the client arrives.

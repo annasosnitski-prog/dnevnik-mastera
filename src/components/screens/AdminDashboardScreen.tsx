@@ -1,7 +1,6 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import type * as React from 'react';
 import type { Client } from '../../domain/client';
-import type { ContentEntry } from '../../domain/content';
 import type { Project } from '../../domain/project';
 import type { ClientNote } from '../../domain/task';
 import { URGENCY, type UrgencyKey } from '../../domain/urgency';
@@ -14,8 +13,6 @@ import {
   type CalendarSyncSettings,
 } from '../../lib/calendarSync';
 import { formatBookingTime, OPEN_SLOT_MARK, stripTagPrefix, tagLabel } from '../../lib/botBookingFormat';
-import { normalizeClient, normalizeClientNote, normalizeProject } from '../../lib/normalize';
-import { shareOrDownloadJSON } from '../../lib/contentShare';
 import type {
   HealingItem,
   OverdueItem,
@@ -33,19 +30,17 @@ import { COLORS, fs } from '../ui/designTokens';
 import { DASHBOARD_WINDOW_OPTIONS, type Prefs } from '../ui/preferences';
 
 // ===================== ADMIN DASHBOARD =====================
-// The control panel: every reminder, the upcoming-sessions lookahead, the
+// The control panel: every reminder, the upcoming-sessions lookahead, and the
 // client/session/consultation stats (minus «Частый стиль», which stays a
-// personal Мастер stat), scheduling, and backup — everything that's about
-// running the practice rather than the master's own profile.
+// personal Мастер stat) — everything that's about running the practice day
+// to day. Backup (export/import) and record organization moved to Настройки
+// — they're one-off maintenance, not something to trip over here.
 export function AdminDashboardScreen({
   clients,
   masterNotes,
   prefs,
   onChangePrefs,
   onOpenSession,
-  onImport,
-  projects,
-  contentEntries,
   overdue,
   healing,
   soon,
@@ -62,18 +57,12 @@ export function AdminDashboardScreen({
   onOpenTask,
   calendarSync,
   onOpenNotes,
-  onMigrateRecords,
 }: {
   clients: Client[];
   masterNotes: ClientNote[];
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
-  // Импорт полного бэкапа: clients + опционально projects/contentEntries/masterNotes.
-  onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[]; masterNotes?: ClientNote[] }) => void;
-  // Нужны для полного экспорта в backup.
-  projects: Project[];
-  contentEntries: ContentEntry[];
   overdue: OverdueItem[];
   healing: HealingItem[];
   soon: UpcomingSoonItem[];
@@ -94,9 +83,6 @@ export function AdminDashboardScreen({
   // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
   onOpenNotes: (urgency: UrgencyKey) => void;
-  // Собирает старые сессии/консультации (без projectId) в проекты-корзины
-  // по клиенту. Возвращает сводку для показа результата (Этап 2).
-  onMigrateRecords: () => { buckets: number; records: number };
 }) {
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const { urgent, important } = urgencyCounts(clients);
@@ -104,82 +90,6 @@ export function AdminDashboardScreen({
   const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
   const plannedSessionsCount = statsUpcoming.filter((i) => i.kind === 'session').length;
   const plannedConsultationsCount = statsUpcoming.filter((i) => i.kind === 'consultation').length;
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importSuccess, setImportSuccess] = useState<string | null>(null);
-  // Parsed and normalized, waiting on the inline «Да/Нет» confirm below —
-  // replaces window.confirm() so the prompt matches the app's own dialogs.
-  // Опциональные поля отсутствуют в старых backup и тогда текущие данные
-  // соответствующих хранилищ не меняются.
-  const [pendingImport, setPendingImport] = useState<{
-    clients: Client[];
-    projects?: Project[];
-    contentEntries?: ContentEntry[];
-    masterNotes?: ClientNote[];
-  } | null>(null);
-  // Миграция «Собрать старые записи в проекты» — двухшаговое подтверждение
-  // (сначала напоминаем про бэкап) + сообщение о результате.
-  const [migrateConfirm, setMigrateConfirm] = useState(false);
-  const [migrateResult, setMigrateResult] = useState<string | null>(null);
-  const hasUnorganizedRecords = clients.some(
-    (c) => c.sessions.some((s) => !s.projectId) || c.consultations.some((cs) => !cs.projectId),
-  );
-
-  const handleExport = async () => {
-    // Версия 3 добавляет только задачи мастера. Остальные поля masterInfo
-    // намеренно не экспортируются. Backup version 1/2 продолжают читаться.
-    const payload = { version: 3, exportedAt: new Date().toISOString(), clients, projects, contentEntries, masterNotes };
-    const json = JSON.stringify(payload, null, 2);
-    const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');
-  };
-
-  const handleImportFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result));
-        const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
-        if (!rawClients) throw new Error('bad shape');
-        setImportError(null);
-        setImportSuccess(null);
-        setPendingImport({
-          clients: rawClients.map((c: any, i: number) => normalizeClient(c, i)),
-          // Только если ключ реально есть в файле — иначе оставляем undefined,
-          // чтобы импорт старого бэкапа не стёр текущие данные. Повреждённое
-          // masterNotes тоже считается отсутствующим; [] остаётся валидным.
-          projects: Array.isArray(parsed?.projects) ? parsed.projects.map((p: any, i: number) => normalizeProject(p, i)) : undefined,
-          contentEntries: Array.isArray(parsed?.contentEntries) ? (parsed.contentEntries as ContentEntry[]) : undefined,
-          masterNotes: Array.isArray(parsed?.masterNotes) ? parsed.masterNotes.map((n: any, i: number) => normalizeClientNote(n, i, 'm')) : undefined,
-        });
-      } catch {
-        setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const confirmImport = () => {
-    if (!pendingImport) return;
-    onImport(pendingImport);
-    setImportSuccess(`Импортировано ${pendingImport.clients.length} клиент(ов).`);
-    setPendingImport(null);
-  };
-
-  const actionButtonStyle: React.CSSProperties = {
-    flex: 1,
-    textAlign: 'center',
-    padding: '10px 0',
-    borderRadius: 2,
-    cursor: 'pointer',
-    fontSize: fs(13),
-    letterSpacing: '1px',
-    textTransform: 'uppercase',
-    border: '1px solid rgba(var(--gold-rgb),0.35)',
-    background: 'rgba(var(--gold-rgb),0.05)',
-    color: COLORS.gold,
-  };
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -363,99 +273,6 @@ export function AdminDashboardScreen({
           a={{ label: `${URGENCY[0].emoji} ${URGENCY[0].short} · личные`, value: personalNotes.urgent, onClick: () => onOpenNotes('urgent') }}
           b={{ label: `${URGENCY[1].emoji} ${URGENCY[1].short} · личные`, value: personalNotes.important, onClick: () => onOpenNotes('important') }}
         />
-
-        {/* Backup — export the whole client list to a JSON file, or restore
-            from one (replaces everything currently stored). */}
-        <GoldFrame style={{ padding: '14px 16px' }}>
-          <div style={statLabelStyle}>Резервная копия</div>
-          {pendingImport ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', flex: 1, minWidth: 160 }}>
-                Импортировать {pendingImport.clients.length} клиент(ов)? Текущие данные будут заменены.
-              </span>
-              <span onClick={confirmImport} style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
-                Да
-              </span>
-              <span
-                onClick={() => setPendingImport(null)}
-                style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
-              >
-                Нет
-              </span>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div onClick={handleExport} style={actionButtonStyle}>
-                Экспортировать
-              </div>
-              <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
-                Импортировать
-              </div>
-            </div>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleImportFile(file);
-              e.target.value = '';
-            }}
-          />
-          {importError && (
-            <div style={{ marginTop: 10, fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic' }}>{importError}</div>
-          )}
-          {importSuccess && (
-            <div style={{ marginTop: 10, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>{importSuccess}</div>
-          )}
-        </GoldFrame>
-
-        {/* Организация записей — собирает старые сессии/консультации (ещё не
-            привязанные к проекту) в проект-«корзину» по каждому клиенту.
-            Аддитивно: сами записи не меняются и не удаляются. Показывается,
-            только пока есть что собирать. */}
-        {(hasUnorganizedRecords || migrateResult) && (
-          <GoldFrame style={{ padding: '14px 16px' }}>
-            <div style={statLabelStyle}>Организация записей</div>
-            {migrateResult ? (
-              <div style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>{migrateResult}</div>
-            ) : migrateConfirm ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ fontSize: fs(12), color: 'var(--text-soft)', fontStyle: 'italic' }}>
-                  Старые сессии и консультации без проекта соберутся в проект-«корзину» по каждому клиенту (сами записи не меняются). Сначала сделайте резервную копию.
-                </span>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <div onClick={handleExport} style={actionButtonStyle}>
-                    Сделать бэкап
-                  </div>
-                  <div
-                    onClick={() => {
-                      const { buckets, records } = onMigrateRecords();
-                      setMigrateConfirm(false);
-                      setMigrateResult(
-                        records === 0
-                          ? 'Нечего собирать — все записи уже в проектах.'
-                          : `Собрано ${records} запис(ей) в ${buckets} проект(ов).`,
-                      );
-                    }}
-                    style={{ ...actionButtonStyle, color: 'var(--urgent)', borderColor: 'rgba(200,90,90,0.4)' }}
-                  >
-                    Собрать
-                  </div>
-                  <div onClick={() => setMigrateConfirm(false)} style={actionButtonStyle}>
-                    Отмена
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div onClick={() => setMigrateConfirm(true)} style={actionButtonStyle}>
-                Собрать старые записи в проекты
-              </div>
-            )}
-          </GoldFrame>
-        )}
       </div>
     </div>
   );
