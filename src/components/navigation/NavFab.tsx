@@ -72,6 +72,7 @@ const DISC_EDGE_RATIO = 29 / 32;
 const HUB_RIM = HUB_HALF * DISC_EDGE_RATIO;
 const ITEM_RIM = ITEM_HALF * DISC_EDGE_RATIO;
 const FAN_RADIUS = 158;
+const INNER_HEX_RADIUS = 92;
 
 type FanEntry =
   | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
@@ -83,6 +84,13 @@ function radialOffset(index: number, total: number): { dx: number; dy: number } 
     dx: Math.round(Math.cos(angle) * FAN_RADIUS),
     dy: Math.round(Math.sin(angle) * FAN_RADIUS),
   };
+}
+
+function regularPolygonPoints(sides: number, radius: number, startAngle = -Math.PI / 2): string {
+  return Array.from({ length: sides }, (_, index) => {
+    const angle = startAngle + (index * Math.PI * 2) / sides;
+    return `${(Math.cos(angle) * radius).toFixed(2)},${(Math.sin(angle) * radius).toFixed(2)}`;
+  }).join(" ");
 }
 
 function rayLens(x1: number, y1: number, x2: number, y2: number, maxWidth: number): string {
@@ -180,6 +188,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   const rayExtent = 214;
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
   const mainClasses = ["nav-fab__main", "nav-fab__main--gold"];
+  const innerHexPoints = regularPolygonPoints(6, INNER_HEX_RADIUS);
 
   if (pressedId === "hub") mainClasses.push("nav-fab__main--pressed");
 
@@ -212,6 +221,33 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 </linearGradient>
               ))}
             </defs>
+
+            <g
+              className="nav-fab__ray-group"
+              style={{
+                ["--ray-duration" as string]: "1180ms",
+                ["--ray-delay" as string]: "120ms",
+              }}
+            >
+              <polygon
+                points={innerHexPoints}
+                fill="rgba(201, 146, 46, 0.025)"
+                stroke="rgba(247, 207, 105, 0.18)"
+                strokeWidth="3.4"
+                strokeLinejoin="round"
+              />
+              <polygon
+                points={innerHexPoints}
+                fill="none"
+                stroke="rgba(255, 232, 160, 0.72)"
+                strokeWidth="0.85"
+                strokeLinejoin="round"
+              />
+              {innerHexPoints.split(" ").map((point) => {
+                const [cx, cy] = point.split(",").map(Number);
+                return <circle key={point} cx={cx} cy={cy} r="1.65" fill="#f7cf69" opacity="0.88" />;
+              })}
+            </g>
 
             <g mask="url(#navFabRayMask)">
               {positions.map(({ dx, dy }, index) => {
