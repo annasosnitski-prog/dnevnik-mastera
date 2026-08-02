@@ -7,7 +7,7 @@
      role="img"
      aria-labelledby="title desc">
   <title id="title">Gold pendant navigation icons</title>
-  <desc id="desc">A small gold pendant with a diamond halo and a coloured centre stone: green sessions, blue consultations, violet content, amber notes, and red info icons.</desc>
+  <desc id="desc">A small gold pendant with a diamond halo and a coloured centre stone using the toolbar palette: green sessions, blue consultations, violet content, orange notes, and red info icons.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -100,22 +100,22 @@
 
   <g id="sessions-icon" filter="url(#pendant-shadow)">
     <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#72C83E"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#5CFF24"/>
   </g>
   <g id="consultations-icon" transform="translate(64 0)" filter="url(#pendant-shadow)">
     <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#319FD9"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#00CFFF"/>
   </g>
   <g id="content-icon" transform="translate(128 0)" filter="url(#pendant-shadow)">
     <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#A14ED8"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#C12FFF"/>
   </g>
   <g id="notes-icon" transform="translate(192 0)" filter="url(#pendant-shadow)">
     <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#D89A24"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FF8900"/>
   </g>
   <g id="info-icon" transform="translate(256 0)" filter="url(#pendant-shadow)">
     <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#D8402C"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FF3342"/>
   </g>
 </svg>
