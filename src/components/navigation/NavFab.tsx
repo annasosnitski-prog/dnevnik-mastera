@@ -215,6 +215,15 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             style={{ left: -rayExtent, top: -rayExtent, width: rayExtent * 2, height: rayExtent * 2 }}
             viewBox={`${-rayExtent} ${-rayExtent} ${rayExtent * 2} ${rayExtent * 2}`}
           >
+            <style>{`
+              @media (prefers-reduced-motion: reduce) {
+                .nav-fab__polygon-edge {
+                  opacity: 1 !important;
+                  transform: none !important;
+                }
+              }
+            `}</style>
+
             <mask id="navFabRayMask">
               <rect x={-rayExtent} y={-rayExtent} width={rayExtent * 2} height={rayExtent * 2} fill="white" />
               <circle cx={0} cy={0} r={HUB_RIM} fill="black" />
@@ -251,17 +260,34 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             <g mask="url(#navFabRayMask)">
               {innerPolygonEdges.map(({ start, end, sourceIndex }, index) => {
                 const entry = fanEntries[sourceIndex];
-                const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
+                const durationMs = Math.max(900, (entry.kind === "create" ? entry.durationMs : entry.item.durationMs) - 520);
+                const delayMs = 90 + sourceIndex * 70;
 
                 return (
-                  <g
-                    key={`polygon-${sourceIndex}`}
-                    className="nav-fab__ray-group"
-                    style={{
-                      ["--ray-duration" as string]: `${Math.max(900, durationMs - 520)}ms`,
-                      ["--ray-delay" as string]: `${90 + sourceIndex * 70}ms`,
-                    }}
-                  >
+                  <g key={`polygon-${sourceIndex}`} className="nav-fab__polygon-edge" opacity={0}>
+                    <animate
+                      attributeName="opacity"
+                      from="0"
+                      to="1"
+                      dur={`${durationMs / 1000}s`}
+                      begin={`${delayMs / 1000}s`}
+                      calcMode="spline"
+                      keyTimes="0;1"
+                      keySplines="0.18 0.82 0.2 1"
+                      fill="freeze"
+                    />
+                    <animateTransform
+                      attributeName="transform"
+                      type="scale"
+                      from="0.06 0.06"
+                      to="1 1"
+                      dur={`${durationMs / 1000}s`}
+                      begin={`${delayMs / 1000}s`}
+                      calcMode="spline"
+                      keyTimes="0;1"
+                      keySplines="0.18 0.82 0.2 1"
+                      fill="freeze"
+                    />
                     <path
                       className="nav-fab__ray-glow"
                       fill={`url(#navFabPolygonGrad-${index})`}
