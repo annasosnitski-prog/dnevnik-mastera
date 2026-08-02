@@ -24,14 +24,14 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 520px;
-  height: 520px;
+  width: 540px;
+  height: 540px;
   z-index: -1;
   pointer-events: none;
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.16) rotate(-1.5deg);
   transform-origin: 50% 50%;
-  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 520 520'%3E%3Cg fill='none' stroke='%23c9922e' stroke-linecap='round'%3E%3Cpath d='M260 260 L355 38' stroke-width='1' stroke-opacity='.55'/%3E%3Cpath d='M260 260 L488 174' stroke-width='.85' stroke-opacity='.42'/%3E%3Cpath d='M260 260 L105 474' stroke-width='.95' stroke-opacity='.5'/%3E%3Cpath d='M260 260 L30 112' stroke-width='.75' stroke-opacity='.38'/%3E%3C/g%3E%3Cg fill='%23c9922e' stroke='%23ffe7a0' stroke-width='.8'%3E%3Ccircle cx='355' cy='38' r='7.5'/%3E%3Ccircle cx='488' cy='174' r='7.5'/%3E%3Ccircle cx='105' cy='474' r='7.5'/%3E%3Ccircle cx='30' cy='112' r='7.5'/%3E%3C/g%3E%3Cg fill='%23f7cf69'%3E%3Ccircle cx='319' cy='122' r='2.2'/%3E%3Ccircle cx='390' cy='211' r='1.8'/%3E%3Ccircle cx='169' cy='398' r='2'/%3E%3Ccircle cx='98' cy='158' r='1.7'/%3E%3C/g%3E%3Cg fill='none' stroke='%23f7cf69' stroke-width='.7' stroke-opacity='.55'%3E%3Ccircle cx='260' cy='260' r='198' stroke-dasharray='1 13'/%3E%3C/g%3E%3C/svg%3E");
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 540'%3E%3Cg fill='none' stroke='%23c9922e' stroke-linecap='round'%3E%3Cpath d='M270 270 L270 24' stroke-width='.85' stroke-opacity='.5'/%3E%3Cpath d='M270 270 L443 63' stroke-width='.72' stroke-opacity='.38'/%3E%3Cpath d='M270 270 L516 178' stroke-width='.82' stroke-opacity='.46'/%3E%3Cpath d='M270 270 L518 352' stroke-width='.68' stroke-opacity='.34'/%3E%3Cpath d='M270 270 L444 480' stroke-width='.78' stroke-opacity='.42'/%3E%3Cpath d='M270 270 L270 520' stroke-width='.7' stroke-opacity='.36'/%3E%3Cpath d='M270 270 L95 482' stroke-width='.76' stroke-opacity='.4'/%3E%3Cpath d='M270 270 L22 354' stroke-width='.66' stroke-opacity='.32'/%3E%3Cpath d='M270 270 L24 176' stroke-width='.74' stroke-opacity='.38'/%3E%3Cpath d='M270 270 L96 61' stroke-width='.7' stroke-opacity='.35'/%3E%3C/g%3E%3Cg fill='%23c9922e' stroke='%23ffe7a0' stroke-width='.8'%3E%3Ccircle cx='270' cy='24' r='7.5'/%3E%3Ccircle cx='516' cy='178' r='7.5'/%3E%3Ccircle cx='444' cy='480' r='7.5'/%3E%3Ccircle cx='95' cy='482' r='7.5'/%3E%3Ccircle cx='24' cy='176' r='7.5'/%3E%3C/g%3E%3Cg fill='%23f7cf69'%3E%3Ccircle cx='270' cy='116' r='1.8'/%3E%3Ccircle cx='386' cy='131' r='2.1'/%3E%3Ccircle cx='430' cy='210' r='1.7'/%3E%3Ccircle cx='442' cy='328' r='2'/%3E%3Ccircle cx='374' cy='406' r='1.8'/%3E%3Ccircle cx='270' cy='430' r='1.7'/%3E%3Ccircle cx='164' cy='410' r='2'/%3E%3Ccircle cx='96' cy='328' r='1.8'/%3E%3Ccircle cx='106' cy='207' r='1.7'/%3E%3Ccircle cx='160' cy='132' r='2'/%3E%3C/g%3E%3Cg fill='none' stroke='%23f7cf69' stroke-width='.7' stroke-opacity='.52'%3E%3Ccircle cx='270' cy='270' r='205' stroke-dasharray='1 13'/%3E%3C/g%3E%3C/svg%3E");
   filter: drop-shadow(0 0 4px rgba(var(--gold-rgb), 0.34));
   animation: nav-fab-ornaments-open 1680ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
 }
@@ -61,8 +61,8 @@
   animation: nav-fab-invite 4.6s ease-in-out infinite;
 }
 
-/* Only the closed hub carries the almost invisible rotating brushed-metal
-   texture. The open hub stays visually still. */
+/* Only the closed hub carries the slow circular brushed-metal rotation.
+   The open hub stays visually still. */
 .nav-fab:not(.nav-fab--open) .nav-fab__main--gold::after {
   content: "";
   position: absolute;
@@ -70,15 +70,19 @@
   z-index: 1;
   border-radius: 50%;
   pointer-events: none;
-  opacity: 0.22;
-  background: repeating-conic-gradient(
-    from 0deg,
-    rgba(255, 245, 198, 0.16) 0deg 1deg,
-    transparent 1deg 7deg
-  );
+  opacity: 0.34;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 46%, rgba(255, 244, 190, 0.08) 56%, transparent 68%),
+    repeating-conic-gradient(
+      from 0deg,
+      rgba(255, 245, 198, 0.2) 0deg 0.8deg,
+      transparent 0.8deg 6deg
+    );
   -webkit-mask-image: radial-gradient(circle, #000 0 68%, transparent 71%);
   mask-image: radial-gradient(circle, #000 0 68%, transparent 71%);
-  animation: nav-fab-brushed-gold 58s linear infinite;
+  animation: nav-fab-brushed-gold 56s linear infinite;
+  transform-origin: 50% 50%;
+  will-change: transform;
 }
 
 .nav-fab--open .nav-fab__main--gold::before {
@@ -98,9 +102,7 @@
   animation: nav-fab-ray-slide var(--ray-duration) cubic-bezier(0.16, 1, 0.3, 1) var(--ray-delay) both;
 }
 
-/* The stones now make one continuous glide. The previous multi-step rotate,
-   scale and overshoot sequence made them look settled while they were still
-   correcting their position. */
+/* The stones make one continuous glide. */
 .nav-fab--open .nav-fab__item--ice {
   animation-name: nav-fab-ice-slide !important;
   animation-duration: var(--travel-duration) !important;
