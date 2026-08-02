@@ -1,0 +1,45 @@
+name: Patch client-tab pendant lighting
+
+on:
+  push:
+    branches:
+      - codex/client-tabs-toolbar-family
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/client-tabs-toolbar-family
+          fetch-depth: 0
+
+      - name: Keep gold pendants at one brightness
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/components/screens/DetailScreen.tsx')
+          text = path.read_text(encoding='utf-8')
+          old = """          opacity: activeTab === tab ? 1 : 0.62,
+          filter: activeTab === tab ? 'none' : 'saturate(0.72) brightness(0.82)',
+          transition: 'opacity 0.25s, filter 0.25s',"""
+          new = """          opacity: 1,
+          filter: 'none',"""
+          if old not in text:
+              raise SystemExit('Expected gemMarker lighting block was not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Commit patch and remove one-time workflow
+        run: |
+          rm .github/workflows/patch-client-tab-pendant-lighting.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/screens/DetailScreen.tsx .github/workflows/patch-client-tab-pendant-lighting.yml
+          git commit -m "Keep client-tab pendants at uniform brightness"
+          git push origin HEAD:codex/client-tabs-toolbar-family
