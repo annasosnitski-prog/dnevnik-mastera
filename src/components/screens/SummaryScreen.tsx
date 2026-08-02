@@ -45,6 +45,7 @@ export function SummaryScreen({
   onOpenConsultation,
   onOpenSession,
   onAddMasterNote,
+  onAddNote,
   onToggleMasterDone,
   onEditMasterNote,
   onDeleteMasterNote,
@@ -67,6 +68,11 @@ export function SummaryScreen({
   onOpenConsultation: (clientId: string, consultationId: string) => void;
   onOpenSession: (clientId: string, sessionId: string) => void;
   onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
+  // Lets the composer attach the new note straight to a client (picked from
+  // the dropdown it shows) instead of always creating a client-less one —
+  // same shape as AdditionalTab's onAddNote, just clientId-parameterized
+  // since «Сводка» isn't scoped to a single client.
+  onAddNote: (clientId: string, text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
   onDeleteMasterNote: (noteId: string) => void;
@@ -339,8 +345,9 @@ export function SummaryScreen({
           <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 2 }}>
             Общие
           </div>
-          {/* New general note (client-less, stored on the master) — opened
-              via the nav FAB's contextual «Создать» action. */}
+          {/* New note — client-less by default (stored on the master), or
+              tied to a client via the composer's own picker. Opened via the
+              nav FAB's contextual «Создать» action. */}
           {showComposer && (
             <div style={{ marginBottom: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -350,8 +357,10 @@ export function SummaryScreen({
                 <ReminderCloseButton onClick={() => onShowComposerChange(false)} />
               </div>
               <NoteComposer
-                onAdd={(text, urgency, photos, dueDate) => {
-                  onAddMasterNote(text, urgency, photos, dueDate);
+                clients={clients}
+                onAdd={(text, urgency, photos, dueDate, clientId) => {
+                  if (clientId) onAddNote(clientId, text, urgency, photos, dueDate);
+                  else onAddMasterNote(text, urgency, photos, dueDate);
                   onShowComposerChange(false);
                 }}
               />
