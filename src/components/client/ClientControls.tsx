@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { type ClientType, CLIENT_TYPES } from '../../domain/client';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
-import { type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES } from '../../domain/project';
+import { type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep } from '../../domain/project';
 import { downsizeForStorage } from '../../lib/imagePreview';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT, INPUT_STYLE } from '../TattoDiary';
@@ -598,7 +598,12 @@ export function NextStepRow({
     setEditing(true);
   };
   const save = () => {
-    onSave(text.trim(), date || null, type);
+    const resolved = resolveNextStep(text, date || null, type);
+    onSave(resolved.nextActionText, resolved.nextActionDate, resolved.nextActionType);
+    setEditing(false);
+  };
+  const clear = () => {
+    onSave('', null, null);
     setEditing(false);
   };
 
@@ -678,6 +683,23 @@ export function NextStepRow({
           Отмена
         </div>
       </div>
+      {nextActionText && (
+        <div
+          onClick={clear}
+          role="button"
+          style={{
+            marginTop: 8,
+            textAlign: 'center',
+            fontSize: fs(11),
+            letterSpacing: '0.6px',
+            textTransform: 'uppercase',
+            color: COLORS.textFaint,
+            cursor: 'pointer',
+          }}
+        >
+          Удалить следующий шаг
+        </div>
+      )}
     </div>
   );
 }
