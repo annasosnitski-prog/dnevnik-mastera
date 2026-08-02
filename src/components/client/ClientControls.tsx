@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
 import { type ClientType, CLIENT_TYPES } from '../../domain/client';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
-import { type ProjectCategory, PROJECT_CATEGORIES } from '../../domain/project';
+import { type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES } from '../../domain/project';
 import { downsizeForStorage } from '../../lib/imagePreview';
-import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT } from '../TattoDiary';
+import { formatDate } from '../../utils/dates';
+import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT, INPUT_STYLE } from '../TattoDiary';
 
 // Вынесено из TattoDiary.tsx (PR 10 рефакторинга) — общие форм-контролы
 // «карточки клиента», которые использует и сам экран деталей, и bottom
@@ -566,6 +567,121 @@ export function UrgencyChips({ value, onPick }: { value: UrgencyKey; onPick: (u:
 }
 
 // ── Project category picker (single-select chips, no emoji) ──
+// Единственный next step проекта (nextActionText/Date/Type) — быстро
+// видимый и редактируемый прямо здесь, без перехода в полную форму
+// редактирования проекта. Используется на всех трёх рабочих уровнях
+// (ProjectViewSheet, TimelineViewSheet для сессии/консультации) — Save
+// всегда пишет напрямую в тот же объект Project через onSave, значения не
+// копируются на сессию/консультацию (см. ТЗ «Следующий шаг»). Свёрнутый вид
+// не показывает ничего, если next step не задан и сама карточка не
+// открыта на редактирование — открывается по тапу на пустое место тоже.
+export function NextStepRow({
+  nextActionText,
+  nextActionDate,
+  nextActionType,
+  onSave,
+}: {
+  nextActionText: string;
+  nextActionDate: string | null;
+  nextActionType: NextActionType | null;
+  onSave: (text: string, date: string | null, type: NextActionType | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(nextActionText);
+  const [date, setDate] = useState(nextActionDate ?? '');
+  const [type, setType] = useState<NextActionType | null>(nextActionType);
+
+  const startEdit = () => {
+    setText(nextActionText);
+    setDate(nextActionDate ?? '');
+    setType(nextActionType);
+    setEditing(true);
+  };
+  const save = () => {
+    onSave(text.trim(), date || null, type);
+    setEditing(false);
+  };
+
+  const labelStyle: React.CSSProperties = { fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 };
+
+  if (!editing) {
+    return (
+      <div onClick={startEdit} style={{ cursor: 'pointer' }}>
+        <div style={labelStyle}>Следующий шаг</div>
+        {nextActionText ? (
+          <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textPrimary, lineHeight: 1.5 }}>
+            {nextActionText}
+            {nextActionDate ? ` · ${formatDate(nextActionDate)}` : ''}
+          </div>
+        ) : (
+          <div style={{ fontSize: fs(14), color: COLORS.textFaint, fontStyle: 'italic' }}>Не задан — нажмите, чтобы добавить</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <div style={labelStyle}>Следующий шаг</div>
+      <input
+        dir="auto"
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Например: Отправить мудборд"
+        style={{ ...INPUT_STYLE, marginBottom: 8 }}
+      />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <select value={type ?? ''} onChange={(e) => setType((e.target.value || null) as NextActionType | null)} style={{ ...INPUT_STYLE, flex: 1 }}>
+          <option value="">Тип действия — не выбран</option>
+          {NEXT_ACTION_TYPES.map((t) => (
+            <option key={t.key} value={t.key}>{t.label}</option>
+          ))}
+        </select>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, flex: 1 }} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div
+          onClick={save}
+          role="button"
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '8px 0',
+            border: '1px solid rgba(var(--gold-rgb),0.35)',
+            borderRadius: 2,
+            cursor: 'pointer',
+            color: COLORS.gold,
+            fontSize: fs(12),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Сохранить
+        </div>
+        <div
+          onClick={() => setEditing(false)}
+          role="button"
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '8px 0',
+            border: '1px solid rgba(var(--gold-rgb),0.15)',
+            borderRadius: 2,
+            cursor: 'pointer',
+            color: COLORS.textFaint,
+            fontSize: fs(12),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Отмена
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProjectCategoryChips({ value, onPick }: { value: ProjectCategory; onPick: (c: ProjectCategory) => void }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

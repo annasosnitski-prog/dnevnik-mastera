@@ -44,6 +44,7 @@ import {
   UrgencyChips,
   ProjectCategoryChips,
   MarkerColorPalette,
+  NextStepRow,
 } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton, SheetSavedCheck } from '../ui/Sheet';
 import { FieldLabel, SheetStarDivider } from '../ui/TextAtoms';
@@ -701,6 +702,7 @@ export function ProjectViewSheet({
   onEditProjectSession,
   onToggleTaskDone,
   onOpenContentEntry,
+  onSaveNextStep,
 }: {
   open: boolean;
   project: Project | null;
@@ -724,6 +726,9 @@ export function ProjectViewSheet({
   // Тап по карточке контента — открыть её в уже существующем ContentINKA,
   // без нового экрана и без изменения самого редактора.
   onOpenContentEntry: (entry: ContentEntry) => void;
+  // Единственный next step проекта (см. NextStepRow) — пишет напрямую в
+  // проект тем же saveProject, что и остальные правки, без глубокой формы.
+  onSaveNextStep: (text: string, date: string | null, type: NextActionType | null) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
@@ -788,15 +793,12 @@ export function ProjectViewSheet({
               )}
             </div>
 
-            {project.nextActionText && (
-              <div>
-                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Следующий шаг</div>
-                <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textPrimary, lineHeight: 1.5 }}>
-                  {project.nextActionText}
-                  {project.nextActionDate ? ` · ${formatDate(project.nextActionDate)}` : ''}
-                </div>
-              </div>
-            )}
+            <NextStepRow
+              nextActionText={project.nextActionText}
+              nextActionDate={project.nextActionDate}
+              nextActionType={project.nextActionType}
+              onSave={onSaveNextStep}
+            />
 
             {project.photos.length > 0 && <SessionPhotos photos={project.photos} onChange={() => {}} allowDelete={false} readOnly />}
 
