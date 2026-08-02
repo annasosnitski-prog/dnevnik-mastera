@@ -171,6 +171,7 @@ export function DetailScreen({
   onToggleSessionDone,
   onEditConsultation,
   onDeleteConsultation,
+  onConvertConsultation,
   onViewSession,
   onViewConsultation,
   onAddDocument,
@@ -197,6 +198,10 @@ export function DetailScreen({
   onToggleSessionDone: (sessionId: string) => void;
   onEditConsultation: (consultation: Consultation) => void;
   onDeleteConsultation: (consultationId: string) => void;
+  // Consultation happened, master and client agreed on a work session —
+  // moves the consultation into a session (client.consultations →
+  // client.sessions) instead of leaving it as a separate, now-stale record.
+  onConvertConsultation: (consultation: Consultation) => void;
   onViewSession: (session: Session) => void;
   onViewConsultation: (consultation: Consultation) => void;
   onAddDocument: (doc: ClientDocument) => void;
@@ -607,6 +612,7 @@ export function DetailScreen({
             onToggleSessionDone={onToggleSessionDone}
             onEditConsultation={onEditConsultation}
             onDeleteConsultation={onDeleteConsultation}
+            onConvertConsultation={onConvertConsultation}
             onViewSession={onViewSession}
             onViewConsultation={onViewConsultation}
           />
@@ -1546,6 +1552,7 @@ function SessionsTab({
   onToggleSessionDone,
   onEditConsultation,
   onDeleteConsultation,
+  onConvertConsultation,
   onViewSession,
   onViewConsultation,
 }: {
@@ -1557,6 +1564,7 @@ function SessionsTab({
   onToggleSessionDone: (sessionId: string) => void;
   onEditConsultation: (consultation: Consultation) => void;
   onDeleteConsultation: (consultationId: string) => void;
+  onConvertConsultation: (consultation: Consultation) => void;
   onViewSession: (session: Session) => void;
   onViewConsultation: (consultation: Consultation) => void;
 }) {
@@ -1573,6 +1581,7 @@ function SessionsTab({
             consultation={consultation}
             onEdit={onEditConsultation}
             onDelete={() => onDeleteConsultation(consultation.id)}
+            onConvert={() => onConvertConsultation(consultation)}
             onView={onViewConsultation}
           />
         ))}
@@ -1608,11 +1617,13 @@ function ConsultationRow({
   consultation,
   onEdit,
   onDelete,
+  onConvert,
   onView,
 }: {
   consultation: Consultation;
   onEdit: (consultation: Consultation) => void;
   onDelete: () => void;
+  onConvert: () => void;
   onView: (consultation: Consultation) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -1661,6 +1672,22 @@ function ConsultationRow({
               </span>
             )}
             <span style={{ fontSize: fs(13) }} title={meta.label}>{meta.emoji}</span>
+            {/* Consultation happened, work session was agreed — moves this
+                record into a session instead of leaving a stale duplicate;
+                see TattoDiary's startConvertConsultationToSession. Hidden for
+                a cancelled consultation — nothing to convert. */}
+            {!consultation.cancelled && (
+              <div
+                className="inka-back"
+                onClick={onConvert}
+                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+                title="Перевести в сессию"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                  <path d="M2 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
             <div
               className="inka-back"
               onClick={() => onEdit(consultation)}

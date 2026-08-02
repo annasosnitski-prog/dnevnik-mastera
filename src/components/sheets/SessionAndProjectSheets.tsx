@@ -51,6 +51,20 @@ import { FieldLabel, SheetStarDivider } from '../ui/TextAtoms';
 // Вынесено из TattoDiary.tsx (PR 6 рефакторинга). Логика и разметка не
 // менялись — только перенос в отдельный модуль.
 
+// Собирает заметку новой сессии из полей консультации-источника (см.
+// prefillConsultation ниже) — переезжает вместе с сессией то, что не имеет
+// собственного поля в Session (чувство/ощущение, креатив, источники
+// вдохновения), а не теряется при конвертации.
+function consultationNoteSummary(consultation: Consultation | null | undefined): string {
+  if (!consultation) return '';
+  const parts: string[] = [];
+  if (consultation.generalNotes) parts.push(consultation.generalNotes);
+  if (consultation.feeling) parts.push(`Чувство/ощущение: ${consultation.feeling}`);
+  if (consultation.creative) parts.push(`Креатив: ${consultation.creative}`);
+  if (consultation.inspirationSources) parts.push(`Источники вдохновения: ${consultation.inspirationSources}`);
+  return parts.join('\n\n');
+}
+
 export function NewSessionSheet({
   open,
   clientName,
@@ -58,6 +72,7 @@ export function NewSessionSheet({
   presetProjectId,
   initial,
   initialDate,
+  prefillConsultation,
   onClose,
   onAdd,
 }: {
@@ -72,6 +87,13 @@ export function NewSessionSheet({
   // Prefills the date field for a brand-new session (e.g. started from a
   // day picked in the calendar) — ignored once `initial` is set (editing wins).
   initialDate?: string;
+  // Консультация, которую переводят в сессию («Перевести в сессию» —
+  // DetailScreen/TimelineViewSheet) — предзаполняет зону/стиль/фото/проект и
+  // собирает заметку из creative-полей консультации. Игнорируется при
+  // редактировании существующей сессии (initial имеет приоритет). Дата
+  // намеренно НЕ переносится — консультация уже прошла, а сессия это новая,
+  // ещё не назначенная встреча для работы.
+  prefillConsultation?: Consultation | null;
   onClose: () => void;
   onAdd: (data: {
     name: string;
@@ -117,21 +139,25 @@ export function NewSessionSheet({
 
   useEffect(() => {
     if (open) {
-      // Prefill from the session being edited, or start blank for a new one.
+      // Prefill from the session being edited, from the consultation being
+      // converted (prefillConsultation, ignored while editing), or start
+      // blank for a new one.
       setName(initial?.name ?? '');
       setDate(initial?.date ?? initialDate ?? '');
       setTime(initial?.time ?? '');
       setDuration(initial?.duration ?? '');
-      setStyle(initial?.style ?? '');
-      setArea(initial?.area ?? '');
+      setStyle(initial?.style ?? prefillConsultation?.style ?? '');
+      setArea(initial?.area ?? prefillConsultation?.area ?? '');
       setColors(initial?.colors ?? '');
       setNeedles(initial?.needles ?? '');
       setSkinReaction(initial?.skinReaction ?? '');
-      setNote(initial?.note ?? '');
-      setPhotos(initial?.photos ?? []);
-      setDone(initial ? initial.done : !initialDate);
+      setNote(initial?.note ?? consultationNoteSummary(prefillConsultation));
+      setPhotos(initial?.photos ?? prefillConsultation?.photos ?? []);
+      // A converted consultation is always a future booking, not yet done —
+      // same reasoning as the initialDate case just below.
+      setDone(initial ? initial.done : !initialDate && !prefillConsultation);
       setHealed(initial?.healed ?? false);
-      setProjectId(initial?.projectId ?? presetProjectId ?? null);
+      setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,6 +196,11 @@ export function NewSessionSheet({
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
           {isEdit ? 'Редактировать сессию' : 'Новая сессия'}
         </div>
+        {!isEdit && prefillConsultation && (
+          <div style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', marginTop: 4, letterSpacing: '0.3px' }}>
+            Из консультации {formatDate(prefillConsultation.date) || ''}
+          </div>
+        )}
         <SheetStarDivider />
       </div>
 

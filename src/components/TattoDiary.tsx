@@ -617,6 +617,12 @@ export default function TattoDiary() {
   const [showAddChoice, setShowAddChoice] = useState(false);
   const [showNewConsultationForm, setShowNewConsultationForm] = useState(false);
   const [editConsultation, setEditConsultation] = useState<Consultation | null>(null);
+  // Consultation being turned into a session («Перевести в сессию») —
+  // prefills NewSessionSheet (area/style/photos/project + notes) and, once
+  // the session is saved, the consultation is removed so it doesn't stick
+  // around as a stale duplicate. See startConvertConsultationToSession /
+  // handleAddSession below.
+  const [convertingConsultation, setConvertingConsultation] = useState<Consultation | null>(null);
   // «Творческая мастерская» — standalone projects, not tied to any client.
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
@@ -1066,6 +1072,7 @@ export default function TattoDiary() {
   const closeNewSession = () => {
     setShowNewSessionForm(false);
     setEditSession(null);
+    setConvertingConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
@@ -1203,6 +1210,20 @@ export default function TattoDiary() {
   const deleteConsultation = (consultationId: string) => {
     if (!selectedClient) return;
     saveClient({ ...selectedClient, consultations: selectedClient.consultations.filter((c) => c.id !== consultationId) });
+  };
+
+  // «Перевести в сессию» — consultation happened, master and client agreed on
+  // a work session, so the consultation moves into a session instead of a new
+  // one being created alongside it. Opens NewSessionSheet prefilled from the
+  // consultation (see prefillConsultation there); the actual client.sessions/
+  // client.consultations mutation happens together in handleAddSession once
+  // the form is saved (see convertingConsultation below).
+  const startConvertConsultationToSession = (consultation: Consultation) => {
+    setActiveTab('sessions');
+    setEditSession(null);
+    setConvertingConsultation(consultation);
+    setShowNewSessionForm(true);
+    setViewEntry(null);
   };
 
   // ── Мастерская: standalone projects, not tied to any client ──
@@ -1602,12 +1623,20 @@ export default function TattoDiary() {
   const handleAddSession = (data: SessionFormData) => {
     if (!selectedClient) return;
     const { client: updatedClient } = upsertClientSession(selectedClient, data, editSession?.id ?? null);
-    saveClient(updatedClient);
+    // Конвертация консультации (см. startConvertConsultationToSession) — сама
+    // консультация убирается тем же saveClient, что добавляет сессию, чтобы
+    // консультация «переехала» одним атомарным изменением, а не оставалась
+    // рядом дублем до следующего сохранения.
+    const finalClient = convertingConsultation
+      ? { ...updatedClient, consultations: updatedClient.consultations.filter((c) => c.id !== convertingConsultation.id) }
+      : updatedClient;
+    saveClient(finalClient);
     // Авто-переход этапа проекта (Этап 3b): выполненная сессия → «В работе»,
     // запланированная (ещё не выполнена) → «Записан». Только вперёд.
     advanceProjectStage(data.projectId, data.done ? 'in_progress' : 'booked');
     setShowNewSessionForm(false);
     setEditSession(null);
+    setConvertingConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
@@ -2472,6 +2501,7 @@ export default function TattoDiary() {
             onToggleSessionDone={toggleSessionDone}
             onEditConsultation={(consultation) => { setEditConsultation(consultation); setShowNewConsultationForm(true); }}
             onDeleteConsultation={deleteConsultation}
+            onConvertConsultation={startConvertConsultationToSession}
             onViewSession={(session) => setViewEntry({ kind: 'session', clientId: selectedClient.id, id: session.id })}
             onViewConsultation={(consultation) => setViewEntry({ kind: 'consultation', clientId: selectedClient.id, id: consultation.id })}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
@@ -2561,6 +2591,7 @@ export default function TattoDiary() {
         presetProjectId={sessionTargetProjectId ?? presetEntryProjectId}
         initial={editSession}
         initialDate={calendarCreateDate ?? undefined}
+        prefillConsultation={convertingConsultation}
         onClose={closeNewSession}
         onAdd={saveSessionFromNewSessionSheet}
       />
@@ -2718,6 +2749,14 @@ export default function TattoDiary() {
           if (viewEntry) reassignEntryProject(viewEntry.clientId, viewEntry.kind, viewEntry.id, projectId);
         }}
         onOpenContent={openContentWorkspace}
+        onConvertToSession={
+          viewedConsultation
+            ? () => {
+                if (viewEntry) setSelectedId(viewEntry.clientId);
+                startConvertConsultationToSession(viewedConsultation);
+              }
+            : undefined
+        }
       />
 
       {/* ═══════════ CALENDAR (month view, opened from «Ближайшая») ═══════════ */}
