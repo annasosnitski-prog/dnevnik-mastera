@@ -7,7 +7,7 @@
      role="img"
      aria-labelledby="title desc">
   <title id="title">INKA gold client-tab pendants</title>
-  <desc id="desc">Five identically lit gold pendants with small faceted centre stones in the toolbar colours.</desc>
+  <desc id="desc">Five identically lit gold pendants with slightly sharper corners and small faceted centre stones in the exact toolbar colours.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -16,6 +16,7 @@
   <view id="info" viewBox="256 0 64 64"/>
 
   <defs>
+    <!-- Same gentle gold used by the toolbar's stamped plate. -->
     <linearGradient id="gold-metal" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#F7E4B8"/>
       <stop offset=".35" stop-color="#D8A94A"/>
@@ -23,6 +24,7 @@
       <stop offset="1" stop-color="#6E4A16"/>
     </linearGradient>
 
+    <!-- Exact toolbar pendant gold-face palette and light direction. -->
     <radialGradient id="gold-face" cx=".34" cy=".2" r=".84">
       <stop offset="0" stop-color="#FFF8D7"/>
       <stop offset=".14" stop-color="#FFD777"/>
@@ -33,6 +35,7 @@
       <stop offset="1" stop-color="#431A00"/>
     </radialGradient>
 
+    <!-- Exact toolbar gold-edge palette. -->
     <linearGradient id="gold-edge" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#6B2C00"/>
       <stop offset=".16" stop-color="#FFF0B3"/>
@@ -50,6 +53,7 @@
       <stop offset="1" stop-color="#6E4A16"/>
     </linearGradient>
 
+    <!-- Exact toolbar pavé palette. -->
     <radialGradient id="pave-diamond" cx=".32" cy=".26" r=".75">
       <stop offset="0" stop-color="#FFFFFF"/>
       <stop offset=".32" stop-color="#F8FBFF"/>
@@ -98,7 +102,7 @@
     </filter>
 
     <clipPath id="stone-clip" clipPathUnits="userSpaceOnUse">
-      <rect x="-5.2" y="-5.2" width="10.4" height="10.4" rx="1.05"/>
+      <rect x="-5.2" y="-5.2" width="10.4" height="10.4" rx=".9"/>
     </clipPath>
 
     <g id="pave-jewel">
@@ -118,13 +122,13 @@
       <line x1="31.5" y1="11.7" x2="31.5" y2="16" stroke="#FCEFD8" stroke-width=".4" stroke-linecap="round" opacity=".6"/>
 
       <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <!-- Original broad frame, now the dominant visual object. -->
-        <rect x="-12.5" y="-12.5" width="25" height="25" rx="3.2" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".9"/>
-        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx="2.4" fill="#FCEFD8" stroke="url(#gold-metal)" stroke-width=".7"/>
+        <!-- Original broad frame; radii reduced only slightly. -->
+        <rect x="-12.5" y="-12.5" width="25" height="25" rx="2.75" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".9"/>
+        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx="2.05" fill="#FCEFD8" stroke="url(#gold-metal)" stroke-width=".7"/>
 
         <!-- Gold centre field: identical illumination on all five pendants. -->
-        <rect x="-7.9" y="-7.9" width="15.8" height="15.8" rx="1.75" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".45"/>
-        <rect x="-7.15" y="-7.15" width="14.3" height="14.3" rx="1.45" fill="none" stroke="url(#gold-edge)" stroke-width=".45" opacity=".82"/>
+        <rect x="-7.9" y="-7.9" width="15.8" height="15.8" rx="1.55" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".45"/>
+        <rect x="-7.15" y="-7.15" width="14.3" height="14.3" rx="1.3" fill="none" stroke="url(#gold-edge)" stroke-width=".45" opacity=".82"/>
         <path d="M-6.5-6.5H-.6" stroke="#FFF4C8" stroke-width=".7" stroke-linecap="round" opacity=".7" filter="url(#edge-glint)"/>
 
         <!-- Pavé arrangement remains part of the gold pendant, not the colour code. -->
@@ -142,9 +146,9 @@
     <!-- Only this small centre stone changes colour. -->
     <g id="pendant-stone">
       <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <rect x="-5.7" y="-5.7" width="11.4" height="11.4" rx="1.2" fill="currentColor" opacity=".24" filter="url(#stone-haze)"/>
-        <rect x="-5.8" y="-5.8" width="11.6" height="11.6" rx="1.25" fill="#241608" stroke="#4F1700" stroke-width=".45"/>
-        <rect x="-5.2" y="-5.2" width="10.4" height="10.4" rx="1.05" fill="currentColor" stroke="#000000" stroke-opacity=".28" stroke-width=".35"/>
+        <rect x="-5.7" y="-5.7" width="11.4" height="11.4" rx="1.05" fill="currentColor" opacity=".24" filter="url(#stone-haze)"/>
+        <rect x="-5.8" y="-5.8" width="11.6" height="11.6" rx="1.1" fill="#241608" stroke="#4F1700" stroke-width=".45"/>
+        <rect x="-5.2" y="-5.2" width="10.4" height="10.4" rx=".9" fill="currentColor" stroke="#000000" stroke-opacity=".28" stroke-width=".35"/>
 
         <g clip-path="url(#stone-clip)">
           <path d="M-5.2-5.2H0L-2.1-2.1Z" fill="#FFFFFF" opacity=".18"/>
@@ -156,11 +160,11 @@
           <path d="M-5.2 5.2V0L-2.1 2.1Z" fill="#000000" opacity=".14"/>
           <path d="M-5.2 0V-5.2L-2.1-2.1V2.1Z" fill="#FFFFFF" opacity=".06"/>
 
-          <rect x="-2.35" y="-2.35" width="4.7" height="4.7" rx=".28" fill="currentColor"/>
-          <rect x="-2.35" y="-2.35" width="4.7" height="4.7" rx=".28" fill="url(#stone-table)"/>
+          <rect x="-2.35" y="-2.35" width="4.7" height="4.7" rx=".22" fill="currentColor"/>
+          <rect x="-2.35" y="-2.35" width="4.7" height="4.7" rx=".22" fill="url(#stone-table)"/>
 
           <g fill="none" stroke="#FFFFFF" stroke-opacity=".22" stroke-width=".22">
-            <rect x="-2.35" y="-2.35" width="4.7" height="4.7" rx=".28"/>
+            <rect x="-2.35" y="-2.35" width="4.7" height="4.7" rx=".22"/>
             <path d="M-5.2-5.2-2.35-2.35M5.2-5.2 2.35-2.35M5.2 5.2 2.35 2.35M-5.2 5.2-2.35 2.35"/>
             <path d="M0-5.2V-2.35M5.2 0H2.35M0 5.2V2.35M-5.2 0H-2.35"/>
           </g>
@@ -171,6 +175,7 @@
     </g>
   </defs>
 
+  <!-- Exact toolbar colour mapping: Clients, Projects, POSTiNKA, Notes, Admin. -->
   <g id="sessions-icon" filter="url(#pendant-shadow)">
     <use href="#pendant-gold" xlink:href="#pendant-gold"/>
     <use href="#pendant-stone" xlink:href="#pendant-stone" color="#5CFF24"/>
