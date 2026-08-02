@@ -7,7 +7,7 @@
      role="img"
      aria-labelledby="title desc">
   <title id="title">INKA client-tab pendant icons</title>
-  <desc id="desc">Five sharp diamond pendants using the toolbar palette and the toolbar jewellery language: vivid translucent faceted stones, dark bezel grooves, rich gold rims and small pavé diamonds.</desc>
+  <desc id="desc">Five softly cornered diamond pendants using the toolbar palette and jewellery language: vivid translucent faceted stones, dark bezel grooves, rich gold rims and small pavé diamonds.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -16,7 +16,6 @@
   <view id="info" viewBox="256 0 64 64"/>
 
   <defs>
-    <!-- The same dramatic warm-gold range used by the toolbar medallions. -->
     <radialGradient id="gold-face" cx=".34" cy=".2" r=".84">
       <stop offset="0" stop-color="#FFF8D7"/>
       <stop offset=".14" stop-color="#FFD777"/>
@@ -35,7 +34,6 @@
       <stop offset="1" stop-color="#F1B54A"/>
     </linearGradient>
 
-    <!-- The bail and its stem are deliberately unchanged in size and form. -->
     <linearGradient id="rod-metal" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#6E4A16"/>
       <stop offset=".28" stop-color="#D8A94A"/>
@@ -52,7 +50,6 @@
       <stop offset="1" stop-color="#929DAA"/>
     </radialGradient>
 
-    <!-- Colourless overlays: the base underneath remains currentColor. -->
     <linearGradient id="facet-light" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#FFFFFF" stop-opacity=".72"/>
       <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".2"/>
@@ -83,7 +80,10 @@
       <feGaussianBlur stdDeviation=".22"/>
     </filter>
 
-    <!-- A miniature version of the toolbar's faceted pavé diamond. -->
+    <clipPath id="stone-clip" clipPathUnits="userSpaceOnUse">
+      <rect x="-8.65" y="-8.65" width="17.3" height="17.3" rx=".76"/>
+    </clipPath>
+
     <g id="pave-jewel">
       <circle r="1.75" fill="#6A3A12" opacity=".76"/>
       <circle r="1.4" fill="url(#pave-diamond)" stroke="#FFFFFF" stroke-width=".18"/>
@@ -94,20 +94,18 @@
       <circle r=".22" fill="#FFFFFF" opacity=".94"/>
     </g>
 
-    <!-- Gold body only. The bail above it is not included in the enlarged group. -->
     <g id="pendant-chrome">
       <circle cx="32" cy="9" r="2.8" fill="none" stroke="url(#gold-face)" stroke-width="1.8"/>
       <rect x="31.05" y="11.3" width="1.9" height="5.4" rx=".95" fill="url(#rod-metal)" stroke="#5A3B10" stroke-width=".35"/>
       <line x1="31.5" y1="11.7" x2="31.5" y2="16" stroke="#FCEFD8" stroke-width=".4" stroke-linecap="round" opacity=".6"/>
 
       <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <!-- Sharp four-corner outer figure, richer and narrower like the toolbar rim. -->
-        <rect x="-13" y="-13" width="26" height="26" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".72"/>
-        <rect x="-11.65" y="-11.65" width="23.3" height="23.3" fill="none" stroke="url(#gold-edge)" stroke-width=".9"/>
-        <rect x="-10.65" y="-10.65" width="21.3" height="21.3" fill="#2C0A00" stroke="#FFCF68" stroke-width=".55"/>
-        <rect x="-10.05" y="-10.05" width="20.1" height="20.1" fill="none" stroke="#6A2702" stroke-width=".38"/>
+        <!-- Original frame width restored; corners remain recognisably diamond-shaped but are no longer knife-sharp. -->
+        <rect x="-12.5" y="-12.5" width="25" height="25" rx="1.05" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".72"/>
+        <rect x="-11.15" y="-11.15" width="22.3" height="22.3" rx=".92" fill="none" stroke="url(#gold-edge)" stroke-width=".9"/>
+        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx=".82" fill="#2C0A00" stroke="#FFCF68" stroke-width=".55"/>
+        <rect x="-9.2" y="-9.2" width="18.4" height="18.4" rx=".68" fill="none" stroke="#6A2702" stroke-width=".38"/>
 
-        <!-- Eight pavé diamonds around the stone, echoing the toolbar medallions. -->
         <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-11.7 -11.7)"/>
         <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(0 -11.7)"/>
         <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(11.7 -11.7)"/>
@@ -117,50 +115,44 @@
         <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-11.7 11.7)"/>
         <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-11.7 0)"/>
 
-        <!-- Metal catch-lights sit on real frame edges, as on the toolbar jewellery. -->
-        <path d="M-12.45 -12.45 H-4.1" stroke="#FFF4C8" stroke-width=".72" stroke-linecap="round" opacity=".78" filter="url(#edge-glint)"/>
-        <path d="M12.45 3.8 V10.5" stroke="#FFD978" stroke-width=".52" stroke-linecap="round" opacity=".58" filter="url(#edge-glint)"/>
+        <path d="M-11.95 -11.95 H-4.1" stroke="#FFF4C8" stroke-width=".72" stroke-linecap="round" opacity=".78" filter="url(#edge-glint)"/>
+        <path d="M11.95 3.55 V9.9" stroke="#FFD978" stroke-width=".52" stroke-linecap="round" opacity=".58" filter="url(#edge-glint)"/>
       </g>
     </g>
 
-    <!-- A sharp diamond stone with the toolbar's layered, translucent brilliant-cut language. -->
     <g id="pendant-stone">
       <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <!-- Light escaping through the material, but contained inside the dark bezel. -->
-        <rect x="-8.9" y="-8.9" width="17.8" height="17.8" fill="currentColor" opacity=".36" filter="url(#stone-haze)"/>
-        <rect x="-9.1" y="-9.1" width="18.2" height="18.2" fill="#160500" stroke="#4F1700" stroke-width=".5"/>
-        <rect x="-8.65" y="-8.65" width="17.3" height="17.3" fill="currentColor" stroke="url(#gold-edge)" stroke-width=".34"/>
+        <rect x="-8.9" y="-8.9" width="17.8" height="17.8" rx=".8" fill="currentColor" opacity=".36" filter="url(#stone-haze)"/>
+        <rect x="-9.1" y="-9.1" width="18.2" height="18.2" rx=".88" fill="#160500" stroke="#4F1700" stroke-width=".5"/>
+        <rect x="-8.65" y="-8.65" width="17.3" height="17.3" rx=".76" fill="currentColor" stroke="url(#gold-edge)" stroke-width=".34"/>
 
-        <!-- Eight individual crown facets: visibly stepped planes, not one flat fill. -->
-        <path d="M-8.65-8.65H0L-3.45-3.45Z" fill="#FFFFFF" opacity=".26"/>
-        <path d="M0-8.65H8.65L3.45-3.45H-3.45Z" fill="url(#facet-light)" opacity=".88"/>
-        <path d="M8.65-8.65V0L3.45-3.45Z" fill="#FFFFFF" opacity=".12"/>
-        <path d="M8.65 0V8.65L3.45 3.45V-3.45Z" fill="#000000" opacity=".23"/>
-        <path d="M8.65 8.65H0L3.45 3.45Z" fill="#000000" opacity=".38"/>
-        <path d="M0 8.65H-8.65L-3.45 3.45H3.45Z" fill="url(#facet-dark)" opacity=".92"/>
-        <path d="M-8.65 8.65V0L-3.45 3.45Z" fill="#000000" opacity=".2"/>
-        <path d="M-8.65 0V-8.65L-3.45-3.45V3.45Z" fill="#FFFFFF" opacity=".08"/>
+        <g clip-path="url(#stone-clip)">
+          <path d="M-8.65-8.65H0L-3.45-3.45Z" fill="#FFFFFF" opacity=".26"/>
+          <path d="M0-8.65H8.65L3.45-3.45H-3.45Z" fill="url(#facet-light)" opacity=".88"/>
+          <path d="M8.65-8.65V0L3.45-3.45Z" fill="#FFFFFF" opacity=".12"/>
+          <path d="M8.65 0V8.65L3.45 3.45V-3.45Z" fill="#000000" opacity=".23"/>
+          <path d="M8.65 8.65H0L3.45 3.45Z" fill="#000000" opacity=".38"/>
+          <path d="M0 8.65H-8.65L-3.45 3.45H3.45Z" fill="url(#facet-dark)" opacity=".92"/>
+          <path d="M-8.65 8.65V0L-3.45 3.45Z" fill="#000000" opacity=".2"/>
+          <path d="M-8.65 0V-8.65L-3.45-3.45V3.45Z" fill="#FFFFFF" opacity=".08"/>
 
-        <!-- Smaller table facet and a concentrated inner glow, matching the toolbar cut. -->
-        <rect x="-4.05" y="-4.05" width="8.1" height="8.1" fill="currentColor"/>
-        <rect x="-4.05" y="-4.05" width="8.1" height="8.1" fill="url(#table-sheen)"/>
-        <rect x="-5.7" y="-5.7" width="11.4" height="11.4" fill="currentColor" opacity=".28" filter="url(#stone-haze)"/>
+          <rect x="-4.05" y="-4.05" width="8.1" height="8.1" rx=".38" fill="currentColor"/>
+          <rect x="-4.05" y="-4.05" width="8.1" height="8.1" rx=".38" fill="url(#table-sheen)"/>
+          <rect x="-5.7" y="-5.7" width="11.4" height="11.4" rx=".52" fill="currentColor" opacity=".28" filter="url(#stone-haze)"/>
 
-        <!-- Facet seams remain subtle; highlights brighten only selected real edges. -->
-        <g fill="none" stroke="#FFFFFF" stroke-opacity=".25" stroke-width=".25">
-          <rect x="-4.05" y="-4.05" width="8.1" height="8.1"/>
-          <path d="M-8.65-8.65-4.05-4.05M8.65-8.65 4.05-4.05M8.65 8.65 4.05 4.05M-8.65 8.65-4.05 4.05"/>
-          <path d="M0-8.65V-4.05M8.65 0H4.05M0 8.65V4.05M-8.65 0H-4.05"/>
+          <g fill="none" stroke="#FFFFFF" stroke-opacity=".25" stroke-width=".25">
+            <rect x="-4.05" y="-4.05" width="8.1" height="8.1" rx=".38"/>
+            <path d="M-8.65-8.65-4.05-4.05M8.65-8.65 4.05-4.05M8.65 8.65 4.05 4.05M-8.65 8.65-4.05 4.05"/>
+            <path d="M0-8.65V-4.05M8.65 0H4.05M0 8.65V4.05M-8.65 0H-4.05"/>
+          </g>
+
+          <path d="M-8.65-8.65H.5L-3.7-4.45Z" fill="#FFFFFF" opacity=".48"/>
+          <path d="M8.65 8.65H-.2L3.65 4.2Z" fill="currentColor" opacity=".55"/>
+
+          <path d="M-3.25-4.05H2.35" stroke="#FFFFFF" stroke-width=".72" stroke-linecap="round" opacity=".92" filter="url(#edge-glint)"/>
+          <path d="M4.05 1.1V3.45" stroke="#FFFFFF" stroke-width=".52" stroke-linecap="round" opacity=".6" filter="url(#edge-glint)"/>
+          <path d="M-4.05 2.05V3.55" stroke="#FFFFFF" stroke-width=".38" stroke-linecap="round" opacity=".42" filter="url(#edge-glint)"/>
         </g>
-
-        <!-- Entry flash and diagonally opposite transmitted-light patch. -->
-        <path d="M-8.65-8.65H.5L-3.7-4.45Z" fill="#FFFFFF" opacity=".48"/>
-        <path d="M8.65 8.65H-.2L3.65 4.2Z" fill="currentColor" opacity=".55"/>
-
-        <!-- Tapered-looking glints aligned to actual facet boundaries. -->
-        <path d="M-3.25-4.05H2.35" stroke="#FFFFFF" stroke-width=".72" stroke-linecap="round" opacity=".92" filter="url(#edge-glint)"/>
-        <path d="M4.05 1.1V3.45" stroke="#FFFFFF" stroke-width=".52" stroke-linecap="round" opacity=".6" filter="url(#edge-glint)"/>
-        <path d="M-4.05 2.05V3.55" stroke="#FFFFFF" stroke-width=".38" stroke-linecap="round" opacity=".42" filter="url(#edge-glint)"/>
       </g>
     </g>
   </defs>
