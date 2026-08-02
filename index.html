@@ -64,6 +64,13 @@
         inset: 0;
         overflow: hidden;
       }
+
+      /* Client-tab pendants are one set of gold jewellery. The selected-tab
+         logic may animate the pendant, but must not dim or recolour its gold. */
+      div[role='tablist'][aria-label='Разделы клиента'] > button[role='tab'] > span[aria-hidden='true']:last-child {
+        opacity: 1 !important;
+        filter: none !important;
+      }
     </style>
   </head>
   <body>
