@@ -90,6 +90,7 @@ export function TimelineViewSheet({
   onEdit,
   onReassignProject,
   onOpenContent,
+  onConvertToSession,
 }: {
   open: boolean;
   session: Session | null;
@@ -103,6 +104,9 @@ export function TimelineViewSheet({
   onEdit: () => void;
   onReassignProject: (projectId: string | null) => void;
   onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
+  // Consultation happened, work session was agreed — moves this record into
+  // a session. Only rendered for a consultation view (isConsult below).
+  onConvertToSession?: () => void;
 }) {
   const isConsult = !!consultation;
   const dateLine = (() => {
@@ -156,6 +160,26 @@ export function TimelineViewSheet({
             <ViewField label="Креатив" value={consultation.creative} />
             <ViewField label="Техника и стиль" value={consultation.style} />
             {urgency && <ViewField label="Срочность" value={`${urgency.emoji} ${urgency.label}`} />}
+            {onConvertToSession && !consultation.cancelled && (
+              <div
+                onClick={onConvertToSession}
+                role="button"
+                style={{
+                  textAlign: 'center',
+                  padding: '9px 12px',
+                  border: '1px solid rgba(var(--gold-rgb),0.3)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  color: COLORS.gold,
+                  fontSize: fs(12),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                Перевести в сессию →
+              </div>
+            )}
             <ContentPanel
               clientId={clientId}
               sourceType="consultation"
