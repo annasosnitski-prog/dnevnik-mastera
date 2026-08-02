@@ -89,7 +89,7 @@ import {
   setContentEntryLink,
   type ContentEntryLink,
 } from '../lib/contentLink';
-import { upsertClientSession, upsertProjectSession, applyConsultationConversion, type SessionFormData } from '../lib/sessionSave';
+import { upsertClientSession, upsertProjectSession, applyConsultationConversion, applyConsultationRestoration, type SessionFormData } from '../lib/sessionSave';
 // Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
 // не менялась — только перенос.
 import { isRTL, firstLetter, nameRest } from '../lib/textFormat';
@@ -1170,7 +1170,12 @@ export default function TattoDiary() {
 
   const deleteSession = (sessionId: string) => {
     if (!selectedClient) return;
-    saveClient({ ...selectedClient, sessions: selectedClient.sessions.filter((s) => s.id !== sessionId) });
+    // Session created via «Перевести в сессию» — restore the consultation
+    // it came from first (see applyConsultationRestoration), so deleting the
+    // session doesn't leave the consultation pointing at a session that no
+    // longer exists.
+    const restored = applyConsultationRestoration(selectedClient, sessionId);
+    saveClient({ ...restored, sessions: restored.sessions.filter((s) => s.id !== sessionId) });
   };
 
   const handleAddConsultation = (data: {
@@ -1216,6 +1221,15 @@ export default function TattoDiary() {
 
   const deleteConsultation = (consultationId: string) => {
     if (!selectedClient) return;
+    // A converted consultation is linked to a real session (Session.
+    // sourceConsultationId) — deleting it here would leave that session
+    // pointing at a consultation that no longer exists. ConsultationRow
+    // already hides the delete control for this case; this guards the
+    // funnel itself. Delete the session first (which restores the
+    // consultation via deleteSession/applyConsultationRestoration above),
+    // then the now-unconverted consultation can be deleted normally.
+    const consultation = selectedClient.consultations.find((c) => c.id === consultationId);
+    if (consultation?.status === 'converted') return;
     saveClient({ ...selectedClient, consultations: selectedClient.consultations.filter((c) => c.id !== consultationId) });
   };
 

@@ -91,6 +91,30 @@ export function applyConsultationConversion(client: Client, sessionId: string, c
   };
 }
 
+// deleteSession's counterpart to applyConsultationConversion above. Plain
+// array-filter deletion (client.sessions.filter(...)) used to just cut the
+// session out, leaving the consultation it came from still pointing at a
+// convertedToSessionId that no longer exists — a dangling reference with no
+// way back into the UI (ConsultationRow shows it dimmed as «Переведена в
+// сессию» forever, with no session to open). Call this BEFORE filtering the
+// session out: the consultation reverts to status 'completed' (it did
+// happen — only the resulting session record is gone) with
+// convertedToSessionId cleared, so it reappears as an ordinary past
+// consultation instead of a broken link. No-op if the session doesn't exist
+// or was never a conversion (sourceConsultationId null). Does not touch
+// client.sessions itself — the caller still does its own filter.
+export function applyConsultationRestoration(client: Client, sessionId: string): Client {
+  const session = client.sessions.find((s) => s.id === sessionId);
+  if (!session?.sourceConsultationId) return client;
+  const consultationId = session.sourceConsultationId;
+  return {
+    ...client,
+    consultations: client.consultations.map((c) =>
+      c.id === consultationId ? { ...c, status: 'completed', convertedToSessionId: null } : c,
+    ),
+  };
+}
+
 // Сессия без клиента (project.sessions) — «Мастерская: сессия без клиента».
 export function upsertProjectSession(
   project: Project,
