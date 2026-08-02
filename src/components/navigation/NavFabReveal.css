@@ -61,26 +61,32 @@
   animation: nav-fab-invite 4.6s ease-in-out infinite;
 }
 
-/* Only the closed hub carries the slow circular brushed-metal rotation.
-   The open hub stays visually still. */
+/* Closed hub only: a deliberately asymmetric brushed-gold highlight rotates
+   slowly enough to feel mechanical, but fast enough to be visible. */
 .nav-fab:not(.nav-fab--open) .nav-fab__main--gold::after {
   content: "";
   position: absolute;
-  inset: 7px;
+  inset: 6px;
   z-index: 1;
   border-radius: 50%;
   pointer-events: none;
-  opacity: 0.34;
+  opacity: 0.52;
   background:
-    radial-gradient(circle at 50% 50%, transparent 0 46%, rgba(255, 244, 190, 0.08) 56%, transparent 68%),
+    conic-gradient(
+      from 12deg,
+      transparent 0deg 38deg,
+      rgba(255, 249, 220, 0.42) 52deg,
+      rgba(255, 231, 150, 0.12) 78deg,
+      transparent 104deg 360deg
+    ),
     repeating-conic-gradient(
       from 0deg,
-      rgba(255, 245, 198, 0.2) 0deg 0.8deg,
-      transparent 0.8deg 6deg
+      rgba(255, 245, 198, 0.18) 0deg 0.8deg,
+      transparent 0.8deg 5deg
     );
-  -webkit-mask-image: radial-gradient(circle, #000 0 68%, transparent 71%);
-  mask-image: radial-gradient(circle, #000 0 68%, transparent 71%);
-  animation: nav-fab-brushed-gold 56s linear infinite;
+  -webkit-mask-image: radial-gradient(circle, #000 0 69%, transparent 72%);
+  mask-image: radial-gradient(circle, #000 0 69%, transparent 72%);
+  animation: nav-fab-brushed-gold 18s linear infinite;
   transform-origin: 50% 50%;
   will-change: transform;
 }
@@ -102,7 +108,7 @@
   animation: nav-fab-ray-slide var(--ray-duration) cubic-bezier(0.16, 1, 0.3, 1) var(--ray-delay) both;
 }
 
-/* The stones make one continuous glide. */
+/* One uninterrupted glide: no late correction after a stone visually arrives. */
 .nav-fab--open .nav-fab__item--ice {
   animation-name: nav-fab-ice-slide !important;
   animation-duration: var(--travel-duration) !important;
@@ -110,6 +116,8 @@
   animation-timing-function: cubic-bezier(0.18, 0.82, 0.2, 1) !important;
   animation-fill-mode: both !important;
   will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 @keyframes nav-fab-scrim-in {
@@ -144,31 +152,23 @@
 
 @keyframes nav-fab-ray-slide {
   0% { opacity: 0; transform: scale(0.08); }
-  18% { opacity: 0.28; }
-  76% { opacity: 0.92; transform: scale(1.015); }
   100% { opacity: 1; transform: scale(1); }
 }
 
 @keyframes nav-fab-ice-slide {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.82);
+    transform: translate3d(-50%, -50%, 0) scale(0.86);
   }
-  16% {
-    opacity: 0.82;
-  }
-  92% {
-    opacity: 1;
-    transform: translate(
-      calc(-50% + var(--dx) * 0.992),
-      calc(-50% + var(--dy) * 0.992)
-    ) scale(1.004);
+  18% {
+    opacity: 0.86;
   }
   100% {
     opacity: 1;
-    transform: translate(
+    transform: translate3d(
       calc(-50% + var(--dx)),
-      calc(-50% + var(--dy))
+      calc(-50% + var(--dy)),
+      0
     ) scale(1);
   }
 }
