@@ -78,19 +78,18 @@ type FanEntry =
   | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
   | { kind: "create"; id: "create"; label: "Создать"; durationMs: number };
 
+type HexVertex = {
+  x: number;
+  y: number;
+  sourceIndex: number;
+};
+
 function radialOffset(index: number, total: number): { dx: number; dy: number } {
   const angle = -Math.PI / 2 + (index * Math.PI * 2) / total;
   return {
     dx: Math.round(Math.cos(angle) * FAN_RADIUS),
     dy: Math.round(Math.sin(angle) * FAN_RADIUS),
   };
-}
-
-function regularPolygonPoints(sides: number, radius: number, startAngle = -Math.PI / 2): string {
-  return Array.from({ length: sides }, (_, index) => {
-    const angle = startAngle + (index * Math.PI * 2) / sides;
-    return `${(Math.cos(angle) * radius).toFixed(2)},${(Math.sin(angle) * radius).toFixed(2)}`;
-  }).join(" ");
 }
 
 function rayLens(x1: number, y1: number, x2: number, y2: number, maxWidth: number): string {
@@ -185,10 +184,27 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
       ];
 
   const positions = fanEntries.map((_, index) => radialOffset(index, fanEntries.length));
+  const innerHexVertices: HexVertex[] = fanEntries.flatMap((entry, index) => {
+    if (entry.kind !== "nav") return [];
+
+    const { dx, dy } = positions[index];
+    const length = Math.hypot(dx, dy) || 1;
+    return [
+      {
+        x: (dx / length) * INNER_HEX_RADIUS,
+        y: (dy / length) * INNER_HEX_RADIUS,
+        sourceIndex: index,
+      },
+    ];
+  });
+  const innerHexEdges = innerHexVertices.map((start, index) => ({
+    start,
+    end: innerHexVertices[(index + 1) % innerHexVertices.length],
+    sourceIndex: start.sourceIndex,
+  }));
   const rayExtent = 214;
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
   const mainClasses = ["nav-fab__main", "nav-fab__main--gold"];
-  const innerHexPoints = regularPolygonPoints(6, INNER_HEX_RADIUS);
 
   if (pressedId === "hub") mainClasses.push("nav-fab__main--pressed");
 
@@ -220,36 +236,52 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.86} />
                 </linearGradient>
               ))}
+              {innerHexEdges.map(({ start, end }, index) => (
+                <linearGradient
+                  key={index}
+                  id={`navFabHexGrad-${index}`}
+                  gradientUnits="userSpaceOnUse"
+                  x1={start.x}
+                  y1={start.y}
+                  x2={end.x}
+                  y2={end.y}
+                >
+                  <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.05} />
+                  <stop offset="52%" stopColor="var(--gold)" stopOpacity={0.34} />
+                  <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.86} />
+                </linearGradient>
+              ))}
             </defs>
 
-            <g
-              className="nav-fab__ray-group"
-              style={{
-                ["--ray-duration" as string]: "1180ms",
-                ["--ray-delay" as string]: "120ms",
-              }}
-            >
-              <polygon
-                points={innerHexPoints}
-                fill="rgba(201, 146, 46, 0.025)"
-                stroke="rgba(247, 207, 105, 0.18)"
-                strokeWidth="3.4"
-                strokeLinejoin="round"
-              />
-              <polygon
-                points={innerHexPoints}
-                fill="none"
-                stroke="rgba(255, 232, 160, 0.72)"
-                strokeWidth="0.85"
-                strokeLinejoin="round"
-              />
-              {innerHexPoints.split(" ").map((point) => {
-                const [cx, cy] = point.split(",").map(Number);
-                return <circle key={point} cx={cx} cy={cy} r="1.65" fill="#f7cf69" opacity="0.88" />;
-              })}
-            </g>
-
             <g mask="url(#navFabRayMask)">
+              {innerHexEdges.map(({ start, end, sourceIndex }, index) => {
+                const entry = fanEntries[sourceIndex];
+                const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
+
+                return (
+                  <g
+                    key={`hex-${sourceIndex}`}
+                    className="nav-fab__ray-group"
+                    style={{
+                      ["--ray-duration" as string]: `${Math.max(900, durationMs - 520)}ms`,
+                      ["--ray-delay" as string]: `${90 + sourceIndex * 70}ms`,
+                    }}
+                  >
+                    <path
+                      className="nav-fab__ray-glow"
+                      fill={`url(#navFabHexGrad-${index})`}
+                      d={rayLens(start.x, start.y, end.x, end.y, 2.8)}
+                    />
+                    <path
+                      className="nav-fab__ray"
+                      fill={`url(#navFabHexGrad-${index})`}
+                      d={rayLens(start.x, start.y, end.x, end.y, 0.8)}
+                    />
+                    <circle cx={start.x} cy={start.y} r="1.35" fill="#f7cf69" opacity="0.78" />
+                  </g>
+                );
+              })}
+
               {positions.map(({ dx, dy }, index) => {
                 const len = Math.hypot(dx, dy) || 1;
                 const ux = dx / len;
