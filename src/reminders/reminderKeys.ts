@@ -26,8 +26,13 @@ export function taskReminderActionKey(params: { sourceId: string; dueDate: strin
   return `task-action:${params.sourceId}:${params.dueDate}`;
 }
 
+// Дата — часть ключа: без неё перенос записи из прошлого в другое прошлое
+// (дата поменялась, но запись всё ещё просрочена) не рождает новый ключ, и
+// старое «скрыто»/«отложено» неверно продолжает прятать уже другую
+// просрочку. Перенос в будущее и так убирает карточку из фида отдельно
+// (см. overdueEntries) — дата в ключе нужна именно для случая прошлое→прошлое.
 export function overdueReminderKey(it: OverdueItem): string {
-  return `overdue:${it.kind}:${it.id}`;
+  return `overdue:${it.kind}:${it.id}:${it.date}`;
 }
 
 // Ключ включает stage — у каждой стадии заживления своя карточка, «удалить»
@@ -40,8 +45,9 @@ export function soonReminderKey(it: UpcomingSoonItem): string {
   return `soon:${it.kind}:${it.id}`;
 }
 
+// Дата в ключе — тот же фикс, что у overdueReminderKey выше.
 export function overdueProjectSessionReminderKey(it: ProjectSessionReminderItem): string {
-  return `project-session:overdue:${it.project.id}:${it.sessionId}`;
+  return `project-session:overdue:${it.project.id}:${it.sessionId}:${it.date}`;
 }
 
 export function soonProjectSessionReminderKey(it: ProjectSessionReminderItem): string {

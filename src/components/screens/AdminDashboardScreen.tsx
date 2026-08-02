@@ -52,6 +52,7 @@ export function AdminDashboardScreen({
   onOpenEntry,
   onDismissReminder,
   onSnoozeReminder,
+  onRestoreReminder,
   onCancelEntry,
   onCompleteTask,
   onOpenTask,
@@ -76,6 +77,7 @@ export function AdminDashboardScreen({
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
   onSnoozeReminder: (key: string, showAfter: string) => void;
+  onRestoreReminder: (key: string) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onCompleteTask: (item: TaskReminderItem) => void;
   onOpenTask: (item: TaskReminderItem) => void;
@@ -139,6 +141,7 @@ export function AdminDashboardScreen({
           onOpenEntry={onOpenEntry}
           onDismiss={onDismissReminder}
           onSnooze={onSnoozeReminder}
+          onRestore={onRestoreReminder}
           onCancel={onCancelEntry}
           onCompleteTask={onCompleteTask}
           onOpenTask={onOpenTask}

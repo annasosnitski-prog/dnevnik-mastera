@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type * as React from 'react';
 import { createPortal } from 'react-dom';
 import { PLATFORM_LABELS, type Client } from '../../domain/client';
@@ -164,10 +164,41 @@ function snoozeShowAfter(days: number): string {
   return d.toISOString();
 }
 
-// Компактное меню карточки напоминания («⋯»): отложить до завтра / на 3 дня /
-// удалить. Стоит на месте прежней кнопки закрытия, чтобы не громоздить кнопки
-// на карточке. Пункт «удалить» относится только к текущему reminder-ключу —
-// новое событие той же сущности получит другой ключ и покажется снова.
+// Сколько миллисекунд инлайн-баннер «Напоминание скрыто · Вернуть» ждёт
+// перед тем как молча пропасть, если мастер не нажал «Вернуть» — см.
+// hiddenBanners/hideReminder в RemindersSection ниже.
+const HIDE_BANNER_MS = 6000;
+
+// yyyy-mm-dd местной даты через `daysFromNow` суток от сегодня — используется
+// как значение по умолчанию и `min` для <input type="date"> в «Выбрать дату
+// возврата» ниже.
+function localDateStr(daysFromNow: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// ISO-момент начала местного дня `dateStr` (значение <input type="date">,
+// yyyy-mm-dd) — тот же смысл, что у snoozeShowAfter(days), но для конкретной
+// выбранной даты, а не смещения от сегодня.
+function snoozeShowAfterDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+  return dt.toISOString();
+}
+
+// Компактное меню карточки напоминания («⋯»): отложить до завтра / выбрать
+// дату возврата / скрыть. Стоит на месте прежней кнопки закрытия, чтобы не
+// громоздить кнопки на карточке. «Отложить на 3 дня» тут больше нет — это
+// теперь единственное назначение свайпа (см. SwipeDismissCard), дублировать
+// его в меню незачем. «Скрыть» относится только к текущему reminder-ключу —
+// новое событие той же сущности получит другой ключ и покажется снова; в
+// самой карточке скрытие показывается инлайн-баннером с «Вернуть» (см.
+// hideReminder/RemindersSection ниже) — вернуть уже показанное напоминание
+// нигде до сих пор не выводилось на экран, хотя код для этого был.
 //
 // Оверлей и выпадашка рендерятся через createPortal в document.body: карточки
 // напоминаний оборачиваются в SwipeDismissCard с transform, а position:fixed
@@ -178,12 +209,13 @@ function snoozeShowAfter(days: number): string {
 const REMINDER_MENU_MARGIN = 6;
 function ReminderMenuButton({
   onSnoozeTomorrow,
-  onSnooze3Days,
-  onDelete,
+  onSnoozeUntil,
+  onHide,
 }: {
   onSnoozeTomorrow: () => void;
-  onSnooze3Days: () => void;
-  onDelete: () => void;
+  // dateStr — значение <input type="date"> (yyyy-mm-dd) выбранной даты возврата.
+  onSnoozeUntil: (dateStr: string) => void;
+  onHide: () => void;
 }) {
   const btnRef = useRef<HTMLSpanElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -191,6 +223,11 @@ function ReminderMenuButton({
   // (считается после замера высоты меню в useLayoutEffect, до отрисовки).
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+  // Второй экран того же меню — выбор даты возврата вместо трёх обычных
+  // пунктов. Сбрасывается при каждом закрытии меню (см. close), чтобы
+  // следующее открытие снова начиналось с основного списка.
+  const [pickingDate, setPickingDate] = useState(false);
+  const [dateValue, setDateValue] = useState('');
   const openMenu = () => {
     const r = btnRef.current?.getBoundingClientRect();
     if (r) {
@@ -198,7 +235,11 @@ function ReminderMenuButton({
       setAnchor(r);
     }
   };
-  const close = () => setAnchor(null);
+  const close = () => {
+    setAnchor(null);
+    setPickingDate(false);
+    setDateValue('');
+  };
 
   useLayoutEffect(() => {
     if (!anchor || !menuRef.current) return;
@@ -264,15 +305,69 @@ function ReminderMenuButton({
                 minWidth: 176,
               }}
             >
-              <div role="button" style={rowStyle} onClick={() => runAndClose(onSnoozeTomorrow)}>
-                Отложить до завтра
-              </div>
-              <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)' }} onClick={() => runAndClose(onSnooze3Days)}>
-                Отложить на 3 дня
-              </div>
-              <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textFaint }} onClick={() => runAndClose(onDelete)}>
-                Удалить это напоминание
-              </div>
+              {pickingDate ? (
+                <div style={{ padding: '10px 12px' }}>
+                  <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 6 }}>
+                    Вернуть напоминание
+                  </div>
+                  <input
+                    type="date"
+                    value={dateValue}
+                    min={localDateStr(1)}
+                    onChange={(e) => setDateValue(e.target.value)}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      background: 'transparent',
+                      border: '1px solid rgba(var(--gold-rgb),0.3)',
+                      borderRadius: 2,
+                      padding: '6px 8px',
+                      color: COLORS.textPrimary,
+                      fontSize: fs(13),
+                      marginBottom: 8,
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div role="button" style={{ ...rowStyle, flex: 1, textAlign: 'center', padding: '7px 0' }} onClick={() => setPickingDate(false)}>
+                      Отмена
+                    </div>
+                    <div
+                      role="button"
+                      style={{
+                        ...rowStyle,
+                        flex: 1,
+                        textAlign: 'center',
+                        padding: '7px 0',
+                        color: COLORS.gold,
+                        opacity: dateValue ? 1 : 0.4,
+                        pointerEvents: dateValue ? 'auto' : 'none',
+                      }}
+                      onClick={() => runAndClose(() => onSnoozeUntil(dateValue))}
+                    >
+                      Готово
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div role="button" style={rowStyle} onClick={() => runAndClose(onSnoozeTomorrow)}>
+                    Отложить до завтра
+                  </div>
+                  <div
+                    role="button"
+                    style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)' }}
+                    onClick={() => {
+                      setDateValue(localDateStr(1));
+                      setPickingDate(true);
+                    }}
+                  >
+                    Выбрать дату возврата
+                  </div>
+                  <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textFaint }} onClick={() => runAndClose(onHide)}>
+                    Скрыть это напоминание
+                  </div>
+                </>
+              )}
             </div>
           </>,
           document.body,
@@ -412,11 +507,13 @@ function SwipeDismissCard({
 }
 
 // One overdue reminder card: name/date up top with the «⋯» menu (snooze /
-// hide), three quick actions (Отменить / Закрыть / Перенести) in their own
-// full-width row below. No swipe and no tap-to-open on the card body — the
-// only way to open the underlying session/consultation is the explicit
-// «Перенести» action, so a stray tap on the card can't accidentally navigate
-// away.
+// hide), two quick actions (Отменить / Перенести) in their own full-width row
+// below — the old third chip («Закрыть») was ambiguous (looked like marking
+// the entry done, actually just hid the signal) and duplicated the menu's
+// «Скрыть», so hiding now only happens through the menu. No swipe and no
+// tap-to-open on the card body — the only way to open the underlying
+// session/consultation is the explicit «Перенести» action, so a stray tap on
+// the card can't accidentally navigate away.
 function OverdueReminderCard({
   item,
   onReschedule,
@@ -472,16 +569,13 @@ function OverdueReminderCard({
         </div>
         <ReminderMenuButton
           onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeShowAfter(1)))}
-          onSnooze3Days={() => flyOutThen(() => onSnooze(snoozeShowAfter(3)))}
-          onDelete={() => flyOutThen(onDismiss)}
+          onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(snoozeShowAfterDate(dateStr)))}
+          onHide={() => flyOutThen(onDismiss)}
         />
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
         <div onClick={onCancel} role="button" aria-label="Отменить" style={chipStyle}>
           Отменить
-        </div>
-        <div onClick={() => flyOutThen(onDismiss)} role="button" aria-label="Закрыть" style={chipStyle}>
-          Закрыть
         </div>
         <div
           onClick={onReschedule}
@@ -523,7 +617,7 @@ function ProjectSessionReminderCard({
   };
 
   return (
-    <SwipeDismissCard onSwipeComplete={onDismiss}>
+    <SwipeDismissCard onSwipeComplete={() => onSnooze(snoozeShowAfter(3))} revealLabel="Отложить на 3 дня">
       {(flyOutThen) => (
         <div
           style={{
@@ -546,8 +640,8 @@ function ProjectSessionReminderCard({
             </div>
             <ReminderMenuButton
               onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeShowAfter(1)))}
-              onSnooze3Days={() => flyOutThen(() => onSnooze(snoozeShowAfter(3)))}
-              onDelete={() => flyOutThen(onDismiss)}
+              onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(snoozeShowAfterDate(dateStr)))}
+              onHide={() => flyOutThen(onDismiss)}
             />
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
@@ -573,6 +667,7 @@ export function RemindersSection({
   onOpenEntry,
   onDismiss,
   onSnooze,
+  onRestore,
   onCancel,
   onCompleteTask,
   onOpenTask,
@@ -588,6 +683,9 @@ export function RemindersSection({
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismiss: (key: string) => void;
   onSnooze: (key: string, showAfter: string) => void;
+  // Отменяет уже случившееся «Скрыть» — вызывается только из инлайн-баннера
+  // «Напоминание скрыто · Вернуть» ниже (см. hideReminder/hiddenBanners).
+  onRestore: (key: string) => void;
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onCompleteTask?: (item: TaskReminderItem) => void;
   onOpenTask?: (item: TaskReminderItem) => void;
@@ -609,6 +707,33 @@ export function RemindersSection({
   // card gets `raised` so its popover isn't trapped behind a later sibling's
   // own stacking context (see SwipeDismissCard's `raised` doc comment).
   const [raisedKey, setRaisedKey] = useState<string | null>(null);
+  // Недавно скрытые карточки — держим их лейбл здесь ЛОКАЛЬНО, потому что
+  // сразу после onDismiss родитель перестаёт присылать сам item (он уже
+  // отфильтрован из overdue/healing/... выше по дереву), а инлайн-баннер
+  // «Напоминание скрыто · Вернуть» всё ещё должен что-то показывать. Без
+  // нового persisted-хранилища — сам факт «скрыто» уже лежит в dismissedIds
+  // (см. reminderState.ts), это только транзиентная UI-подсказка на текущую
+  // сессию экрана, гаснет через HIDE_BANNER_MS сама, если не нажали «Вернуть».
+  const [hiddenBanners, setHiddenBanners] = useState<{ key: string; label: string }[]>([]);
+  const hideTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const hideReminder = (key: string, label: string) => {
+    onDismiss(key);
+    setHiddenBanners((prev) => (prev.some((b) => b.key === key) ? prev : [...prev, { key, label }]));
+    clearTimeout(hideTimers.current[key]);
+    hideTimers.current[key] = setTimeout(() => {
+      setHiddenBanners((prev) => prev.filter((b) => b.key !== key));
+      delete hideTimers.current[key];
+    }, HIDE_BANNER_MS);
+  };
+  const handleRestore = (key: string) => {
+    clearTimeout(hideTimers.current[key]);
+    delete hideTimers.current[key];
+    setHiddenBanners((prev) => prev.filter((b) => b.key !== key));
+    onRestore(key);
+  };
+  useEffect(() => () => {
+    Object.values(hideTimers.current).forEach(clearTimeout);
+  }, []);
   if (
     overdue.length === 0 &&
     healing.length === 0 &&
@@ -616,7 +741,8 @@ export function RemindersSection({
     overdueProjectSessionList.length === 0 &&
     soonProjectSessionList.length === 0 &&
     dueProjectsList.length === 0 &&
-    taskList.length === 0
+    taskList.length === 0 &&
+    hiddenBanners.length === 0
   ) return null;
   return (
     <div>
@@ -633,7 +759,7 @@ export function RemindersSection({
                 key={key}
                 item={it}
                 onReschedule={() => onOpenEntry(it.client.id, it.id, it.kind)}
-                onDismiss={() => onDismiss(key)}
+                onDismiss={() => hideReminder(key, it.client.name || '—')}
                 onSnooze={(showAfter) => onSnooze(key, showAfter)}
                 onCancel={() => onCancel(it.client.id, it.id, it.kind)}
               />
@@ -647,7 +773,7 @@ export function RemindersSection({
               item={it}
               rule="overdue"
               onOpenProject={() => onOpenProject?.(it.project)}
-              onDismiss={() => onDismiss(key)}
+              onDismiss={() => hideReminder(key, it.project.title || 'Проект')}
               onSnooze={(showAfter) => onSnooze(key, showAfter)}
             />
           );
@@ -655,7 +781,12 @@ export function RemindersSection({
         {healing.map((it) => {
           const key = healingReminderKey(it);
           return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
+            <SwipeDismissCard
+              key={key}
+              onSwipeComplete={() => onSnooze(key, snoozeShowAfter(3))}
+              revealLabel="Отложить на 3 дня"
+              raised={raisedKey === key}
+            >
               {(flyOutThen) => (
               <div
                 style={{
@@ -685,8 +816,8 @@ export function RemindersSection({
                   />
                   <ReminderMenuButton
                     onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
-                    onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
-                    onDelete={() => flyOutThen(() => onDismiss(key))}
+                    onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(key, snoozeShowAfterDate(dateStr)))}
+                    onHide={() => flyOutThen(() => hideReminder(key, it.client.name || '—'))}
                   />
                 </div>
               </div>
@@ -704,7 +835,7 @@ export function RemindersSection({
                 item={it}
                 rule="soon"
                 onOpenProject={() => onOpenProject?.(it.project)}
-                onDismiss={() => onDismiss(key)}
+                onDismiss={() => hideReminder(key, it.project.title || 'Проект')}
                 onSnooze={(showAfter) => onSnooze(key, showAfter)}
               />
             );
@@ -712,7 +843,12 @@ export function RemindersSection({
           const it = entry.item;
           const key = soonReminderKey(it);
           return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
+            <SwipeDismissCard
+              key={key}
+              onSwipeComplete={() => onSnooze(key, snoozeShowAfter(3))}
+              revealLabel="Отложить на 3 дня"
+              raised={raisedKey === key}
+            >
               {(flyOutThen) => (
                 <div
                   style={{
@@ -743,8 +879,8 @@ export function RemindersSection({
                     />
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
-                      onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
-                      onDelete={() => flyOutThen(() => onDismiss(key))}
+                      onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(key, snoozeShowAfterDate(dateStr)))}
+                      onHide={() => flyOutThen(() => hideReminder(key, it.client.name || '—'))}
                     />
                   </div>
                 </div>
@@ -755,7 +891,12 @@ export function RemindersSection({
         {dueProjectsList.map((p) => {
           const key = projectReminderKey(p);
           return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onDismiss(key)} raised={raisedKey === key}>
+            <SwipeDismissCard
+              key={key}
+              onSwipeComplete={() => onSnooze(key, snoozeShowAfter(3))}
+              revealLabel="Отложить на 3 дня"
+              raised={raisedKey === key}
+            >
               {(flyOutThen) => (
                 <div
                   style={{
@@ -781,8 +922,8 @@ export function RemindersSection({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
-                      onSnooze3Days={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(3)))}
-                      onDelete={() => flyOutThen(() => onDismiss(key))}
+                      onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(key, snoozeShowAfterDate(dateStr)))}
+                      onHide={() => flyOutThen(() => hideReminder(key, p.title || 'Проект'))}
                     />
                   </div>
                 </div>
@@ -807,7 +948,12 @@ export function RemindersSection({
             whiteSpace: 'nowrap',
           };
           return (
-            <SwipeDismissCard key={it.id} onSwipeComplete={() => onDismiss(dismissKey)} raised={raisedKey === it.id}>
+            <SwipeDismissCard
+              key={it.id}
+              onSwipeComplete={() => onSnooze(snoozeKey, snoozeShowAfter(3))}
+              revealLabel="Отложить на 3 дня"
+              raised={raisedKey === it.id}
+            >
               {(flyOutThen) => (
                 <div
                   style={{
@@ -828,8 +974,8 @@ export function RemindersSection({
                     </div>
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfter(1)))}
-                      onSnooze3Days={() => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfter(3)))}
-                      onDelete={() => flyOutThen(() => onDismiss(dismissKey))}
+                      onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfterDate(dateStr)))}
+                      onHide={() => flyOutThen(() => hideReminder(dismissKey, it.text || 'Задача'))}
                     />
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
@@ -850,6 +996,31 @@ export function RemindersSection({
             </SwipeDismissCard>
           );
         })}
+        {hiddenBanners.map((b) => (
+          <div
+            key={b.key}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '9px 10px',
+              borderRadius: 2,
+              border: '1px solid rgba(var(--gold-rgb),0.12)',
+            }}
+          >
+            <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              «{b.label}» — напоминание скрыто
+            </div>
+            <div
+              onClick={() => handleRestore(b.key)}
+              role="button"
+              style={{ fontSize: fs(11), color: COLORS.gold, letterSpacing: '0.6px', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0, padding: '2px 4px' }}
+            >
+              Вернуть
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

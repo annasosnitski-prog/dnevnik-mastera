@@ -213,6 +213,7 @@ import {
   filterVisibleReminders,
   dismissReminder,
   snoozeReminder,
+  restoreReminder,
   removeExpiredSnoozes,
 } from '../reminders/reminderState';
 import {
@@ -575,12 +576,15 @@ export default function TattoDiary() {
     return () => setConflictHandler(null);
   }, []);
 
-  // Reminder cards (see RemindersSection) the master has deleted (via the «⋯»
-  // menu's «Удалить», or a swipe) or snoozed («Отложить …») — so they stay out
-  // of the feed even though the underlying overdue/healing condition hasn't
-  // changed. Keyed by a stable per-reminder string (see reminderKeys), not by
-  // anything that would naturally clear this — marking done, rescheduling, or
-  // ticking «Зажив» already removes the entry from its source list regardless.
+  // Reminder cards (see RemindersSection) the master has hidden (via the «⋯»
+  // menu's «Скрыть») or snoozed (swipe, or «Отложить …» in the same menu) —
+  // so they stay out of the feed even though the underlying overdue/healing
+  // condition hasn't changed. Keyed by a stable per-reminder string (see
+  // reminderKeys), not by anything that would naturally clear this — marking
+  // done, rescheduling, or ticking «Зажив» already removes the entry from its
+  // source list regardless. A hidden card can still be brought back via
+  // restoreReminder — RemindersSection shows a brief inline «Вернуть» after
+  // hiding one.
   // Скрытые/отложенные напоминания — см. src/reminders/reminderState.ts. На
   // старте подхватываем прежний формат (массив) и чистим истёкшие snooze.
   const [reminderState, setReminderState] = useState<ReminderState>(() => removeExpiredSnoozes(loadReminderState(), new Date()));
@@ -589,6 +593,7 @@ export default function TattoDiary() {
   }, [reminderState]);
   const handleDismissReminder = (key: string) => setReminderState((prev) => dismissReminder(prev, key));
   const handleSnoozeReminder = (key: string, showAfter: string) => setReminderState((prev) => snoozeReminder(prev, key, showAfter));
+  const handleRestoreReminder = (key: string) => setReminderState((prev) => restoreReminder(prev, key));
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
   const [contentNavigation, setContentNavigation] = useState<ContentWorkspaceNavigation | null>(null);
@@ -2421,6 +2426,7 @@ export default function TattoDiary() {
             onOpenEntry={openEntryForEdit}
             onDismissReminder={handleDismissReminder}
             onSnoozeReminder={handleSnoozeReminder}
+            onRestoreReminder={handleRestoreReminder}
             onCancelEntry={markEntryCancelled}
             onCompleteTask={completeTaskReminder}
             onOpenTask={openTaskReminder}
