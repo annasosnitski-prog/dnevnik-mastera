@@ -98,14 +98,16 @@
   animation: nav-fab-ray-slide var(--ray-duration) cubic-bezier(0.16, 1, 0.3, 1) var(--ray-delay) both;
 }
 
-/* No dead pause after the hub arrives: the first ray and first stone already
-   begin while the hub is completing the last part of its travel. */
+/* The stones now make one continuous glide. The previous multi-step rotate,
+   scale and overshoot sequence made them look settled while they were still
+   correcting their position. */
 .nav-fab--open .nav-fab__item--ice {
   animation-name: nav-fab-ice-slide !important;
   animation-duration: var(--travel-duration) !important;
   animation-delay: var(--travel-delay) !important;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+  animation-timing-function: cubic-bezier(0.18, 0.82, 0.2, 1) !important;
   animation-fill-mode: both !important;
+  will-change: transform, opacity;
 }
 
 @keyframes nav-fab-scrim-in {
@@ -148,19 +150,24 @@
 @keyframes nav-fab-ice-slide {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.72) rotate(-2.5deg);
+    transform: translate(-50%, -50%) scale(0.82);
   }
-  12% { opacity: 0.72; }
-  72% {
+  16% {
+    opacity: 0.82;
+  }
+  92% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--dx) * 0.94), calc(-50% + var(--dy) * 0.94)) scale(1.025) rotate(1.2deg);
-  }
-  88% {
-    transform: translate(calc(-50% + var(--dx) * 1.018), calc(-50% + var(--dy) * 1.018)) scale(0.992) rotate(-0.45deg);
+    transform: translate(
+      calc(-50% + var(--dx) * 0.992),
+      calc(-50% + var(--dy) * 0.992)
+    ) scale(1.004);
   }
   100% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(0deg);
+    transform: translate(
+      calc(-50% + var(--dx)),
+      calc(-50% + var(--dy))
+    ) scale(1);
   }
 }
 
