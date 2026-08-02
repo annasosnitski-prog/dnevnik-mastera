@@ -72,13 +72,13 @@ const DISC_EDGE_RATIO = 29 / 32;
 const HUB_RIM = HUB_HALF * DISC_EDGE_RATIO;
 const ITEM_RIM = ITEM_HALF * DISC_EDGE_RATIO;
 const FAN_RADIUS = 158;
-const INNER_HEX_RADIUS = 92;
+const INNER_POLYGON_RADIUS = 92;
 
 type FanEntry =
   | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
   | { kind: "create"; id: "create"; label: "Создать"; durationMs: number };
 
-type HexVertex = {
+type PolygonVertex = {
   x: number;
   y: number;
   sourceIndex: number;
@@ -184,22 +184,17 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
       ];
 
   const positions = fanEntries.map((_, index) => radialOffset(index, fanEntries.length));
-  const innerHexVertices: HexVertex[] = fanEntries.flatMap((entry, index) => {
-    if (entry.kind !== "nav") return [];
-
-    const { dx, dy } = positions[index];
+  const innerPolygonVertices: PolygonVertex[] = positions.map(({ dx, dy }, index) => {
     const length = Math.hypot(dx, dy) || 1;
-    return [
-      {
-        x: (dx / length) * INNER_HEX_RADIUS,
-        y: (dy / length) * INNER_HEX_RADIUS,
-        sourceIndex: index,
-      },
-    ];
+    return {
+      x: (dx / length) * INNER_POLYGON_RADIUS,
+      y: (dy / length) * INNER_POLYGON_RADIUS,
+      sourceIndex: index,
+    };
   });
-  const innerHexEdges = innerHexVertices.map((start, index) => ({
+  const innerPolygonEdges = innerPolygonVertices.map((start, index) => ({
     start,
-    end: innerHexVertices[(index + 1) % innerHexVertices.length],
+    end: innerPolygonVertices[(index + 1) % innerPolygonVertices.length],
     sourceIndex: start.sourceIndex,
   }));
   const rayExtent = 214;
@@ -220,6 +215,15 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             style={{ left: -rayExtent, top: -rayExtent, width: rayExtent * 2, height: rayExtent * 2 }}
             viewBox={`${-rayExtent} ${-rayExtent} ${rayExtent * 2} ${rayExtent * 2}`}
           >
+            <style>{`
+              @media (prefers-reduced-motion: reduce) {
+                .nav-fab__polygon-edge {
+                  opacity: 1 !important;
+                  transform: none !important;
+                }
+              }
+            `}</style>
+
             <mask id="navFabRayMask">
               <rect x={-rayExtent} y={-rayExtent} width={rayExtent * 2} height={rayExtent * 2} fill="white" />
               <circle cx={0} cy={0} r={HUB_RIM} fill="black" />
@@ -236,10 +240,10 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.86} />
                 </linearGradient>
               ))}
-              {innerHexEdges.map(({ start, end }, index) => (
+              {innerPolygonEdges.map(({ start, end }, index) => (
                 <linearGradient
                   key={index}
-                  id={`navFabHexGrad-${index}`}
+                  id={`navFabPolygonGrad-${index}`}
                   gradientUnits="userSpaceOnUse"
                   x1={start.x}
                   y1={start.y}
@@ -254,27 +258,44 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             </defs>
 
             <g mask="url(#navFabRayMask)">
-              {innerHexEdges.map(({ start, end, sourceIndex }, index) => {
+              {innerPolygonEdges.map(({ start, end, sourceIndex }, index) => {
                 const entry = fanEntries[sourceIndex];
-                const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
+                const durationMs = Math.max(900, (entry.kind === "create" ? entry.durationMs : entry.item.durationMs) - 520);
+                const delayMs = 90 + sourceIndex * 70;
 
                 return (
-                  <g
-                    key={`hex-${sourceIndex}`}
-                    className="nav-fab__ray-group"
-                    style={{
-                      ["--ray-duration" as string]: `${Math.max(900, durationMs - 520)}ms`,
-                      ["--ray-delay" as string]: `${90 + sourceIndex * 70}ms`,
-                    }}
-                  >
+                  <g key={`polygon-${sourceIndex}`} className="nav-fab__polygon-edge" opacity={0}>
+                    <animate
+                      attributeName="opacity"
+                      from="0"
+                      to="1"
+                      dur={`${durationMs / 1000}s`}
+                      begin={`${delayMs / 1000}s`}
+                      calcMode="spline"
+                      keyTimes="0;1"
+                      keySplines="0.18 0.82 0.2 1"
+                      fill="freeze"
+                    />
+                    <animateTransform
+                      attributeName="transform"
+                      type="scale"
+                      from="0.06 0.06"
+                      to="1 1"
+                      dur={`${durationMs / 1000}s`}
+                      begin={`${delayMs / 1000}s`}
+                      calcMode="spline"
+                      keyTimes="0;1"
+                      keySplines="0.18 0.82 0.2 1"
+                      fill="freeze"
+                    />
                     <path
                       className="nav-fab__ray-glow"
-                      fill={`url(#navFabHexGrad-${index})`}
+                      fill={`url(#navFabPolygonGrad-${index})`}
                       d={rayLens(start.x, start.y, end.x, end.y, 2.8)}
                     />
                     <path
                       className="nav-fab__ray"
-                      fill={`url(#navFabHexGrad-${index})`}
+                      fill={`url(#navFabPolygonGrad-${index})`}
                       d={rayLens(start.x, start.y, end.x, end.y, 0.8)}
                     />
                     <circle cx={start.x} cy={start.y} r="1.35" fill="#f7cf69" opacity="0.78" />
