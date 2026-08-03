@@ -135,12 +135,17 @@ function makeConsultation(overrides = {}) {
     feeling: '',
     creative: '',
     inspirationSources: '',
+    outcome: '',
+    nextStep: '',
     urgency: 'normal',
     photos: [],
     done: false,
     cancelled: false,
     status: 'active',
     convertedToSessionId: null,
+    previousConsultationId: null,
+    nextConsultationId: null,
+    history: [],
     createdDate: '2026-01-01',
     projectId: null,
     ...overrides,
@@ -158,6 +163,8 @@ test('applyConsultationConversion links the session back to the consultation and
   assert.equal(updated.consultations[0].status, 'converted');
   assert.equal(updated.consultations[0].convertedToSessionId, 'session-1');
   assert.equal(updated.consultations[0].done, true);
+  assert.equal(updated.consultations[0].history.length, 1);
+  assert.match(updated.consultations[0].history[0].note, /сессию/);
 });
 
 test('applyConsultationConversion does not mutate the input client', () => {

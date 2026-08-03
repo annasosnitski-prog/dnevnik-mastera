@@ -3,7 +3,7 @@
 // защищаться от отсутствующих полей. Вынесено из TattoDiary.tsx
 // (PR 3 рефакторинга). Логика не менялась — только перенос.
 import { type Session } from '../domain/session';
-import { type Consultation, type ConsultationStatus } from '../domain/consultation';
+import { type Consultation, type ConsultationStatus, type ConsultationHistoryEntry } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
 import { URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency.js';
 import { isValidISODate } from '../utils/dates.js';
@@ -45,6 +45,20 @@ export function normalizeSession(s: any, i: number): Session {
 }
 
 const CONSULTATION_STATUSES: ConsultationStatus[] = ['active', 'completed', 'converted', 'cancelled'];
+
+// Своя история изменений консультации (см. Consultation.history) — старые
+// записи (до этой фичи) её не содержат, тогда просто []. Повреждённые записи
+// внутри истории отбрасываются, а не роняют нормализацию всей консультации.
+function normalizeConsultationHistory(raw: any): ConsultationHistoryEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((h) => h && typeof h.note === 'string')
+    .map((h: any, i: number) => ({
+      id: String(h?.id ?? `${Date.now()}-h${i}`),
+      date: h?.date ?? new Date().toISOString(),
+      note: h.note,
+    }));
+}
 
 // Единая нормализация ClientNote для клиентских и мастерских задач, включая
 // импорт старых/повреждённых данных. idPrefix сохраняет прежние fallback-id:
@@ -106,6 +120,8 @@ export function normalizeClient(raw: any, index: number): Client {
             feeling: cn?.feeling ?? '',
             creative: cn?.creative ?? '',
             inspirationSources: cn?.inspirationSources ?? '',
+            outcome: cn?.outcome ?? '',
+            nextStep: cn?.nextStep ?? '',
             urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
             photos: Array.isArray(cn?.photos) ? cn.photos : [],
             // Конвертированная консультация всегда done — так существующие
@@ -116,6 +132,14 @@ export function normalizeClient(raw: any, index: number): Client {
             cancelled: Boolean(cn?.cancelled),
             status,
             convertedToSessionId: status === 'converted' ? cn?.convertedToSessionId ?? null : null,
+            // Цепочка повторных консультаций — отсутствует в записях до этой
+            // фичи, тогда обе ссылки null (запись считается началом своей
+            // цепочки, см. Consultation.previousConsultationId). Дальше
+            // ссылки не валидируются на существование цели — тот же принцип,
+            // что уже применён к convertedToSessionId/sourceConsultationId.
+            previousConsultationId: cn?.previousConsultationId ?? null,
+            nextConsultationId: cn?.nextConsultationId ?? null,
+            history: normalizeConsultationHistory(cn?.history),
             createdDate: cn?.createdDate ?? new Date().toISOString(),
             projectId: cn?.projectId ?? null,
           };

@@ -18,7 +18,7 @@ import {
   NEXT_ACTION_TYPES,
   type Project,
 } from '../../domain/project';
-import { getSessionsByProjectId, getConsultationsByProjectId } from '../../domain/projectSelectors';
+import { getSessionsByProjectId, getConsultationSequence } from '../../domain/projectSelectors';
 import { getTasksByProjectId, urgencyMeta } from '../../domain/taskSelectors';
 import { getContentEntriesForProject, type ProjectContentItem } from '../../lib/contentProject';
 import { resolveContentPhotoSelection } from '../../lib/contentPhotoSelection';
@@ -443,6 +443,7 @@ export function NewConsultationSheet({
   presetProjectId,
   initial,
   initialDate,
+  chainFrom,
   onClose,
   onAdd,
 }: {
@@ -457,6 +458,15 @@ export function NewConsultationSheet({
   // Prefills the date field for a brand-new consultation (e.g. started from a
   // day picked in the calendar) — ignored once `initial` is set.
   initialDate?: string;
+  // Консультация, от которой назначается следующая («Назначить следующую
+  // консультацию» — DetailScreen/TimelineViewSheet, см. TattoDiary's
+  // startChainNextConsultation) — предзаполняет только проект/зону/стиль
+  // (продолжение той же работы); заметки/итог/next step остаются пустыми —
+  // это отдельная запись со своим содержанием, а не копия предыдущей.
+  // Игнорируется при редактировании существующей записи (initial имеет
+  // приоритет). Дата намеренно НЕ переносится, тем же принципом, что
+  // prefillConsultation у NewSessionSheet.
+  chainFrom?: Consultation | null;
   onClose: () => void;
   onAdd: (data: {
     date: string;
@@ -467,6 +477,8 @@ export function NewConsultationSheet({
     feeling: string;
     creative: string;
     inspirationSources: string;
+    outcome: string;
+    nextStep: string;
     urgency: UrgencyKey;
     photos: string[];
     projectId: string | null;
@@ -481,6 +493,8 @@ export function NewConsultationSheet({
   const [feeling, setFeeling] = useState('');
   const [creative, setCreative] = useState('');
   const [inspirationSources, setInspirationSources] = useState('');
+  const [outcome, setOutcome] = useState('');
+  const [nextStep, setNextStep] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -492,22 +506,24 @@ export function NewConsultationSheet({
     if (open) {
       setDate(initial?.date ?? initialDate ?? '');
       setTime(initial?.time ?? '');
-      setArea(initial?.area ?? '');
-      setStyle(initial?.style ?? '');
+      setArea(initial?.area ?? chainFrom?.area ?? '');
+      setStyle(initial?.style ?? chainFrom?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
       setFeeling(initial?.feeling ?? '');
       setCreative(initial?.creative ?? '');
       setInspirationSources(initial?.inspirationSources ?? '');
+      setOutcome(initial?.outcome ?? '');
+      setNextStep(initial?.nextStep ?? '');
       setUrgency(initial?.urgency ?? 'important');
       setPhotos(initial?.photos ?? []);
-      setProjectId(initial?.projectId ?? presetProjectId ?? null);
+      setProjectId(initial?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const handleSave = () => {
-    const data = { date, time, area, style, generalNotes, feeling, creative, inspirationSources, urgency, photos, projectId };
+    const data = { date, time, area, style, generalNotes, feeling, creative, inspirationSources, outcome, nextStep, urgency, photos, projectId };
     if (isEdit) {
       setJustSaved(true);
       setTimeout(() => onAdd(data), 700);
@@ -522,7 +538,7 @@ export function NewConsultationSheet({
         {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
-          {isEdit ? 'Редактировать консультацию' : 'Новая консультация'}
+          {isEdit ? 'Редактировать консультацию' : chainFrom ? 'Следующая консультация' : 'Новая консультация'}
         </div>
         <SheetStarDivider />
       </div>
@@ -661,6 +677,29 @@ export function NewConsultationSheet({
             />
           </div>
 
+          {/* Итог/next step — своё поле каждой консультации (см.
+              Consultation.outcome/nextStep), не переносится в другую запись
+              цепочки. */}
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Итог</FieldLabel>
+            <textarea
+              value={outcome}
+              onChange={(e) => setOutcome(e.target.value)}
+              placeholder="Как прошла встреча, о чём договорились..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Next step</FieldLabel>
+            <textarea
+              value={nextStep}
+              onChange={(e) => setNextStep(e.target.value)}
+              placeholder="Что делать дальше после этой консультации..."
+              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
+            />
+          </div>
+
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Срочность</FieldLabel>
             <UrgencyChips value={urgency} onPick={setUrgency} />
@@ -680,6 +719,42 @@ export function NewConsultationSheet({
         </div>
       </div>
     </BottomSheet>
+  );
+}
+
+// Одна строка полной последовательности проекта («Записи проекта» в
+// ProjectViewSheet ниже) — ↓-стрелка перед строкой (кроме самой первой)
+// визуализирует цепочку «Консультация 1 → 2 → 3 → Сессия 1 → 2» (milestone
+// «цепочка повторных консультаций», п. 8): ничего не исчезает и не
+// заменяется, стрелка — просто разделитель между уже существующими шагами.
+function ChainEntryRow({
+  showArrow,
+  label,
+  title,
+  date,
+  style,
+  onClick,
+}: {
+  showArrow: boolean;
+  label: string;
+  title: string;
+  date: string;
+  style: React.CSSProperties;
+  onClick: () => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      {showArrow && (
+        <span style={{ fontSize: fs(12), color: 'rgba(var(--gold-rgb),0.4)', lineHeight: 1, padding: '2px 0' }}>↓</span>
+      )}
+      <div onClick={onClick} style={{ ...style, width: '100%' }}>
+        <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>{label}</span>
+        <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {title}
+        </span>
+        <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>{date ? formatDate(date).replace(/ \d{4}$/, '') : ''}</span>
+      </div>
+    </div>
   );
 }
 
@@ -727,9 +802,17 @@ export function ProjectViewSheet({
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
-  const linkedSessions = linkedClient && project ? getSessionsByProjectId(linkedClient.sessions, project.id) : [];
-  const linkedConsults = linkedClient && project ? getConsultationsByProjectId(linkedClient.consultations, project.id) : [];
-  const ownSessions = project && !linkedClient ? project.sessions : [];
+  // Полная цепочка проекта («Консультация 1 → 2 → 3 → Сессия 1 → 2»,
+  // milestone «цепочка повторных консультаций») — обе части в
+  // хронологическом порядке, ничего не скрыто и не заменено: конвертированные
+  // и отменённые консультации/сессии остаются в списке наравне с активными.
+  const linkedSessions = linkedClient && project
+    ? getSessionsByProjectId(linkedClient.sessions, project.id).slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    : [];
+  const linkedConsults = linkedClient && project ? getConsultationSequence(linkedClient.consultations, project.id) : [];
+  const ownSessions = project && !linkedClient
+    ? project.sessions.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    : [];
   const linkedTasks = project
     ? linkedClient
       ? getTasksByProjectId(linkedClient.notes, project.id)
@@ -810,39 +893,47 @@ export function ProjectViewSheet({
             {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0) && (
               <div>
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Записи проекта</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {linkedSessions.map((s) => (
-                    <div key={`s-${s.id}`} onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'session', s.id)} style={entryRowStyle}>
-                      <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Сессия</span>
-                      <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {s.name || s.area || '—'}
-                      </span>
-                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
-                        {s.date ? formatDate(s.date).replace(/ \d{4}$/, '') : ''}
-                      </span>
-                    </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {/* Полная последовательность: Консультация 1 → 2 → 3 →
+                      Сессия 1 → 2 — конвертированные/отменённые записи
+                      остаются в списке, стрелка просто разделяет соседние
+                      шаги (milestone «цепочка повторных консультаций»,
+                      п. 8). Номер консультации вычисляется по позиции в
+                      linkedConsults (уже в порядке цепочки, см.
+                      getConsultationSequence), номер сессии — по позиции в
+                      этом же представлении (нигде не хранится). */}
+                  {linkedConsults.map((c, i) => (
+                    <ChainEntryRow
+                      key={`c-${c.id}`}
+                      showArrow={i > 0}
+                      label={`Консультация ${i + 1}`}
+                      title={c.area || '—'}
+                      date={c.date}
+                      style={entryRowStyle}
+                      onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'consultation', c.id)}
+                    />
                   ))}
-                  {linkedConsults.map((c) => (
-                    <div key={`c-${c.id}`} onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'consultation', c.id)} style={entryRowStyle}>
-                      <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Консультация</span>
-                      <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {c.area || '—'}
-                      </span>
-                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
-                        {c.date ? formatDate(c.date).replace(/ \d{4}$/, '') : ''}
-                      </span>
-                    </div>
+                  {linkedSessions.map((s, i) => (
+                    <ChainEntryRow
+                      key={`s-${s.id}`}
+                      showArrow={i > 0 || linkedConsults.length > 0}
+                      label={`Сессия ${i + 1}`}
+                      title={s.name || s.area || '—'}
+                      date={s.date}
+                      style={entryRowStyle}
+                      onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'session', s.id)}
+                    />
                   ))}
-                  {ownSessions.map((s) => (
-                    <div key={`os-${s.id}`} onClick={() => project && onEditProjectSession(project.id, s)} style={entryRowStyle}>
-                      <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Сессия · без клиента</span>
-                      <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {s.name || s.area || '—'}
-                      </span>
-                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>
-                        {s.date ? formatDate(s.date).replace(/ \d{4}$/, '') : ''}
-                      </span>
-                    </div>
+                  {ownSessions.map((s, i) => (
+                    <ChainEntryRow
+                      key={`os-${s.id}`}
+                      showArrow={i > 0}
+                      label={`Сессия ${i + 1} · без клиента`}
+                      title={s.name || s.area || '—'}
+                      date={s.date}
+                      style={entryRowStyle}
+                      onClick={() => project && onEditProjectSession(project.id, s)}
+                    />
                   ))}
                 </div>
               </div>

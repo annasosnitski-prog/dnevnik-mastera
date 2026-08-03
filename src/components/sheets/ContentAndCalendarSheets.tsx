@@ -83,6 +83,7 @@ export function TimelineViewSheet({
   open,
   session,
   consultation,
+  consultationNumber,
   clientId,
   clientProjects,
   contentEntries,
@@ -92,10 +93,16 @@ export function TimelineViewSheet({
   onOpenContent,
   onConvertToSession,
   onOpenConvertedSession,
+  onChainNextConsultation,
+  onOpenNextConsultation,
 }: {
   open: boolean;
   session: Session | null;
   consultation: Consultation | null;
+  // Порядковый номер консультации внутри её проекта — см.
+  // getConsultationNumber в domain/projectSelectors.ts. null/undefined для
+  // консультации без проекта или для сессии.
+  consultationNumber?: number | null;
   clientId: string;
   // Проекты этого клиента — для быстрой смены проекта записи без захода в
   // полную форму редактирования (Этап 3a).
@@ -113,6 +120,13 @@ export function TimelineViewSheet({
   // Consultation.convertedToSessionId) — рендерится вместо «Перевести в
   // сессию →» once status === 'converted'.
   onOpenConvertedSession?: () => void;
+  // «Назначить следующую консультацию» — консультация никогда не заменяется
+  // другой (см. Consultation.previousConsultationId); независимо от
+  // onConvertToSession/onOpenConvertedSession выше.
+  onChainNextConsultation?: () => void;
+  // Следующая консультация уже назначена (Consultation.nextConsultationId) —
+  // рендерится вместо «Назначить следующую консультацию →».
+  onOpenNextConsultation?: () => void;
 }) {
   const isConsult = !!consultation;
   const dateLine = (() => {
@@ -132,7 +146,7 @@ export function TimelineViewSheet({
           <InkaLogo height={fs(15)} />
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
-          {isConsult ? 'Консультация' : session?.name || 'Сессия'}
+          {isConsult ? (consultationNumber ? `Консультация ${consultationNumber}` : 'Консультация') : session?.name || 'Сессия'}
         </div>
         <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 4, letterSpacing: '0.3px' }}>{dateLine}</div>
         <SheetStarDivider />
@@ -165,6 +179,8 @@ export function TimelineViewSheet({
             <ViewField label="Источники вдохновения" value={consultation.inspirationSources} />
             <ViewField label="Креатив" value={consultation.creative} />
             <ViewField label="Техника и стиль" value={consultation.style} />
+            <ViewField label="Итог" value={consultation.outcome} />
+            <ViewField label="Next step" value={consultation.nextStep} />
             {urgency && <ViewField label="Срочность" value={`${urgency.emoji} ${urgency.label}`} />}
             {consultation.status === 'converted' ? (
               <div
@@ -207,6 +223,67 @@ export function TimelineViewSheet({
                   Перевести в сессию →
                 </div>
               )
+            )}
+            {/* «Назначить следующую консультацию» — независимо от статуса
+                конвертации выше: консультация никогда не заменяется другой
+                (см. Consultation.previousConsultationId). Скрыто только для
+                отменённой — продолжать нечего. */}
+            {!consultation.cancelled &&
+              (onOpenNextConsultation ? (
+                <div
+                  onClick={onOpenNextConsultation}
+                  role="button"
+                  style={{
+                    textAlign: 'center',
+                    padding: '9px 12px',
+                    border: '1px solid rgba(var(--gold-rgb),0.15)',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    color: COLORS.textFaint,
+                    fontSize: fs(12),
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Следующая консультация →
+                </div>
+              ) : (
+                onChainNextConsultation && (
+                  <div
+                    onClick={onChainNextConsultation}
+                    role="button"
+                    style={{
+                      textAlign: 'center',
+                      padding: '9px 12px',
+                      border: '1px solid rgba(var(--gold-rgb),0.3)',
+                      borderRadius: 2,
+                      cursor: 'pointer',
+                      color: COLORS.gold,
+                      fontSize: fs(12),
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Назначить следующую консультацию →
+                  </div>
+                )
+              ))}
+            {consultation.history.length > 0 && (
+              <div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
+                  История изменений
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {consultation.history.map((entry) => (
+                    <div key={entry.id} style={{ fontSize: fs(12), color: 'var(--text-soft)', display: 'flex', gap: 8 }}>
+                      <span style={{ color: COLORS.textGhost, flexShrink: 0 }}>{formatDate(entry.date.slice(0, 10))}</span>
+                      <span>{entry.note}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
             <ContentPanel
               clientId={clientId}

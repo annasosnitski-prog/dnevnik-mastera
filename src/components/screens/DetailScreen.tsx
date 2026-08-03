@@ -14,7 +14,7 @@ import { type Consultation } from '../../domain/consultation';
 import { type ClientNote } from '../../domain/task';
 import { type UrgencyKey } from '../../domain/urgency';
 import { type Project, PROJECT_STAGES } from '../../domain/project';
-import { getProjectsByClientId } from '../../domain/projectSelectors';
+import { getProjectsByClientId, getConsultationNumber } from '../../domain/projectSelectors';
 import { urgencyMeta, urgencyRank } from '../../domain/taskSelectors';
 import { lastSessionDate } from '../../domain/plannerSelectors';
 import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
@@ -172,6 +172,7 @@ export function DetailScreen({
   onEditConsultation,
   onDeleteConsultation,
   onConvertConsultation,
+  onChainConsultation,
   onViewSession,
   onViewConsultation,
   onAddDocument,
@@ -202,6 +203,10 @@ export function DetailScreen({
   // moves the consultation into a session (client.consultations →
   // client.sessions) instead of leaving it as a separate, now-stale record.
   onConvertConsultation: (consultation: Consultation) => void;
+  // «Назначить следующую консультацию» — consultation is never replaced;
+  // opens a fresh consultation record linked to this one (see
+  // Consultation.previousConsultationId/nextConsultationId).
+  onChainConsultation: (consultation: Consultation) => void;
   onViewSession: (session: Session) => void;
   onViewConsultation: (consultation: Consultation) => void;
   onAddDocument: (doc: ClientDocument) => void;
@@ -613,6 +618,7 @@ export function DetailScreen({
             onEditConsultation={onEditConsultation}
             onDeleteConsultation={onDeleteConsultation}
             onConvertConsultation={onConvertConsultation}
+            onChainConsultation={onChainConsultation}
             onViewSession={onViewSession}
             onViewConsultation={onViewConsultation}
           />
@@ -1553,6 +1559,7 @@ function SessionsTab({
   onEditConsultation,
   onDeleteConsultation,
   onConvertConsultation,
+  onChainConsultation,
   onViewSession,
   onViewConsultation,
 }: {
@@ -1565,6 +1572,7 @@ function SessionsTab({
   onEditConsultation: (consultation: Consultation) => void;
   onDeleteConsultation: (consultationId: string) => void;
   onConvertConsultation: (consultation: Consultation) => void;
+  onChainConsultation: (consultation: Consultation) => void;
   onViewSession: (session: Session) => void;
   onViewConsultation: (consultation: Consultation) => void;
 }) {
@@ -1575,16 +1583,30 @@ function SessionsTab({
         {consultations.length === 0 && (
           <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Консультаций пока нет.</div>
         )}
-        {consultations.map((consultation) => (
-          <ConsultationRow
-            key={consultation.id}
-            consultation={consultation}
-            onEdit={onEditConsultation}
-            onDelete={() => onDeleteConsultation(consultation.id)}
-            onConvert={() => onConvertConsultation(consultation)}
-            onView={onViewConsultation}
-          />
-        ))}
+        {consultations.map((consultation) => {
+          // «Следующая консультация» уже назначена — открываем её вместо
+          // повторного создания (см. Consultation.nextConsultationId).
+          // Ссылка не проверяется на существование цели намеренно — тот же
+          // допустимый dangling-паттерн, что convertedToSessionId уже
+          // использует ниже (удаление одной записи не чинит ссылки соседей,
+          // см. milestone «удаление консультации не должно ломать остальные»).
+          const nextConsultation = consultation.nextConsultationId
+            ? client.consultations.find((c) => c.id === consultation.nextConsultationId) ?? null
+            : null;
+          return (
+            <ConsultationRow
+              key={consultation.id}
+              consultation={consultation}
+              number={getConsultationNumber(client.consultations, consultation)}
+              onEdit={onEditConsultation}
+              onDelete={() => onDeleteConsultation(consultation.id)}
+              onConvert={() => onConvertConsultation(consultation)}
+              onChainNext={() => onChainConsultation(consultation)}
+              onOpenNext={nextConsultation ? () => onViewConsultation(nextConsultation) : undefined}
+              onView={onViewConsultation}
+            />
+          );
+        })}
       </div>
     );
   }
@@ -1615,15 +1637,28 @@ function SessionsTab({
 // swiping never deletes outright.
 function ConsultationRow({
   consultation,
+  number,
   onEdit,
   onDelete,
   onConvert,
+  onChainNext,
+  onOpenNext,
   onView,
 }: {
   consultation: Consultation;
+  // Порядковый номер внутри проекта — «Консультация N» (см.
+  // getConsultationNumber в domain/projectSelectors.ts); null для
+  // консультации без проекта, тогда просто «Консультация».
+  number: number | null;
   onEdit: (consultation: Consultation) => void;
   onDelete: () => void;
   onConvert: () => void;
+  // «Назначить следующую консультацию» — см. TattoDiary's
+  // startChainNextConsultation.
+  onChainNext: () => void;
+  // Следующая консультация уже назначена (Consultation.nextConsultationId) —
+  // открывает её вместо повторного создания. undefined, если следующей нет.
+  onOpenNext?: () => void;
   onView: (consultation: Consultation) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -1647,7 +1682,9 @@ function ConsultationRow({
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Консультация</div>
+            <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+              {number ? `Консультация ${number}` : 'Консультация'}
+            </div>
             <div style={{ fontSize: fs(12), color: COLORS.textGhost, marginTop: 2, letterSpacing: '0.3px' }}>
               {formatDate(consultation.date) || 'Дата не указана'}
               {consultation.time && <span style={{ color: COLORS.gold }}> · {consultation.time}</span>}
@@ -1687,6 +1724,28 @@ function ConsultationRow({
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
                   <path d="M2 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+            {/* «Назначить следующую консультацию» — консультация никогда не
+                заменяется другой (см. Consultation.previousConsultationId),
+                доступно независимо от «Перевести в сессию» и не зависит от
+                статуса. Once a next one exists, taps open it instead of
+                creating a duplicate branch. Hidden only for a cancelled
+                consultation — nothing to continue. */}
+            {!consultation.cancelled && (
+              <div
+                className="inka-back"
+                onClick={onOpenNext ?? onChainNext}
+                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+                title={onOpenNext ? 'Открыть следующую консультацию' : 'Назначить следующую консультацию'}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                  {onOpenNext ? (
+                    <path d="M4 3L11 8L4 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  ) : (
+                    <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  )}
                 </svg>
               </div>
             )}
@@ -1734,6 +1793,16 @@ function ConsultationRow({
         {consultation.creative && (
           <div style={{ marginTop: 6 }}>
             <SessionMeta label="Креатив" value={consultation.creative} />
+          </div>
+        )}
+        {consultation.outcome && (
+          <div style={{ marginTop: 6 }}>
+            <SessionMeta label="Итог" value={consultation.outcome} />
+          </div>
+        )}
+        {consultation.nextStep && (
+          <div style={{ marginTop: 6 }}>
+            <SessionMeta label="Next step" value={consultation.nextStep} />
           </div>
         )}
       </div>

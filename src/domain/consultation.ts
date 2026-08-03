@@ -12,6 +12,17 @@ import type { UrgencyKey } from './urgency';
 // — единственное новое поведение этого среза.
 export type ConsultationStatus = 'active' | 'completed' | 'converted' | 'cancelled';
 
+// Одна запись «своей» истории изменений консультации (см. Consultation.history
+// ниже) — не общий аудит-лог всего приложения, а компактная лента конкретной
+// консультации: когда её создали, когда от неё назначили следующую, когда её
+// перевели в сессию/отменили. Пишется доменной логикой в фиксированных
+// точках (см. lib/consultationSave.ts), а не диффом полей формы.
+export interface ConsultationHistoryEntry {
+  id: string;
+  date: string; // ISO timestamp
+  note: string; // короткая запись о том, что произошло
+}
+
 export interface Consultation {
   id: string;
   date: string; // ISO yyyy-mm-dd
@@ -22,6 +33,13 @@ export interface Consultation {
   feeling: string; // "Чувство/ощущение" — the mood or sensation the piece should evoke
   creative: string; // "Креатив" — the wild/standout idea, the one distinctive twist
   inspirationSources: string; // "Источники вдохновения" — authors, references
+  // "Итог" — как прошла именно эта консультация; своё для каждой записи в
+  // цепочке, не переносится и не наследуется соседними консультациями.
+  outcome: string;
+  // "Next step" — что делать после именно этой консультации; отдельно от
+  // Project.nextActionText (тот — про весь проект, этот — про конкретную
+  // встречу, который мог с тех пор не раз смениться следующими).
+  nextStep: string;
   urgency: UrgencyKey;
   photos: string[]; // reference / mood-board images
   // Оставлены как есть ради обратной совместимости — status добавлен рядом,
@@ -38,6 +56,26 @@ export interface Consultation {
   // консультация «переехала» (см. Session.sourceConsultationId — обратная
   // ссылка). null для всех остальных статусов.
   convertedToSessionId: string | null;
+  // ── Цепочка повторных консультаций («Назначить следующую консультацию») ──
+  // Консультация никогда не заменяется и не удаляется другой: у каждой
+  // следующей встречи — своя собственная запись со своими датой/статусом/
+  // заметками/итогом/next step, связанная с предыдущей только этими двумя
+  // id (тот же двусторонний link-паттерн, что convertedToSessionId/
+  // sourceConsultationId у сессии). null-цепочка (обе ссылки null) — обычная,
+  // не повторная консультация; для старых записей до этой фичи
+  // previousConsultationId всегда null — они и есть начало своей цепочки
+  // (см. normalizeClient в lib/normalize.ts), миграция не нужна.
+  previousConsultationId: string | null;
+  // Обратная ссылка на следующую консультацию — не обязательна для
+  // корректности (её всегда можно найти перебором consultations по
+  // previousConsultationId), но убирает этот перебор из каждого места,
+  // где нужно узнать «уже назначена ли следующая» (см. getConsultationSequence
+  // в domain/projectSelectors.ts, где используется порядок по дате, а не эта
+  // ссылка — nextConsultationId только для UI-навигации/статуса «уже есть
+  // следующая», не для нумерации).
+  nextConsultationId: string | null;
+  // Своя лента событий этой консультации — см. ConsultationHistoryEntry.
+  history: ConsultationHistoryEntry[];
   createdDate: string;
   // См. Session.projectId — та же link-семантика (Этап 2).
   projectId: string | null;
