@@ -1,0 +1,190 @@
+/* Light-theme navigation: nineteenth-century naturalist butterflies on a
+   thin silver web. Dark-theme jewellery remains untouched. */
+
+.nav-fab__light-butterfly {
+  display: none;
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.nav-fab__dark-jewel {
+  display: block;
+}
+
+.butterfly-icon {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 4px 3px rgba(85, 66, 48, 0.16));
+}
+
+.butterfly-icon__wing {
+  transform-box: view-box;
+  transform-origin: 32px 33px;
+  animation: butterfly-wing-rest var(--flutter-duration) ease-in-out var(--flutter-delay) infinite;
+  will-change: transform;
+}
+
+.butterfly-icon__wing--right {
+  animation-delay: calc(var(--flutter-delay) + 90ms);
+}
+
+.butterfly-icon--active .butterfly-icon__wing {
+  animation: none;
+  transform: scaleX(1);
+}
+
+@keyframes butterfly-wing-rest {
+  0%, 100% { transform: scaleX(var(--wing-open)); }
+  48% { transform: scaleX(calc(var(--wing-open) + 0.09)); }
+  58% { transform: scaleX(calc(var(--wing-open) + 0.04)); }
+}
+
+@keyframes nav-fab-butterfly-flight {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.34) rotate(var(--flight-rotate));
+  }
+  18% {
+    opacity: 0.9;
+  }
+  46% {
+    transform: translate(
+      calc(-50% + var(--mid-x)),
+      calc(-50% + var(--mid-y))
+    ) scale(0.8) rotate(calc(var(--flight-rotate) * -0.35));
+  }
+  76% {
+    transform: translate(
+      calc(-50% + var(--near-x)),
+      calc(-50% + var(--near-y))
+    ) scale(1.05) rotate(calc(var(--flight-rotate) * 0.18));
+  }
+  100% {
+    opacity: 1;
+    transform: translate(
+      calc(-50% + var(--dx)),
+      calc(-50% + var(--dy))
+    ) scale(var(--nav-scale, 1)) rotate(0deg);
+  }
+}
+
+:root[data-theme='light'] .nav-fab {
+  --nav-web-color: #9CA4A3;
+  --nav-web-node: #E7E5DE;
+}
+
+:root[data-theme='light'] .nav-fab__scrim {
+  background: rgba(244, 240, 230, 0.34);
+  backdrop-filter: blur(9px) saturate(0.82);
+  -webkit-backdrop-filter: blur(9px) saturate(0.82);
+}
+
+:root[data-theme='light'] .nav-fab__dark-jewel {
+  display: none;
+}
+
+:root[data-theme='light'] .nav-fab__light-butterfly {
+  display: block;
+}
+
+:root[data-theme='light'] .nav-fab__item--butterfly {
+  border-radius: 0;
+  overflow: visible;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme='light'] .nav-fab__item--butterfly::before {
+  display: none;
+}
+
+:root[data-theme='light'] .nav-fab--open .nav-fab__item--butterfly {
+  animation-name: nav-fab-butterfly-flight !important;
+  animation-duration: var(--travel-duration) !important;
+  animation-delay: var(--travel-delay) !important;
+  animation-timing-function: cubic-bezier(0.16, 0.78, 0.18, 1) !important;
+  animation-fill-mode: both !important;
+  will-change: transform, opacity;
+}
+
+:root[data-theme='light'] .nav-fab__item--selected .butterfly-icon {
+  filter:
+    drop-shadow(0 4px 3px rgba(85, 66, 48, 0.16))
+    drop-shadow(0 0 6px color-mix(in srgb, var(--butterfly-color) 34%, transparent));
+}
+
+:root[data-theme='light'] .nav-fab__item--pressed .butterfly-icon {
+  transform: translateY(1px) scale(0.94);
+  filter: brightness(0.92) drop-shadow(0 2px 2px rgba(85, 66, 48, 0.18));
+}
+
+/* The existing seven rays and inner polygon become the functional silver web. */
+:root[data-theme='light'] .nav-fab__ray,
+:root[data-theme='light'] .nav-fab__ray-glow {
+  fill: var(--nav-web-color) !important;
+}
+
+:root[data-theme='light'] .nav-fab__ray {
+  opacity: 0.62;
+}
+
+:root[data-theme='light'] .nav-fab__ray-glow {
+  opacity: 0.13;
+  filter: blur(1.2px);
+}
+
+/* A second, wider layer adds the curved rings of a real web without changing
+   hit areas or the seven functional destinations. */
+:root[data-theme='light'] .nav-fab.nav-fab--open::before {
+  content: "";
+  display: block;
+  width: 430px;
+  height: 430px;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.2);
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http%3A//www.w3.org/2000/svg' viewBox='0 0 420 420'%3E%3Cg fill='none' stroke='%239CA4A3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M210 38L345 102L378 247L285 364L135 364L42 247L75 102Z' stroke-width='.72' stroke-opacity='.46'/%3E%3Cpath d='M210 88L306 134L329 237L263 320L157 320L91 237L114 134Z' stroke-width='.62' stroke-opacity='.42'/%3E%3Cpath d='M210 137L267 164L281 226L242 275L178 275L139 226L153 164Z' stroke-width='.56' stroke-opacity='.38'/%3E%3Cpath d='M210 210L210 38M210 210L345 102M210 210L378 247M210 210L285 364M210 210L135 364M210 210L42 247M210 210L75 102' stroke-width='.58' stroke-opacity='.42'/%3E%3Cpath d='M210 137Q235 144 267 164M267 164Q276 191 281 226M281 226Q263 252 242 275M242 275Q210 281 178 275M178 275Q157 252 139 226M139 226Q144 191 153 164M153 164Q185 144 210 137' stroke-width='.52' stroke-opacity='.34'/%3E%3C/g%3E%3Cg fill='%23E7E5DE' stroke='%239CA4A3' stroke-width='.45'%3E%3Ccircle cx='210' cy='137' r='2.1'/%3E%3Ccircle cx='267' cy='164' r='1.8'/%3E%3Ccircle cx='281' cy='226' r='2'/%3E%3Ccircle cx='242' cy='275' r='1.7'/%3E%3Ccircle cx='178' cy='275' r='2'/%3E%3Ccircle cx='139' cy='226' r='1.7'/%3E%3Ccircle cx='153' cy='164' r='1.9'/%3E%3Ccircle cx='210' cy='210' r='2.3'/%3E%3C/g%3E%3C/svg%3E");
+  filter: drop-shadow(0 1px 1px rgba(77, 84, 84, 0.13));
+  animation: nav-fab-silver-web-open 1380ms cubic-bezier(0.18, 0.82, 0.2, 1) 80ms both;
+}
+
+:root[data-theme='light'] .nav-fab.nav-fab--open::after {
+  display: none;
+}
+
+@keyframes nav-fab-silver-web-open {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2) rotate(-4deg);
+  }
+  to {
+    opacity: 0.72;
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .butterfly-icon__wing,
+  :root[data-theme='light'] .nav-fab--open .nav-fab__item--butterfly,
+  :root[data-theme='light'] .nav-fab.nav-fab--open::before {
+    animation: none !important;
+  }
+
+  .butterfly-icon__wing {
+    transform: scaleX(var(--wing-open));
+  }
+
+  :root[data-theme='light'] .nav-fab--open .nav-fab__item--butterfly {
+    opacity: 1;
+    transform: translate(
+      calc(-50% + var(--dx)),
+      calc(-50% + var(--dy))
+    ) scale(var(--nav-scale, 1));
+  }
+
+  :root[data-theme='light'] .nav-fab.nav-fab--open::before {
+    opacity: 0.72;
+    transform: translate(-50%, -50%);
+  }
+}
