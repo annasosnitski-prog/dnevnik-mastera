@@ -935,10 +935,18 @@ export default function TattoDiary() {
     });
   }, [db]);
 
-  const saveClient = (client: Client) => {
+  // Returns whether the write was actually handed to IndexedDB (true) or
+  // bailed out synchronously because storage isn't reachable right now
+  // (false) — callers that hold an in-progress edit (see upsertNote/
+  // NoteItem.saveEdit) use this to keep the edit open instead of discarding
+  // it as if the save had gone through. Does NOT cover the later async
+  // tx.onerror path (a genuine mid-write failure, e.g. quota exceeded) —
+  // that's rare enough, and different enough in nature, to not warrant
+  // threading a callback through every saveClient caller for it too.
+  const saveClient = (client: Client): boolean => {
     if (!db) {
       setDbError('Хранилище недоступно — изменения не сохранены.');
-      return;
+      return false;
     }
     // Синхронизация с Инка-календарём: saveClient — единственная воронка
     // всех изменений (сессии, консультации, заметки...), поэтому дифф
@@ -947,13 +955,14 @@ export default function TattoDiary() {
     // после успешного сохранения, он не блокирует и не ломает UI.
     const prevClient = clients.find((c) => c.id === client.id) ?? null;
     const tx = openWriteTx('clients', db, 'Хранилище недоступно — изменения не сохранены.');
-    if (!tx) return;
+    if (!tx) return false;
     tx.objectStore('clients').put(client);
     tx.oncomplete = () => {
       loadClients(db);
       diffAndSync(prevClient, client, calendarSync);
     };
     tx.onerror = () => setDbError('Не удалось сохранить изменения.');
+    return true;
   };
 
   const deleteClient = (id: string) => {
@@ -1467,11 +1476,14 @@ export default function TattoDiary() {
   };
 
   // ── Notes (used by the client «Дополнительно» tab and the «Сводка» screen) ──
-  const upsertNote = (clientId: string, note: ClientNote) => {
+  // Returns whether the save actually went through — see saveClient's own
+  // doc comment; NoteItem.saveEdit keeps its edit open on false instead of
+  // discarding the master's just-typed text.
+  const upsertNote = (clientId: string, note: ClientNote): boolean => {
     const c = clients.find((x) => x.id === clientId);
-    if (!c) return;
+    if (!c) return false;
     const exists = c.notes.some((n) => n.id === note.id);
-    saveClient({
+    return saveClient({
       ...c,
       notes: exists ? c.notes.map((n) => (n.id === note.id ? note : n)) : [...c.notes, note],
     });
@@ -1746,6 +1758,92 @@ export default function TattoDiary() {
         <CloudsBackground />
         <AviationBackground />
       </div>
+
+      {/* Error/warning banners — fixed overlay, independent of which screen
+          is active or whether a bottom sheet is open (zIndex above
+          BottomSheet's 950 — see ui/Sheet.tsx — so a save failure while
+          editing e.g. a note stays visible even from inside that sheet).
+          Used to be rendered inside the list screen's own scroll container
+          and silently missed on every other screen. */}
+      {(dbError || syncWarning) && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 'calc(env(safe-area-inset-top) + 8px)',
+            left: 16,
+            right: 16,
+            zIndex: 960,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          {dbError && (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 3,
+                border: '1px solid rgba(138,48,64,0.5)',
+                background: COLORS.bg,
+                boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+              }}
+            >
+              <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
+              {!db && (
+                <button
+                  onClick={connectDb}
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(201,153,153,0.5)',
+                    borderRadius: 2,
+                    padding: '2px 8px',
+                    color: '#C99',
+                    fontSize: fs(13),
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  Повторить
+                </button>
+              )}
+              <button
+                onClick={() => setDbError(null)}
+                style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Пересечение в Инка-календаре — янтарное предупреждение (не ошибка:
+              запись сохранена, мастер сама решает, накладка это или намеренно). */}
+          {syncWarning && (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 3,
+                border: '1px solid rgba(184,134,11,0.5)',
+                background: COLORS.bg,
+                boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+              }}
+            >
+              <span style={{ flex: 1, fontSize: fs(15), color: '#D4A94E', fontStyle: 'italic' }}>{syncWarning}</span>
+              <button
+                onClick={() => setSyncWarning(null)}
+                style={{ background: 'none', border: 'none', color: '#D4A94E', cursor: 'pointer', flexShrink: 0 }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ═══════════ LIST SCREEN ═══════════ */}
       <div
@@ -2050,75 +2148,12 @@ export default function TattoDiary() {
           </div>
         </div>
 
-        {/* Error banner */}
-        {dbError && (
-          <div
-            style={{
-              margin: '0 16px 12px',
-              padding: '10px 14px',
-              borderRadius: 3,
-              border: '1px solid rgba(138,48,64,0.5)',
-              background: 'rgba(138,48,64,0.12)',
-              display: 'flex',
-              gap: 10,
-              alignItems: 'flex-start',
-              position: 'relative',
-              zIndex: 10,
-            }}
-          >
-            <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
-            {!db && (
-              <button
-                onClick={connectDb}
-                style={{
-                  background: 'none',
-                  border: '1px solid rgba(201,153,153,0.5)',
-                  borderRadius: 2,
-                  padding: '2px 8px',
-                  color: '#C99',
-                  fontSize: fs(13),
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                }}
-              >
-                Повторить
-              </button>
-            )}
-            <button
-              onClick={() => setDbError(null)}
-              style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Пересечение в Инка-календаре — янтарное предупреждение (не ошибка:
-            запись сохранена, мастер сама решает, накладка это или намеренно). */}
-        {syncWarning && (
-          <div
-            style={{
-              margin: '0 16px 12px',
-              padding: '10px 14px',
-              borderRadius: 3,
-              border: '1px solid rgba(184,134,11,0.5)',
-              background: 'rgba(184,134,11,0.12)',
-              display: 'flex',
-              gap: 10,
-              alignItems: 'flex-start',
-              position: 'relative',
-              zIndex: 10,
-            }}
-          >
-            <span style={{ flex: 1, fontSize: fs(15), color: '#D4A94E', fontStyle: 'italic' }}>{syncWarning}</span>
-            <button
-              onClick={() => setSyncWarning(null)}
-              style={{ background: 'none', border: 'none', color: '#D4A94E', cursor: 'pointer', flexShrink: 0 }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
+        {/* Error/warning banners moved to a global fixed overlay (see near
+            the top of app-shell) — they used to live right here, inside the
+            list screen's own scroll container, so a save failure while
+            editing something on any OTHER screen (e.g. a note from the
+            client detail screen) was invisible until the master happened to
+            navigate back to «Клиенты». */}
 
         {/* Cards grid — 2 columns on phones, 3 from tablet width up (see .inka-client-grid). */}
         <div
@@ -2320,7 +2355,13 @@ export default function TattoDiary() {
               })
             }
             onToggleMasterDone={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
-            onEditMasterNote={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
+            onEditMasterNote={(note) => {
+              setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) });
+              // masterInfo.notes lives in localStorage, not IndexedDB — no
+              // «storage unavailable» failure mode to report here, unlike
+              // upsertNote below (see NoteItem.saveEdit).
+              return true;
+            }}
             onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
             showComposer={showSummaryComposer}
             onShowComposerChange={setShowSummaryComposer}

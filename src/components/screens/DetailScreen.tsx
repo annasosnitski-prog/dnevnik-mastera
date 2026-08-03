@@ -206,7 +206,11 @@ export function DetailScreen({
   onViewConsultation: (consultation: Consultation) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
-  onUpsertNote: (note: ClientNote) => void;
+  // Returns whether the save actually went through (false = storage was
+  // unavailable) — NoteItem.saveEdit keeps its edit open on false instead
+  // of discarding the just-typed text (see saveClient/upsertNote in
+  // TattoDiary.tsx for why this can fail).
+  onUpsertNote: (note: ClientNote) => boolean;
   onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
   onDeleteNote: (noteId: string) => void;
   contentEntries: ContentEntry[];
@@ -1905,7 +1909,10 @@ export function NoteItem({
   onToggleDone: () => void;
   onDelete?: () => void;
   onUpdatePhotos?: (photos: string[]) => void;
-  onEdit?: (text: string, urgency: UrgencyKey, projectId: string | null, dueDate: string | null) => void;
+  // Returns whether the save actually went through — false (storage
+  // unavailable) keeps the row in edit mode instead of discarding the just-
+  // typed text (see saveEdit below).
+  onEdit?: (text: string, urgency: UrgencyKey, projectId: string | null, dueDate: string | null) => boolean;
   client?: Client;
   // Candidate projects this note could be tied to — a client note only
   // offers that client's own projects, a master (client-less) note only
@@ -1939,8 +1946,16 @@ export function NoteItem({
   };
   const saveEdit = () => {
     const trimmed = draftText.trim();
-    if (trimmed && onEdit) onEdit(trimmed, draftUrgency, draftProjectId, draftDueDate || null);
-    setEditing(false);
+    if (!trimmed) {
+      setEditing(false);
+      return;
+    }
+    // Storage unavailable (see saveClient in TattoDiary.tsx) — stay in edit
+    // mode with the draft intact instead of quietly reverting to the old
+    // text, so the master doesn't lose what she just typed. The global
+    // error banner (app-shell) tells her why and offers «Повторить».
+    const saved = onEdit ? onEdit(trimmed, draftUrgency, draftProjectId, draftDueDate || null) : true;
+    if (saved) setEditing(false);
   };
 
   const menuRowStyle: React.CSSProperties = {
@@ -2324,7 +2339,11 @@ function AdditionalTab({
   client: Client;
   // This client's own projects — candidates a note/task can be tied to.
   projects: Project[];
-  onUpsertNote: (note: ClientNote) => void;
+  // Returns whether the save actually went through (false = storage was
+  // unavailable) — NoteItem.saveEdit keeps its edit open on false instead
+  // of discarding the just-typed text (see saveClient/upsertNote in
+  // TattoDiary.tsx for why this can fail).
+  onUpsertNote: (note: ClientNote) => boolean;
   onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
