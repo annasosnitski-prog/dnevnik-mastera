@@ -90,6 +90,7 @@ import {
   type ContentEntryLink,
 } from '../lib/contentLink';
 import { upsertClientSession, upsertProjectSession, applyConsultationConversion, type SessionFormData } from '../lib/sessionSave';
+import { upsertConsultation, type ConsultationFormData } from '../lib/consultationSave';
 // Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
 // не менялась — только перенос.
 import { isRTL, firstLetter, nameRest } from '../lib/textFormat';
@@ -176,6 +177,7 @@ import { ISO_DATE_RE, formatDate, dateParts, todayISO } from '../utils/dates';
 import {
   getProjectById,
   getProjectsByClientId,
+  getConsultationNumber,
 } from '../domain/projectSelectors';
 export { clientNameFor } from '../domain/projectSelectors';
 import {
@@ -623,6 +625,14 @@ export default function TattoDiary() {
   // around as a stale duplicate. See startConvertConsultationToSession /
   // handleAddSession below.
   const [convertingConsultation, setConvertingConsultation] = useState<Consultation | null>(null);
+  // Консультация, от которой назначается следующая («Назначить следующую
+  // консультацию») — prefills NewConsultationSheet (проект/зона/стиль), а
+  // после сохранения связывает новую запись с этой через
+  // previousConsultationId/nextConsultationId (см. upsertConsultation в
+  // lib/consultationSave.ts). Консультация-источник при этом не меняется и
+  // не исчезает — цепочка только растёт, ничего не заменяется (см.
+  // startChainNextConsultation ниже).
+  const [chainFromConsultation, setChainFromConsultation] = useState<Consultation | null>(null);
   // «Творческая мастерская» — standalone projects, not tied to any client.
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
@@ -1085,6 +1095,7 @@ export default function TattoDiary() {
   const closeNewConsultation = () => {
     setShowNewConsultationForm(false);
     setEditConsultation(null);
+    setChainFromConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
@@ -1098,6 +1109,7 @@ export default function TattoDiary() {
     setShowAddChoice(false);
     setEditSession(null);
     setEditConsultation(null);
+    setChainFromConsultation(null);
     setShowCalendar(false);
     setViewEntry(null);
     cancelCalendarWalk();
@@ -1173,42 +1185,23 @@ export default function TattoDiary() {
     saveClient({ ...selectedClient, sessions: selectedClient.sessions.filter((s) => s.id !== sessionId) });
   };
 
-  const handleAddConsultation = (data: {
-    date: string;
-    time: string;
-    area: string;
-    style: string;
-    generalNotes: string;
-    feeling: string;
-    creative: string;
-    inspirationSources: string;
-    urgency: UrgencyKey;
-    photos: string[];
-    projectId: string | null;
-  }) => {
+  // Сохранение чистой логики (client.consultations + связь цепочки) вынесено
+  // в upsertConsultation (src/lib/consultationSave.ts) — см. upsertClientSession
+  // выше для того же паттерна с сессиями. previousConsultationId идёт от
+  // chainFromConsultation (см. startChainNextConsultation ниже), null для
+  // обычной «Новой консультации».
+  const handleAddConsultation = (data: ConsultationFormData) => {
     if (!selectedClient) return;
-    const fields = { ...data, done: false };
-    let consultations: Consultation[];
-    if (editConsultation) {
-      consultations = selectedClient.consultations.map((c) =>
-        c.id === editConsultation.id ? { ...c, ...fields } : c,
-      );
-    } else {
-      consultations = [
-        ...selectedClient.consultations,
-        {
-          id: crypto.randomUUID(),
-          createdDate: new Date().toISOString(),
-          cancelled: false,
-          status: 'active',
-          convertedToSessionId: null,
-          ...fields,
-        },
-      ];
-    }
-    saveClient({ ...selectedClient, consultations });
+    const { client: updatedClient } = upsertConsultation(
+      selectedClient,
+      data,
+      editConsultation?.id ?? null,
+      chainFromConsultation?.id ?? null,
+    );
+    saveClient(updatedClient);
     setShowNewConsultationForm(false);
     setEditConsultation(null);
+    setChainFromConsultation(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
@@ -1230,6 +1223,21 @@ export default function TattoDiary() {
     setEditSession(null);
     setConvertingConsultation(consultation);
     setShowNewSessionForm(true);
+    setViewEntry(null);
+  };
+
+  // «Назначить следующую консультацию» — та же консультация остаётся как
+  // есть (см. заголовок Consultation.previousConsultationId), открывается
+  // NewConsultationSheet в режиме создания (editConsultation===null),
+  // предзаполненный проектом/зоной/стилем предыдущей встречи (см.
+  // prefillFrom/chainFrom в NewConsultationSheet) — но с чистыми заметками/
+  // итогом/next step, это отдельная запись. Связь проставляется в
+  // handleAddConsultation через chainFromConsultation.
+  const startChainNextConsultation = (consultation: Consultation) => {
+    setActiveTab('consultations');
+    setEditConsultation(null);
+    setChainFromConsultation(consultation);
+    setShowNewConsultationForm(true);
     setViewEntry(null);
   };
 
@@ -1516,7 +1524,14 @@ export default function TattoDiary() {
     if (kind === 'session') {
       saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === itemId ? { ...s, cancelled: true } : s)) });
     } else {
-      saveClient({ ...c, consultations: c.consultations.map((cn) => (cn.id === itemId ? { ...cn, cancelled: true } : cn)) });
+      saveClient({
+        ...c,
+        consultations: c.consultations.map((cn) =>
+          cn.id === itemId
+            ? { ...cn, cancelled: true, history: [...cn.history, { id: crypto.randomUUID(), date: new Date().toISOString(), note: 'Отменена' }] }
+            : cn,
+        ),
+      });
     }
   };
 
@@ -2511,6 +2526,7 @@ export default function TattoDiary() {
             onEditConsultation={(consultation) => { setEditConsultation(consultation); setShowNewConsultationForm(true); }}
             onDeleteConsultation={deleteConsultation}
             onConvertConsultation={startConvertConsultationToSession}
+            onChainConsultation={startChainNextConsultation}
             onViewSession={(session) => setViewEntry({ kind: 'session', clientId: selectedClient.id, id: session.id })}
             onViewConsultation={(consultation) => setViewEntry({ kind: 'consultation', clientId: selectedClient.id, id: consultation.id })}
             onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
@@ -2673,6 +2689,7 @@ export default function TattoDiary() {
         presetProjectId={presetEntryProjectId}
         initial={editConsultation}
         initialDate={calendarCreateDate ?? undefined}
+        chainFrom={chainFromConsultation}
         onClose={closeNewConsultation}
         onAdd={handleAddConsultation}
       />
@@ -2739,6 +2756,7 @@ export default function TattoDiary() {
         open={!!viewEntry && (!!viewedSession || !!viewedConsultation)}
         session={viewedSession}
         consultation={viewedConsultation}
+        consultationNumber={viewedConsultation ? getConsultationNumber(viewClient?.consultations ?? [], viewedConsultation) : null}
         clientId={viewClient?.id ?? ''}
         clientProjects={viewClient ? getProjectsByClientId(projects, viewClient.id) : []}
         contentEntries={contentEntries}
@@ -2769,6 +2787,19 @@ export default function TattoDiary() {
         onOpenConvertedSession={
           viewedConsultation?.convertedToSessionId && viewEntry
             ? () => setViewEntry({ kind: 'session', clientId: viewEntry.clientId, id: viewedConsultation.convertedToSessionId! })
+            : undefined
+        }
+        onChainNextConsultation={
+          viewedConsultation
+            ? () => {
+                if (viewEntry) setSelectedId(viewEntry.clientId);
+                startChainNextConsultation(viewedConsultation);
+              }
+            : undefined
+        }
+        onOpenNextConsultation={
+          viewedConsultation?.nextConsultationId && viewEntry
+            ? () => setViewEntry({ kind: 'consultation', clientId: viewEntry.clientId, id: viewedConsultation.nextConsultationId! })
             : undefined
         }
       />

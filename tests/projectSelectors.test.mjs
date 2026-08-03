@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildProjectFolders } from '../.test-dist/src/domain/projectSelectors.js';
+import { buildProjectFolders, getConsultationSequence, getConsultationNumber } from '../.test-dist/src/domain/projectSelectors.js';
 
 function makeProject(overrides = {}) {
   return {
@@ -187,4 +187,90 @@ test('input arrays and objects are not mutated', () => {
 
   assert.deepEqual(projects, projectsSnapshot);
   assert.deepEqual(clients, clientsSnapshot);
+});
+
+// ── getConsultationSequence / getConsultationNumber ──────────────────────
+// «Консультация 1/2/3» (milestone «цепочка повторных консультаций», п. 5) —
+// номер вычисляется по дате внутри проекта, а не хранится и не читается из
+// previousConsultationId (та связь используется только для UI-навигации).
+
+function makeConsultation(overrides = {}) {
+  return {
+    id: 'consult-1',
+    date: '',
+    time: '',
+    area: '',
+    style: '',
+    generalNotes: '',
+    feeling: '',
+    creative: '',
+    inspirationSources: '',
+    outcome: '',
+    nextStep: '',
+    urgency: 'normal',
+    photos: [],
+    done: false,
+    cancelled: false,
+    status: 'active',
+    convertedToSessionId: null,
+    previousConsultationId: null,
+    nextConsultationId: null,
+    history: [],
+    createdDate: '2026-01-01T00:00:00.000Z',
+    projectId: null,
+    ...overrides,
+  };
+}
+
+test('getConsultationSequence orders a project\'s consultations by date, earliest first', () => {
+  const c1 = makeConsultation({ id: 'c1', projectId: 'p1', date: '2026-03-01' });
+  const c2 = makeConsultation({ id: 'c2', projectId: 'p1', date: '2026-01-01' });
+  const c3 = makeConsultation({ id: 'c3', projectId: 'p1', date: '2026-02-01' });
+
+  const sequence = getConsultationSequence([c1, c2, c3], 'p1');
+
+  assert.deepEqual(sequence.map((c) => c.id), ['c2', 'c3', 'c1']);
+});
+
+test('getConsultationSequence excludes consultations from other projects', () => {
+  const c1 = makeConsultation({ id: 'c1', projectId: 'p1', date: '2026-01-01' });
+  const other = makeConsultation({ id: 'c2', projectId: 'p2', date: '2026-01-02' });
+
+  const sequence = getConsultationSequence([c1, other], 'p1');
+
+  assert.deepEqual(sequence.map((c) => c.id), ['c1']);
+});
+
+test('getConsultationSequence breaks a same-date tie by createdDate', () => {
+  const first = makeConsultation({ id: 'c1', projectId: 'p1', date: '2026-01-01', createdDate: '2026-01-01T09:00:00.000Z' });
+  const second = makeConsultation({ id: 'c2', projectId: 'p1', date: '2026-01-01', createdDate: '2026-01-01T10:00:00.000Z' });
+
+  const sequence = getConsultationSequence([second, first], 'p1');
+
+  assert.deepEqual(sequence.map((c) => c.id), ['c1', 'c2']);
+});
+
+test('getConsultationNumber returns the 1-based position within the project', () => {
+  const c1 = makeConsultation({ id: 'c1', projectId: 'p1', date: '2026-01-01' });
+  const c2 = makeConsultation({ id: 'c2', projectId: 'p1', date: '2026-02-01' });
+  const all = [c1, c2];
+
+  assert.equal(getConsultationNumber(all, c1), 1);
+  assert.equal(getConsultationNumber(all, c2), 2);
+});
+
+test('getConsultationNumber returns null for a consultation without a project', () => {
+  const c = makeConsultation({ id: 'c1', projectId: null });
+  assert.equal(getConsultationNumber([c], c), null);
+});
+
+test('getConsultationNumber keeps later numbers stable after an earlier consultation in the chain is deleted', () => {
+  const c1 = makeConsultation({ id: 'c1', projectId: 'p1', date: '2026-01-01' });
+  const c2 = makeConsultation({ id: 'c2', projectId: 'p1', date: '2026-02-01', previousConsultationId: 'c1' });
+  const c3 = makeConsultation({ id: 'c3', projectId: 'p1', date: '2026-03-01', previousConsultationId: 'c2' });
+
+  assert.equal(getConsultationNumber([c1, c2, c3], c3), 3);
+  // c1 удалена (milestone п. 11 — не должна каскадно удалять остальные) —
+  // оставшиеся просто пересчитываются по своей новой позиции, без «дыр».
+  assert.equal(getConsultationNumber([c2, c3], c3), 2);
 });

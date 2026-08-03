@@ -178,6 +178,52 @@ test('normalizeClient drops convertedToSessionId for a non-converted consultatio
   assert.equal(c.consultations[0].convertedToSessionId, null);
 });
 
+// ── Цепочка повторных консультаций (previousConsultationId/nextConsultationId/
+// outcome/nextStep/history) — старые бэкапы/IndexedDB-записи не содержат этих
+// полей, они должны получать безопасные дефолты, а не падать нормализацию.
+test('normalizeClient defaults a pre-chain consultation (no previous/next link) to null on both ends', () => {
+  const c = normalizeClient({ consultations: [{}] }, 0);
+  assert.equal(c.consultations[0].previousConsultationId, null);
+  assert.equal(c.consultations[0].nextConsultationId, null);
+});
+
+test('normalizeClient defaults missing outcome/nextStep/history to empty', () => {
+  const c = normalizeClient({ consultations: [{}] }, 0);
+  assert.equal(c.consultations[0].outcome, '');
+  assert.equal(c.consultations[0].nextStep, '');
+  assert.deepEqual(c.consultations[0].history, []);
+});
+
+test('normalizeClient keeps an explicit chain link and history from a backup file', () => {
+  const c = normalizeClient(
+    {
+      consultations: [
+        {
+          id: 'consult-2',
+          previousConsultationId: 'consult-1',
+          nextConsultationId: 'consult-3',
+          outcome: 'Договорились на сессию',
+          nextStep: 'Записать сессию',
+          history: [{ id: 'h1', date: '2026-01-01T00:00:00.000Z', note: 'Консультация создана' }],
+        },
+      ],
+    },
+    0,
+  );
+  assert.equal(c.consultations[0].previousConsultationId, 'consult-1');
+  assert.equal(c.consultations[0].nextConsultationId, 'consult-3');
+  assert.equal(c.consultations[0].outcome, 'Договорились на сессию');
+  assert.equal(c.consultations[0].nextStep, 'Записать сессию');
+  assert.equal(c.consultations[0].history.length, 1);
+  assert.equal(c.consultations[0].history[0].note, 'Консультация создана');
+});
+
+test('normalizeClient drops a malformed history entry instead of keeping garbage', () => {
+  const c = normalizeClient({ consultations: [{ history: [{ note: 'ok' }, { garbage: true }, null] }] }, 0);
+  assert.equal(c.consultations[0].history.length, 1);
+  assert.equal(c.consultations[0].history[0].note, 'ok');
+});
+
 // ── normalizeProject ──────────────────────────────────────────────
 
 test('normalizeProject defaults every union field to its documented fallback', () => {

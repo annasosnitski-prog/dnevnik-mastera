@@ -86,7 +86,15 @@ export function applyConsultationConversion(client: Client, sessionId: string, c
     ...client,
     sessions: client.sessions.map((s) => (s.id === sessionId ? { ...s, sourceConsultationId: consultationId } : s)),
     consultations: client.consultations.map((c) =>
-      c.id === consultationId ? { ...c, status: 'converted', convertedToSessionId: sessionId, done: true } : c,
+      c.id === consultationId
+        ? {
+            ...c,
+            status: 'converted',
+            convertedToSessionId: sessionId,
+            done: true,
+            history: [...c.history, { id: crypto.randomUUID(), date: new Date().toISOString(), note: 'Переведена в сессию' }],
+          }
+        : c,
     ),
   };
 }

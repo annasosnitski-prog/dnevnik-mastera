@@ -45,6 +45,37 @@ export function getConsultationsByProjectId(consultations: Consultation[], proje
   return consultations.filter((c) => c.projectId === projectId);
 }
 
+// Консультации проекта в порядке последовательности («Консультация 1»,
+// «Консультация 2», ...) — по дате/времени, а не по previousConsultationId:
+// та ссылка связывает конкретную пару предыдущая/следующая для UI-навигации
+// и для «Перевести в сессию»/«Назначить следующую», но сам номер по
+// milestone нигде не хранится и должен переживать удаление консультации из
+// середины цепочки без «дыр» и без необходимости чинить ссылки соседей.
+// Сортировка по дате естественно совпадает с порядком цепочки (следующая
+// консультация назначается на дату позже предыдущей), а для старых проектов
+// без единой цепочки (несколько независимых консультаций, каждая с
+// previousConsultationId===null) даёт всё равно осмысленный, стабильный
+// порядок вместо произвольного.
+export function getConsultationSequence(consultations: Consultation[], projectId: string): Consultation[] {
+  return getConsultationsByProjectId(consultations, projectId).slice().sort((a, b) => {
+    const aKey = `${a.date || ''}T${a.time || ''}`;
+    const bKey = `${b.date || ''}T${b.time || ''}`;
+    if (aKey !== bKey) return aKey.localeCompare(bKey);
+    return (a.createdDate || '').localeCompare(b.createdDate || '');
+  });
+}
+
+// Порядковый номер консультации внутри её проекта (1-based) — «Консультация
+// N» вычисляется, а не хранится (см. getConsultationSequence). null для
+// консультации без проекта — нумерация имеет смысл только «внутри одного
+// проекта».
+export function getConsultationNumber(consultations: Consultation[], consultation: Consultation): number | null {
+  if (!consultation.projectId) return null;
+  const sequence = getConsultationSequence(consultations, consultation.projectId);
+  const index = sequence.findIndex((c) => c.id === consultation.id);
+  return index === -1 ? null : index + 1;
+}
+
 // ===================== ПАПКИ ПРОЕКТОВ (view-model) =====================
 // Чистая группировка Project[] по клиенту для верхнего уровня экрана
 // «Мастерская» — не доменная и не persisted-сущность, пересчитывается на
