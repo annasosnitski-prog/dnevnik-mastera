@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
+import { ButterflyIcon } from "./ButterflyIcon";
 import { PendantIcon } from "./PendantIcon";
 import "./NavFabReveal.css";
+import "./ButterflyNav.css";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
 type NavItemId = "clients" | "gear" | "content" | "brush" | "sketchbook" | "profile";
@@ -19,6 +21,7 @@ const NAV_ITEMS = [
     screen: "list",
     isActive: (active: AppScreen) => active === "list" || active === "settings" || active === "detail",
     color: "#5CFF24",
+    lightColor: "#7FA67B",
     durationMs: 2000,
   },
   {
@@ -27,6 +30,7 @@ const NAV_ITEMS = [
     screen: "master",
     isActive: (active: AppScreen) => active === "master",
     color: "#FFE000",
+    lightColor: "#C6A85B",
     durationMs: 3600,
   },
   {
@@ -35,6 +39,7 @@ const NAV_ITEMS = [
     screen: "content",
     isActive: (active: AppScreen) => active === "content",
     color: "#C12FFF",
+    lightColor: "#9A78B0",
     durationMs: 3200,
   },
   {
@@ -43,6 +48,7 @@ const NAV_ITEMS = [
     screen: "workshop",
     isActive: (active: AppScreen) => active === "workshop",
     color: "#00CFFF",
+    lightColor: "#6FA7AE",
     durationMs: 2100,
   },
   {
@@ -51,6 +57,7 @@ const NAV_ITEMS = [
     screen: "summary",
     isActive: (active: AppScreen) => active === "summary",
     color: "#FF8900",
+    lightColor: "#C58652",
     durationMs: 1800,
   },
   {
@@ -59,6 +66,7 @@ const NAV_ITEMS = [
     screen: "admin",
     isActive: (active: AppScreen) => active === "admin",
     color: "#FF3342",
+    lightColor: "#B85F63",
     durationMs: 3800,
   },
 ] as const;
@@ -68,11 +76,13 @@ const ITEM_HALF = 35;
 const HUB_HALF = 31;
 const HUB_SIZE = HUB_HALF * 2;
 const ITEM_SIZE = ITEM_HALF * 2;
+const BUTTERFLY_SIZE = 82;
 const DISC_EDGE_RATIO = 29 / 32;
 const HUB_RIM = HUB_HALF * DISC_EDGE_RATIO;
 const ITEM_RIM = ITEM_HALF * DISC_EDGE_RATIO;
 const FAN_RADIUS = 158;
 const INNER_POLYGON_RADIUS = 92;
+const POSITION_WING_OPEN = [0.42, 0.58, 0.72, 0.48, 0.64, 0.36, 0.54] as const;
 
 type FanEntry =
   | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
@@ -89,6 +99,22 @@ function radialOffset(index: number, total: number): { dx: number; dy: number } 
   return {
     dx: Math.round(Math.cos(angle) * FAN_RADIUS),
     dy: Math.round(Math.sin(angle) * FAN_RADIUS),
+  };
+}
+
+function flightCurve(dx: number, dy: number, index: number) {
+  const length = Math.hypot(dx, dy) || 1;
+  const normalX = -dy / length;
+  const normalY = dx / length;
+  const side = index % 2 === 0 ? 1 : -1;
+  const curve = 18 + (index % 3) * 5;
+
+  return {
+    midX: Math.round(dx * 0.48 + normalX * curve * side),
+    midY: Math.round(dy * 0.48 + normalY * curve * side),
+    nearX: Math.round(dx * 0.84 - normalX * curve * 0.35 * side),
+    nearY: Math.round(dy * 0.84 - normalY * curve * 0.35 * side),
+    rotation: side * (11 + (index % 4) * 3),
   };
 }
 
@@ -235,9 +261,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             <defs>
               {positions.map(({ dx, dy }, index) => (
                 <linearGradient key={index} id={`navFabRayGrad-${index}`} gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={dx} y2={dy}>
-                  <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.05} />
-                  <stop offset="52%" stopColor="var(--gold)" stopOpacity={0.34} />
-                  <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.86} />
+                  <stop offset="0%" stopColor="var(--nav-web-color, var(--gold))" stopOpacity={0.05} />
+                  <stop offset="52%" stopColor="var(--nav-web-color, var(--gold))" stopOpacity={0.34} />
+                  <stop offset="100%" stopColor="var(--nav-web-color, var(--gold))" stopOpacity={0.86} />
                 </linearGradient>
               ))}
               {innerPolygonEdges.map(({ start, end }, index) => (
@@ -250,9 +276,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   x2={end.x}
                   y2={end.y}
                 >
-                  <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.05} />
-                  <stop offset="52%" stopColor="var(--gold)" stopOpacity={0.34} />
-                  <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.86} />
+                  <stop offset="0%" stopColor="var(--nav-web-color, var(--gold))" stopOpacity={0.05} />
+                  <stop offset="52%" stopColor="var(--nav-web-color, var(--gold))" stopOpacity={0.34} />
+                  <stop offset="100%" stopColor="var(--nav-web-color, var(--gold))" stopOpacity={0.86} />
                 </linearGradient>
               ))}
             </defs>
@@ -298,7 +324,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                       fill={`url(#navFabPolygonGrad-${index})`}
                       d={rayLens(start.x, start.y, end.x, end.y, 0.8)}
                     />
-                    <circle cx={start.x} cy={start.y} r="1.35" fill="#f7cf69" opacity="0.78" />
+                    <circle cx={start.x} cy={start.y} r="1.35" fill="var(--nav-web-node, #f7cf69)" opacity="0.78" />
                   </g>
                 );
               })}
@@ -335,25 +361,34 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         {open &&
           fanEntries.map((entry, index) => {
             const { dx, dy } = positions[index];
+            const flight = flightCurve(dx, dy, index);
             const id = entry.kind === "create" ? entry.id : entry.item.id;
             const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
-            const classes = ["nav-fab__item", "nav-fab__item--ice"];
+            const classes = ["nav-fab__item", "nav-fab__item--ice", "nav-fab__item--butterfly"];
 
             if (entry.kind === "create") classes.push("nav-fab__item--create");
             if (pressedId === id) classes.push("nav-fab__item--pressed");
 
+            const commonStyle = {
+              ["--dx" as string]: `${dx}px`,
+              ["--dy" as string]: `${dy}px`,
+              ["--mid-x" as string]: `${flight.midX}px`,
+              ["--mid-y" as string]: `${flight.midY}px`,
+              ["--near-x" as string]: `${flight.nearX}px`,
+              ["--near-y" as string]: `${flight.nearY}px`,
+              ["--flight-rotate" as string]: `${flight.rotation}deg`,
+              ["--travel-duration" as string]: `${durationMs}ms`,
+              ["--travel-delay" as string]: `${120 + index * 65}ms`,
+            };
+
             if (entry.kind === "create") {
+              const openness = POSITION_WING_OPEN[index % POSITION_WING_OPEN.length];
               return (
                 <button
                   key={entry.id}
                   type="button"
                   className={classes.join(" ")}
-                  style={{
-                    ["--dx" as string]: `${dx}px`,
-                    ["--dy" as string]: `${dy}px`,
-                    ["--travel-duration" as string]: `${durationMs}ms`,
-                    ["--travel-delay" as string]: `${120 + index * 65}ms`,
-                  }}
+                  style={{ ...commonStyle, ["--butterfly-color" as string]: "#C6A85B" }}
                   aria-label={entry.label}
                   onPointerDown={() => setPressedId(entry.id)}
                   onPointerUp={() => releasePress(entry.id)}
@@ -364,27 +399,42 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                     setOpen(false);
                   }}
                 >
-                  <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
-                    <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
-                    <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
-                  </PendantIcon>
+                  <span className="nav-fab__dark-jewel">
+                    <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
+                      <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
+                      <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
+                    </PendantIcon>
+                  </span>
+                  <span className="nav-fab__light-butterfly">
+                    <ButterflyIcon
+                      color="#C6A85B"
+                      size={BUTTERFLY_SIZE}
+                      openness={openness}
+                      variant={(index % 3) as 0 | 1 | 2}
+                      flutterDurationMs={2380 + index * 170}
+                      flutterDelayMs={-index * 130}
+                    >
+                      <line x1="0" y1="-6" x2="0" y2="6" strokeWidth="2" strokeLinecap="round" />
+                      <line x1="-6" y1="0" x2="6" y2="0" strokeWidth="2" strokeLinecap="round" />
+                    </ButterflyIcon>
+                  </span>
                 </button>
               );
             }
 
             const { item } = entry;
+            const isSelected = item.isActive(active);
+            const openness = isSelected ? 1 : POSITION_WING_OPEN[index % POSITION_WING_OPEN.length];
+            if (isSelected) classes.push("nav-fab__item--selected");
+
             return (
               <button
                 key={item.id}
                 type="button"
                 className={classes.join(" ")}
-                style={{
-                  ["--dx" as string]: `${dx}px`,
-                  ["--dy" as string]: `${dy}px`,
-                  ["--travel-duration" as string]: `${durationMs}ms`,
-                  ["--travel-delay" as string]: `${120 + index * 65}ms`,
-                }}
+                style={{ ...commonStyle, ["--butterfly-color" as string]: item.lightColor }}
                 aria-label={item.label}
+                aria-current={isSelected ? "page" : undefined}
                 onPointerDown={() => setPressedId(item.id)}
                 onPointerUp={() => releasePress(item.id)}
                 onPointerCancel={() => releasePress(item.id)}
@@ -396,14 +446,27 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
               >
                 <span
                   aria-hidden="true"
+                  className="nav-fab__dark-jewel"
                   style={{
-                    display: "block",
                     filter: `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
                   }}
                 >
                   <PendantIcon color={item.color} size={ITEM_SIZE}>
                     <GemGlyph id={item.id as NavItemId} />
                   </PendantIcon>
+                </span>
+                <span className="nav-fab__light-butterfly">
+                  <ButterflyIcon
+                    color={item.lightColor}
+                    size={BUTTERFLY_SIZE}
+                    openness={openness}
+                    active={isSelected}
+                    variant={(index % 3) as 0 | 1 | 2}
+                    flutterDurationMs={2480 + index * 190}
+                    flutterDelayMs={-index * 160}
+                  >
+                    <GemGlyph id={item.id as NavItemId} />
+                  </ButterflyIcon>
                 </span>
                 {item.screen === "admin" &&
                   adminBadges?.map((kind, badgeIndex) => (
