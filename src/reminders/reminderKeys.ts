@@ -7,6 +7,7 @@
 
 import type { Project } from '../domain/project';
 import type { OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
+import { HEALING_STAGES } from './buildReminders.js';
 
 // Полный id Task-напоминания (reminder.id) — им же ключуется «скрыть» (hide):
 // зависит от sourceId (client/master + конкретная задача), rule и dueDate.
@@ -35,10 +36,26 @@ export function overdueReminderKey(it: OverdueItem): string {
   return `overdue:${it.kind}:${it.id}:${it.date}`;
 }
 
-// Ключ включает stage — у каждой стадии заживления своя карточка, «удалить»
-// один этап не трогает следующий (см. HealingStage/HEALING_STAGES).
+function healingKeyFor(sessionId: string, stage: string): string {
+  return `healing:${sessionId}:${stage}`;
+}
+
+// Ключ включает stage — у каждой стадии заживления своя карточка, «Скрыть»
+// один этап не трогает следующий (см. HealingStage/HEALING_STAGES). Это
+// осознанно: day1/day4/day15/day30 — разные вопросы мастеру, не дубли одного
+// и того же напоминания.
 export function healingReminderKey(it: HealingItem): string {
-  return `healing:${it.sessionId}:${it.stage}`;
+  return healingKeyFor(it.sessionId, it.stage);
+}
+
+// Все возможные ключи стадий заживления ОДНОЙ сессии — для «Не напоминать
+// больше»: обычное «Скрыть» гасит только текущую стадию, а мастер иногда
+// хочет замолчать про заживление этой сессии целиком, а не только до
+// следующего захода (день4 после дня1 и т.д.). Список стадий переиспользует
+// HEALING_STAGES из buildReminders.ts — один источник правды на случай, если
+// стадии когда-нибудь изменятся.
+export function healingReminderKeysForSession(sessionId: string): string[] {
+  return HEALING_STAGES.map((s) => healingKeyFor(sessionId, s.stage));
 }
 
 export function soonReminderKey(it: UpcomingSoonItem): string {

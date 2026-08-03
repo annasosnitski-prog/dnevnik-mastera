@@ -5,6 +5,7 @@ import { PLATFORM_LABELS, type Client } from '../../domain/client';
 import type { Project } from '../../domain/project';
 import {
   healingReminderKey,
+  healingReminderKeysForSession,
   overdueProjectSessionReminderKey,
   overdueReminderKey,
   projectReminderKey,
@@ -211,11 +212,16 @@ function ReminderMenuButton({
   onSnoozeTomorrow,
   onSnoozeUntil,
   onHide,
+  onMuteForever,
 }: {
   onSnoozeTomorrow: () => void;
   // dateStr — значение <input type="date"> (yyyy-mm-dd) выбранной даты возврата.
   onSnoozeUntil: (dateStr: string) => void;
   onHide: () => void;
+  // Только для карточек заживления: «Скрыть» гасит одну стадию, эта —
+  // все стадии этой сессии разом (см. healingReminderKeysForSession).
+  // Опционально — остальные типы карточек этот пункт не показывают.
+  onMuteForever?: () => void;
 }) {
   const btnRef = useRef<HTMLSpanElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -366,6 +372,15 @@ function ReminderMenuButton({
                   <div role="button" style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textFaint }} onClick={() => runAndClose(onHide)}>
                     Скрыть это напоминание
                   </div>
+                  {onMuteForever && (
+                    <div
+                      role="button"
+                      style={{ ...rowStyle, borderTop: '1px solid rgba(var(--gold-rgb),0.12)', color: COLORS.textFaint }}
+                      onClick={() => runAndClose(onMuteForever)}
+                    >
+                      Не напоминать больше
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -671,6 +686,7 @@ export function RemindersSection({
   onCancel,
   onCompleteTask,
   onOpenTask,
+  onMarkHealed,
 }: {
   overdue: OverdueItem[];
   healing: HealingItem[];
@@ -689,6 +705,10 @@ export function RemindersSection({
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onCompleteTask?: (item: TaskReminderItem) => void;
   onOpenTask?: (item: TaskReminderItem) => void;
+  // «Выполнено» на карточке заживления — ставит session.healed без захода в
+  // саму сессию; healingReminders (buildReminders.ts) уже исключает
+  // healed:true сессии, так что дальше ни одна стадия не появится.
+  onMarkHealed?: (clientId: string, sessionId: string) => void;
 }) {
   const soonList = soon ?? [];
   const overdueProjectSessionList = overdueProjectSessions ?? [];
@@ -714,22 +734,28 @@ export function RemindersSection({
   // нового persisted-хранилища — сам факт «скрыто» уже лежит в dismissedIds
   // (см. reminderState.ts), это только транзиентная UI-подсказка на текущую
   // сессию экрана, гаснет через HIDE_BANNER_MS сама, если не нажали «Вернуть».
-  const [hiddenBanners, setHiddenBanners] = useState<{ key: string; label: string }[]>([]);
+  // `keys` — обычно один reminder-ключ, но «Не напоминать больше» на
+  // заживлении гасит сразу все стадии одной сессии (см. healingReminderKeysForSession)
+  // — один баннер на всю группу, а не четыре одинаковых подряд. bannerId
+  // (join, а не keys[0]) держит группу и одиночный ключ в одном пространстве
+  // без коллизий.
+  const [hiddenBanners, setHiddenBanners] = useState<{ bannerId: string; keys: string[]; label: string }[]>([]);
   const hideTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const hideReminder = (key: string, label: string) => {
-    onDismiss(key);
-    setHiddenBanners((prev) => (prev.some((b) => b.key === key) ? prev : [...prev, { key, label }]));
-    clearTimeout(hideTimers.current[key]);
-    hideTimers.current[key] = setTimeout(() => {
-      setHiddenBanners((prev) => prev.filter((b) => b.key !== key));
-      delete hideTimers.current[key];
+  const hideReminder = (keys: string[], label: string) => {
+    const bannerId = keys.join('|');
+    keys.forEach((k) => onDismiss(k));
+    setHiddenBanners((prev) => (prev.some((b) => b.bannerId === bannerId) ? prev : [...prev, { bannerId, keys, label }]));
+    clearTimeout(hideTimers.current[bannerId]);
+    hideTimers.current[bannerId] = setTimeout(() => {
+      setHiddenBanners((prev) => prev.filter((b) => b.bannerId !== bannerId));
+      delete hideTimers.current[bannerId];
     }, HIDE_BANNER_MS);
   };
-  const handleRestore = (key: string) => {
-    clearTimeout(hideTimers.current[key]);
-    delete hideTimers.current[key];
-    setHiddenBanners((prev) => prev.filter((b) => b.key !== key));
-    onRestore(key);
+  const handleRestore = (bannerId: string, keys: string[]) => {
+    clearTimeout(hideTimers.current[bannerId]);
+    delete hideTimers.current[bannerId];
+    setHiddenBanners((prev) => prev.filter((b) => b.bannerId !== bannerId));
+    keys.forEach((k) => onRestore(k));
   };
   useEffect(() => () => {
     Object.values(hideTimers.current).forEach(clearTimeout);
@@ -759,7 +785,7 @@ export function RemindersSection({
                 key={key}
                 item={it}
                 onReschedule={() => onOpenEntry(it.client.id, it.id, it.kind)}
-                onDismiss={() => hideReminder(key, it.client.name || '—')}
+                onDismiss={() => hideReminder([key], it.client.name || '—')}
                 onSnooze={(showAfter) => onSnooze(key, showAfter)}
                 onCancel={() => onCancel(it.client.id, it.id, it.kind)}
               />
@@ -773,7 +799,7 @@ export function RemindersSection({
               item={it}
               rule="overdue"
               onOpenProject={() => onOpenProject?.(it.project)}
-              onDismiss={() => hideReminder(key, it.project.title || 'Проект')}
+              onDismiss={() => hideReminder([key], it.project.title || 'Проект')}
               onSnooze={(showAfter) => onSnooze(key, showAfter)}
             />
           );
@@ -790,36 +816,61 @@ export function RemindersSection({
               {(flyOutThen) => (
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
                   padding: '9px 10px',
                   borderRadius: 2,
                   border: '1px solid rgba(var(--gold-rgb),0.2)',
                   background: 'rgba(var(--surface-rgb),0.018)',
                 }}
               >
-                <div onClick={() => onOpenEntry(it.client.id, it.sessionId, 'session')} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-                  <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {it.client.name || '—'}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div onClick={() => onOpenEntry(it.client.id, it.sessionId, 'session')} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                    <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {it.client.name || '—'}
+                    </div>
+                    <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
+                      {HEALING_STAGE_LABELS[it.stage]} · сессия {formatDate(it.date)}
+                    </div>
                   </div>
-                  <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
-                    {HEALING_STAGE_LABELS[it.stage]} · сессия {formatDate(it.date)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <CopyMessageButton
+                      text={healingReminderMessage(it.client, it.stage)}
+                      client={it.client}
+                      onOpenChange={(open) => setRaisedKey(open ? key : null)}
+                    />
+                    <ReminderMenuButton
+                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
+                      onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(key, snoozeShowAfterDate(dateStr)))}
+                      onHide={() => flyOutThen(() => hideReminder([key], it.client.name || '—'))}
+                      onMuteForever={() =>
+                        flyOutThen(() =>
+                          hideReminder(healingReminderKeysForSession(it.sessionId), `${it.client.name || '—'} — заживление`),
+                        )
+                      }
+                    />
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <CopyMessageButton
-                    text={healingReminderMessage(it.client, it.stage)}
-                    client={it.client}
-                    onOpenChange={(open) => setRaisedKey(open ? key : null)}
-                  />
-                  <ReminderMenuButton
-                    onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
-                    onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(key, snoozeShowAfterDate(dateStr)))}
-                    onHide={() => flyOutThen(() => hideReminder(key, it.client.name || '—'))}
-                  />
-                </div>
+                {onMarkHealed && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+                    <div
+                      onClick={() => flyOutThen(() => onMarkHealed(it.client.id, it.sessionId))}
+                      role="button"
+                      aria-label="Выполнено"
+                      style={{
+                        fontSize: fs(11),
+                        color: COLORS.gold,
+                        border: '1px solid rgba(var(--gold-rgb),0.4)',
+                        borderRadius: 2,
+                        padding: '4px 9px',
+                        letterSpacing: '0.6px',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Выполнено
+                    </div>
+                  </div>
+                )}
               </div>
               )}
             </SwipeDismissCard>
@@ -835,7 +886,7 @@ export function RemindersSection({
                 item={it}
                 rule="soon"
                 onOpenProject={() => onOpenProject?.(it.project)}
-                onDismiss={() => hideReminder(key, it.project.title || 'Проект')}
+                onDismiss={() => hideReminder([key], it.project.title || 'Проект')}
                 onSnooze={(showAfter) => onSnooze(key, showAfter)}
               />
             );
@@ -880,7 +931,7 @@ export function RemindersSection({
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
                       onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(key, snoozeShowAfterDate(dateStr)))}
-                      onHide={() => flyOutThen(() => hideReminder(key, it.client.name || '—'))}
+                      onHide={() => flyOutThen(() => hideReminder([key], it.client.name || '—'))}
                     />
                   </div>
                 </div>
@@ -923,7 +974,7 @@ export function RemindersSection({
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
                       onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(key, snoozeShowAfterDate(dateStr)))}
-                      onHide={() => flyOutThen(() => hideReminder(key, p.title || 'Проект'))}
+                      onHide={() => flyOutThen(() => hideReminder([key], p.title || 'Проект'))}
                     />
                   </div>
                 </div>
@@ -975,7 +1026,7 @@ export function RemindersSection({
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfter(1)))}
                       onSnoozeUntil={(dateStr) => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfterDate(dateStr)))}
-                      onHide={() => flyOutThen(() => hideReminder(dismissKey, it.text || 'Задача'))}
+                      onHide={() => flyOutThen(() => hideReminder([dismissKey], it.text || 'Задача'))}
                     />
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
@@ -998,7 +1049,7 @@ export function RemindersSection({
         })}
         {hiddenBanners.map((b) => (
           <div
-            key={b.key}
+            key={b.bannerId}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1013,7 +1064,7 @@ export function RemindersSection({
               «{b.label}» — напоминание скрыто
             </div>
             <div
-              onClick={() => handleRestore(b.key)}
+              onClick={() => handleRestore(b.bannerId, b.keys)}
               role="button"
               style={{ fontSize: fs(11), color: COLORS.gold, letterSpacing: '0.6px', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0, padding: '2px 4px' }}
             >

@@ -56,6 +56,7 @@ export function AdminDashboardScreen({
   onCancelEntry,
   onCompleteTask,
   onOpenTask,
+  onMarkHealed,
   calendarSync,
   onOpenNotes,
 }: {
@@ -81,6 +82,8 @@ export function AdminDashboardScreen({
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onCompleteTask: (item: TaskReminderItem) => void;
   onOpenTask: (item: TaskReminderItem) => void;
+  // «Выполнено» на карточке заживления — см. RemindersSection.
+  onMarkHealed: (clientId: string, sessionId: string) => void;
   calendarSync: CalendarSyncSettings;
   // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
@@ -145,6 +148,7 @@ export function AdminDashboardScreen({
           onCancel={onCancelEntry}
           onCompleteTask={onCompleteTask}
           onOpenTask={onOpenTask}
+          onMarkHealed={onMarkHealed}
         />
 
         {/* Upcoming sessions, with a master-configurable lookahead window —

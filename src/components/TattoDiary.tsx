@@ -1525,6 +1525,17 @@ export default function TattoDiary() {
     }
   };
 
+  // «Выполнено» на карточке заживления (RemindersSection) — clientId-scoped,
+  // тот же паттерн, что markEntryCancelled выше (selectedClient там обычно
+  // null). healingReminders (buildReminders.ts) уже исключает healed:true
+  // сессии из всех стадий — тикнуть один раз, и ни day4/15/30 больше не
+  // напомнят про эту сессию.
+  const markSessionHealed = (clientId: string, sessionId: string) => {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === sessionId ? { ...s, healed: true } : s)) });
+  };
+
   // Shared navigation: land on the client's own card and pop the edit form
   // open for that session/consultation — used both by the Мастер dashboard's
   // upcoming list and the reminder quick-actions (reschedule an overdue entry,
@@ -2430,6 +2441,7 @@ export default function TattoDiary() {
             onCancelEntry={markEntryCancelled}
             onCompleteTask={completeTaskReminder}
             onOpenTask={openTaskReminder}
+            onMarkHealed={markSessionHealed}
             onOpenNotes={(urgency) => {
               setSummaryFilter(urgency);
               setScreen('summary');
