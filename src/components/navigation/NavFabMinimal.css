@@ -1,51 +1,281 @@
-/* Минимализм — the functional layer's plain visual variant (see
-   NavFab.tsx's `minimalism` branch). No gems, no rays, no brushed-gold
-   chrome, no ornamental pseudo-elements (those stay opt-out via
-   `:not(.nav-fab--minimal)` guards added to NavFabReveal.css) — just a
-   round disc per button, styled from the same theme tokens every other
-   card/panel in the app already uses, so it re-skins for dark/light
-   automatically without a third colour theme of its own.
+/* Monumental radial navigation for the “Минимализм” mode only.
+   Functional routes, handlers and every non-minimal visual mode stay untouched. */
 
-   Layout (size, position, transform, press-scale) still comes from the
-   shared .nav-fab__main/.nav-fab__item rules in index.css — this file only
-   adds the disc's own chrome (background/border/shadow) plus the minimal-
-   only active-ring and hub-grow behaviour. */
+.nav-fab--minimal.nav-fab--open {
+  position: fixed;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  z-index: 80;
+  transform: scale(0.89);
+  transform-origin: 0 0;
+}
 
 .nav-fab__main--minimal,
 .nav-fab__item--minimal {
-  background: rgba(var(--surface-rgb), 0.07);
-  border: 1px solid rgba(var(--gold-rgb), 0.28);
-  box-shadow: var(--card-rest-shadow);
-  color: var(--toolbar-icon);
+  border: 1.5px solid rgba(var(--gold-rgb), 0.72) !important;
+  outline: 0;
+  background: radial-gradient(circle at 40% 34%, #2c2a27 0%, #181715 54%, #090908 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 218, 142, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.7),
+    0 0 17px rgba(var(--gold-rgb), 0.34),
+    0 11px 22px rgba(0, 0, 0, 0.58);
+  color: var(--gold) !important;
+  overflow: visible;
+  touch-action: manipulation;
+}
+
+:root[data-theme='light'] .nav-fab__main--minimal,
+:root[data-theme='light'] .nav-fab__item--minimal {
+  border-color: rgba(var(--gold-rgb), 0.58) !important;
+  background: radial-gradient(circle at 40% 34%, #fbf5e8 0%, #eee4d0 68%, #ddd0b7 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.52),
+    0 1px 2px rgba(74, 49, 16, 0.12),
+    0 7px 15px rgba(74, 49, 16, 0.17);
 }
 
 .nav-fab__main--minimal {
-  /* Sized ~54px closed, per PR #115 — overrides the shared 62px
-     .nav-fab__main rule (see the inline style in NavFab.tsx). */
-  color: var(--toolbar-icon-active);
-  border-color: rgba(var(--gold-rgb), 0.5);
+  width: 62px !important;
+  height: 62px !important;
 }
 
-/* The current destination keeps its own brand colour (see NAV_ITEMS) as a
-   thin ring + soft halo instead of the gem's glow filter; every other item
-   just dims via the existing .nav-fab__item--dim rule (index.css). */
-.nav-fab__item--minimal:not(.nav-fab__item--dim):not(.nav-fab__item--minimal-create) {
-  color: var(--item-color, var(--gold));
-  border-color: var(--item-color, var(--gold));
-  box-shadow: 0 0 0 1.5px var(--item-color, var(--gold)), 0 0 14px -4px var(--item-color, var(--gold));
-}
-
-/* «Создать» reads as an action, not a destination — a solid accent disc,
-   same idea as the gold-plate pendant it replaces. */
-.nav-fab__item--minimal-create {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: var(--bg);
-}
-
-/* Grows by two-thirds while the fan is open, exactly like PR #115's hub —
-   it reads as "in charge" of the ring around it. 54px scaled by 5/3 (90px)
-   stays comfortably inside the closest fan item's own radius. */
 .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
-  --nav-scale: 1.667;
+  width: 70px !important;
+  height: 70px !important;
+  --nav-scale: 1 !important;
+  border-width: 2px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 218, 142, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.74),
+    0 0 20px rgba(var(--gold-rgb), 0.4),
+    0 12px 24px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(74, 49, 16, 0.13),
+    0 8px 17px rgba(74, 49, 16, 0.18);
+}
+
+/* External controls are one third smaller than the approved reference pass. */
+.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal {
+  width: 64px;
+  height: 64px;
+}
+
+.nav-fab--minimal .nav-fab__item--dim {
+  opacity: 1;
+  filter: none;
+}
+
+.nav-fab--minimal .nav-fab__item--minimal:not(.nav-fab__item--minimal-create) {
+  color: var(--gold) !important;
+}
+
+.nav-fab--minimal .nav-fab__item--minimal-create {
+  border-color: rgba(235, 184, 76, 0.95) !important;
+  background: radial-gradient(circle at 42% 35%, #e0b354 0%, #c68c2e 68%, #a96618 100%) !important;
+  color: #0a0907 !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(8, 7, 5, 0.92),
+    inset 0 0 0 4px rgba(229, 177, 70, 0.82),
+    0 0 19px rgba(var(--gold-rgb), 0.48),
+    0 12px 24px rgba(0, 0, 0, 0.58);
+}
+
+:root[data-theme='light'] .nav-fab--minimal .nav-fab__item--minimal-create {
+  color: #f8f1e2 !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(92, 60, 16, 0.68),
+    inset 0 0 0 4px rgba(235, 192, 99, 0.7),
+    0 8px 16px rgba(73, 49, 17, 0.2);
+}
+
+.nav-fab--minimal .nav-fab__main--minimal > svg,
+.nav-fab--minimal .nav-fab__item--minimal > svg {
+  opacity: 0;
+}
+
+/* The central hub reads as a small governing seal, not as the largest action. */
+.nav-fab--minimal .nav-fab__main--minimal::before {
+  content: '$';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: auto;
+  height: auto;
+  transform: translate(-50%, -52%);
+  border-radius: 0;
+  background: none;
+  color: var(--gold);
+  filter: drop-shadow(0 1px 0 rgba(255, 221, 148, 0.12));
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.nav-fab--minimal.nav-fab--open .nav-fab__main--minimal::before {
+  font-size: 42px;
+}
+
+/* Approved icon mapping:
+   closed padlock = Личный кабинет; paired silhouettes = Клиенты;
+   four-point spark = POSTiNKA; document = Заметки;
+   pencil = Проекты; door key = Админка; plus = Создать. */
+.nav-fab--minimal .nav-fab__item--minimal::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 43px;
+  height: 43px;
+  transform: translate(-50%, -50%);
+  border-radius: 0;
+  background: currentColor;
+  filter: drop-shadow(0 1px 0 rgba(255, 220, 145, 0.14));
+  -webkit-mask-image: var(--inka-toolbar-mask);
+  mask-image: var(--inka-toolbar-mask);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  pointer-events: none;
+}
+
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет']::before,
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Проекты']::before,
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Админка']::before {
+  width: 39px;
+  height: 39px;
+}
+
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='POSTiNKA']::before {
+  width: 37px;
+  height: 37px;
+}
+
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет'] {
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M8,14V10a8,8,0,0,1,16,0v4h3v16H5V14Zm4,0h8V10a4,4,0,0,0-8,0Zm4,5a2.4,2.4,0,0,1,1.5,4.3L19,27H13l1.5-3.7A2.4,2.4,0,0,1,16,19Z'/%3E%3C/svg%3E");
+}
+
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Клиенты'] {
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Ccircle%20cx='10'%20cy='10'%20r='4.5'%20fill='black'/%3E%3Ccircle%20cx='22'%20cy='10'%20r='4.5'%20fill='black'/%3E%3Cpath%20fill='black'%20d='M2.5,27c.5-6.3,3-9.5,7.5-9.5s7,3.2,7.5,9.5ZM14.5,27c.5-6.3,3-9.5,7.5-9.5s7,3.2,7.5,9.5Z'/%3E%3C/svg%3E");
+}
+
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='POSTiNKA'] {
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M16,2c1.6,7.6,6.4,12.4,14,14-7.6,1.6-12.4,6.4-14,14-1.6-7.6-6.4-12.4-14-14C9.6,14.4,14.4,9.6,16,2Z'/%3E%3C/svg%3E");
+}
+
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Заметки'] {
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M7,3H25V29H7ZM11,9H21V11H11ZM11,15H21V17H11ZM11,21H21V23H11Z'/%3E%3C/svg%3E");
+}
+
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Проекты'] {
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M3,29l2-7L21.8,5.2l5,5L10,27Z'/%3E%3Cpath%20fill='black'%20d='M23.2,3.8l1.2-1.2a2.2,2.2,0,0,1,3.1,0l1.9,1.9a2.2,2.2,0,0,1,0,3.1l-1.2,1.2Z'/%3E%3C/svg%3E");
+}
+
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Админка'] {
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M10,7a8,8,0,1,0,0,16,8,8,0,0,0,0-16Zm0,4a4,4,0,1,0,0,8,4,4,0,0,0,0-8ZM16,14H30v5H27v4H23V19H16Z'/%3E%3C/svg%3E");
+}
+
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Создать'] {
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M13,3h6v10h10v6H19v10h-6V19H3v-6h10Z'/%3E%3C/svg%3E");
+}
+
+/* Straight, equal-length gold spokes. */
+.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+  width: 91px;
+  height: 2px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.92), rgba(var(--gold-rgb), 0.42));
+  box-shadow: 0 0 7px rgba(var(--gold-rgb), 0.42);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+:root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
+  height: 1px;
+  box-shadow: none;
+  opacity: 0.72;
+}
+
+.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(1)::after {
+  transform: rotate(90deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(2)::after {
+  transform: rotate(141.4286deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(3)::after {
+  transform: rotate(192.8571deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(4)::after {
+  transform: rotate(244.2857deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(5)::after {
+  transform: rotate(295.7143deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(6)::after {
+  transform: rotate(347.1429deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(7)::after {
+  transform: rotate(38.5714deg) translateX(32px);
+}
+
+/* Fallback geometry for screens where the optional create action is absent. */
+.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
+  .nav-fab__item--minimal:nth-of-type(1)::after {
+  transform: rotate(90deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
+  .nav-fab__item--minimal:nth-of-type(2)::after {
+  transform: rotate(150deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
+  .nav-fab__item--minimal:nth-of-type(3)::after {
+  transform: rotate(210deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
+  .nav-fab__item--minimal:nth-of-type(4)::after {
+  transform: rotate(270deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
+  .nav-fab__item--minimal:nth-of-type(5)::after {
+  transform: rotate(330deg) translateX(32px);
+}
+
+.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
+  .nav-fab__item--minimal:nth-of-type(6)::after {
+  transform: rotate(30deg) translateX(32px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-fab--minimal .nav-fab__main,
+  .nav-fab--minimal .nav-fab__item {
+    animation: none !important;
+    transition: none !important;
+  }
 }
