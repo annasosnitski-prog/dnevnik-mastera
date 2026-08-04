@@ -52,9 +52,12 @@ export function AdminDashboardScreen({
   onOpenEntry,
   onDismissReminder,
   onSnoozeReminder,
+  onRestoreReminder,
   onCancelEntry,
   onCompleteTask,
   onOpenTask,
+  onMarkHealed,
+  onHideAllHealing,
   calendarSync,
   onOpenNotes,
 }: {
@@ -76,9 +79,12 @@ export function AdminDashboardScreen({
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismissReminder: (key: string) => void;
   onSnoozeReminder: (key: string, showAfter: string) => void;
+  onRestoreReminder: (key: string) => void;
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onCompleteTask: (item: TaskReminderItem) => void;
   onOpenTask: (item: TaskReminderItem) => void;
+  onMarkHealed: (clientId: string, sessionId: string) => void;
+  onHideAllHealing: (sessionId: string) => void;
   calendarSync: CalendarSyncSettings;
   // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
@@ -139,9 +145,12 @@ export function AdminDashboardScreen({
           onOpenEntry={onOpenEntry}
           onDismiss={onDismissReminder}
           onSnooze={onSnoozeReminder}
+          onRestore={onRestoreReminder}
           onCancel={onCancelEntry}
           onCompleteTask={onCompleteTask}
           onOpenTask={onOpenTask}
+          onMarkHealed={onMarkHealed}
+          onHideAllHealing={onHideAllHealing}
         />
 
         {/* Upcoming sessions, with a master-configurable lookahead window —

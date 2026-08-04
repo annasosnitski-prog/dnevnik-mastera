@@ -18,7 +18,9 @@ import type { OverdueItem, HealingItem, HealingStage, UpcomingSoonItem, ProjectS
 // Окна не пересекаются, поэтому у сессии в любой момент активна максимум
 // одна стадия. Последняя (day30) без верхней границы — держится, пока
 // мастер не отметит «Зажив» (session.healed), как и раньше.
-const HEALING_STAGES: { stage: HealingStage; minDays: number; maxDays: number | null }[] = [
+// Экспортирован — reminderKeys.ts строит по нему healingReminderKeysForSession
+// (все ключи стадий одной сессии, для «Не напоминать больше»), см. PR M3.
+export const HEALING_STAGES: { stage: HealingStage; minDays: number; maxDays: number | null }[] = [
   { stage: 'day1', minDays: 1, maxDays: 4 },
   { stage: 'day4', minDays: 4, maxDays: 15 },
   { stage: 'day15', minDays: 15, maxDays: 30 },
