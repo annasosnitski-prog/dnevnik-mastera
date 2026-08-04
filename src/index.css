@@ -1792,39 +1792,49 @@ input[type='date'] {
 }
 
 /* Light theme: hand-drawn clouds drifting across the background — the
-   sunny-sky counterpart to the dark theme's starfield. `left` (not
-   translateX) is animated so the drift distance is relative to the
-   screen's own width rather than the element's, and the horizontal drift
-   and vertical bob live on separate nested elements so each can run its
+   sunny-sky counterpart to the dark theme's starfield. Drift distance needs
+   to scale with the screen's own width, not each element's — `vw` gives
+   that directly, so this animates `transform: translateX(Nvw)` rather than
+   `left: N%` (which used to do the same screen-relative scaling, but forces
+   layout+paint on every frame; translateX is compositor-only). With up to
+   ~57 of these running at once across 5 cloud layers + 3 aircraft
+   (AviationBackground reuses this class), animating `left` was a real
+   battery/heat cost specific to the light theme — the dark theme's stars/
+   meteors already only ever animated transform/opacity. Horizontal drift and
+   vertical bob still live on separate nested elements so each can run its
    own independent duration/delay per cloud. */
 @keyframes inka-cloud-drift {
   from {
-    left: -85%;
+    transform: translateX(-85vw);
   }
   to {
-    left: 185%;
+    transform: translateX(185vw);
   }
 }
 .inka-cloud-drift {
   position: absolute;
+  left: 0;
   animation-name: inka-cloud-drift;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
+  will-change: transform;
 }
 /* Right-to-left drift — same span, reversed, for craft that face left. */
 @keyframes inka-drift-rev {
   from {
-    left: 185%;
+    transform: translateX(185vw);
   }
   to {
-    left: -85%;
+    transform: translateX(-85vw);
   }
 }
 .inka-drift-rev {
   position: absolute;
+  left: 0;
   animation-name: inka-drift-rev;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
+  will-change: transform;
 }
 @keyframes inka-cloud-bob {
   0%,
