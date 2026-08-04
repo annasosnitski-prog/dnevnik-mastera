@@ -14,10 +14,14 @@
 
 .nav-fab__main--minimal,
 .nav-fab__item--minimal {
-  border: 0 !important;
+  border: 1.5px solid rgba(var(--gold-rgb), 0.72) !important;
   outline: 0;
-  background: #11100e;
-  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.56);
+  background: radial-gradient(circle at 40% 34%, #2c2a27 0%, #181715 54%, #090908 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 218, 142, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.7),
+    0 0 17px rgba(var(--gold-rgb), 0.34),
+    0 11px 22px rgba(0, 0, 0, 0.58);
   color: var(--gold) !important;
   overflow: visible;
   touch-action: manipulation;
@@ -25,8 +29,12 @@
 
 :root[data-theme='light'] .nav-fab__main--minimal,
 :root[data-theme='light'] .nav-fab__item--minimal {
-  background: #f1ead9;
-  box-shadow: 0 8px 16px rgba(73, 49, 17, 0.18);
+  border-color: rgba(var(--gold-rgb), 0.58) !important;
+  background: radial-gradient(circle at 40% 34%, #fbf5e8 0%, #eee4d0 68%, #ddd0b7 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.52),
+    0 1px 2px rgba(74, 49, 16, 0.12),
+    0 7px 15px rgba(74, 49, 16, 0.17);
 }
 
 .nav-fab__main--minimal {
@@ -38,6 +46,19 @@
   width: 70px !important;
   height: 70px !important;
   --nav-scale: 1 !important;
+  border-width: 2px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 218, 142, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.74),
+    0 0 20px rgba(var(--gold-rgb), 0.4),
+    0 12px 24px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(74, 49, 16, 0.13),
+    0 8px 17px rgba(74, 49, 16, 0.18);
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal {
@@ -51,27 +72,26 @@
 }
 
 .nav-fab--minimal .nav-fab__item--minimal:not(.nav-fab__item--minimal-create) {
-  border: 0 !important;
   color: var(--gold) !important;
-  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.56);
-}
-
-:root[data-theme='light']
-  .nav-fab--minimal
-  .nav-fab__item--minimal:not(.nav-fab__item--minimal-create) {
-  box-shadow: 0 8px 16px rgba(73, 49, 17, 0.18);
 }
 
 .nav-fab--minimal .nav-fab__item--minimal-create {
-  border: 0 !important;
-  background: var(--gold) !important;
-  color: #080706 !important;
-  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.52);
+  border-color: rgba(235, 184, 76, 0.95) !important;
+  background: radial-gradient(circle at 42% 35%, #e0b354 0%, #c68c2e 68%, #a96618 100%) !important;
+  color: #0a0907 !important;
+  box-shadow:
+    inset 0 0 0 3px rgba(8, 7, 5, 0.92),
+    inset 0 0 0 6px rgba(229, 177, 70, 0.82),
+    0 0 19px rgba(var(--gold-rgb), 0.48),
+    0 12px 24px rgba(0, 0, 0, 0.58);
 }
 
 :root[data-theme='light'] .nav-fab--minimal .nav-fab__item--minimal-create {
   color: #f8f1e2 !important;
-  box-shadow: 0 8px 16px rgba(73, 49, 17, 0.2);
+  box-shadow:
+    inset 0 0 0 3px rgba(92, 60, 16, 0.68),
+    inset 0 0 0 6px rgba(235, 192, 99, 0.7),
+    0 8px 16px rgba(73, 49, 17, 0.2);
 }
 
 .nav-fab--minimal .nav-fab__main--minimal > svg,
@@ -91,7 +111,7 @@
   border-radius: 0;
   background: none;
   color: var(--gold);
-  filter: none;
+  filter: drop-shadow(0 1px 0 rgba(255, 221, 148, 0.12));
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 34px;
   font-weight: 700;
@@ -103,7 +123,7 @@
   font-size: 42px;
 }
 
-/* Filled pictograms occupy roughly two thirds of each 86px rendered button. */
+/* Filled pictograms occupy roughly two thirds of each rendered button. */
 .nav-fab--minimal .nav-fab__item--minimal::before {
   content: '';
   position: absolute;
@@ -115,7 +135,7 @@
   transform: translate(-50%, -50%);
   border-radius: 0;
   background: currentColor;
-  filter: none;
+  filter: drop-shadow(0 1px 0 rgba(255, 220, 145, 0.14));
   -webkit-mask-image: var(--inka-toolbar-mask);
   mask-image: var(--inka-toolbar-mask);
   -webkit-mask-repeat: no-repeat;
@@ -155,8 +175,7 @@
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M13,3h6v10h10v6H19v10h-6V19H3v-6h10Z'/%3E%3C/svg%3E");
 }
 
-/* Straight, equal-length gold spokes. They begin at the outer button rim
-   and finish at the hub rim, so no line is visible inside either disc. */
+/* Straight, equal-length gold spokes. */
 .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
   content: '';
   position: absolute;
@@ -164,11 +183,18 @@
   left: 50%;
   z-index: -1;
   width: 75px;
-  height: 1px;
+  height: 2px;
   transform-origin: 0 50%;
-  background: var(--gold);
-  opacity: 0.8;
+  background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.92), rgba(var(--gold-rgb), 0.42));
+  box-shadow: 0 0 7px rgba(var(--gold-rgb), 0.42);
+  opacity: 0.9;
   pointer-events: none;
+}
+
+:root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
+  height: 1px;
+  box-shadow: none;
+  opacity: 0.72;
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(1)::after {
