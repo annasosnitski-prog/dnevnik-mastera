@@ -14,8 +14,8 @@ interface ButterflyIconProps {
 }
 
 // Three silhouettes traced from the user's supplied butterfly collection.
-// They are real SVG paths, duplicated around the toolbar and recoloured with
-// the light-theme INKA palette rather than redrawn as generic icon wings.
+// They remain real SVG paths: one source set is multiplied around the toolbar
+// and recoloured with the soft light-theme INKA palette.
 const WING_PATHS: Record<ButterflyVariant, { left: string; right: string }> = {
   0: {
     left:
