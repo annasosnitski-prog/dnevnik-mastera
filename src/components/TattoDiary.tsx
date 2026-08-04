@@ -203,6 +203,7 @@ import { taskReminderSources, taskReminders, filterVisibleTaskReminders } from '
 import {
   overdueReminderKey,
   healingReminderKey,
+  healingReminderKeysForSession,
   soonReminderKey,
   overdueProjectSessionReminderKey,
   soonProjectSessionReminderKey,
@@ -215,6 +216,7 @@ import {
   filterVisibleReminders,
   dismissReminder,
   snoozeReminder,
+  restoreReminder,
   removeExpiredSnoozes,
 } from '../reminders/reminderState';
 import {
@@ -601,6 +603,13 @@ export default function TattoDiary() {
   }, [reminderState]);
   const handleDismissReminder = (key: string) => setReminderState((prev) => dismissReminder(prev, key));
   const handleSnoozeReminder = (key: string, showAfter: string) => setReminderState((prev) => snoozeReminder(prev, key, showAfter));
+  const handleRestoreReminder = (key: string) => setReminderState((prev) => restoreReminder(prev, key));
+  // «Не напоминать больше» на карточке заживления — скрывает разом ключи
+  // всех 4 стадий этой сессии (не только видимую сейчас), см.
+  // healingReminderKeysForSession. Окна стадий не пересекаются, так что
+  // скрытые впрок ключи будущих стадий просто не дадут им показаться позже.
+  const handleHideAllHealing = (sessionId: string) =>
+    setReminderState((prev) => healingReminderKeysForSession(sessionId).reduce((s, k) => dismissReminder(s, k), prev));
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
   const [contentNavigation, setContentNavigation] = useState<ContentWorkspaceNavigation | null>(null);
@@ -1601,6 +1610,17 @@ export default function TattoDiary() {
     }
   };
 
+  // «Выполнено» на карточке заживления — контроль заживления для ЭТОЙ
+  // сессии закрыт (session.healed), она перестаёт участвовать в
+  // healingReminders() на всех дальнейших стадиях. Не имеет отношения к
+  // тому, отправлено ли клиенту сообщение — это отдельная ручная кнопка
+  // «Скопировать» рядом (см. RemindersSection/CopyMessageButton).
+  const markSessionHealed = (clientId: string, sessionId: string) => {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    saveClient({ ...c, sessions: c.sessions.map((s) => (s.id === sessionId ? { ...s, healed: true } : s)) });
+  };
+
   // «Открыть» — проект, если задача к нему привязана; иначе клиент (для
   // клиентской задачи) или существующий экран «Сводка» с мастерскими
   // задачами (для задачи без клиента) — новый экран не заводим.
@@ -2463,9 +2483,12 @@ export default function TattoDiary() {
             onOpenEntry={openEntryForEdit}
             onDismissReminder={handleDismissReminder}
             onSnoozeReminder={handleSnoozeReminder}
+            onRestoreReminder={handleRestoreReminder}
             onCancelEntry={markEntryCancelled}
             onCompleteTask={completeTaskReminder}
             onOpenTask={openTaskReminder}
+            onMarkHealed={markSessionHealed}
+            onHideAllHealing={handleHideAllHealing}
             onOpenNotes={(urgency) => {
               setSummaryFilter(urgency);
               setScreen('summary');

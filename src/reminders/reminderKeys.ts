@@ -2,11 +2,17 @@
 // карточки мастер закрыла вручную (dismissedReminders, localStorage).
 // Вынесено из TattoDiary.tsx (PR 4 рефакторинга).
 //
-// overdue/healing/soon-ключи перенесены дословно. Ключ проекта ИСПРАВЛЕН —
+// overdue/soon/project-session-ключи ИСПРАВЛЕНЫ — теперь несут дату (и для
+// soon ещё и время) события, а не только id сущности (PR M3): перенос
+// сессии/консультации на новую дату/время меняет ключ, поэтому старое
+// закрытое/отложенное напоминание для прежней даты не прячет новое (см.
+// комментарии у каждой функции ниже). Старые ключи без даты не мигрируются —
+// они просто перестают на что-либо ссылаться. Ключ проекта ИСПРАВЛЕН —
 // см. actionSignature ниже.
 
 import type { Project } from '../domain/project';
-import type { OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
+import { HEALING_STAGES } from './buildReminders.js';
+import type { HealingStage, OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
 
 // Полный id Task-напоминания (reminder.id) — им же ключуется «скрыть» (hide):
 // зависит от sourceId (client/master + конкретная задача), rule и dueDate.
@@ -26,26 +32,44 @@ export function taskReminderActionKey(params: { sourceId: string; dueDate: strin
   return `task-action:${params.sourceId}:${params.dueDate}`;
 }
 
+// Дата в ключе — перенос сессии/консультации на другую дату (Перенести)
+// делает её новым, не скрытым напоминанием, даже если старая дата была
+// отложена/скрыта.
 export function overdueReminderKey(it: OverdueItem): string {
-  return `overdue:${it.kind}:${it.id}`;
+  return `overdue:${it.kind}:${it.id}:${it.date}`;
 }
 
-// Ключ включает stage — у каждой стадии заживления своя карточка, «удалить»
+function healingKeyFor(sessionId: string, stage: HealingStage): string {
+  return `healing:${sessionId}:${stage}`;
+}
+
+// Ключ включает stage — у каждой стадии заживления своя карточка, «скрыть»
 // один этап не трогает следующий (см. HealingStage/HEALING_STAGES).
 export function healingReminderKey(it: HealingItem): string {
-  return `healing:${it.sessionId}:${it.stage}`;
+  return healingKeyFor(it.sessionId, it.stage);
 }
 
+// Все возможные ключи заживления одной сессии (все 4 стадии), не только ту,
+// что видна сейчас — нужно для «Не напоминать больше»: окна стадий не
+// пересекаются, поэтому видна максимум одна карточка за раз, но скрыть надо
+// заранее и будущие стадии тоже, а не только текущую.
+export function healingReminderKeysForSession(sessionId: string): string[] {
+  return HEALING_STAGES.map((s) => healingKeyFor(sessionId, s.stage));
+}
+
+// Дата+время в ключе — те же соображения, что у overdueReminderKey, только
+// «скоро» ещё и зависит от времени (36–48ч окно), поэтому дата одна и та же
+// не гарантирует то же самое напоминание.
 export function soonReminderKey(it: UpcomingSoonItem): string {
-  return `soon:${it.kind}:${it.id}`;
+  return `soon:${it.kind}:${it.id}:${it.date}:${it.time}`;
 }
 
 export function overdueProjectSessionReminderKey(it: ProjectSessionReminderItem): string {
-  return `project-session:overdue:${it.project.id}:${it.sessionId}`;
+  return `project-session:overdue:${it.project.id}:${it.sessionId}:${it.date}`;
 }
 
 export function soonProjectSessionReminderKey(it: ProjectSessionReminderItem): string {
-  return `project-session:soon:${it.project.id}:${it.sessionId}`;
+  return `project-session:soon:${it.project.id}:${it.sessionId}:${it.date}:${it.time}`;
 }
 
 // Нормализация свободного текста действия перед построением подписи: убрать
