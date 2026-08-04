@@ -21,7 +21,7 @@
 
 .butterfly-icon__wing {
   transform-box: view-box;
-  transform-origin: 32px 33px;
+  transform-origin: 60px 49px;
   animation: butterfly-wing-rest var(--flutter-duration) ease-in-out var(--flutter-delay) infinite;
   will-change: transform;
 }
