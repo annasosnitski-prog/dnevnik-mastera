@@ -61,6 +61,7 @@
     0 8px 17px rgba(74, 49, 16, 0.18);
 }
 
+/* External controls are one third smaller than the approved reference pass. */
 .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal {
   width: 64px;
   height: 64px;
