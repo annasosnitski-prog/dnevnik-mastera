@@ -23,20 +23,12 @@ type ExactWingSet = {
 // one of these original silhouettes and only receives the INKA section colour.
 const EXACT_WINGS: Record<ButterflyVariant, ExactWingSet> = {
   0: {
-    left: [
-      "M12,8 L6,13 L4,17 L4,31 L10,45 L23,63 L29,68 L36,70 L52,70 L51,72 L35,78 L23,88 L16,101 L18,115 L23,121 L52,121 L61,112 L71,92 L73,93 L75,104 L75,52 L70,49 L63,38 L61,28 L61,35 L73,53 L71,57 L39,18 L25,9Z",
-    ],
-    right: [
-      "M140,8 L130,8 L118,14 L93,41 L84,55 L81,57 L79,53 L91,35 L91,28 L90,36 L86,44 L79,52 L76,52 L76,105 L79,100 L79,93 L82,92 L89,109 L100,121 L129,121 L135,113 L136,101 L129,88 L117,78 L107,73 L101,72 L100,70 L116,70 L123,68 L129,63 L142,45 L148,30 L148,17 L145,11Z",
-    ],
+    left: ["M12,8 L6,13 L4,17 L4,31 L10,45 L23,63 L29,68 L36,70 L52,70 L51,72 L35,78 L23,88 L16,101 L18,115 L23,121 L52,121 L61,112 L71,92 L73,93 L75,104 L75,52 L70,49 L63,38 L61,28 L61,35 L73,53 L71,57 L39,18 L25,9Z"],
+    right: ["M140,8 L130,8 L118,14 L93,41 L84,55 L81,57 L79,53 L91,35 L91,28 L90,36 L86,44 L79,52 L76,52 L76,105 L79,100 L79,93 L82,92 L89,109 L100,121 L129,121 L135,113 L136,101 L129,88 L117,78 L107,73 L101,72 L100,70 L116,70 L123,68 L129,63 L142,45 L148,30 L148,17 L145,11Z"],
   },
   1: {
-    left: [
-      "M6,9 L4,11 L4,18 L13,37 L17,42 L17,45 L13,51 L14,58 L23,72 L32,80 L30,85 L32,89 L31,94 L36,98 L37,105 L41,107 L40,119 L44,119 L46,116 L54,117 L56,119 L64,112 L66,96 L70,86 L72,87 L72,97 L75,105 L75,52 L72,52 L64,42 L60,33 L60,27 L59,32 L61,38 L73,54 L70,59 L56,42 L36,22 L16,10Z",
-    ],
-    right: [
-      "M146,9 L138,9 L133,11 L115,23 L105,32 L82,59 L79,54 L91,38 L93,29 L92,27 L92,33 L88,42 L79,53 L76,52 L76,105 L79,101 L80,87 L82,86 L85,92 L87,110 L95,119 L106,116 L108,119 L112,119 L111,107 L115,105 L116,98 L120,95 L120,80 L132,68 L138,58 L139,51 L135,45 L135,42 L139,37 L148,18 L148,11Z",
-    ],
+    left: ["M6,9 L4,11 L4,18 L13,37 L17,42 L17,45 L13,51 L14,58 L23,72 L32,80 L30,85 L32,89 L31,94 L36,98 L37,105 L41,107 L40,119 L44,119 L46,116 L54,117 L56,119 L64,112 L66,96 L70,86 L72,87 L72,97 L75,105 L75,52 L72,52 L64,42 L60,33 L60,27 L59,32 L61,38 L73,54 L70,59 L56,42 L36,22 L16,10Z"],
+    right: ["M146,9 L138,9 L133,11 L115,23 L105,32 L82,59 L79,54 L91,38 L93,29 L92,27 L92,33 L88,42 L79,53 L76,52 L76,105 L79,101 L80,87 L82,86 L85,92 L87,110 L95,119 L106,116 L108,119 L112,119 L111,107 L115,105 L116,98 L120,95 L120,80 L132,68 L138,58 L139,51 L135,45 L135,42 L139,37 L148,18 L148,11Z"],
   },
   2: {
     left: [
@@ -63,21 +55,8 @@ const EXACT_WINGS: Record<ButterflyVariant, ExactWingSet> = {
   },
 };
 
-const LEFT_VEINS = [
-  "M75 58C61 50 46 34 27 16",
-  "M74 61C55 59 34 51 12 36",
-  "M73 65C56 70 39 84 27 107",
-  "M71 68C64 84 59 99 57 114",
-  "M63 52C52 41 42 28 37 14",
-];
-
-const RIGHT_VEINS = [
-  "M77 58C91 50 106 34 125 16",
-  "M78 61C97 59 118 51 140 36",
-  "M79 65C96 70 113 84 125 107",
-  "M81 68C88 84 93 99 95 114",
-  "M89 52C100 41 110 28 115 14",
-];
+const LEFT_VEINS = ["M75 58C61 50 46 34 27 16", "M74 61C55 59 34 51 12 36", "M73 65C56 70 39 84 27 107", "M71 68C64 84 59 99 57 114", "M63 52C52 41 42 28 37 14"];
+const RIGHT_VEINS = ["M77 58C91 50 106 34 125 16", "M78 61C97 59 118 51 140 36", "M79 65C96 70 113 84 125 107", "M81 68C88 84 93 99 95 114", "M89 52C100 41 110 28 115 14"];
 
 function WingLayer({ paths, clipId, fillId, washId, textureId, veins }: {
   paths: string[];
@@ -89,9 +68,7 @@ function WingLayer({ paths, clipId, fillId, washId, textureId, veins }: {
 }) {
   return (
     <>
-      {paths.map((path, index) => (
-        <path key={`base-${index}`} d={path} fill={`url(#${fillId})`} stroke="#5F493D" strokeWidth="1.05" strokeLinejoin="round" />
-      ))}
+      {paths.map((path, index) => <path key={`base-${index}`} d={path} fill={`url(#${fillId})`} stroke="#5F493D" strokeWidth="1.05" strokeLinejoin="round" />)}
       <g clipPath={`url(#${clipId})`}>
         <rect x="0" y="0" width="152" height="128" fill={`url(#${washId})`} opacity=".68" />
         <rect x="0" y="0" width="152" height="128" filter={`url(#${textureId})`} opacity=".34" />
@@ -99,32 +76,18 @@ function WingLayer({ paths, clipId, fillId, washId, textureId, veins }: {
           {veins.map((path) => <path key={path} d={path} strokeWidth=".52" />)}
         </g>
         <g fill="#5A4338" opacity=".56">
-          <circle cx="24" cy="38" r="2.1" />
-          <circle cx="35" cy="53" r="1.25" />
-          <circle cx="48" cy="81" r="1.7" />
-          <circle cx="128" cy="38" r="2.1" />
-          <circle cx="117" cy="53" r="1.25" />
-          <circle cx="104" cy="81" r="1.7" />
+          <circle cx="24" cy="38" r="2.1" /><circle cx="35" cy="53" r="1.25" /><circle cx="48" cy="81" r="1.7" />
+          <circle cx="128" cy="38" r="2.1" /><circle cx="117" cy="53" r="1.25" /><circle cx="104" cy="81" r="1.7" />
         </g>
         <path d="M16 24C32 17 53 30 70 53" fill="none" stroke="#FFF8EA" strokeWidth="1" opacity=".28" />
         <path d="M136 24C120 17 99 30 82 53" fill="none" stroke="#FFF8EA" strokeWidth="1" opacity=".28" />
       </g>
-      {paths.map((path, index) => (
-        <path key={`edge-${index}`} d={path} fill="none" stroke="#F7EDDE" strokeWidth=".38" opacity=".3" />
-      ))}
+      {paths.map((path, index) => <path key={`edge-${index}`} d={path} fill="none" stroke="#F7EDDE" strokeWidth=".38" opacity=".3" />)}
     </>
   );
 }
 
-export function ButterflyIcon({
-  color,
-  size,
-  openness,
-  active = false,
-  variant = 0,
-  flutterDurationMs = 2800,
-  flutterDelayMs = 0,
-}: ButterflyIconProps) {
+export function ButterflyIcon({ color, size, openness, active = false, variant = 0, flutterDurationMs = 2800, flutterDelayMs = 0 }: ButterflyIconProps) {
   const uid = useId().replace(/:/g, "");
   const fillId = `butterfly-fill-${uid}`;
   const washId = `butterfly-wash-${uid}`;
@@ -132,7 +95,8 @@ export function ButterflyIcon({
   const shadowId = `butterfly-shadow-${uid}`;
   const leftClipId = `butterfly-left-${uid}`;
   const rightClipId = `butterfly-right-${uid}`;
-  const wings = EXACT_WINGS[variant];
+  const resolvedVariant: ButterflyVariant = color === "#C58652" ? 3 : variant;
+  const wings = EXACT_WINGS[resolvedVariant];
   const height = Math.round(size * (128 / 152));
   const style = {
     "--wing-open": Math.max(0.28, Math.min(1, openness)),
@@ -145,18 +109,13 @@ export function ButterflyIcon({
       <svg width={size} height={height} viewBox="0 0 152 128" style={{ display: "block", overflow: "visible" }}>
         <defs>
           <linearGradient id={fillId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#F9F0DF" stopOpacity=".96" />
-            <stop offset=".2" stopColor={color} stopOpacity=".58" />
-            <stop offset=".62" stopColor={color} stopOpacity=".94" />
-            <stop offset="1" stopColor="#46342C" stopOpacity=".46" />
+            <stop offset="0" stopColor="#F9F0DF" stopOpacity=".96" /><stop offset=".2" stopColor={color} stopOpacity=".58" /><stop offset=".62" stopColor={color} stopOpacity=".94" /><stop offset="1" stopColor="#46342C" stopOpacity=".46" />
           </linearGradient>
           <radialGradient id={washId} cx=".34" cy=".2" r=".9">
-            <stop offset="0" stopColor="#FFF9EC" stopOpacity=".82" />
-            <stop offset=".48" stopColor={color} stopOpacity=".08" />
-            <stop offset="1" stopColor="#3F3029" stopOpacity=".34" />
+            <stop offset="0" stopColor="#FFF9EC" stopOpacity=".82" /><stop offset=".48" stopColor={color} stopOpacity=".08" /><stop offset="1" stopColor="#3F3029" stopOpacity=".34" />
           </radialGradient>
           <filter id={textureId} x="-10%" y="-10%" width="120%" height="120%">
-            <feTurbulence type="fractalNoise" baseFrequency=".055" numOctaves="3" seed={variant + 7} result="noise" />
+            <feTurbulence type="fractalNoise" baseFrequency=".055" numOctaves="3" seed={resolvedVariant + 7} result="noise" />
             <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.36  0 0 0 0 0.28  0 0 0 0 0.22  0 0 0 .38 0" />
           </filter>
           <filter id={shadowId} x="-28%" y="-28%" width="156%" height="156%">
@@ -174,15 +133,11 @@ export function ButterflyIcon({
           <g className="butterfly-icon__wing butterfly-icon__wing--right" style={{ transformOrigin: "76px 64px" }}>
             <WingLayer paths={wings.right} clipId={rightClipId} fillId={fillId} washId={washId} textureId={textureId} veins={RIGHT_VEINS} />
           </g>
-
           <g className="butterfly-icon__body">
             <path d="M76 45C72.5 47 72 56 73 68C74 82 75 95 76 108C77 95 78 82 79 68C80 56 79.5 47 76 45Z" fill="#584238" stroke="#2E211C" strokeWidth=".9" />
-            <ellipse cx="76" cy="42" rx="4.6" ry="4.1" fill="#675044" stroke="#2E211C" strokeWidth=".9" />
-            <ellipse cx="76" cy="55" rx="4.1" ry="6.5" fill="#5B443A" stroke="#2E211C" strokeWidth=".7" />
-            <path d="M73.7 40C67 29 61 24 54 21" fill="none" stroke="#49362F" strokeWidth="1" strokeLinecap="round" />
-            <path d="M78.3 40C85 29 91 24 98 21" fill="none" stroke="#49362F" strokeWidth="1" strokeLinecap="round" />
-            <circle cx="53.6" cy="20.8" r="1" fill="#49362F" />
-            <circle cx="98.4" cy="20.8" r="1" fill="#49362F" />
+            <ellipse cx="76" cy="42" rx="4.6" ry="4.1" fill="#675044" stroke="#2E211C" strokeWidth=".9" /><ellipse cx="76" cy="55" rx="4.1" ry="6.5" fill="#5B443A" stroke="#2E211C" strokeWidth=".7" />
+            <path d="M73.7 40C67 29 61 24 54 21" fill="none" stroke="#49362F" strokeWidth="1" strokeLinecap="round" /><path d="M78.3 40C85 29 91 24 98 21" fill="none" stroke="#49362F" strokeWidth="1" strokeLinecap="round" />
+            <circle cx="53.6" cy="20.8" r="1" fill="#49362F" /><circle cx="98.4" cy="20.8" r="1" fill="#49362F" />
             <path d="M72.8 61H79.2M73 68H79M73.2 75H78.8M73.6 82H78.4M74 89H78" stroke="#C1AA90" strokeWidth=".72" opacity=".72" />
           </g>
         </g>
