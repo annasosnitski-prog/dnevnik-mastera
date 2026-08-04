@@ -357,7 +357,12 @@ function buildMeteors() {
   const slot = METEOR_CYCLE / METEOR_COUNT;
   return Array.from({ length: METEOR_COUNT }, (_, i) => {
     const goesLeft = Math.random() < 0.5;
-    const rotDeg = goesLeft ? 135 : 45;
+    // Steeply diagonal (60–80° from horizontal, mirrored for the other
+    // direction) rather than the old fixed 45°/135° — a plain 45° has equal
+    // horizontal and vertical motion, which combined with the old, much
+    // slower travel (see the keyframe fix in index.css) read as sliding
+    // sideways rather than falling. Never near 0°/180° (horizontal).
+    const rotDeg = goesLeft ? 100 + Math.random() * 20 : 60 + Math.random() * 20;
     const dist = 320 + Math.random() * 260;
     const rad = (rotDeg * Math.PI) / 180;
     return {

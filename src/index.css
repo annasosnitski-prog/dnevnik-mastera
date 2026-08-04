@@ -1849,22 +1849,27 @@ input[type='date'] {
    --mx / --my; direction (down-left vs down-right) via --rot so the streak
    aligns with its motion. All meteors share one long duration (METEOR_CYCLE
    in TattoDiary.tsx) so their evenly-slotted delays keep the same phase
-   relationship forever — the visible slice below (5% of the cycle) stays
-   short enough to leave a wide, jitter-proof gap between any two slots.
-   Bumping this window also requires re-checking the slot math there. */
+   relationship forever.
+   The visible slice is 0.5% of the cycle — sounds small, but at the 220s
+   cycle length, "5%" (the old value) was actually an 11-REAL-SECOND glide,
+   which read as a slow horizontal drift rather than a falling star (real
+   shooting stars streak across in under ~1.5s). 0.5% keeps the same 1:3:5
+   phase ratio but lands the whole visible pass around ~1.1s, and is still
+   far short of a slot's jitter margin (see buildMeteors' slot math), so the
+   no-overlap guarantee there isn't affected. */
 @keyframes inka-meteor {
   0% {
     transform: translate3d(0, 0, 0) rotate(var(--rot, 135deg)) scaleX(0.2);
     opacity: 0;
   }
-  1% {
+  0.1% {
     opacity: 1;
   }
-  3% {
+  0.3% {
     transform: translate3d(calc(var(--mx) * 0.6), calc(var(--my) * 0.6), 0) rotate(var(--rot, 135deg)) scaleX(1);
     opacity: 1;
   }
-  5% {
+  0.5% {
     transform: translate3d(var(--mx), var(--my), 0) rotate(var(--rot, 135deg)) scaleX(1);
     opacity: 0;
   }
