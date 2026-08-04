@@ -109,9 +109,27 @@ export function normalizeClient(raw: any, index: number): Client {
     sessions,
     consultations: Array.isArray(raw?.consultations)
       ? raw.consultations.map((cn: any, i: number): Consultation => {
-          const status: ConsultationStatus = CONSULTATION_STATUSES.includes(cn?.status) ? cn.status : 'active';
+          const rawStatus: ConsultationStatus = CONSULTATION_STATUSES.includes(cn?.status) ? cn.status : 'active';
+          const id = String(cn?.id ?? `${Date.now()}-c${i}`);
+          const rawConvertedToSessionId = rawStatus === 'converted' ? cn?.convertedToSessionId ?? null : null;
+          // A 'converted' status only stays 'converted' if it's backed by a
+          // real, mutually-linked session (see hasLiveConvertedSession in
+          // domain/consultation.ts — status/convertedToSessionId alone
+          // aren't enough). Otherwise it's broken data — the session it
+          // pointed at was deleted outside the normal flow, a corrupted
+          // backup, or a session whose own sourceConsultationId disagrees —
+          // and it demotes to 'completed' so it doesn't become permanently
+          // undeletable (isConsultationDeletable) while pointing at nothing.
+          // No history entry is added here: that would re-append on every
+          // load. An entry is only ever added for a real user deletion, by
+          // applyConsultationRestoration in lib/sessionSave.ts.
+          const hasLiveSession =
+            rawConvertedToSessionId !== null &&
+            sessions.some((s) => s.id === rawConvertedToSessionId && s.sourceConsultationId === id);
+          const status: ConsultationStatus = rawStatus === 'converted' && !hasLiveSession ? 'completed' : rawStatus;
+          const convertedToSessionId = hasLiveSession ? rawConvertedToSessionId : null;
           return {
-            id: String(cn?.id ?? `${Date.now()}-c${i}`),
+            id,
             date: cn?.date ?? '',
             time: cn?.time ?? '',
             area: cn?.area ?? '',
@@ -128,14 +146,16 @@ export function normalizeClient(raw: any, index: number): Client {
             // отдельной миграции с удалением ключа не требуется.
             urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
             photos: Array.isArray(cn?.photos) ? cn.photos : [],
-            // Конвертированная консультация всегда done — так существующие
-            // фильтры по done/cancelled (plannerSelectors.ts,
-            // buildReminders.ts overdueEntries) не показывают её как
-            // незавершённую, даже если это поле в сыром объекте не выставлено.
-            done: status === 'converted' ? true : Boolean(cn?.done),
+            // Конвертированная консультация всегда done (в т.ч. только что
+            // разжалованная в 'completed' выше — см. done: true в спеке
+            // «Повреждённые старые данные») — так существующие фильтры по
+            // done/cancelled (plannerSelectors.ts, buildReminders.ts
+            // overdueEntries) не показывают её как незавершённую, даже если
+            // это поле в сыром объекте не выставлено.
+            done: rawStatus === 'converted' ? true : Boolean(cn?.done),
             cancelled: Boolean(cn?.cancelled),
             status,
-            convertedToSessionId: status === 'converted' ? cn?.convertedToSessionId ?? null : null,
+            convertedToSessionId,
             // Цепочка повторных консультаций — отсутствует в записях до этой
             // фичи, тогда обе ссылки null (запись считается началом своей
             // цепочки, см. Consultation.previousConsultationId). Дальше

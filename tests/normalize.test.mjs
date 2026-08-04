@@ -7,6 +7,7 @@ import {
   normalizeClient,
   normalizeProject,
 } from '../.test-dist/src/lib/normalize.js';
+import { isConsultationDeletable } from '../.test-dist/src/domain/consultation.js';
 
 // ── normalizeSession ──────────────────────────────────────────────
 
@@ -150,13 +151,86 @@ test('normalizeClient rejects an unrecognized consultation status instead of kee
   assert.equal(c.consultations[0].status, 'active');
 });
 
-test('normalizeClient keeps a valid converted consultation and its session link', () => {
+test('normalizeClient keeps a valid converted consultation with a correctly mutually-linked session', () => {
   const c = normalizeClient(
-    { consultations: [{ status: 'converted', convertedToSessionId: 'session-1' }] },
+    {
+      sessions: [{ id: 'session-1', sourceConsultationId: 'consult-1' }],
+      consultations: [{ id: 'consult-1', status: 'converted', convertedToSessionId: 'session-1' }],
+    },
     0,
   );
   assert.equal(c.consultations[0].status, 'converted');
   assert.equal(c.consultations[0].convertedToSessionId, 'session-1');
+});
+
+// «Повреждённые старые данные»: status:'converted' без корректной
+// двусторонней связи с реально существующей сессией (см.
+// hasLiveConvertedSession в domain/consultation.ts) не остаётся
+// converted — иначе консультация становится навсегда неудаляемой
+// (isConsultationDeletable), указывая на ничто. Разжалование: status →
+// 'completed', convertedToSessionId → null, done остаётся true; запись в
+// history НЕ добавляется (иначе она дублировалась бы при каждой загрузке —
+// см. отдельный тест ниже).
+
+// 2. convertedToSessionId указывает на отсутствующую сессию.
+test('normalizeClient demotes a converted consultation to completed when convertedToSessionId points at a missing session', () => {
+  const c = normalizeClient(
+    { consultations: [{ id: 'consult-1', status: 'converted', convertedToSessionId: 'session-missing' }] },
+    0,
+  );
+  assert.equal(c.consultations[0].status, 'completed');
+  assert.equal(c.consultations[0].convertedToSessionId, null);
+  assert.equal(c.consultations[0].done, true);
+});
+
+// 3. Сессия существует, но её sourceConsultationId указывает на другую консультацию.
+test('normalizeClient demotes a converted consultation when the linked session points back at a different consultation', () => {
+  const c = normalizeClient(
+    {
+      sessions: [{ id: 'session-1', sourceConsultationId: 'consult-OTHER' }],
+      consultations: [{ id: 'consult-1', status: 'converted', convertedToSessionId: 'session-1' }],
+    },
+    0,
+  );
+  assert.equal(c.consultations[0].status, 'completed');
+  assert.equal(c.consultations[0].convertedToSessionId, null);
+  assert.equal(c.consultations[0].done, true);
+});
+
+// 4. Сессия указывает на консультацию, но консультация указывает на другую сессию.
+test('normalizeClient demotes a converted consultation when it points at a different session than the one linking back', () => {
+  const c = normalizeClient(
+    {
+      sessions: [{ id: 'session-1', sourceConsultationId: 'consult-1' }],
+      consultations: [{ id: 'consult-1', status: 'converted', convertedToSessionId: 'session-OTHER' }],
+    },
+    0,
+  );
+  assert.equal(c.consultations[0].status, 'completed');
+  assert.equal(c.consultations[0].convertedToSessionId, null);
+});
+
+// 5. Повреждённая консультация после нормализации удаляема.
+test('normalizeClient produces a deletable consultation from a broken converted link', () => {
+  const c = normalizeClient(
+    { consultations: [{ id: 'consult-1', status: 'converted', convertedToSessionId: 'session-missing' }] },
+    0,
+  );
+  assert.equal(isConsultationDeletable(c.consultations[0], c.sessions), true);
+});
+
+// 6. Нормализация не добавляет повторяющиеся записи истории — running it
+// again on its own (already-normalized) output must not append a second
+// «restoration» entry each time (there wasn't a real deletion event).
+test('normalizeClient does not add a history entry when demoting, even across repeated normalization passes', () => {
+  const once = normalizeClient(
+    { consultations: [{ id: 'consult-1', status: 'converted', convertedToSessionId: 'session-missing' }] },
+    0,
+  );
+  assert.deepEqual(once.consultations[0].history, []);
+  const twice = normalizeClient(once, 0);
+  assert.deepEqual(twice.consultations[0].history, []);
+  assert.equal(twice.consultations[0].status, 'completed');
 });
 
 test('normalizeClient forces done:true on a converted consultation even if the raw record says otherwise', () => {

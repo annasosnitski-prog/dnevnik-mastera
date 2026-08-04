@@ -1235,7 +1235,7 @@ export default function TattoDiary() {
   const deleteConsultation = (consultationId: string) => {
     if (!selectedClient) return;
     const consultation = selectedClient.consultations.find((c) => c.id === consultationId);
-    if (consultation && !isConsultationDeletable(consultation)) return;
+    if (consultation && !isConsultationDeletable(consultation, selectedClient.sessions)) return;
     saveClient({ ...selectedClient, consultations: selectedClient.consultations.filter((c) => c.id !== consultationId) });
   };
 

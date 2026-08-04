@@ -1642,6 +1642,7 @@ function SessionsTab({
               key={consultation.id}
               consultation={consultation}
               number={getConsultationNumber(client.consultations, consultation)}
+              deletable={isConsultationDeletable(consultation, client.sessions)}
               onEdit={onEditConsultation}
               onDelete={() => onDeleteConsultation(consultation.id)}
               onConvert={() => onConvertConsultation(consultation)}
@@ -1682,6 +1683,7 @@ function SessionsTab({
 function ConsultationRow({
   consultation,
   number,
+  deletable,
   onEdit,
   onDelete,
   onConvert,
@@ -1694,6 +1696,13 @@ function ConsultationRow({
   // getConsultationNumber в domain/projectSelectors.ts); null для
   // консультации без проекта, тогда просто «Консультация».
   number: number | null;
+  // Computed by the caller (isConsultationDeletable(consultation,
+  // client.sessions) — see SessionsTab above), not re-derived here: this
+  // row only has the one consultation, not the client's full session list
+  // needed to check the two-way link (see hasLiveConvertedSession in
+  // domain/consultation.ts) — status alone isn't enough, a 'converted'
+  // status with no live linked session must stay deletable.
+  deletable: boolean;
   onEdit: (consultation: Consultation) => void;
   onDelete: () => void;
   onConvert: () => void;
@@ -1706,14 +1715,14 @@ function ConsultationRow({
   onView: (consultation: Consultation) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
-  // A converted consultation is linked to a real session — deleting it here
-  // would leave that session pointing at a consultation that no longer
-  // exists (see deleteConsultation/applyConsultationRestoration in
-  // TattoDiary.tsx, and isConsultationDeletable in domain/consultation.ts,
-  // the single source of truth both places share). Swipe-to-reveal is a
-  // no-op and the «×» control below is hidden entirely for this case —
-  // delete the linked session first instead.
-  const deletable = isConsultationDeletable(consultation);
+  // A converted consultation backed by a live linked session (deletable ===
+  // false) isn't deleted here — that would leave the session pointing at a
+  // consultation that no longer exists (see deleteConsultation/
+  // applyConsultationRestoration in TattoDiary.tsx, and
+  // isConsultationDeletable in domain/consultation.ts, the single source of
+  // truth both places share). Swipe-to-reveal is a no-op and the «×»
+  // control below is hidden entirely for this case — delete the linked
+  // session first instead.
   const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(deletable ? () => setConfirming(true) : () => {});
   const meta = urgencyMeta(consultation.urgency);
   return (
