@@ -29,7 +29,6 @@ function makeConsultation(overrides = {}) {
     creative: '',
     inspirationSources: '',
     outcome: '',
-    nextStep: '',
     urgency: 'normal',
     photos: [],
     done: false,
@@ -56,7 +55,6 @@ function makeConsultationData(overrides = {}) {
     creative: '',
     inspirationSources: '',
     outcome: '',
-    nextStep: '',
     urgency: 'important',
     photos: [],
     projectId: 'project-1',
@@ -110,7 +108,7 @@ test('upsertConsultation keeps the previous consultation\'s own date/status/note
   assert.equal(previous.generalNotes, 'старые заметки');
 });
 
-test('upsertConsultation gives the new chained consultation its own blank notes/outcome/nextStep, not copied from the previous one', () => {
+test('upsertConsultation gives the new chained consultation its own blank notes/outcome, not copied from the previous one', () => {
   const source = makeConsultation({ id: 'consult-1', generalNotes: 'старые заметки', outcome: 'старый итог' });
   const client = makeClient({ consultations: [source] });
 
@@ -119,6 +117,12 @@ test('upsertConsultation gives the new chained consultation its own blank notes/
   const next = updated.consultations.find((c) => c.id === consultationId);
   assert.equal(next.generalNotes, '');
   assert.equal(next.outcome, '');
+});
+
+test('upsertConsultation never produces a nextStep field — the single next step lives on Project only', () => {
+  const client = makeClient();
+  const { client: updated } = upsertConsultation(client, makeConsultationData(), null);
+  assert.ok(!('nextStep' in updated.consultations[0]));
 });
 
 test('upsertConsultation editing an existing consultation keeps its id and does not touch previousConsultationId', () => {

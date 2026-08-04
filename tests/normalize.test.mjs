@@ -179,18 +179,17 @@ test('normalizeClient drops convertedToSessionId for a non-converted consultatio
 });
 
 // ── Цепочка повторных консультаций (previousConsultationId/nextConsultationId/
-// outcome/nextStep/history) — старые бэкапы/IndexedDB-записи не содержат этих
-// полей, они должны получать безопасные дефолты, а не падать нормализацию.
+// outcome/history) — старые бэкапы/IndexedDB-записи не содержат этих полей,
+// они должны получать безопасные дефолты, а не падать нормализацию.
 test('normalizeClient defaults a pre-chain consultation (no previous/next link) to null on both ends', () => {
   const c = normalizeClient({ consultations: [{}] }, 0);
   assert.equal(c.consultations[0].previousConsultationId, null);
   assert.equal(c.consultations[0].nextConsultationId, null);
 });
 
-test('normalizeClient defaults missing outcome/nextStep/history to empty', () => {
+test('normalizeClient defaults missing outcome/history to empty', () => {
   const c = normalizeClient({ consultations: [{}] }, 0);
   assert.equal(c.consultations[0].outcome, '');
-  assert.equal(c.consultations[0].nextStep, '');
   assert.deepEqual(c.consultations[0].history, []);
 });
 
@@ -203,7 +202,6 @@ test('normalizeClient keeps an explicit chain link and history from a backup fil
           previousConsultationId: 'consult-1',
           nextConsultationId: 'consult-3',
           outcome: 'Договорились на сессию',
-          nextStep: 'Записать сессию',
           history: [{ id: 'h1', date: '2026-01-01T00:00:00.000Z', note: 'Консультация создана' }],
         },
       ],
@@ -213,9 +211,21 @@ test('normalizeClient keeps an explicit chain link and history from a backup fil
   assert.equal(c.consultations[0].previousConsultationId, 'consult-1');
   assert.equal(c.consultations[0].nextConsultationId, 'consult-3');
   assert.equal(c.consultations[0].outcome, 'Договорились на сессию');
-  assert.equal(c.consultations[0].nextStep, 'Записать сессию');
   assert.equal(c.consultations[0].history.length, 1);
   assert.equal(c.consultations[0].history[0].note, 'Консультация создана');
+});
+
+// Consultation.nextStep убрано из модели (PR #208 добавил его по ошибке —
+// next step существует ровно один, на Project). Старые backup/IndexedDB-
+// записи всё ещё могут содержать этот ключ в сыром JSON — нормализация не
+// должна падать на нём, а итоговый объект не должен его выставлять.
+test('normalizeClient tolerates a legacy nextStep key without failing and drops it from the result', () => {
+  const c = normalizeClient(
+    { consultations: [{ id: 'consult-1', outcome: 'Итог остался', nextStep: 'Старое значение из бэкапа' }] },
+    0,
+  );
+  assert.equal(c.consultations[0].outcome, 'Итог остался');
+  assert.ok(!('nextStep' in c.consultations[0]));
 });
 
 test('normalizeClient drops a malformed history entry instead of keeping garbage', () => {

@@ -22,7 +22,6 @@ export interface ConsultationFormData {
   creative: string;
   inspirationSources: string;
   outcome: string;
-  nextStep: string;
   urgency: UrgencyKey;
   photos: string[];
   projectId: string | null;
@@ -39,7 +38,6 @@ function consultationFields(data: ConsultationFormData) {
     creative: data.creative.trim(),
     inspirationSources: data.inspirationSources.trim(),
     outcome: data.outcome.trim(),
-    nextStep: data.nextStep.trim(),
     urgency: data.urgency,
     photos: data.photos,
     projectId: data.projectId,

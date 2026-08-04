@@ -206,7 +206,6 @@ function makeConsultation(overrides = {}) {
     creative: '',
     inspirationSources: '',
     outcome: '',
-    nextStep: '',
     urgency: 'normal',
     photos: [],
     done: false,

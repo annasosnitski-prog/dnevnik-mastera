@@ -1844,11 +1844,6 @@ function ConsultationRow({
             <SessionMeta label="Итог" value={consultation.outcome} />
           </div>
         )}
-        {consultation.nextStep && (
-          <div style={{ marginTop: 6 }}>
-            <SessionMeta label="Next step" value={consultation.nextStep} />
-          </div>
-        )}
       </div>
     </div>
   );

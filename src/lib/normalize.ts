@@ -121,7 +121,11 @@ export function normalizeClient(raw: any, index: number): Client {
             creative: cn?.creative ?? '',
             inspirationSources: cn?.inspirationSources ?? '',
             outcome: cn?.outcome ?? '',
-            nextStep: cn?.nextStep ?? '',
+            // Намеренно не читаем cn?.nextStep — поле убрано из модели
+            // (единственный next step теперь только на Project, см.
+            // domain/consultation.ts). Старые backup/IndexedDB-записи могут
+            // ещё содержать этот ключ в сыром JSON — он просто игнорируется,
+            // отдельной миграции с удалением ключа не требуется.
             urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
             photos: Array.isArray(cn?.photos) ? cn.photos : [],
             // Конвертированная консультация всегда done — так существующие

@@ -461,7 +461,7 @@ export function NewConsultationSheet({
   // Консультация, от которой назначается следующая («Назначить следующую
   // консультацию» — DetailScreen/TimelineViewSheet, см. TattoDiary's
   // startChainNextConsultation) — предзаполняет только проект/зону/стиль
-  // (продолжение той же работы); заметки/итог/next step остаются пустыми —
+  // (продолжение той же работы); заметки/итог остаются пустыми —
   // это отдельная запись со своим содержанием, а не копия предыдущей.
   // Игнорируется при редактировании существующей записи (initial имеет
   // приоритет). Дата намеренно НЕ переносится, тем же принципом, что
@@ -478,7 +478,6 @@ export function NewConsultationSheet({
     creative: string;
     inspirationSources: string;
     outcome: string;
-    nextStep: string;
     urgency: UrgencyKey;
     photos: string[];
     projectId: string | null;
@@ -494,7 +493,6 @@ export function NewConsultationSheet({
   const [creative, setCreative] = useState('');
   const [inspirationSources, setInspirationSources] = useState('');
   const [outcome, setOutcome] = useState('');
-  const [nextStep, setNextStep] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -513,7 +511,6 @@ export function NewConsultationSheet({
       setCreative(initial?.creative ?? '');
       setInspirationSources(initial?.inspirationSources ?? '');
       setOutcome(initial?.outcome ?? '');
-      setNextStep(initial?.nextStep ?? '');
       setUrgency(initial?.urgency ?? 'important');
       setPhotos(initial?.photos ?? []);
       setProjectId(initial?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
@@ -523,7 +520,7 @@ export function NewConsultationSheet({
   }, [open]);
 
   const handleSave = () => {
-    const data = { date, time, area, style, generalNotes, feeling, creative, inspirationSources, outcome, nextStep, urgency, photos, projectId };
+    const data = { date, time, area, style, generalNotes, feeling, creative, inspirationSources, outcome, urgency, photos, projectId };
     if (isEdit) {
       setJustSaved(true);
       setTimeout(() => onAdd(data), 700);
@@ -677,25 +674,17 @@ export function NewConsultationSheet({
             />
           </div>
 
-          {/* Итог/next step — своё поле каждой консультации (см.
-              Consultation.outcome/nextStep), не переносится в другую запись
-              цепочки. */}
+          {/* Итог — своё поле каждой консультации (см. Consultation.outcome),
+              не переносится в другую запись цепочки. Next step здесь
+              намеренно нет — единственный next step на весь проект живёт на
+              Project (nextActionText/nextActionDate/nextActionType), а не на
+              консультации. */}
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Итог</FieldLabel>
             <textarea
               value={outcome}
               onChange={(e) => setOutcome(e.target.value)}
               placeholder="Как прошла встреча, о чём договорились..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Next step</FieldLabel>
-            <textarea
-              value={nextStep}
-              onChange={(e) => setNextStep(e.target.value)}
-              placeholder="Что делать дальше после этой консультации..."
               style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
             />
           </div>
