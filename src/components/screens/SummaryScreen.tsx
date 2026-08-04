@@ -62,7 +62,8 @@ export function SummaryScreen({
   onOpenProject: (project: Project) => void;
   masterNotes: ClientNote[];
   onToggleDone: (clientId: string, note: ClientNote) => void;
-  onEditNote: (clientId: string, note: ClientNote) => void;
+  // Returns whether the save actually went through — see NoteItem.onEdit.
+  onEditNote: (clientId: string, note: ClientNote) => boolean;
   onDeleteNote: (clientId: string, noteId: string) => void;
   onOpenClient: (id: string) => void;
   onOpenConsultation: (clientId: string, consultationId: string) => void;
@@ -74,7 +75,10 @@ export function SummaryScreen({
   // since «Сводка» isn't scoped to a single client.
   onAddNote: (clientId: string, text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
   onToggleMasterDone: (note: ClientNote) => void;
-  onEditMasterNote: (note: ClientNote) => void;
+  // Returns whether the save went through — always true today (master
+  // notes live in localStorage, no IndexedDB failure mode), kept boolean to
+  // match NoteItem.onEdit's shared shape with the client-note variant above.
+  onEditMasterNote: (note: ClientNote) => boolean;
   onDeleteMasterNote: (noteId: string) => void;
   // Lifted so the nav FAB's contextual create action can open it too — see
   // onCreate in the App shell.
