@@ -139,10 +139,15 @@ export function upcomingSoonProjectSessions(projects: Project[], now: Date): Pro
 
 // Активные проекты, у которых «следующий шаг» назначен на сегодня или уже
 // просрочен (Этап 3b). Срабатывает только когда мастер сама поставила дату.
-// Отсортированы от самого просроченного.
+// nextActionText.trim() !== '' — вторая, независимая от сохранения защита:
+// resolveNextStep (domain/project.ts) уже чистит дату/тип при сохранении
+// пустого текста, но повреждённые/старые записи (прямая правка IndexedDB,
+// данные до этого фикса) могут содержать дату без текста — без этой
+// проверки здесь такой проект показал бы пустую просроченную карточку
+// «Следующий шаг: —». Отсортированы от самого просроченного.
 export function overdueProjects(projects: Project[], now: Date): Project[] {
   const today = localISO(now);
   return projects
-    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today)
+    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today && p.nextActionText.trim() !== '')
     .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
 }

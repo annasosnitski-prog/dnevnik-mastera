@@ -2778,6 +2778,10 @@ export default function TattoDiary() {
           setContentFocusEntryId(entry.id);
           setScreen('content');
         }}
+        onSaveNextStep={(text, date, type) => {
+          const current = viewProject ? getProjectById(projects, viewProject.id) : null;
+          if (current) saveProject({ ...current, nextActionText: text, nextActionDate: date, nextActionType: type });
+        }}
       />
 
       {/* ═══════════ TIMELINE VIEWER (read-only consultation / session) ═══════════ */}
@@ -2831,6 +2835,11 @@ export default function TattoDiary() {
             ? () => setViewEntry({ kind: 'consultation', clientId: viewEntry.clientId, id: viewedConsultation.nextConsultationId! })
             : undefined
         }
+        onSaveNextStep={(text, date, type) => {
+          const projectId = (viewedConsultation ?? viewedSession)?.projectId ?? null;
+          const current = projectId ? getProjectById(projects, projectId) : null;
+          if (current) saveProject({ ...current, nextActionText: text, nextActionDate: date, nextActionType: type });
+        }}
       />
 
       {/* ═══════════ CALENDAR (month view, opened from «Ближайшая») ═══════════ */}

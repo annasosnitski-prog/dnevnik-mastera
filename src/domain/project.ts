@@ -89,6 +89,24 @@ export const NEXT_ACTION_TYPES: { key: NextActionType; label: string }[] = [
   { key: 'other', label: 'Другое' },
 ];
 
+// Приводит next-step поля к валидному сочетанию перед записью в проект:
+// пустой текст обнуляет и дату, и тип. Без этого overdueProjects
+// (reminders/buildReminders.ts) — который смотрит на nextActionDate — мог бы
+// завести пустую просроченную карточку («Следующий шаг: —») для проекта, у
+// которого текст уже стёрт, а дата/тип остались от прежнего шага
+// (overdueProjects проверяет nextActionText и сам, второй независимой
+// защитой — на случай старых/повреждённых записей, до которых эта функция
+// на сохранении не дотянулась).
+export function resolveNextStep(
+  text: string,
+  date: string | null,
+  type: NextActionType | null,
+): { nextActionText: string; nextActionDate: string | null; nextActionType: NextActionType | null } {
+  const trimmed = text.trim();
+  if (!trimmed) return { nextActionText: '', nextActionDate: null, nextActionType: null };
+  return { nextActionText: trimmed, nextActionDate: date, nextActionType: type };
+}
+
 export interface Project {
   id: string;
   title: string; // project name, e.g. "Дракон в стиле джапан"

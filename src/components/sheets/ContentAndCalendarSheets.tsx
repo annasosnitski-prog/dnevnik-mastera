@@ -4,7 +4,7 @@ import { InkaLogo, DROP_CAP_FONT } from '../InkaLogo';
 import { type Session } from '../../domain/session';
 import { type Consultation } from '../../domain/consultation';
 import { type Client } from '../../domain/client';
-import { type Project } from '../../domain/project';
+import { type Project, type NextActionType } from '../../domain/project';
 import { urgencyMeta } from '../../domain/taskSelectors';
 import {
   resolveContentEntryLink,
@@ -33,7 +33,7 @@ import {
   clientNameFor,
   type ContentEntry,
 } from '../TattoDiary';
-import { SessionPhotos } from '../client/ClientControls';
+import { SessionPhotos, NextStepRow } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton } from '../ui/Sheet';
 import { SheetStarDivider } from '../ui/TextAtoms';
 
@@ -95,6 +95,7 @@ export function TimelineViewSheet({
   onOpenConvertedSession,
   onChainNextConsultation,
   onOpenNextConsultation,
+  onSaveNextStep,
 }: {
   open: boolean;
   session: Session | null;
@@ -127,6 +128,10 @@ export function TimelineViewSheet({
   // Следующая консультация уже назначена (Consultation.nextConsultationId) —
   // рендерится вместо «Назначить следующую консультацию →».
   onOpenNextConsultation?: () => void;
+  // Единственный next step ПРОЕКТА (не сессии/консультации — см.
+  // NextStepRow) — рендерится только когда запись привязана к проекту
+  // (currentProject ниже), пишет напрямую в тот же объект Project.
+  onSaveNextStep?: (text: string, date: string | null, type: NextActionType | null) => void;
 }) {
   const isConsult = !!consultation;
   const dateLine = (() => {
@@ -136,6 +141,7 @@ export function TimelineViewSheet({
   })();
   const urgency = consultation ? urgencyMeta(consultation.urgency) : null;
   const currentProjectId = (isConsult ? consultation?.projectId : session?.projectId) ?? null;
+  const currentProject = currentProjectId ? clientProjects.find((p) => p.id === currentProjectId) ?? null : null;
 
   return (
     <BottomSheet open={open} heightPct={94}>
@@ -169,6 +175,14 @@ export function TimelineViewSheet({
               ))}
             </select>
           </div>
+        )}
+        {currentProject && onSaveNextStep && (
+          <NextStepRow
+            nextActionText={currentProject.nextActionText}
+            nextActionDate={currentProject.nextActionDate}
+            nextActionType={currentProject.nextActionType}
+            onSave={onSaveNextStep}
+          />
         )}
         {isConsult && consultation ? (
           <>

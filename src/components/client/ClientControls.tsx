@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
 import { type ClientType, CLIENT_TYPES } from '../../domain/client';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
-import { type ProjectCategory, PROJECT_CATEGORIES } from '../../domain/project';
+import { type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep } from '../../domain/project';
 import { downsizeForStorage } from '../../lib/imagePreview';
-import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT } from '../TattoDiary';
+import { formatDate } from '../../utils/dates';
+import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT, INPUT_STYLE } from '../TattoDiary';
 
 // Вынесено из TattoDiary.tsx (PR 10 рефакторинга) — общие форм-контролы
 // «карточки клиента», которые использует и сам экран деталей, и bottom
@@ -561,6 +562,145 @@ export function UrgencyChips({ value, onPick }: { value: UrgencyKey; onPick: (u:
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Единственный next step проекта (nextActionText/Date/Type) — быстро
+// видимый и редактируемый прямо здесь, без перехода в полную форму
+// редактирования проекта. Используется на всех трёх рабочих уровнях
+// (ProjectViewSheet, TimelineViewSheet для сессии/консультации) — Save
+// всегда пишет напрямую в тот же объект Project через onSave, значения не
+// копируются на сессию/консультацию (см. «Следующий шаг» — зафиксированная
+// модель: next step существует ровно один на весь проект).
+export function NextStepRow({
+  nextActionText,
+  nextActionDate,
+  nextActionType,
+  onSave,
+}: {
+  nextActionText: string;
+  nextActionDate: string | null;
+  nextActionType: NextActionType | null;
+  onSave: (text: string, date: string | null, type: NextActionType | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(nextActionText);
+  const [date, setDate] = useState(nextActionDate ?? '');
+  const [type, setType] = useState<NextActionType | null>(nextActionType);
+
+  const startEdit = () => {
+    setText(nextActionText);
+    setDate(nextActionDate ?? '');
+    setType(nextActionType);
+    setEditing(true);
+  };
+  const save = () => {
+    const resolved = resolveNextStep(text, date || null, type);
+    onSave(resolved.nextActionText, resolved.nextActionDate, resolved.nextActionType);
+    setEditing(false);
+  };
+  // «Удалить следующий шаг» — явное действие, полностью очищает все три
+  // поля разом (то же самое, что и очистка текста через save(), но без
+  // необходимости сначала стирать поле руками).
+  const clear = () => {
+    onSave('', null, null);
+    setEditing(false);
+  };
+
+  const labelStyle: React.CSSProperties = { fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 };
+
+  if (!editing) {
+    return (
+      <div onClick={startEdit} style={{ cursor: 'pointer' }}>
+        <div style={labelStyle}>Следующий шаг</div>
+        {nextActionText ? (
+          <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textPrimary, lineHeight: 1.5 }}>
+            {nextActionText}
+            {nextActionDate ? ` · ${formatDate(nextActionDate)}` : ''}
+          </div>
+        ) : (
+          <div style={{ fontSize: fs(14), color: COLORS.textFaint, fontStyle: 'italic' }}>Не задан — нажмите, чтобы добавить</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <div style={labelStyle}>Следующий шаг</div>
+      <input
+        dir="auto"
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Например: Отправить мудборд"
+        style={{ ...INPUT_STYLE, marginBottom: 8 }}
+      />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <select value={type ?? ''} onChange={(e) => setType((e.target.value || null) as NextActionType | null)} style={{ ...INPUT_STYLE, flex: 1 }}>
+          <option value="">Тип действия — не выбран</option>
+          {NEXT_ACTION_TYPES.map((t) => (
+            <option key={t.key} value={t.key}>{t.label}</option>
+          ))}
+        </select>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, flex: 1 }} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div
+          onClick={save}
+          role="button"
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '8px 0',
+            border: '1px solid rgba(var(--gold-rgb),0.35)',
+            borderRadius: 2,
+            cursor: 'pointer',
+            color: COLORS.gold,
+            fontSize: fs(12),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Сохранить
+        </div>
+        <div
+          onClick={() => setEditing(false)}
+          role="button"
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '8px 0',
+            border: '1px solid rgba(var(--gold-rgb),0.15)',
+            borderRadius: 2,
+            cursor: 'pointer',
+            color: COLORS.textFaint,
+            fontSize: fs(12),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Отмена
+        </div>
+      </div>
+      {nextActionText && (
+        <div
+          onClick={clear}
+          role="button"
+          style={{
+            marginTop: 8,
+            textAlign: 'center',
+            fontSize: fs(11),
+            letterSpacing: '0.6px',
+            textTransform: 'uppercase',
+            color: COLORS.textFaint,
+            cursor: 'pointer',
+          }}
+        >
+          Удалить следующий шаг
+        </div>
+      )}
     </div>
   );
 }
