@@ -1,6 +1,7 @@
 // Доменный тип консультации. Вынесено из TattoDiary.tsx без изменений (PR 2).
 
 import type { UrgencyKey } from './urgency';
+import type { Session } from './session';
 
 // Явное состояние жизненного цикла — добавлено вместе с convertedToSessionId
 // (см. ниже), чтобы «Перевести в сессию» переставало удалять консультацию
@@ -79,4 +80,41 @@ export interface Consultation {
   createdDate: string;
   // См. Session.projectId — та же link-семантика (Этап 2).
   projectId: string | null;
+}
+
+// True only when the «converted» status is backed by an actual, mutually
+// linked session — status/convertedToSessionId alone aren't enough: the
+// session could've been deleted outside the normal flow, or a corrupted
+// backup could carry a convertedToSessionId that never pointed anywhere (or
+// points at a session whose own sourceConsultationId disagrees). The link
+// counts only when BOTH ends agree: consultation.convertedToSessionId ===
+// session.id AND session.sourceConsultationId === consultation.id — a
+// one-sided match isn't a real conversion. Shared by isConsultationDeletable
+// below and normalizeClient (lib/normalize.ts), so «is this really
+// converted» is answered in exactly one place.
+export function hasLiveConvertedSession(consultation: Consultation, sessions: Session[]): boolean {
+  if (consultation.status !== 'converted' || !consultation.convertedToSessionId) {
+    return false;
+  }
+  return sessions.some(
+    (session) => session.id === consultation.convertedToSessionId && session.sourceConsultationId === consultation.id,
+  );
+}
+
+// Конвертированная консультация не удаляется обычным способом, пока
+// существует связанная сессия (Session.sourceConsultationId) — иначе сессия
+// остаётся со ссылкой на несуществующую консультацию. Единый источник
+// истины для двух независимых мест защиты: ConsultationRow (DetailScreen.tsx)
+// скрывает контрол удаления по этому предикату, а deleteConsultation
+// (TattoDiary.tsx) им же блокирует сам save-funnel — так защита не держится
+// только на скрытой кнопке. Удалить связанную сессию (которая восстановит
+// консультацию — см. applyConsultationRestoration в lib/sessionSave.ts) и
+// удалить после этого можно уже саму, теперь обычную, консультацию.
+// A consultation whose 'converted' status isn't backed by a real two-way
+// link (see hasLiveConvertedSession above) is NOT protected — it's broken
+// data, not a live conversion, and must stay deletable rather than becoming
+// permanently stuck (normalizeClient also demotes it to 'completed' on load,
+// so in practice this only matters for the one render before that happens).
+export function isConsultationDeletable(consultation: Consultation, sessions: Session[]): boolean {
+  return !hasLiveConvertedSession(consultation, sessions);
 }

@@ -10,7 +10,7 @@ import {
   stylesLabel,
 } from '../../domain/client';
 import { type Session } from '../../domain/session';
-import { type Consultation } from '../../domain/consultation';
+import { type Consultation, isConsultationDeletable } from '../../domain/consultation';
 import { type ClientNote } from '../../domain/task';
 import { type UrgencyKey } from '../../domain/urgency';
 import { type Project, PROJECT_STAGES } from '../../domain/project';
@@ -1642,6 +1642,7 @@ function SessionsTab({
               key={consultation.id}
               consultation={consultation}
               number={getConsultationNumber(client.consultations, consultation)}
+              deletable={isConsultationDeletable(consultation, client.sessions)}
               onEdit={onEditConsultation}
               onDelete={() => onDeleteConsultation(consultation.id)}
               onConvert={() => onConvertConsultation(consultation)}
@@ -1682,6 +1683,7 @@ function SessionsTab({
 function ConsultationRow({
   consultation,
   number,
+  deletable,
   onEdit,
   onDelete,
   onConvert,
@@ -1694,6 +1696,13 @@ function ConsultationRow({
   // getConsultationNumber в domain/projectSelectors.ts); null для
   // консультации без проекта, тогда просто «Консультация».
   number: number | null;
+  // Computed by the caller (isConsultationDeletable(consultation,
+  // client.sessions) — see SessionsTab above), not re-derived here: this
+  // row only has the one consultation, not the client's full session list
+  // needed to check the two-way link (see hasLiveConvertedSession in
+  // domain/consultation.ts) — status alone isn't enough, a 'converted'
+  // status with no live linked session must stay deletable.
+  deletable: boolean;
   onEdit: (consultation: Consultation) => void;
   onDelete: () => void;
   onConvert: () => void;
@@ -1706,13 +1715,21 @@ function ConsultationRow({
   onView: (consultation: Consultation) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(() => setConfirming(true));
+  // A converted consultation backed by a live linked session (deletable ===
+  // false) isn't deleted here — that would leave the session pointing at a
+  // consultation that no longer exists (see deleteConsultation/
+  // applyConsultationRestoration in TattoDiary.tsx, and
+  // isConsultationDeletable in domain/consultation.ts, the single source of
+  // truth both places share). Swipe-to-reveal is a no-op and the «×»
+  // control below is hidden entirely for this case — delete the linked
+  // session first instead.
+  const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(deletable ? () => setConfirming(true) : () => {});
   const meta = urgencyMeta(consultation.urgency);
   return (
     <div style={{ marginBottom: 14 }}>
       <div
         onClick={() => onView(consultation)}
-        {...swipeHandlers}
+        {...(deletable ? swipeHandlers : {})}
         style={{
           background: 'rgba(var(--surface-rgb),0.018)',
           border: '1px solid rgba(var(--gold-rgb),0.22)',
@@ -1804,10 +1821,13 @@ function ConsultationRow({
               </svg>
             </div>
             {/* Extra gap + divider before delete — pencil and × used to sit
-                right next to each other, easy to mis-tap. */}
-            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, marginLeft: 2, borderLeft: '1px solid rgba(var(--gold-rgb),0.15)' }}>
-              <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
-            </div>
+                right next to each other, easy to mis-tap. Hidden entirely
+                for a converted consultation — see `deletable` above. */}
+            {deletable && (
+              <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, marginLeft: 2, borderLeft: '1px solid rgba(var(--gold-rgb),0.15)' }}>
+                <SessionDeleteControl onDelete={onDelete} confirming={confirming} onConfirmingChange={setConfirming} />
+              </div>
+            )}
           </div>
         </div>
         {/* Photos moved up — right under the header — and read-only here. */}

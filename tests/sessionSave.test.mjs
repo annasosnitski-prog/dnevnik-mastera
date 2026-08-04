@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { upsertClientSession, upsertProjectSession, applyConsultationConversion } from '../.test-dist/src/lib/sessionSave.js';
+import { upsertClientSession, upsertProjectSession, applyConsultationConversion, applyConsultationRestoration } from '../.test-dist/src/lib/sessionSave.js';
 
 function makeClient(overrides = {}) {
   return {
@@ -188,6 +188,76 @@ test('applyConsultationConversion leaves unrelated sessions/consultations untouc
 
   assert.equal(updated.sessions[1].sourceConsultationId, null);
   assert.equal(updated.consultations[1].status, 'active');
+});
+
+test('applyConsultationRestoration reverts a converted consultation to completed when its session is deleted', () => {
+  const consultation = makeConsultation({ status: 'converted', convertedToSessionId: 'session-1', done: true });
+  const session = { id: 'session-1', name: '', cancelled: false, date: '2026-02-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: 'consult-1' };
+  const client = makeClient({ sessions: [session], consultations: [consultation] });
+
+  const updated = applyConsultationRestoration(client, 'session-1');
+
+  assert.equal(updated.consultations[0].status, 'completed');
+  assert.equal(updated.consultations[0].convertedToSessionId, null);
+  // The consultation already happened — it must go to 'completed', never
+  // back to 'active', and `done` (already true from the conversion) stays.
+  assert.equal(updated.consultations[0].done, true);
+  assert.equal(updated.consultations[0].history.length, 1);
+  assert.match(updated.consultations[0].history[0].note, /сессия удалена/i);
+  // The helper only fixes up the consultation — deleting the session itself
+  // is still the caller's job (see deleteSession in TattoDiary.tsx).
+  assert.equal(updated.sessions[0].id, 'session-1');
+});
+
+test('applyConsultationRestoration does not touch the repeat-consultation chain links', () => {
+  const consultation = makeConsultation({
+    status: 'converted',
+    convertedToSessionId: 'session-1',
+    previousConsultationId: 'consult-0',
+    nextConsultationId: 'consult-2',
+  });
+  const session = { id: 'session-1', name: '', cancelled: false, date: '2026-02-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: 'consult-1' };
+  const client = makeClient({ sessions: [session], consultations: [consultation] });
+
+  const updated = applyConsultationRestoration(client, 'session-1');
+
+  assert.equal(updated.consultations[0].previousConsultationId, 'consult-0');
+  assert.equal(updated.consultations[0].nextConsultationId, 'consult-2');
+});
+
+test('applyConsultationRestoration does not mutate the input client', () => {
+  const consultation = makeConsultation({ status: 'converted', convertedToSessionId: 'session-1' });
+  const session = { id: 'session-1', name: '', cancelled: false, date: '2026-02-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: 'consult-1' };
+  const client = makeClient({ sessions: [session], consultations: [consultation] });
+  const snapshot = structuredClone(client);
+
+  applyConsultationRestoration(client, 'session-1');
+
+  assert.deepEqual(client, snapshot);
+});
+
+test('applyConsultationRestoration is a no-op for a session that was never a conversion', () => {
+  const session = { id: 'session-1', name: '', cancelled: false, date: '2026-02-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null };
+  const client = makeClient({ sessions: [session], consultations: [] });
+
+  assert.strictEqual(applyConsultationRestoration(client, 'session-1'), client);
+});
+
+test('applyConsultationRestoration is a no-op for an unknown sessionId', () => {
+  const client = makeClient({ sessions: [], consultations: [] });
+  assert.strictEqual(applyConsultationRestoration(client, 'missing'), client);
+});
+
+test('applyConsultationRestoration leaves unrelated consultations untouched', () => {
+  const consultation = makeConsultation({ id: 'consult-1', status: 'converted', convertedToSessionId: 'session-1' });
+  const otherConsultation = makeConsultation({ id: 'consult-2', status: 'active' });
+  const session = { id: 'session-1', name: '', cancelled: false, date: '2026-02-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: 'consult-1' };
+  const client = makeClient({ sessions: [session], consultations: [consultation, otherConsultation] });
+
+  const updated = applyConsultationRestoration(client, 'session-1');
+
+  assert.equal(updated.consultations[1].status, 'active');
+  assert.equal(updated.consultations[1].history.length, 0);
 });
 
 test('neither helper mutates the input client/project', () => {
