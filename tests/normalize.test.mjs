@@ -343,3 +343,15 @@ test('normalizeProject normalizes project-owned sessions ("сессии без �
   assert.equal(p.sessions[0].name, 'Без клиента');
   assert.equal(p.sessions[0].done, true);
 });
+
+// ── normalizeProject: lastMeaningfulActivityAt (M4) ───────────────────────
+
+test('normalizeProject defaults lastMeaningfulActivityAt to createdDate for a legacy record without it', () => {
+  const p = normalizeProject({ createdDate: '2026-01-05T00:00:00.000Z' }, 0);
+  assert.equal(p.lastMeaningfulActivityAt, '2026-01-05T00:00:00.000Z');
+});
+
+test('normalizeProject keeps an existing lastMeaningfulActivityAt unchanged', () => {
+  const p = normalizeProject({ createdDate: '2026-01-05T00:00:00.000Z', lastMeaningfulActivityAt: '2026-03-20T00:00:00.000Z' }, 0);
+  assert.equal(p.lastMeaningfulActivityAt, '2026-03-20T00:00:00.000Z');
+});

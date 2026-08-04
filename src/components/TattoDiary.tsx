@@ -199,6 +199,7 @@ import {
   overdueProjectSessions,
   upcomingSoonProjectSessions,
   overdueProjects,
+  staleProjects,
 } from '../reminders/buildReminders';
 import { taskReminderSources, taskReminders, filterVisibleTaskReminders } from '../reminders/buildTaskReminders';
 import {
@@ -209,6 +210,7 @@ import {
   overdueProjectSessionReminderKey,
   soonProjectSessionReminderKey,
   projectReminderKey,
+  staleProjectReminderKey,
 } from '../reminders/reminderKeys';
 import {
   type ReminderState,
@@ -230,6 +232,7 @@ import {
   PROJECT_STAGES,
   type NextActionType,
   type Project,
+  isMeaningfulProjectChange,
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
@@ -861,6 +864,13 @@ export default function TattoDiary() {
     request.onerror = () => setDbError('Не удалось загрузить проекты.');
   };
 
+  // Единственная точка записи в стор проектов — поэтому и единственное место,
+  // где бампается lastMeaningfulActivityAt (M4): ищем предыдущую сохранённую
+  // версию этого проекта и, если isMeaningfulProjectChange находит реальное
+  // движение (или проект новый — prev не найден), проставляем «сейчас».
+  // Иначе (правка текстовых полей/фото/заметок) значение остаётся как в
+  // переданном project — обычно унаследованным от prev через спред на
+  // вызывающей стороне.
   const saveProject = (project: Project) => {
     if (!db) {
       setDbError('Хранилище недоступно — изменения не сохранены.');
@@ -868,7 +878,9 @@ export default function TattoDiary() {
     }
     const tx = openWriteTx('projects', db, 'Хранилище недоступно — изменения не сохранены.');
     if (!tx) return;
-    tx.objectStore('projects').put(project);
+    const prev = projects.find((p) => p.id === project.id);
+    const next = prev && !isMeaningfulProjectChange(prev, project) ? project : { ...project, lastMeaningfulActivityAt: new Date().toISOString() };
+    tx.objectStore('projects').put(next);
     tx.oncomplete = () => loadProjects(db);
     tx.onerror = () => setDbError('Не удалось сохранить изменения.');
   };
@@ -1343,7 +1355,7 @@ export default function TattoDiary() {
       }
     } else {
       const newProjectId = crypto.randomUUID();
-      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), sessions: [], ...data });
+      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], ...data });
       // Проект создан из ContentLinkPickerSheet «Сохранить в…».
       if (pendingContentLinkRef.current) {
         if (pendingContentLinkRef.current.target === 'project') {
@@ -1493,6 +1505,7 @@ export default function TattoDiary() {
           inspirationSources: '',
           photos: [],
           createdDate: new Date().toISOString(),
+          lastMeaningfulActivityAt: new Date().toISOString(),
           sessions: [],
         });
         existingProjectIds.add(bucketId);
@@ -1784,6 +1797,10 @@ export default function TattoDiary() {
   );
   // Проекты с просроченным «следующим шагом» (Этап 3b) — в те же напоминания.
   const visibleDueProjects = filterVisibleReminders(overdueProjects(projects, remindersNow), projectReminderKey, reminderState, remindersNow);
+  // Активные проекты без значимого движения дольше порога (M4) — мягкое
+  // напоминание «застыл», отдельное от visibleDueProjects (там — конкретный
+  // просроченный next step, здесь — просто долгое отсутствие движения).
+  const visibleStaleProjects = filterVisibleReminders(staleProjects(projects, clients, remindersNow), staleProjectReminderKey, reminderState, remindersNow);
   // Task-напоминания (ClientNote.dueDate) — поверх того же engine, оба
   // источника задач (client.notes + masterInfo.notes), не объединяя их.
   // Свой фильтр видимости: скрытие ключуется по reminder.id (с rule),
@@ -2511,6 +2528,7 @@ export default function TattoDiary() {
             overdueProjectSessions={visibleOverdueProjectSessions}
             soonProjectSessions={visibleSoonProjectSessions}
             dueProjects={visibleDueProjects}
+            staleProjects={visibleStaleProjects}
             tasks={visibleTaskReminders}
             onOpenProject={(project) => setViewProject(project)}
             onOpenEntry={openEntryForEdit}

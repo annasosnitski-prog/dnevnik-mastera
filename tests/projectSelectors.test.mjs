@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildProjectFolders, getConsultationSequence, getConsultationNumber } from '../.test-dist/src/domain/projectSelectors.js';
+import {
+  buildProjectFolders,
+  getConsultationSequence,
+  getConsultationNumber,
+  getProjectLastActivityDate,
+} from '../.test-dist/src/domain/projectSelectors.js';
 
 function makeProject(overrides = {}) {
   return {
@@ -26,6 +31,30 @@ function makeProject(overrides = {}) {
     photos: [],
     createdDate: '2026-01-01',
     sessions: [],
+    lastMeaningfulActivityAt: '2026-01-01',
+    ...overrides,
+  };
+}
+
+function makeSession(overrides = {}) {
+  return {
+    id: 'session-1',
+    name: '',
+    date: '2026-01-01',
+    time: '',
+    duration: '',
+    style: '',
+    area: '',
+    colors: '',
+    needles: '',
+    skinReaction: '',
+    note: '',
+    photos: [],
+    done: false,
+    healed: false,
+    cancelled: false,
+    projectId: null,
+    sourceConsultationId: null,
     ...overrides,
   };
 }
@@ -272,4 +301,71 @@ test('getConsultationNumber keeps later numbers stable after an earlier consulta
   // c1 удалена (milestone п. 11 — не должна каскадно удалять остальные) —
   // оставшиеся просто пересчитываются по своей новой позиции, без «дыр».
   assert.equal(getConsultationNumber([c2, c3], c3), 2);
+});
+
+// ── getProjectLastActivityDate (M4) ───────────────────────────────────────
+// «Последняя реальная активность» — производная величина: createdDate/
+// lastMeaningfulActivityAt (стор) + выполненные сессии + история консультаций
+// проекта, максимум по датам (границы дня).
+
+test('getProjectLastActivityDate falls back to createdDate with no other signal', () => {
+  const p = makeProject({ createdDate: '2026-01-05', lastMeaningfulActivityAt: '2026-01-05' });
+  assert.equal(getProjectLastActivityDate(p, [], []), '2026-01-05');
+});
+
+test('getProjectLastActivityDate picks up a later stored lastMeaningfulActivityAt', () => {
+  const p = makeProject({ createdDate: '2026-01-05', lastMeaningfulActivityAt: '2026-02-10' });
+  assert.equal(getProjectLastActivityDate(p, [], []), '2026-02-10');
+});
+
+test('getProjectLastActivityDate counts a done session linked to the project', () => {
+  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+  const session = makeSession({ projectId: 'p1', date: '2026-03-01', done: true });
+  assert.equal(getProjectLastActivityDate(p, [session], []), '2026-03-01');
+});
+
+test('getProjectLastActivityDate ignores a not-done session (only scheduled, no real event yet)', () => {
+  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+  const session = makeSession({ projectId: 'p1', date: '2026-06-01', done: false });
+  assert.equal(getProjectLastActivityDate(p, [session], []), '2026-01-01');
+});
+
+test('getProjectLastActivityDate ignores a done session linked to a different project', () => {
+  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+  const session = makeSession({ projectId: 'other-project', date: '2026-06-01', done: true });
+  assert.equal(getProjectLastActivityDate(p, [session], []), '2026-01-01');
+});
+
+test('getProjectLastActivityDate counts the latest consultation history entry for the project', () => {
+  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+  const consultation = makeConsultation({
+    id: 'c1',
+    projectId: 'p1',
+    history: [
+      { id: 'h1', date: '2026-01-10T10:00:00.000Z', note: 'создана' },
+      { id: 'h2', date: '2026-04-20T10:00:00.000Z', note: 'переведена в сессию' },
+    ],
+  });
+  assert.equal(getProjectLastActivityDate(p, [], [consultation]), '2026-04-20');
+});
+
+test('getProjectLastActivityDate ignores history from a consultation of a different project', () => {
+  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+  const consultation = makeConsultation({
+    id: 'c1',
+    projectId: 'other-project',
+    history: [{ id: 'h1', date: '2026-05-01T10:00:00.000Z', note: 'создана' }],
+  });
+  assert.equal(getProjectLastActivityDate(p, [], [consultation]), '2026-01-01');
+});
+
+test('getProjectLastActivityDate takes the max across every signal at once', () => {
+  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-02-01' });
+  const session = makeSession({ projectId: 'p1', date: '2026-03-15', done: true });
+  const consultation = makeConsultation({
+    id: 'c1',
+    projectId: 'p1',
+    history: [{ id: 'h1', date: '2026-05-05T00:00:00.000Z', note: 'создана' }],
+  });
+  assert.equal(getProjectLastActivityDate(p, [session], [consultation]), '2026-05-05');
 });

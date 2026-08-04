@@ -201,5 +201,9 @@ export function normalizeProject(raw: any, index: number): Project {
     photos: Array.isArray(raw?.photos) ? raw.photos : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
     sessions: Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [],
+    // Легаси-проекты (до M4) не знают об этом поле — createdDate как разумная
+    // отправная точка «последнего движения», а не «проект застыл ещё до
+    // выхода фичи» (см. isMeaningfulProjectChange в domain/project.ts).
+    lastMeaningfulActivityAt: raw?.lastMeaningfulActivityAt ?? raw?.createdDate ?? new Date().toISOString(),
   };
 }

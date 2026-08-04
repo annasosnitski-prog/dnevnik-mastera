@@ -8,6 +8,7 @@ import {
   soonProjectSessionReminderKey,
   healingReminderKey,
   healingReminderKeysForSession,
+  staleProjectReminderKey,
 } from '../.test-dist/src/reminders/reminderKeys.js';
 import { HEALING_STAGES } from '../.test-dist/src/reminders/buildReminders.js';
 
@@ -71,4 +72,16 @@ test('healingReminderKeysForSession is scoped to the given session only', () => 
   const a = healingReminderKeysForSession('session-a');
   const b = healingReminderKeysForSession('session-b');
   assert.equal(a.filter((k) => b.includes(k)).length, 0);
+});
+
+test('staleProjectReminderKey carries lastActivityDate, so fresh activity produces a different key', () => {
+  const before = staleProjectReminderKey({ project, lastActivityDate: '2026-01-01', daysSince: 21 });
+  const after = staleProjectReminderKey({ project, lastActivityDate: '2026-02-15', daysSince: 3 });
+  assert.notEqual(before, after);
+});
+
+test('staleProjectReminderKey is stable for the same project and lastActivityDate', () => {
+  const a = staleProjectReminderKey({ project, lastActivityDate: '2026-01-01', daysSince: 21 });
+  const b = staleProjectReminderKey({ project, lastActivityDate: '2026-01-01', daysSince: 40 });
+  assert.equal(a, b);
 });

@@ -10,6 +10,7 @@ import type { Project } from './project';
 import type { Session } from './session';
 import type { Consultation } from './consultation';
 import type { Client } from './client';
+import { ISO_DATE_RE } from '../utils/dates.js';
 
 // Проект по id. Возвращает null (а не undefined), чтобы вызывающий код
 // одинаково работал и через `if (!p)`, и через `?? fallback` — оба
@@ -74,6 +75,47 @@ export function getConsultationNumber(consultations: Consultation[], consultatio
   const sequence = getConsultationSequence(consultations, consultation.projectId);
   const index = sequence.findIndex((c) => c.id === consultation.id);
   return index === -1 ? null : index + 1;
+}
+
+// ===================== АКТИВНОСТЬ ПРОЕКТА (M4) =====================
+// «Последняя реальная активность» проекта — производная величина, а не
+// только сохранённое Project.lastMeaningfulActivityAt (который бампается
+// лишь при смене этапа/статуса/того-кто-должен-действовать/следующего шага,
+// см. isMeaningfulProjectChange в domain/project.ts). Сюда же примешиваются
+// сигналы, у которых УЖЕ есть собственная настоящая дата события — выполненная
+// сессия (session.date, когда done) и своя лента консультации
+// (ConsultationHistoryEntry.date) — без них проект с активной перепиской
+// консультаций, но без изменения next-step, ошибочно считался бы «застывшим».
+// Хранить эти сигналы отдельным полем не нужно и рискованно (легко забыть
+// пробросить бамп из ещё одного места saveClient) — они и так уже лежат в
+// самих сессиях/консультациях.
+//
+// Даты сравниваются только в границах дня (yyyy-mm-dd) — «застывание»
+// меряется целыми днями (как daysSince в buildReminders.ts), секунды внутри
+// суток для этого решения не важны.
+function toDateOnly(iso: string): string {
+  return iso.length >= 10 ? iso.slice(0, 10) : iso;
+}
+
+export function getProjectLastActivityDate(project: Project, sessions: Session[], consultations: Consultation[]): string {
+  let latest = toDateOnly(project.createdDate);
+  const consider = (iso: string | null | undefined) => {
+    if (!iso) return;
+    const d = toDateOnly(iso);
+    if (d > latest) latest = d;
+  };
+  consider(project.lastMeaningfulActivityAt);
+  // project.sessions покрывает «сессии без клиента» (Мастерская) — сессии
+  // клиентских проектов лежат в client.sessions, поэтому sessions сюда
+  // приходит объединённым списком по всем клиентам (см. вызывающий код).
+  for (const session of sessions) {
+    if (session.projectId === project.id && session.done && ISO_DATE_RE.test(session.date)) consider(session.date);
+  }
+  for (const consultation of consultations) {
+    if (consultation.projectId !== project.id) continue;
+    for (const entry of consultation.history) consider(entry.date);
+  }
+  return latest;
 }
 
 // ===================== ПАПКИ ПРОЕКТОВ (view-model) =====================

@@ -10,8 +10,9 @@
 
 import type { Client } from '../domain/client';
 import type { Project } from '../domain/project';
+import { getProjectLastActivityDate } from '../domain/projectSelectors.js';
 import { ISO_DATE_RE, isValidISODate } from '../utils/dates.js';
-import type { OverdueItem, HealingItem, HealingStage, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
+import type { OverdueItem, HealingItem, HealingStage, UpcomingSoonItem, ProjectSessionReminderItem, StaleProjectItem } from './types';
 
 // Заживление проверяется в четыре захода вместо одной точки на 30-й день —
 // у каждой стадии своё окно (minDays включительно, maxDays исключительно).
@@ -152,4 +153,35 @@ export function overdueProjects(projects: Project[], now: Date): Project[] {
   return projects
     .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today && p.nextActionText.trim() !== '')
     .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
+}
+
+// Порог «застывания» (M4) — по умолчанию 21 день без значимой активности
+// (см. isMeaningfulProjectChange/getProjectLastActivityDate). Число выбрано
+// как компромисс без явного продуктового решения мастера на момент
+// реализации — единственная константа, которую стоит поменять, если порог
+// окажется слишком частым/редким на практике.
+export const STALE_PROJECT_THRESHOLD_DAYS = 21;
+
+// Активные, не завершённые проекты, у которых не было значимого движения
+// (см. getProjectLastActivityDate в projectSelectors.ts) дольше
+// STALE_PROJECT_THRESHOLD_DAYS дней — «мягкое» напоминание «проект давно не
+// двигался», а не срочное действие (в отличие от overdueProjects, у которого
+// есть конкретный просроченный next step). paused/cancelled/archived
+// намеренно исключены — их «неподвижность» осознанная, не застой; stage
+// 'completed' исключён — работа закончена, двигаться больше нечему.
+// Сортировка — от самого давнего к недавнему (сначала то, что застыло
+// сильнее всего).
+export function staleProjects(projects: Project[], clients: Client[], now: Date): StaleProjectItem[] {
+  const allSessions = [...clients.flatMap((c) => c.sessions), ...projects.flatMap((p) => p.sessions)];
+  const allConsultations = clients.flatMap((c) => c.consultations);
+  const result: StaleProjectItem[] = [];
+  for (const project of projects) {
+    if (project.state !== 'active' || project.stage === 'completed') continue;
+    const lastActivityDate = getProjectLastActivityDate(project, allSessions, allConsultations);
+    const since = daysSince(lastActivityDate, now);
+    if (since >= STALE_PROJECT_THRESHOLD_DAYS) {
+      result.push({ project, lastActivityDate, daysSince: since });
+    }
+  }
+  return result.sort((a, b) => a.lastActivityDate.localeCompare(b.lastActivityDate));
 }
