@@ -180,7 +180,6 @@ export function TimelineViewSheet({
             <ViewField label="Креатив" value={consultation.creative} />
             <ViewField label="Техника и стиль" value={consultation.style} />
             <ViewField label="Итог" value={consultation.outcome} />
-            <ViewField label="Next step" value={consultation.nextStep} />
             {urgency && <ViewField label="Срочность" value={`${urgency.emoji} ${urgency.label}`} />}
             {consultation.status === 'converted' ? (
               <div
