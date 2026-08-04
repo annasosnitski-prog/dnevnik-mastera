@@ -124,11 +124,10 @@
   font-size: 42px;
 }
 
-/* Approved reference icon mapping:
-   wrench = Личный кабинет; paired silhouettes = Клиенты;
+/* Approved icon mapping:
+   closed padlock = Личный кабинет; paired silhouettes = Клиенты;
    four-point spark = POSTiNKA; document = Заметки;
-   tattoo machine replaces the reference brush = Проекты;
-   single silhouette = Админка; plus = Создать. */
+   tattoo machine = Проекты; door key = Админка; plus = Создать. */
 .nav-fab--minimal .nav-fab__item--minimal::before {
   content: '';
   position: absolute;
@@ -153,7 +152,8 @@
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет']::before,
-.nav-fab--minimal .nav-fab__item--minimal[aria-label='Проекты']::before {
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Проекты']::before,
+.nav-fab--minimal .nav-fab__item--minimal[aria-label='Админка']::before {
   width: 39px;
   height: 39px;
 }
@@ -164,7 +164,7 @@
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M28.7,7.6A8,8,0,0,1,18.5,17.3L8.4,27.4a4,4,0,1,1-5.7-5.7L12.8,11.6A8,8,0,0,1,22.5,1.4L17.9,6l1,4.1,4.1,1Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M8,14V10a8,8,0,0,1,16,0v4h3v16H5V14Zm4,0h8V10a4,4,0,0,0-8,0Zm4,5a2.4,2.4,0,0,1,1.5,4.3L19,27H13l1.5-3.7A2.4,2.4,0,0,1,16,19Z'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Клиенты'] {
@@ -184,7 +184,7 @@
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Админка'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Ccircle%20cx='16'%20cy='10'%20r='5.5'%20fill='black'/%3E%3Cpath%20fill='black'%20d='M5,29c.6-7.6,4.2-11.4,11-11.4S26.4,21.4,27,29Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M10,7a8,8,0,1,0,0,16,8,8,0,0,0,0-16Zm0,4a4,4,0,1,0,0,8,4,4,0,0,0,0-8ZM16,14H30v5H27v4H23V19H16Z'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Создать'] {
