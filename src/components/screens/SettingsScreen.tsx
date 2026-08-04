@@ -60,6 +60,8 @@ function SettingSlider({
 export function SettingsScreen({
   theme,
   onToggleTheme,
+  minimalism,
+  onChangeMinimalism,
   prefs,
   onChange,
   onBack,
@@ -72,6 +74,10 @@ export function SettingsScreen({
 }: {
   theme: Theme;
   onToggleTheme: () => void;
+  // Независим от темы (см. ui/minimalism.ts) — убирает декоративные камни/
+  // подвески/лучи у NavFab и вкладок клиента поверх текущей тёмной/светлой темы.
+  minimalism: boolean;
+  onChangeMinimalism: (v: boolean) => void;
   prefs: Prefs;
   onChange: (p: Prefs) => void;
   onBack: () => void;
@@ -232,6 +238,42 @@ export function SettingsScreen({
                 }}
               >
                 {t === 'dark' ? 'Тёмная' : 'Светлая'}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Minimalism — independent of theme; keeps whichever theme is active,
+            just strips the decorative gems/pendants/rays down to a plain
+            functional layer (NavFab + client tabs). */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Минимализм</div>
+          <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic', marginBottom: 10 }}>
+            Убрать камни, бабочек и декоративные эффекты
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {([
+              { v: true, label: 'Включён' },
+              { v: false, label: 'Выключен' },
+            ] as { v: boolean; label: string }[]).map((o) => (
+              <div
+                key={String(o.v)}
+                onClick={() => onChangeMinimalism(o.v)}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px 0',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  fontSize: fs(13),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  border: minimalism === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: minimalism === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+                  color: minimalism === o.v ? COLORS.gold : COLORS.textFaint,
+                }}
+              >
+                {o.label}
               </div>
             ))}
           </div>

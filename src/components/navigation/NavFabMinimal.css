@@ -1,0 +1,51 @@
+/* Минимализм — the functional layer's plain visual variant (see
+   NavFab.tsx's `minimalism` branch). No gems, no rays, no brushed-gold
+   chrome, no ornamental pseudo-elements (those stay opt-out via
+   `:not(.nav-fab--minimal)` guards added to NavFabReveal.css) — just a
+   round disc per button, styled from the same theme tokens every other
+   card/panel in the app already uses, so it re-skins for dark/light
+   automatically without a third colour theme of its own.
+
+   Layout (size, position, transform, press-scale) still comes from the
+   shared .nav-fab__main/.nav-fab__item rules in index.css — this file only
+   adds the disc's own chrome (background/border/shadow) plus the minimal-
+   only active-ring and hub-grow behaviour. */
+
+.nav-fab__main--minimal,
+.nav-fab__item--minimal {
+  background: rgba(var(--surface-rgb), 0.07);
+  border: 1px solid rgba(var(--gold-rgb), 0.28);
+  box-shadow: var(--card-rest-shadow);
+  color: var(--toolbar-icon);
+}
+
+.nav-fab__main--minimal {
+  /* Sized ~54px closed, per PR #115 — overrides the shared 62px
+     .nav-fab__main rule (see the inline style in NavFab.tsx). */
+  color: var(--toolbar-icon-active);
+  border-color: rgba(var(--gold-rgb), 0.5);
+}
+
+/* The current destination keeps its own brand colour (see NAV_ITEMS) as a
+   thin ring + soft halo instead of the gem's glow filter; every other item
+   just dims via the existing .nav-fab__item--dim rule (index.css). */
+.nav-fab__item--minimal:not(.nav-fab__item--dim):not(.nav-fab__item--minimal-create) {
+  color: var(--item-color, var(--gold));
+  border-color: var(--item-color, var(--gold));
+  box-shadow: 0 0 0 1.5px var(--item-color, var(--gold)), 0 0 14px -4px var(--item-color, var(--gold));
+}
+
+/* «Создать» reads as an action, not a destination — a solid accent disc,
+   same idea as the gold-plate pendant it replaces. */
+.nav-fab__item--minimal-create {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--bg);
+}
+
+/* Grows by two-thirds while the fan is open, exactly like PR #115's hub —
+   it reads as "in charge" of the ring around it. 54px scaled by 5/3 (90px)
+   stays comfortably inside the closest fan item's own radius. */
+.nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
+  --nav-scale: 1.667;
+}

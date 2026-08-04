@@ -20,7 +20,7 @@
 /* Seven ornamental rays sit exactly halfway between the seven functional
    toolbar rays. Their terminals remain farther from the hub than every
    functional button and never intercept touch. */
-.nav-fab.nav-fab--open::before {
+.nav-fab.nav-fab--open:not(.nav-fab--minimal)::before {
   content: "";
   position: absolute;
   left: 50%;
@@ -41,7 +41,7 @@
 /* Uneven gold nodes sit directly on the seven functional rays. Their amount,
    spacing, size and brightness vary by ray, but remain deterministic so the
    composition never jumps between renders. */
-.nav-fab.nav-fab--open::after {
+.nav-fab.nav-fab--open:not(.nav-fab--minimal)::after {
   content: "";
   position: absolute;
   left: 50%;

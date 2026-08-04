@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { PendantIcon } from "./PendantIcon";
+import { ToolbarIcon } from "./ToolbarIcons";
+import { useMinimalism } from "../ui/minimalism";
 import "./NavFabReveal.css";
+import "./NavFabMinimal.css";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
 type NavItemId = "clients" | "gear" | "content" | "brush" | "sketchbook" | "profile";
@@ -73,6 +76,16 @@ const HUB_RIM = HUB_HALF * DISC_EDGE_RATIO;
 const ITEM_RIM = ITEM_HALF * DISC_EDGE_RATIO;
 const FAN_RADIUS = 158;
 const INNER_POLYGON_RADIUS = 92;
+
+// Минимализм — visuals only (see functional layer above, unchanged: same
+// NAV_ITEMS, fanEntries, positions, routes, handlers, hit-areas). Sourced
+// from PR #115 (commit 5b45cae7506551b1c606cfa46d8d5762771cfaef): a round
+// ~54px hub carrying the $ glyph, growing while the fan is open. Item icon
+// size keeps roughly the same icon-fills-most-of-the-button ratio as the
+// gem/pendant rendering, just without the gold plate around it.
+const MINIMAL_HUB_SIZE = 54;
+const MINIMAL_HUB_ICON_SIZE = 24;
+const MINIMAL_ITEM_ICON_SIZE = 26;
 
 type FanEntry =
   | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
@@ -158,7 +171,30 @@ function GemGlyph({ id }: { id: NavItemId }): ReactNode {
   }
 }
 
+// Minimalism's plain line icon for a fan destination — same GemGlyph paths
+// as the gem/pendant rendering (no separate icon set to keep in sync), just
+// drawn on their own small canvas instead of centred inside PendantIcon's
+// 64×64 stone, with stroke colour left to the caller via currentColor.
+function MinimalGlyph({ id, size }: { id: NavItemId; size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="-16 -16 32 32"
+      stroke="currentColor"
+      aria-hidden="true"
+      // The global `svg { color: var(--gold) }` default (index.css) would
+      // otherwise win over the button's own colour (muted vs the item's
+      // brand colour) — `inherit` opts this one back into the cascade.
+      style={{ display: "block", color: "inherit" }}
+    >
+      <GemGlyph id={id} />
+    </svg>
+  );
+}
+
 export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProps) {
+  const minimalism = useMinimalism();
   const [open, setOpen] = useState(false);
   const [pressedId, setPressedId] = useState<string | null>(null);
   const releasePress = (id: string) => setPressedId((current) => (current === id ? null : current));
@@ -199,16 +235,20 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
   }));
   const rayExtent = 214;
   const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
-  const mainClasses = ["nav-fab__main", "nav-fab__main--gold"];
+  const mainClasses = ["nav-fab__main", minimalism ? "nav-fab__main--minimal" : "nav-fab__main--gold"];
 
   if (pressedId === "hub") mainClasses.push("nav-fab__main--pressed");
+
+  const containerClasses = ["nav-fab"];
+  if (open) containerClasses.push("nav-fab--open");
+  if (minimalism) containerClasses.push("nav-fab--minimal");
 
   return (
     <>
       {open && <div className="nav-fab__scrim" onClick={() => setOpen(false)} aria-hidden="true" />}
 
-      <div className={open ? "nav-fab nav-fab--open" : "nav-fab"}>
-        {open && (
+      <div className={containerClasses.join(" ")}>
+        {open && !minimalism && (
           <svg
             className="nav-fab__rays"
             aria-hidden="true"
@@ -337,9 +377,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             const { dx, dy } = positions[index];
             const id = entry.kind === "create" ? entry.id : entry.item.id;
             const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
-            const classes = ["nav-fab__item", "nav-fab__item--ice"];
+            const classes = ["nav-fab__item", minimalism ? "nav-fab__item--minimal" : "nav-fab__item--ice"];
 
-            if (entry.kind === "create") classes.push("nav-fab__item--create");
+            if (entry.kind === "create") classes.push(minimalism ? "nav-fab__item--minimal-create" : "nav-fab__item--create");
             if (pressedId === id) classes.push("nav-fab__item--pressed");
 
             if (entry.kind === "create") {
@@ -364,15 +404,24 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                     setOpen(false);
                   }}
                 >
-                  <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
-                    <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
-                    <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
-                  </PendantIcon>
+                  {minimalism ? (
+                    <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ color: "inherit" }}>
+                      <line x1="10" y1="3" x2="10" y2="17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                      <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
+                      <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
+                      <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
+                    </PendantIcon>
+                  )}
                 </button>
               );
             }
 
             const { item } = entry;
+            const isCurrentItem = item === current;
+            if (minimalism && !isCurrentItem) classes.push("nav-fab__item--dim");
             return (
               <button
                 key={item.id}
@@ -383,6 +432,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   ["--dy" as string]: `${dy}px`,
                   ["--travel-duration" as string]: `${durationMs}ms`,
                   ["--travel-delay" as string]: `${120 + index * 65}ms`,
+                  ...(minimalism && isCurrentItem ? { ["--item-color" as string]: item.color, color: item.color } : {}),
                 }}
                 aria-label={item.label}
                 onPointerDown={() => setPressedId(item.id)}
@@ -394,17 +444,21 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   setOpen(false);
                 }}
               >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    display: "block",
-                    filter: `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
-                  }}
-                >
-                  <PendantIcon color={item.color} size={ITEM_SIZE}>
-                    <GemGlyph id={item.id as NavItemId} />
-                  </PendantIcon>
-                </span>
+                {minimalism ? (
+                  <MinimalGlyph id={item.id as NavItemId} size={MINIMAL_ITEM_ICON_SIZE} />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: "block",
+                      filter: `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
+                    }}
+                  >
+                    <PendantIcon color={item.color} size={ITEM_SIZE}>
+                      <GemGlyph id={item.id as NavItemId} />
+                    </PendantIcon>
+                  </span>
+                )}
                 {item.screen === "admin" &&
                   adminBadges?.map((kind, badgeIndex) => (
                     <span
@@ -424,6 +478,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         <button
           type="button"
           className={mainClasses.join(" ")}
+          style={minimalism ? { width: MINIMAL_HUB_SIZE, height: MINIMAL_HUB_SIZE } : undefined}
           aria-label={open ? "Закрыть меню" : "Открыть меню"}
           aria-expanded={open}
           onPointerDown={() => setPressedId("hub")}
@@ -432,7 +487,11 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           onPointerLeave={() => releasePress("hub")}
           onClick={() => setOpen((value) => !value)}
         >
-          <PendantIcon color="#C9922E" size={HUB_SIZE} plate />
+          {minimalism ? (
+            <ToolbarIcon name="tasks" size={MINIMAL_HUB_ICON_SIZE} aria-hidden="true" style={{ color: "inherit" }} />
+          ) : (
+            <PendantIcon color="#C9922E" size={HUB_SIZE} plate />
+          )}
           {mainBadgeKind && (
             <span
               className="nav-fab__badge"

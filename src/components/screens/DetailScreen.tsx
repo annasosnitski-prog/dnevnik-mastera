@@ -33,8 +33,10 @@ import {
   shareOrDownloadJSON,
 } from '../TattoDiary';
 import { SessionPhotos, SkinTonePalette, UrgencyChips } from '../client/ClientControls';
+import { ClientTabIcon } from '../client/ClientTabIcons';
 import { GoldFrame } from '../ui/Stripes';
 import { MetaLabel, MetaValue, SectionDivider, SectionHeader } from '../ui/TextAtoms';
+import { useMinimalism } from '../ui/minimalism';
 
 // Вынесено из TattoDiary.tsx (PR 11 рефакторинга) — весь кластер «карточка
 // клиента»: экран DetailScreen + его вкладки (Инфо/Сессии/Консультации/
@@ -157,6 +159,17 @@ const CLIENT_TAB_GEM_INDEX = {
   info: 4,
 } as const;
 type ClientTabGem = keyof typeof CLIENT_TAB_GEM_INDEX;
+// Same «toolbar palette» each tab's gem stone is already cut from (see
+// gem-icons.svg's own <desc>) — reused as the minimalist icon's active
+// colour so switching Минимализм on/off never changes which colour means
+// which tab.
+const CLIENT_TAB_COLOR: Record<ClientTabGem, string> = {
+  sessions: '#5CFF24',
+  consultations: '#00CFFF',
+  content: '#C12FFF',
+  notes: '#FF8900',
+  info: '#FF3342',
+};
 
 export function DetailScreen({
   client,
@@ -224,6 +237,7 @@ export function DetailScreen({
   onOpenProject: (project: Project) => void;
   onCreateProject: () => void;
 }) {
+  const minimalism = useMinimalism();
   const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
     flex: 1,
     minWidth: 0,
@@ -271,28 +285,58 @@ export function DetailScreen({
     </span>
   );
 
-  const gemMarker = (kind: ClientTabGem, tab: typeof activeTab) => (
-    <>
-      {gemLink}
-      <span
-        aria-hidden="true"
-        className={activeTab === tab ? 'pendant-swing' : undefined}
-        style={{
-          display: 'block',
-          width: CLIENT_TAB_GEM_SIZE,
-          height: CLIENT_TAB_GEM_SIZE,
-          flexShrink: 0,
-          backgroundImage: 'url(/gem-icons.svg)',
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: `${CLIENT_TAB_GEM_SIZE * 5}px ${CLIENT_TAB_GEM_SIZE}px`,
-          backgroundPosition: `${-CLIENT_TAB_GEM_INDEX[kind] * CLIENT_TAB_GEM_SIZE}px 0`,
-          opacity: activeTab === tab ? 1 : 0.62,
-          filter: activeTab === tab ? 'none' : 'saturate(0.72) brightness(0.82)',
-          transition: 'opacity 0.25s, filter 0.25s',
-        }}
-      />
-    </>
-  );
+  // Минимализм swaps the gem sprite + chain for a plain circle carrying a
+  // linear icon from ClientTabIcons — same tab logic/order, just a different
+  // functional-layer skin (see NavFab's own minimal branch for the same idea
+  // applied to the nav hub).
+  const gemMarker = (kind: ClientTabGem, tab: typeof activeTab) => {
+    if (minimalism) {
+      const isActive = activeTab === tab;
+      return (
+        <span
+          aria-hidden="true"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: CLIENT_TAB_GEM_SIZE,
+            height: CLIENT_TAB_GEM_SIZE,
+            flexShrink: 0,
+            borderRadius: '50%',
+            background: 'rgba(var(--surface-rgb),0.07)',
+            border: `1px solid ${isActive ? CLIENT_TAB_COLOR[kind] : 'rgba(var(--gold-rgb),0.2)'}`,
+            boxShadow: isActive ? `0 0 0 1.5px ${CLIENT_TAB_COLOR[kind]}, 0 0 14px -4px ${CLIENT_TAB_COLOR[kind]}` : undefined,
+            color: isActive ? CLIENT_TAB_COLOR[kind] : 'var(--toolbar-icon)',
+            transition: 'color 0.25s, border-color 0.25s, box-shadow 0.25s',
+          }}
+        >
+          <ClientTabIcon name={kind} size={26} />
+        </span>
+      );
+    }
+    return (
+      <>
+        {gemLink}
+        <span
+          aria-hidden="true"
+          className={activeTab === tab ? 'pendant-swing' : undefined}
+          style={{
+            display: 'block',
+            width: CLIENT_TAB_GEM_SIZE,
+            height: CLIENT_TAB_GEM_SIZE,
+            flexShrink: 0,
+            backgroundImage: 'url(/gem-icons.svg)',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: `${CLIENT_TAB_GEM_SIZE * 5}px ${CLIENT_TAB_GEM_SIZE}px`,
+            backgroundPosition: `${-CLIENT_TAB_GEM_INDEX[kind] * CLIENT_TAB_GEM_SIZE}px 0`,
+            opacity: activeTab === tab ? 1 : 0.62,
+            filter: activeTab === tab ? 'none' : 'saturate(0.72) brightness(0.82)',
+            transition: 'opacity 0.25s, filter 0.25s',
+          }}
+        />
+      </>
+    );
+  };
 
   // The tab-content scroller is a single reused DOM node across every client
   // and every tab, so its scrollTop otherwise carries over — opening a new

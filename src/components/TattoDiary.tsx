@@ -232,6 +232,7 @@ import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
 import { DASHBOARD_WINDOW_OPTIONS, DEFAULT_PREFS, type Prefs } from './ui/preferences';
 export { DEFAULT_PREFS, type Prefs } from './ui/preferences';
+import { readInitialMinimalism, applyMinimalism } from './ui/minimalism';
 
 export const DURATIONS = ['2 ч', '3 ч', '4 ч', '5 ч', '6 ч', '7 ч', '8 ч'];
 // Full palette of tattoo style directions (Russian tattoo-slang naming). Only
@@ -524,6 +525,15 @@ export default function TattoDiary() {
   }, [theme]);
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+
+  // Минимализм — independent of theme (see ui/minimalism.ts): strips
+  // decorative gems/pendants/rays down to a plain functional layer, on top
+  // of whichever theme (dark/light) is active.
+  const [minimalism, setMinimalism] = useState<boolean>(readInitialMinimalism);
+
+  useEffect(() => {
+    applyMinimalism(minimalism);
+  }, [minimalism]);
 
   // Display preferences (brightness / text size / text tone).
   const [prefs, setPrefs] = useState<Prefs>(readInitialPrefs);
@@ -2485,6 +2495,8 @@ export default function TattoDiary() {
           <SettingsScreen
             theme={theme}
             onToggleTheme={toggleTheme}
+            minimalism={minimalism}
+            onChangeMinimalism={setMinimalism}
             prefs={prefs}
             onChange={setPrefs}
             onBack={() => setScreen('master')}
