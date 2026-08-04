@@ -123,8 +123,11 @@
   font-size: 42px;
 }
 
-/* Filled pictograms copied from the approved reference language.
-   The reference brush is intentionally replaced by a tattoo machine. */
+/* Approved reference icon mapping:
+   wrench = Личный кабинет; paired silhouettes = Клиенты;
+   four-point spark = POSTiNKA; document = Заметки;
+   tattoo machine replaces the reference brush = Проекты;
+   single silhouette = Админка; plus = Создать. */
 .nav-fab--minimal .nav-fab__item--minimal::before {
   content: '';
   position: absolute;
@@ -159,32 +162,26 @@
   height: 56px;
 }
 
-/* Reference wrench: Личный кабинет. */
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет'] {
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M28.7,7.6A8,8,0,0,1,18.5,17.3L8.4,27.4a4,4,0,1,1-5.7-5.7L12.8,11.6A8,8,0,0,1,22.5,1.4L17.9,6l1,4.1,4.1,1Z'/%3E%3C/svg%3E");
 }
 
-/* Reference paired silhouettes: Клиенты. */
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Клиенты'] {
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Ccircle%20cx='10'%20cy='10'%20r='4.5'%20fill='black'/%3E%3Ccircle%20cx='22'%20cy='10'%20r='4.5'%20fill='black'/%3E%3Cpath%20fill='black'%20d='M2.5,27c.5-6.3,3-9.5,7.5-9.5s7,3.2,7.5,9.5ZM14.5,27c.5-6.3,3-9.5,7.5-9.5s7,3.2,7.5,9.5Z'/%3E%3C/svg%3E");
 }
 
-/* Reference four-point spark: POSTiNKA. */
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='POSTiNKA'] {
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M16,2c1.6,7.6,6.4,12.4,14,14-7.6,1.6-12.4,6.4-14,14-1.6-7.6-6.4-12.4-14-14C9.6,14.4,14.4,9.6,16,2Z'/%3E%3C/svg%3E");
 }
 
-/* Reference document with three cut lines: Заметки. */
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Заметки'] {
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M7,3H25V29H7ZM11,9H21V11H11ZM11,15H21V17H11ZM11,21H21V23H11Z'/%3E%3C/svg%3E");
 }
 
-/* Tattoo machine replaces the reference brush: Проекты / Мастерская. */
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Проекты'] {
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20transform='rotate(45,16,16)'%20fill='black'%3E%3Cpath%20d='M4,3h24v5h-3v12h-4V8H11v12H7V8H4Z'/%3E%3Ccircle%20cx='22'%20cy='5.5'%20r='4'/%3E%3Crect%20x='8'%20y='9'%20width='7'%20height='10'%20rx='2'/%3E%3Crect%20x='17'%20y='9'%20width='7'%20height='10'%20rx='2'/%3E%3Crect%20x='12'%20y='17'%20width='8'%20height='10'%20rx='2.5'/%3E%3Cpath%20d='M15,25h2v5h-2ZM14.5,29h3L16,32Z'/%3E%3C/g%3E%3C/svg%3E");
 }
 
-/* Reference single silhouette: Админка. */
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Админка'] {
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Ccircle%20cx='16'%20cy='10'%20r='5.5'%20fill='black'/%3E%3Cpath%20fill='black'%20d='M5,29c.6-7.6,4.2-11.4,11-11.4S26.4,21.4,27,29Z'/%3E%3C/svg%3E");
 }
