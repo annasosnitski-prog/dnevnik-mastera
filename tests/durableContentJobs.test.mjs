@@ -6,7 +6,10 @@ import {
   canApplyRefreshResult,
   createCompletedContentEntry,
   CONTENT_INGEST_JOB_STORE,
+  ContentJobDbUnavailableError,
   TATTO_DIARY_DB_VERSION,
+  loadContentIngestJobs,
+  putContentIngestJob,
   startContentIngestJobCoordinator,
   wakeContentIngestJobCoordinator,
 } from '../.test-dist/src/lib/contentJobQueue.js';
@@ -184,6 +187,26 @@ test('idle content coordinator schedules no timer and wakes on demand', async ()
   assert.equal(loads, 5);
 });
 
+
+test('a closed IndexedDB connection surfaces as ContentJobDbUnavailableError, not a raw exception', async () => {
+  const closedDb = {
+    transaction() {
+      throw new Error('The database connection is closing.');
+    },
+  };
+  await assert.rejects(loadContentIngestJobs(closedDb), (error) => error instanceof ContentJobDbUnavailableError);
+  await assert.rejects(putContentIngestJob(closedDb, createRecord), (error) => error instanceof ContentJobDbUnavailableError);
+});
+
+test('the db-unavailable banner is mounted once at the shell root, not inside the list screen panel', () => {
+  const listScreenIndex = diary.indexOf("{/* ═══════════ LIST SCREEN ═══════════ */}");
+  const shellRoot = diary.slice(diary.indexOf('className="app-shell"'), listScreenIndex);
+  assert.match(shellRoot, /\{dbError && \(/);
+  assert.match(shellRoot, /Повторить/);
+  // Exactly one banner in the whole component — no leftover duplicate inside
+  // any per-screen panel (list, content, etc.) from before it was hoisted out.
+  assert.equal(diary.split('{dbError && (').length - 1, 1);
+});
 
 test('provider response bodies and backend failure details never reach the UI error', async () => {
   const settings = { enabled: true, endpoint: 'https://postinka.example', secret: 'secret' };

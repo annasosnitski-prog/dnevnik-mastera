@@ -24,6 +24,7 @@ import {
 } from '../lib/contentSync';
 import {
   CONTENT_INGEST_JOB_STORE,
+  ContentJobDbUnavailableError,
   TATTO_DIARY_DB_VERSION,
   deleteContentEntryAndRefreshJobs,
   deleteContentIngestJob,
@@ -888,15 +889,38 @@ export default function TattoDiary() {
     request.onerror = () => setDbError('Не удалось загрузить черновики контента.');
   };
 
+  // contentJobQueue's reads/writes throw ContentJobDbUnavailableError when
+  // the connection died mid-call (see openJobTx there) — react the same way
+  // openTx does for every other store: drop `db` so the (now shell-wide)
+  // banner's «Повторить» shows up, instead of a dead-end message that leaves
+  // `db` looking fine while every next attempt fails the same way.
+  const handleContentJobDbError = (err: unknown, failMessage: string): boolean => {
+    if (!(err instanceof ContentJobDbUnavailableError)) return false;
+    setDb(null);
+    setDbError(failMessage);
+    return true;
+  };
+
   const reloadContentIngestJobs = (database: IDBDatabase) => {
     loadContentIngestJobs(database)
       .then(setContentIngestJobs)
-      .catch(() => setDbError('Не удалось загрузить фоновые задачи POSTiNKA.'));
+      .catch((err) => {
+        if (!handleContentJobDbError(err, 'Хранилище недоступно — фоновые задачи не обновлены.')) {
+          setDbError('Не удалось загрузить фоновые задачи POSTiNKA.');
+        }
+      });
   };
 
   const saveContentIngestJob = async (record: ContentIngestJobRecord): Promise<void> => {
     if (!db) throw new ContentSyncError('Хранилище недоступно — задача не сохранена.');
-    await putContentIngestJob(db, record);
+    try {
+      await putContentIngestJob(db, record);
+    } catch (err) {
+      if (handleContentJobDbError(err, 'Хранилище недоступно — задача не сохранена.')) {
+        throw new ContentSyncError('Хранилище недоступно — задача не сохранена.');
+      }
+      throw err;
+    }
     reloadContentIngestJobs(db);
   };
 
@@ -911,7 +935,9 @@ export default function TattoDiary() {
       reloadContentIngestJobs(db);
     } catch (err) {
       console.error('Failed to delete content ingest job:', err);
-      setDbError('Не удалось удалить задачу POSTiNKA.');
+      if (!handleContentJobDbError(err, 'Хранилище недоступно — задача не удалена.')) {
+        setDbError('Не удалось удалить задачу POSTiNKA.');
+      }
     }
   };
 
@@ -1772,6 +1798,56 @@ export default function TattoDiary() {
         <AviationBackground />
       </div>
 
+      {/* Db-unavailable banner — lives at the shell root, above every
+          screen's sliding panel, instead of inside the list screen's own
+          panel. It used to only be reachable by navigating back to List, so
+          hitting it mid content-generation (composerText/photos, the exact
+          case memory pressure is most likely to close the connection under)
+          left no visible way to hit «Повторить» without losing that screen. */}
+      {dbError && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top) + 12px)',
+            left: 16,
+            right: 16,
+            padding: '10px 14px',
+            borderRadius: 3,
+            border: '1px solid rgba(138,48,64,0.5)',
+            background: 'rgba(138,48,64,0.12)',
+            display: 'flex',
+            gap: 10,
+            alignItems: 'flex-start',
+            zIndex: 50,
+          }}
+        >
+          <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
+          {!db && (
+            <button
+              onClick={connectDb}
+              style={{
+                background: 'none',
+                border: '1px solid rgba(201,153,153,0.5)',
+                borderRadius: 2,
+                padding: '2px 8px',
+                color: '#C99',
+                fontSize: fs(13),
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              Повторить
+            </button>
+          )}
+          <button
+            onClick={() => setDbError(null)}
+            style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ═══════════ LIST SCREEN ═══════════ */}
       <div
         style={{
@@ -2074,49 +2150,6 @@ export default function TattoDiary() {
             </div>
           </div>
         </div>
-
-        {/* Error banner */}
-        {dbError && (
-          <div
-            style={{
-              margin: '0 16px 12px',
-              padding: '10px 14px',
-              borderRadius: 3,
-              border: '1px solid rgba(138,48,64,0.5)',
-              background: 'rgba(138,48,64,0.12)',
-              display: 'flex',
-              gap: 10,
-              alignItems: 'flex-start',
-              position: 'relative',
-              zIndex: 10,
-            }}
-          >
-            <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
-            {!db && (
-              <button
-                onClick={connectDb}
-                style={{
-                  background: 'none',
-                  border: '1px solid rgba(201,153,153,0.5)',
-                  borderRadius: 2,
-                  padding: '2px 8px',
-                  color: '#C99',
-                  fontSize: fs(13),
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                }}
-              >
-                Повторить
-              </button>
-            )}
-            <button
-              onClick={() => setDbError(null)}
-              style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
 
         {/* Пересечение в Инка-календаре — янтарное предупреждение (не ошибка:
             запись сохранена, мастер сама решает, накладка это или намеренно). */}

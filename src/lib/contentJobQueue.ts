@@ -83,6 +83,30 @@ export function ensureContentIngestJobStore(db: IDBDatabase): void {
   }
 }
 
+// db.transaction() throws synchronously if the connection has already been
+// closed (the browser can close it under memory pressure — most likely
+// while this exact module is juggling large photo payloads through
+// contentIngestJobs). TattoDiary.tsx's own openTx catches this for every
+// other store and turns it into a recoverable «Хранилище недоступно» +
+// «Повторить»; these job-queue reads/writes used to skip that protection
+// entirely, so a connection drop here surfaced as an unrelated, dead-end
+// message instead of the same recoverable one.
+export class ContentJobDbUnavailableError extends Error {
+  constructor() {
+    super('Хранилище недоступно.');
+    this.name = 'ContentJobDbUnavailableError';
+  }
+}
+
+function openJobTx(db: IDBDatabase, storeNames: string | string[], mode: IDBTransactionMode): IDBTransaction {
+  try {
+    return db.transaction(storeNames, mode);
+  } catch (err) {
+    console.error('IndexedDB transaction failed to start:', err);
+    throw new ContentJobDbUnavailableError();
+  }
+}
+
 function transactionDone(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
@@ -93,7 +117,7 @@ function transactionDone(tx: IDBTransaction): Promise<void> {
 
 export function loadContentIngestJobs(db: IDBDatabase): Promise<ContentIngestJobRecord[]> {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readonly');
+    const tx = openJobTx(db, CONTENT_INGEST_JOB_STORE, 'readonly');
     const request = tx.objectStore(CONTENT_INGEST_JOB_STORE).getAll();
     request.onsuccess = () => {
       const records = (request.result || []) as ContentIngestJobRecord[];
@@ -105,7 +129,7 @@ export function loadContentIngestJobs(db: IDBDatabase): Promise<ContentIngestJob
 
 export function getContentIngestJobRecord(db: IDBDatabase, id: string): Promise<ContentIngestJobRecord | null> {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readonly');
+    const tx = openJobTx(db, CONTENT_INGEST_JOB_STORE, 'readonly');
     const request = tx.objectStore(CONTENT_INGEST_JOB_STORE).get(id);
     request.onsuccess = () => resolve((request.result as ContentIngestJobRecord | undefined) ?? null);
     request.onerror = () => reject(request.error ?? new Error('Failed to load content job'));
@@ -117,7 +141,7 @@ function getContentEntryState(
   id: string,
 ): Promise<{ status?: unknown } | null> {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(CONTENT_ENTRY_STORE, 'readonly');
+    const tx = openJobTx(db, CONTENT_ENTRY_STORE, 'readonly');
     const request = tx.objectStore(CONTENT_ENTRY_STORE).get(id);
     request.onsuccess = () => resolve((request.result as { status?: unknown } | undefined) ?? null);
     request.onerror = () => reject(request.error ?? new Error('Failed to load content entry'));
@@ -125,20 +149,20 @@ function getContentEntryState(
 }
 
 export async function putContentIngestJob(db: IDBDatabase, record: ContentIngestJobRecord): Promise<void> {
-  const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readwrite');
+  const tx = openJobTx(db, CONTENT_INGEST_JOB_STORE, 'readwrite');
   tx.objectStore(CONTENT_INGEST_JOB_STORE).put(record);
   await transactionDone(tx);
   if (record.state === 'queued') wakeContentIngestJobCoordinator(db);
 }
 
 export async function deleteContentIngestJob(db: IDBDatabase, id: string): Promise<void> {
-  const tx = db.transaction(CONTENT_INGEST_JOB_STORE, 'readwrite');
+  const tx = openJobTx(db, CONTENT_INGEST_JOB_STORE, 'readwrite');
   tx.objectStore(CONTENT_INGEST_JOB_STORE).delete(id);
   await transactionDone(tx);
 }
 
 export async function deleteContentEntryAndRefreshJobs(db: IDBDatabase, entryId: string): Promise<void> {
-  const tx = db.transaction([CONTENT_ENTRY_STORE, CONTENT_INGEST_JOB_STORE], 'readwrite');
+  const tx = openJobTx(db, [CONTENT_ENTRY_STORE, CONTENT_INGEST_JOB_STORE], 'readwrite');
   tx.objectStore(CONTENT_ENTRY_STORE).delete(entryId);
   const jobsStore = tx.objectStore(CONTENT_INGEST_JOB_STORE);
   const request = jobsStore.getAll();
@@ -177,7 +201,7 @@ export function applyCompletedContentIngestJob(
   result: IngestResult,
 ): Promise<ContentJobApplyOutcome> {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction([CONTENT_ENTRY_STORE, CONTENT_INGEST_JOB_STORE], 'readwrite');
+    const tx = openJobTx(db, [CONTENT_ENTRY_STORE, CONTENT_INGEST_JOB_STORE], 'readwrite');
     const entries = tx.objectStore(CONTENT_ENTRY_STORE);
     const jobs = tx.objectStore(CONTENT_INGEST_JOB_STORE);
     let outcome: ContentJobApplyOutcome = 'applied';
