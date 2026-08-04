@@ -1,0 +1,97 @@
+/*
+ * FUTURE UI SKIN — TECHNO.
+ *
+ * DORMANT BY DESIGN. Do not import this file into the current minimalism skin.
+ * These are the approved “neon tabs” from the 2026-08-05 experiment. Keep the
+ * geometry, masks and dense disc treatment intact as the starting point for a
+ * dedicated techno skin. Activate only after the app has an explicit
+ * data-ui-skin="techno" switch.
+ */
+
+[data-ui-skin='techno'] {
+  --techno-tab-disc: var(--bg);
+  --techno-tab-shadow:
+    0 2px 0 rgba(var(--gold-rgb), 0.12) inset,
+    0 -7px 14px rgba(0, 0, 0, 0.38) inset,
+    0 10px 24px rgba(0, 0, 0, 0.34);
+  --techno-tab-accent: var(--gold);
+}
+
+[data-ui-skin='techno'][data-theme='light'] {
+  --techno-tab-shadow:
+    0 2px 0 rgba(255, 255, 255, 0.78) inset,
+    0 -7px 14px rgba(72, 48, 20, 0.12) inset,
+    0 10px 24px rgba(72, 48, 20, 0.2);
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'] {
+  min-height: 72px;
+  padding: 7px 2px !important;
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'] > span {
+  width: 62px !important;
+  height: 62px !important;
+  box-sizing: border-box;
+  position: relative;
+  background: var(--techno-tab-disc) !important;
+  border: 0 !important;
+  box-shadow: var(--techno-tab-shadow) !important;
+  color: var(--techno-tab-accent) !important;
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'] > span > svg {
+  opacity: 0 !important;
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'] > span::after {
+  content: '';
+  display: block;
+  width: 42px;
+  height: 42px;
+  background: currentColor;
+  -webkit-mask: center / contain no-repeat;
+  mask: center / contain no-repeat;
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'][aria-label='Сессии'] > span::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill-rule='evenodd' d='M32 6a26 26 0 1 1 0 52 26 26 0 0 1 0-52Zm-4 12h8v13l11 7-5 7-14-9V18Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill-rule='evenodd' d='M32 6a26 26 0 1 1 0 52 26 26 0 0 1 0-52Zm-4 12h8v13l11 7-5 7-14-9V18Z'/%3E%3C/svg%3E");
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'][aria-label='Консультации'] > span::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M5 8h38a8 8 0 0 1 8 8v17a8 8 0 0 1-8 8H27L13 53V41a8 8 0 0 1-8-8V8Z'/%3E%3Cpath d='M35 30h16a8 8 0 0 1 8 8v10a8 8 0 0 1-8 8H39l-10 7V48'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M5 8h38a8 8 0 0 1 8 8v17a8 8 0 0 1-8 8H27L13 53V41a8 8 0 0 1-8-8V8Z'/%3E%3Cpath d='M35 30h16a8 8 0 0 1 8 8v10a8 8 0 0 1-8 8H39l-10 7V48'/%3E%3C/svg%3E");
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'][aria-label='Контент'] > span::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M55 5C51 34 36 52 8 59 12 31 27 12 55 5ZM46 14 13 55l7 4 33-41-7-4Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M55 5C51 34 36 52 8 59 12 31 27 12 55 5ZM46 14 13 55l7 4 33-41-7-4Z'/%3E%3C/svg%3E");
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'][aria-label='Заметки'] > span::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill-rule='evenodd' d='M14 6h40v52H14V6Zm10 13h20v5H24v-5Zm0 11h20v5H24v-5Zm0 11h15v5H24v-5Z'/%3E%3Cpath d='M7 14h12v6H7zm0 15h12v6H7zm0 15h12v6H7z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill-rule='evenodd' d='M14 6h40v52H14V6Zm10 13h20v5H24v-5Zm0 11h20v5H24v-5Zm0 11h15v5H24v-5Z'/%3E%3Cpath d='M7 14h12v6H7zm0 15h12v6H7zm0 15h12v6H7z'/%3E%3C/svg%3E");
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'][aria-label='Инфо'] > span::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill-rule='evenodd' d='M32 5a27 27 0 1 1 0 54 27 27 0 0 1 0-54Zm-5 22h10v21H27V27Zm5-13a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill-rule='evenodd' d='M32 5a27 27 0 1 1 0 54 27 27 0 0 1 0-54Zm-5 22h10v21H27V27Zm5-13a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z'/%3E%3C/svg%3E");
+}
+
+[data-ui-skin='techno'] [role='tablist'] [role='tab'][aria-selected='true'] > span::after {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 4px rgba(var(--gold-rgb), 0.72));
+}
+
+@media (max-width: 380px) {
+  [data-ui-skin='techno'] [role='tablist'] [role='tab'] > span {
+    width: 56px !important;
+    height: 56px !important;
+  }
+
+  [data-ui-skin='techno'] [role='tablist'] [role='tab'] > span::after {
+    width: 38px;
+    height: 38px;
+  }
+}
