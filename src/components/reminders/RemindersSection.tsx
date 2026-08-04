@@ -21,6 +21,7 @@ import type {
   UpcomingSoonItem,
 } from '../../reminders/types';
 import { healingReminderMessage, soonReminderMessage } from '../../lib/reminderMessages';
+import { addHiddenBanner, removeHiddenBanner, type HiddenReminderBanner } from '../../reminders/hiddenReminderBanners';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
 
@@ -707,19 +708,35 @@ export function RemindersSection({
   // card gets `raised` so its popover isn't trapped behind a later sibling's
   // own stacking context (see SwipeDismissCard's `raised` doc comment).
   const [raisedKey, setRaisedKey] = useState<string | null>(null);
-  // Временный баннер «Напоминание скрыто · Вернуть» после «Скрыть это
+  // Временные баннеры «Напоминание скрыто · Вернуть» после «Скрыть это
   // напоминание» (одна карточка) или «Не напоминать больше» (все стадии
   // заживления одной сессии сразу — keys.length > 1) — сама скрытая сущность
   // не трогается, баннер лишь предлагает откатить состояние напоминания.
-  const [hiddenBanner, setHiddenBanner] = useState<{ keys: string[] } | null>(null);
-  const hiddenBannerTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Список, а не один объект: скрыть можно несколько разных напоминаний
+  // подряд (например, «Скрыть» на одной карточке и «Не напоминать больше»
+  // на другой, до истечения таймера первого) — каждое скрытие получает свой
+  // независимый баннер со своим id/таймером/keys, не перезаписывая соседние.
+  const [hiddenBanners, setHiddenBanners] = useState<HiddenReminderBanner[]>([]);
+  // Keyed by banner id (not a single ref) — every banner runs its own ~6s
+  // timer independently, so one expiring never touches another's.
+  const hiddenBannerTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   useEffect(() => () => {
-    if (hiddenBannerTimeout.current) clearTimeout(hiddenBannerTimeout.current);
+    hiddenBannerTimeouts.current.forEach((timeout) => clearTimeout(timeout));
+    hiddenBannerTimeouts.current.clear();
   }, []);
+  const dismissHiddenBanner = (id: string) => {
+    const timeout = hiddenBannerTimeouts.current.get(id);
+    if (timeout) clearTimeout(timeout);
+    hiddenBannerTimeouts.current.delete(id);
+    setHiddenBanners((banners) => removeHiddenBanner(banners, id));
+  };
   const showHiddenBanner = (keys: string[]) => {
-    if (hiddenBannerTimeout.current) clearTimeout(hiddenBannerTimeout.current);
-    setHiddenBanner({ keys });
-    hiddenBannerTimeout.current = setTimeout(() => setHiddenBanner(null), 6000);
+    const id = crypto.randomUUID();
+    setHiddenBanners((banners) => addHiddenBanner(banners, id, keys, Date.now()));
+    hiddenBannerTimeouts.current.set(
+      id,
+      setTimeout(() => dismissHiddenBanner(id), 6000),
+    );
   };
   const hideReminder = (key: string) => {
     onDismiss(key);
@@ -729,11 +746,13 @@ export function RemindersSection({
     onHideAllHealing(sessionId);
     showHiddenBanner(healingReminderKeysForSession(sessionId));
   };
-  const restoreHidden = () => {
-    if (!hiddenBanner) return;
-    if (hiddenBannerTimeout.current) clearTimeout(hiddenBannerTimeout.current);
-    hiddenBanner.keys.forEach((k) => onRestore(k));
-    setHiddenBanner(null);
+  // Restores exactly this banner's own keys and removes only this banner —
+  // an unrelated banner shown before or after it is untouched.
+  const restoreHiddenBanner = (id: string) => {
+    const banner = hiddenBanners.find((b) => b.id === id);
+    if (!banner) return;
+    dismissHiddenBanner(id);
+    banner.keys.forEach((k) => onRestore(k));
   };
   if (
     overdue.length === 0 &&
@@ -743,7 +762,7 @@ export function RemindersSection({
     soonProjectSessionList.length === 0 &&
     dueProjectsList.length === 0 &&
     taskList.length === 0 &&
-    !hiddenBanner
+    hiddenBanners.length === 0
   ) return null;
   return (
     <div>
@@ -751,8 +770,9 @@ export function RemindersSection({
         Напоминания
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {hiddenBanner && (
+        {hiddenBanners.map((banner) => (
           <div
+            key={banner.id}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -766,7 +786,7 @@ export function RemindersSection({
           >
             <span style={{ fontSize: fs(12), color: COLORS.textPrimary }}>Напоминание скрыто</span>
             <span
-              onClick={restoreHidden}
+              onClick={() => restoreHiddenBanner(banner.id)}
               role="button"
               aria-label="Вернуть"
               style={{ fontSize: fs(11), color: COLORS.gold, letterSpacing: '0.6px', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}
@@ -774,7 +794,7 @@ export function RemindersSection({
               Вернуть
             </span>
           </div>
-        )}
+        ))}
         {overdueFeed.map((entry) => {
           if (entry.source === 'client') {
             const it = entry.item;
