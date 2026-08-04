@@ -80,3 +80,16 @@ export interface Consultation {
   // См. Session.projectId — та же link-семантика (Этап 2).
   projectId: string | null;
 }
+
+// Конвертированная консультация не удаляется обычным способом, пока
+// существует связанная сессия (Session.sourceConsultationId) — иначе сессия
+// остаётся со ссылкой на несуществующую консультацию. Единый источник
+// истины для двух независимых мест защиты: ConsultationRow (DetailScreen.tsx)
+// скрывает контрол удаления по этому предикату, а deleteConsultation
+// (TattoDiary.tsx) им же блокирует сам save-funnel — так защита не держится
+// только на скрытой кнопке. Удалить связанную сессию (которая восстановит
+// консультацию — см. applyConsultationRestoration в lib/sessionSave.ts) и
+// удалить после этого можно уже саму, теперь обычную, консультацию.
+export function isConsultationDeletable(consultation: Consultation): boolean {
+  return consultation.status !== 'converted';
+}

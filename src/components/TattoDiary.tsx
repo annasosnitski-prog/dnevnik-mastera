@@ -89,7 +89,7 @@ import {
   setContentEntryLink,
   type ContentEntryLink,
 } from '../lib/contentLink';
-import { upsertClientSession, upsertProjectSession, applyConsultationConversion, type SessionFormData } from '../lib/sessionSave';
+import { upsertClientSession, upsertProjectSession, applyConsultationConversion, applyConsultationRestoration, type SessionFormData } from '../lib/sessionSave';
 import { upsertConsultation, type ConsultationFormData } from '../lib/consultationSave';
 // Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
 // не менялась — только перенос.
@@ -158,7 +158,7 @@ import { BlackjackGame } from './games/BlackjackGame';
 // импортируемые обратно; второй модели Project не создавалось.
 import { type UrgencyKey } from '../domain/urgency';
 import { type Session } from '../domain/session';
-import { type Consultation } from '../domain/consultation';
+import { type Consultation, isConsultationDeletable } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
 import {
   type ChatPlatform,
@@ -1190,9 +1190,15 @@ export default function TattoDiary() {
     setShowEditClientForm(false);
   };
 
+  // Session created via «Перевести в сессию» — restore the consultation it
+  // came from first (see applyConsultationRestoration), so deleting the
+  // session doesn't leave the consultation pointing at a session that no
+  // longer exists. No-op for a session with no sourceConsultationId link —
+  // an ordinary session deletes exactly as before.
   const deleteSession = (sessionId: string) => {
     if (!selectedClient) return;
-    saveClient({ ...selectedClient, sessions: selectedClient.sessions.filter((s) => s.id !== sessionId) });
+    const restored = applyConsultationRestoration(selectedClient, sessionId);
+    saveClient({ ...restored, sessions: restored.sessions.filter((s) => s.id !== sessionId) });
   };
 
   // Сохранение чистой логики (client.consultations + связь цепочки) вынесено
@@ -1217,8 +1223,19 @@ export default function TattoDiary() {
     setPresetEntryProjectId(null);
   };
 
+  // A converted consultation is linked to a real session
+  // (Session.sourceConsultationId) — deleting it here would leave that
+  // session pointing at a consultation that no longer exists.
+  // ConsultationRow already hides the delete control for this case (see
+  // isConsultationDeletable in domain/consultation.ts); this guards the
+  // funnel itself too, so the protection doesn't rely on a hidden button
+  // alone. Delete the linked session first (which restores the consultation
+  // via deleteSession/applyConsultationRestoration above), then the
+  // now-unconverted consultation can be deleted normally.
   const deleteConsultation = (consultationId: string) => {
     if (!selectedClient) return;
+    const consultation = selectedClient.consultations.find((c) => c.id === consultationId);
+    if (consultation && !isConsultationDeletable(consultation)) return;
     saveClient({ ...selectedClient, consultations: selectedClient.consultations.filter((c) => c.id !== consultationId) });
   };
 
