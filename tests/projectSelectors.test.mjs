@@ -489,9 +489,9 @@ test('getProjectLastActivityDate ignores a consultation history entry with a fut
   assert.equal(getProjectLastActivityDate(p, [], [consultation], TODAY), null);
 });
 
-// Невалидные (не yyyy-mm-dd по форме) даты — та же общая проверка
-// (ISO_DATE_RE), что уже используют hasScheduledWork/hasOverdueWork, а не
-// отдельный несовместимый парсер.
+// Невалидные (не yyyy-mm-dd по форме) даты — отбрасываются internal
+// isValidISODate-проверкой в consider(), а не отдельным несовместимым
+// парсером.
 
 for (const bad of ['', 'not-a-date', '2026', '2026-08', 'invalid-timestamp']) {
   test(`getProjectLastActivityDate ignores an invalid lastMeaningfulActivityAt (scenario 12): ${JSON.stringify(bad)}`, () => {
@@ -511,6 +511,37 @@ for (const bad of ['', 'not-a-date', '2026', '2026-08', 'invalid-timestamp']) {
     assert.equal(getProjectLastActivityDate(p, [], [consultation], TODAY), null);
   });
 }
+
+// Календарно невозможные даты (ревью-фикс): ISO_DATE_RE проверяет только
+// форму yyyy-mm-dd — «2026-02-30» ей соответствует по форме, хотя такой
+// даты не существует. consider() использует isValidISODate (utils/dates.ts),
+// которая дополнительно пересобирает y/m/d через Date и сверяет с исходными
+// — переполнение (31 февраля → 3 марта) не проходит эту проверку.
+
+for (const impossible of ['2026-02-30', '2026-13-10', '2026-99-99', '2026-04-31']) {
+  test(`getProjectLastActivityDate ignores a calendar-impossible lastMeaningfulActivityAt: ${impossible}`, () => {
+    const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: impossible });
+    assert.equal(getProjectLastActivityDate(p, [], [], TODAY), null);
+  });
+
+  test(`getProjectLastActivityDate ignores a calendar-impossible session date: ${impossible}`, () => {
+    const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
+    const session = makeSession({ projectId: 'p1', date: impossible, done: true });
+    assert.equal(getProjectLastActivityDate(p, [session], [], TODAY), null);
+  });
+
+  test(`getProjectLastActivityDate ignores a calendar-impossible consultation history date: ${impossible}`, () => {
+    const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
+    const consultation = makeConsultation({ id: 'c1', projectId: 'p1', history: [{ id: 'h1', date: `${impossible}T00:00:00.000Z`, note: 'встреча' }] });
+    assert.equal(getProjectLastActivityDate(p, [], [consultation], TODAY), null);
+  });
+}
+
+test('getProjectLastActivityDate falls back to an older valid signal when the newer one is calendar-impossible', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: '2026-02-30' });
+  const session = makeSession({ projectId: 'p1', date: '2026-07-01', done: true });
+  assert.equal(getProjectLastActivityDate(p, [session], [], TODAY), '2026-07-01');
+});
 
 test('getProjectLastActivityDate returns the older valid signal when the only other candidate is future (scenario 15)', () => {
   const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: '2026-06-01' });

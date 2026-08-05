@@ -176,6 +176,15 @@ test('a consultation history entry with an erroneous future timestamp does NOT r
   assert.equal(result[0].lastActivityDate, stale);
 });
 
+test('a calendar-impossible done session date (e.g. 30 february) does NOT rescue a stalled project', () => {
+  const stale = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 10);
+  const project = makeProject({ id: 'p1', lastMeaningfulActivityAt: stale });
+  const client = makeClient({ sessions: [makeSession({ projectId: 'p1', date: '2026-02-30', done: true, cancelled: false })] });
+  const result = staleProjects([project], [client], NOW);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].lastActivityDate, stale);
+});
+
 // Точный сценарий из ревью: последняя реальная активность 40 дней назад +
 // done-сессия/запись истории через 10 дней в будущем = проект всё равно
 // застывший (не только с "далёким" будущим смещением в 60 дней выше).
