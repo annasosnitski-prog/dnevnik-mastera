@@ -126,7 +126,7 @@
 
 /* Approved icon mapping:
    closed padlock = Личный кабинет; paired silhouettes = Клиенты;
-   four-point spark = POSTiNKA; document = Заметки;
+   feather = POSTiNKA; document = Заметки;
    pencil = Проекты; door key = Админка; plus = Создать. */
 .nav-fab--minimal .nav-fab__item--minimal::before {
   content: '';
@@ -172,7 +172,7 @@
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='POSTiNKA'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M16,2c1.6,7.6,6.4,12.4,14,14-7.6,1.6-12.4,6.4-14,14-1.6-7.6-6.4-12.4-14-14C9.6,14.4,14.4,9.6,16,2Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M22,9Q20.5,19.9,10,23Q11.5,12.1,22,9Z'/%3E%3Cpath%20fill='none'%20stroke='black'%20stroke-width='2.4'%20stroke-linecap='round'%20d='M21,11L11,22'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Заметки'] {
@@ -272,9 +272,16 @@
   transform: rotate(30deg) translateX(32px);
 }
 
-/* Keep the original client-tab icons and colours; remove only the active halo. */
+/* Preserve the original client-tab icons. Active state is gold, without a halo. */
 [data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
   [role='tab'] > span[aria-hidden='true'] {
+  box-shadow: none !important;
+}
+
+[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
+  [role='tab'][aria-selected='true'] > span[aria-hidden='true'] {
+  color: var(--gold) !important;
+  border-color: rgba(var(--gold-rgb), 0.72) !important;
   box-shadow: none !important;
 }
 
