@@ -11,6 +11,7 @@ import {
   staleProjectReminderKey,
 } from '../.test-dist/src/reminders/reminderKeys.js';
 import { HEALING_STAGES } from '../.test-dist/src/reminders/buildReminders.js';
+import { dismissReminder, filterVisibleReminders } from '../.test-dist/src/reminders/reminderState.js';
 
 const client = { id: 'client-1', name: 'Анна' };
 const project = { id: 'project-1', title: 'Дракон' };
@@ -84,4 +85,28 @@ test('staleProjectReminderKey is stable for the same project and lastActivityDat
   const a = staleProjectReminderKey({ project, lastActivityDate: '2026-01-01', daysSince: 21 });
   const b = staleProjectReminderKey({ project, lastActivityDate: '2026-01-01', daysSince: 40 });
   assert.equal(a, b);
+});
+
+// Скрытие карточки застоя за один период не должно скрывать карточку за
+// следующий, более поздний период застоя того же проекта (M4, scenario 22) —
+// тот же принцип, что overdueReminderKey/soonReminderKey уже используют
+// для даты сессии/консультации.
+test('dismissing a stale-project reminder for one period does not hide it for a later, different period', () => {
+  const firstPeriod = { project, lastActivityDate: '2026-01-01', daysSince: 30 };
+  const dismissedState = dismissReminder({ dismissedIds: [], snoozed: {} }, staleProjectReminderKey(firstPeriod));
+
+  // The project moved, then stalled again later — a NEW lastActivityDate.
+  const secondPeriod = { project, lastActivityDate: '2026-04-01', daysSince: 30 };
+  const visible = filterVisibleReminders([secondPeriod], staleProjectReminderKey, dismissedState, new Date('2026-05-01'));
+
+  assert.deepEqual(visible, [secondPeriod]);
+});
+
+test('dismissing a stale-project reminder still hides the exact same period if it recurs unchanged', () => {
+  const period = { project, lastActivityDate: '2026-01-01', daysSince: 30 };
+  const dismissedState = dismissReminder({ dismissedIds: [], snoozed: {} }, staleProjectReminderKey(period));
+
+  const visible = filterVisibleReminders([period], staleProjectReminderKey, dismissedState, new Date('2026-05-01'));
+
+  assert.deepEqual(visible, []);
 });

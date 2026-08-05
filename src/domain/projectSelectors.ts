@@ -97,12 +97,28 @@ function toDateOnly(iso: string): string {
   return iso.length >= 10 ? iso.slice(0, 10) : iso;
 }
 
-export function getProjectLastActivityDate(project: Project, sessions: Session[], consultations: Consultation[]): string {
-  let latest = toDateOnly(project.createdDate);
+// Достоверна ли известная активность — намеренно НЕ включает
+// project.createdDate: для легаси-проекта (lastMeaningfulActivityAt===null,
+// см. normalizeProject) один только факт создания записи ничего не говорит
+// о том, двигался ли проект недавно — угадывание задним числом рискует
+// массовым ложным «застоем» после обновления. Возвращает null, когда о
+// проекте не известно ни одного достоверного сигнала — вызывающая сторона
+// (staleProjects в reminders/buildReminders.ts) обязана пропустить такой
+// проект, а не подставлять собственный fallback: лучше не показать
+// карточку старого проекта, чем показать ложную.
+//
+// Только выполненные (done) сессии и записи истории консультаций несут
+// настоящую дату свершившегося события — обе по построению не могут
+// указывать в будущее (сессию нельзя отметить done заранее, история
+// пишется в момент реального действия), поэтому здесь не нужно отдельно
+// отфильтровывать «будущие» даты как активность — см. hasScheduledWork
+// ниже для будущих/незавершённых записей.
+export function getProjectLastActivityDate(project: Project, sessions: Session[], consultations: Consultation[]): string | null {
+  let latest: string | null = null;
   const consider = (iso: string | null | undefined) => {
     if (!iso) return;
     const d = toDateOnly(iso);
-    if (d > latest) latest = d;
+    if (latest === null || d > latest) latest = d;
   };
   consider(project.lastMeaningfulActivityAt);
   // project.sessions покрывает «сессии без клиента» (Мастерская) — сессии
@@ -116,6 +132,52 @@ export function getProjectLastActivityDate(project: Project, sessions: Session[]
     for (const entry of consultation.history) consider(entry.date);
   }
   return latest;
+}
+
+// «Открыта» — не выполнена/не завершена и не отменена; ровно тот же
+// предикат, что overdueEntries (reminders/buildReminders.ts) уже использует
+// для сессий, чтобы «просрочено» и «застой» смотрели на одни и те же записи
+// одинаково.
+function isOpenSession(session: Session): boolean {
+  return !session.done && !session.cancelled;
+}
+
+// status==='converted' уже подразумевает done:true (см. normalizeClient),
+// но проверяем явно — тот же предикат, что overdueEntries использует для
+// консультаций (см. buildReminders.ts).
+function isOpenConsultation(consultation: Consultation): boolean {
+  return !consultation.done && !consultation.cancelled && consultation.status !== 'converted';
+}
+
+// Уже есть подтверждённое запланированное действие (будущий next step,
+// будущая незавершённая сессия/консультация проекта) — застой показывать
+// не нужно, работа уже в движении, встреча или следующий шаг назначены
+// (M4, п. 4). `today` — yyyy-mm-dd (см. localISO в buildReminders.ts).
+export function hasScheduledWork(project: Project, sessions: Session[], consultations: Consultation[], today: string): boolean {
+  if (project.nextActionText.trim() !== '' && project.nextActionDate !== null && project.nextActionDate >= today) return true;
+  const hasFutureSession = sessions.some(
+    (s) => s.projectId === project.id && isOpenSession(s) && ISO_DATE_RE.test(s.date) && s.date >= today,
+  );
+  if (hasFutureSession) return true;
+  return consultations.some(
+    (c) => c.projectId === project.id && isOpenConsultation(c) && ISO_DATE_RE.test(c.date) && c.date >= today,
+  );
+}
+
+// Уже есть конкретная просрочка (просроченный next step / сессия /
+// консультация) — эти случаи уже показываются собственными, более
+// конкретными карточками (overdueProjects/overdueEntries), дублировать их
+// мягким «застоем» нельзя: «конкретная просрочка > запланированное
+// действие > мягкий застой» (M4, п. 5).
+export function hasOverdueWork(project: Project, sessions: Session[], consultations: Consultation[], today: string): boolean {
+  if (project.nextActionText.trim() !== '' && project.nextActionDate !== null && project.nextActionDate < today) return true;
+  const hasOverdueSession = sessions.some(
+    (s) => s.projectId === project.id && isOpenSession(s) && ISO_DATE_RE.test(s.date) && s.date < today,
+  );
+  if (hasOverdueSession) return true;
+  return consultations.some(
+    (c) => c.projectId === project.id && isOpenConsultation(c) && ISO_DATE_RE.test(c.date) && c.date < today,
+  );
 }
 
 // ===================== ПАПКИ ПРОЕКТОВ (view-model) =====================

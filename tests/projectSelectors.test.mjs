@@ -6,6 +6,8 @@ import {
   getConsultationSequence,
   getConsultationNumber,
   getProjectLastActivityDate,
+  hasScheduledWork,
+  hasOverdueWork,
 } from '../.test-dist/src/domain/projectSelectors.js';
 
 function makeProject(overrides = {}) {
@@ -304,13 +306,27 @@ test('getConsultationNumber keeps later numbers stable after an earlier consulta
 });
 
 // ── getProjectLastActivityDate (M4) ───────────────────────────────────────
-// «Последняя реальная активность» — производная величина: createdDate/
-// lastMeaningfulActivityAt (стор) + выполненные сессии + история консультаций
-// проекта, максимум по датам (границы дня).
+// «Последняя реальная активность» — производная величина: только достоверные
+// сигналы (lastMeaningfulActivityAt, выполненные сессии, история консультаций
+// проекта), максимум по датам (границы дня). НЕ включает project.createdDate
+// — легаси-проект без ни одного достоверного сигнала возвращает null, а не
+// дату создания записи (см. domain/projectSelectors.ts).
 
-test('getProjectLastActivityDate falls back to createdDate with no other signal', () => {
-  const p = makeProject({ createdDate: '2026-01-05', lastMeaningfulActivityAt: '2026-01-05' });
-  assert.equal(getProjectLastActivityDate(p, [], []), '2026-01-05');
+test('getProjectLastActivityDate returns null for a legacy project with no stored value and no other signal (scenario 5, 7)', () => {
+  const p = makeProject({ createdDate: '2026-01-05', lastMeaningfulActivityAt: null });
+  assert.equal(getProjectLastActivityDate(p, [], []), null);
+});
+
+test('getProjectLastActivityDate does NOT fall back to createdDate even when createdDate is recent (scenario 7)', () => {
+  const p = makeProject({ createdDate: '2026-07-30', lastMeaningfulActivityAt: null });
+  assert.equal(getProjectLastActivityDate(p, [], []), null);
+});
+
+test('getProjectLastActivityDate picks up a stored lastMeaningfulActivityAt once set (scenario 6 — "first meaningful change")', () => {
+  const legacy = makeProject({ createdDate: '2026-01-05', lastMeaningfulActivityAt: null });
+  assert.equal(getProjectLastActivityDate(legacy, [], []), null);
+  const afterFirstChange = { ...legacy, lastMeaningfulActivityAt: '2026-07-20T12:00:00.000Z' };
+  assert.equal(getProjectLastActivityDate(afterFirstChange, [], []), '2026-07-20');
 });
 
 test('getProjectLastActivityDate picks up a later stored lastMeaningfulActivityAt', () => {
@@ -318,26 +334,26 @@ test('getProjectLastActivityDate picks up a later stored lastMeaningfulActivityA
   assert.equal(getProjectLastActivityDate(p, [], []), '2026-02-10');
 });
 
-test('getProjectLastActivityDate counts a done session linked to the project', () => {
-  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+test('getProjectLastActivityDate counts a done session linked to the project as real activity (scenario 8)', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
   const session = makeSession({ projectId: 'p1', date: '2026-03-01', done: true });
   assert.equal(getProjectLastActivityDate(p, [session], []), '2026-03-01');
 });
 
 test('getProjectLastActivityDate ignores a not-done session (only scheduled, no real event yet)', () => {
-  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
   const session = makeSession({ projectId: 'p1', date: '2026-06-01', done: false });
-  assert.equal(getProjectLastActivityDate(p, [session], []), '2026-01-01');
+  assert.equal(getProjectLastActivityDate(p, [session], []), null);
 });
 
-test('getProjectLastActivityDate ignores a done session linked to a different project', () => {
-  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+test('getProjectLastActivityDate ignores a done session linked to a different project (scenario 18)', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: '2026-01-01' });
   const session = makeSession({ projectId: 'other-project', date: '2026-06-01', done: true });
   assert.equal(getProjectLastActivityDate(p, [session], []), '2026-01-01');
 });
 
-test('getProjectLastActivityDate counts the latest consultation history entry for the project', () => {
-  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+test('getProjectLastActivityDate counts consultation history as real activity (scenario 9)', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
   const consultation = makeConsultation({
     id: 'c1',
     projectId: 'p1',
@@ -349,8 +365,8 @@ test('getProjectLastActivityDate counts the latest consultation history entry fo
   assert.equal(getProjectLastActivityDate(p, [], [consultation]), '2026-04-20');
 });
 
-test('getProjectLastActivityDate ignores history from a consultation of a different project', () => {
-  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-01-01' });
+test('getProjectLastActivityDate ignores history from a consultation of a different project (scenario 19)', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: '2026-01-01' });
   const consultation = makeConsultation({
     id: 'c1',
     projectId: 'other-project',
@@ -360,7 +376,7 @@ test('getProjectLastActivityDate ignores history from a consultation of a differ
 });
 
 test('getProjectLastActivityDate takes the max across every signal at once', () => {
-  const p = makeProject({ id: 'p1', createdDate: '2026-01-01', lastMeaningfulActivityAt: '2026-02-01' });
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: '2026-02-01' });
   const session = makeSession({ projectId: 'p1', date: '2026-03-15', done: true });
   const consultation = makeConsultation({
     id: 'c1',
@@ -368,4 +384,118 @@ test('getProjectLastActivityDate takes the max across every signal at once', () 
     history: [{ id: 'h1', date: '2026-05-05T00:00:00.000Z', note: 'создана' }],
   });
   assert.equal(getProjectLastActivityDate(p, [session], [consultation]), '2026-05-05');
+});
+
+// ── hasScheduledWork (M4) ──────────────────────────────────────────────────
+// Проект уже в движении (назначено будущее действие) — застой показывать
+// не нужно.
+
+const TODAY = '2026-08-05';
+
+test('hasScheduledWork is true for a future dated next step (scenario 12)', () => {
+  const p = makeProject({ id: 'p1', nextActionText: 'Отправить эскиз', nextActionDate: '2026-08-10' });
+  assert.equal(hasScheduledWork(p, [], [], TODAY), true);
+});
+
+test('hasScheduledWork is true when the next step date is today', () => {
+  const p = makeProject({ id: 'p1', nextActionText: 'Отправить эскиз', nextActionDate: TODAY });
+  assert.equal(hasScheduledWork(p, [], [], TODAY), true);
+});
+
+test('hasScheduledWork ignores a next step date without text (matches overdueProjects\' own guard)', () => {
+  const p = makeProject({ id: 'p1', nextActionText: '', nextActionDate: '2026-08-10' });
+  assert.equal(hasScheduledWork(p, [], [], TODAY), false);
+});
+
+test('hasScheduledWork is true for a future open session on the project (scenario 10)', () => {
+  const p = makeProject({ id: 'p1' });
+  const session = makeSession({ projectId: 'p1', date: '2026-08-20', done: false, cancelled: false });
+  assert.equal(hasScheduledWork(p, [session], [], TODAY), true);
+});
+
+test('hasScheduledWork is true for a future open consultation on the project (scenario 11)', () => {
+  const p = makeProject({ id: 'p1' });
+  const consultation = makeConsultation({ projectId: 'p1', date: '2026-08-20', done: false, cancelled: false, status: 'active' });
+  assert.equal(hasScheduledWork(p, [], [consultation], TODAY), true);
+});
+
+test('hasScheduledWork ignores a cancelled future session (scenario 16)', () => {
+  const p = makeProject({ id: 'p1' });
+  const session = makeSession({ projectId: 'p1', date: '2026-08-20', done: false, cancelled: true });
+  assert.equal(hasScheduledWork(p, [session], [], TODAY), false);
+});
+
+test('hasScheduledWork ignores a cancelled future consultation (scenario 16)', () => {
+  const p = makeProject({ id: 'p1' });
+  const consultation = makeConsultation({ projectId: 'p1', date: '2026-08-20', cancelled: true, status: 'cancelled' });
+  assert.equal(hasScheduledWork(p, [], [consultation], TODAY), false);
+});
+
+test('hasScheduledWork ignores a done session even with a future/erroneous date — not a schedule item (scenario 17)', () => {
+  const p = makeProject({ id: 'p1' });
+  const session = makeSession({ projectId: 'p1', date: '2026-08-20', done: true });
+  assert.equal(hasScheduledWork(p, [session], [], TODAY), false);
+});
+
+test('hasScheduledWork ignores a converted future consultation — already moved into a session (scenario 17)', () => {
+  const p = makeProject({ id: 'p1' });
+  const consultation = makeConsultation({ projectId: 'p1', date: '2026-08-20', status: 'converted', done: true });
+  assert.equal(hasScheduledWork(p, [], [consultation], TODAY), false);
+});
+
+test('hasScheduledWork ignores a past session/consultation — not scheduled, it already happened or is overdue', () => {
+  const p = makeProject({ id: 'p1' });
+  const session = makeSession({ projectId: 'p1', date: '2026-08-01', done: false, cancelled: false });
+  assert.equal(hasScheduledWork(p, [session], [], TODAY), false);
+});
+
+test('hasScheduledWork ignores a future session belonging to a different project (scenario 18)', () => {
+  const p = makeProject({ id: 'p1' });
+  const session = makeSession({ projectId: 'other-project', date: '2026-08-20', done: false, cancelled: false });
+  assert.equal(hasScheduledWork(p, [session], [], TODAY), false);
+});
+
+test('hasScheduledWork ignores a future consultation belonging to a different project (scenario 19)', () => {
+  const p = makeProject({ id: 'p1' });
+  const consultation = makeConsultation({ projectId: 'other-project', date: '2026-08-20', status: 'active' });
+  assert.equal(hasScheduledWork(p, [], [consultation], TODAY), false);
+});
+
+// ── hasOverdueWork (M4) ─────────────────────────────────────────────────────
+// Уже есть конкретная просрочка — её показывает overdueProjects/overdueEntries
+// собственной карточкой, мягкий застой её дублировать не должен.
+
+test('hasOverdueWork is true for an overdue next step (scenario 13)', () => {
+  const p = makeProject({ id: 'p1', nextActionText: 'Отправить эскиз', nextActionDate: '2026-07-01' });
+  assert.equal(hasOverdueWork(p, [], [], TODAY), true);
+});
+
+test('hasOverdueWork is true for an overdue open session (scenario 14)', () => {
+  const p = makeProject({ id: 'p1' });
+  const session = makeSession({ projectId: 'p1', date: '2026-07-01', done: false, cancelled: false });
+  assert.equal(hasOverdueWork(p, [session], [], TODAY), true);
+});
+
+test('hasOverdueWork is true for an overdue open consultation (scenario 15)', () => {
+  const p = makeProject({ id: 'p1' });
+  const consultation = makeConsultation({ projectId: 'p1', date: '2026-07-01', done: false, cancelled: false, status: 'active' });
+  assert.equal(hasOverdueWork(p, [], [consultation], TODAY), true);
+});
+
+test('hasOverdueWork ignores a done past session — already resolved, not overdue', () => {
+  const p = makeProject({ id: 'p1' });
+  const session = makeSession({ projectId: 'p1', date: '2026-07-01', done: true });
+  assert.equal(hasOverdueWork(p, [session], [], TODAY), false);
+});
+
+test('hasOverdueWork ignores an overdue session/consultation belonging to a different project (scenario 18, 19)', () => {
+  const p = makeProject({ id: 'p1' });
+  const session = makeSession({ projectId: 'other-project', date: '2026-07-01', done: false, cancelled: false });
+  const consultation = makeConsultation({ projectId: 'another-project', date: '2026-07-01', status: 'active' });
+  assert.equal(hasOverdueWork(p, [session], [consultation], TODAY), false);
+});
+
+test('hasOverdueWork is false when the project has no next step, sessions or consultations', () => {
+  const p = makeProject({ id: 'p1' });
+  assert.equal(hasOverdueWork(p, [], [], TODAY), false);
 });
