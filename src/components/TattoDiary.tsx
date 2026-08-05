@@ -328,11 +328,40 @@ function UpcomingDateBadge({ clients, onOpen }: { clients: Client[]; onOpen: () 
 // см. ContentEntry ниже). Existing installs upgrade in place on next load;
 // onupgradeneeded only touches stores that don't exist yet, so the clients
 // store and its data are never re-created or wiped.
+// Сколько ждём ответа от indexedDB.open(), прежде чем считать попытку
+// провалившейся и уйти на повтор.
+const DB_OPEN_TIMEOUT_MS = 8000;
+
 const initDB = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
     const request = indexedDB.open('TattoDiaryDB', TATTO_DIARY_DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    // Промис обязан завершиться при любом исходе, иначе повторные попытки
+    // ниже просто не начнутся. Два случая, в которых он раньше не завершался
+    // никогда: открытие заблокировано другой вкладкой с этим же дневником
+    // (onblocked, обработчика не было вовсе) и молчаливое зависание open() на
+    // iOS, когда система усыпила приложение прямо во время открытия — там не
+    // приходит вообще ни одного события, и приложение висело бесконечно,
+    // даже не показав плашку с «Повторить».
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (run: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      run();
+    };
+    timer = setTimeout(() => finish(() => reject(new Error('IndexedDB open timed out'))), DB_OPEN_TIMEOUT_MS);
+    request.onerror = () => finish(() => reject(request.error));
+    request.onsuccess = () => {
+      // Если open() всё-таки ответил уже после таймаута, соединение нужно
+      // закрыть: иначе оно останется висеть и заблокирует следующую попытку.
+      if (settled) {
+        request.result.close();
+        return;
+      }
+      finish(() => resolve(request.result));
+    };
+    request.onblocked = () => finish(() => reject(new Error('IndexedDB upgrade blocked')));
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains('clients')) {
@@ -807,6 +836,20 @@ export default function TattoDiary() {
       .then((database) => {
         setDbError(null);
         setDb(database);
+        // Браузер может закрыть соединение сам (нехватка памяти — вероятнее
+        // всего на больших фото), а другая вкладка — начать обновление схемы.
+        // Раньше об этом узнавали только при следующей записи, то есть уже
+        // потеряв действие мастера; теперь плашка с «Повторить» появляется
+        // сразу, как только соединение исчезло.
+        database.onclose = () => {
+          setDb(null);
+          setDbError('Хранилище закрылось. Нажмите «Повторить», чтобы переподключиться.');
+        };
+        database.onversionchange = () => {
+          database.close();
+          setDb(null);
+          setDbError('Хранилище обновилось в другой вкладке. Нажмите «Повторить».');
+        };
         loadClients(database);
         loadProjects(database);
         loadContentEntries(database);
