@@ -1,4 +1,18 @@
-const CACHE_NAME = 'inka-v2';
+// Шаблон сервис-воркера. Лежит НЕ в public/, потому что на этапе сборки
+// (см. плагин inka-build-stamp в vite.config.ts) __BUILD_ID__ заменяется на
+// идентификатор конкретной сборки и результат кладётся в dist/sw.js. Файлы из
+// public/ копируются как есть, поверх сгенерированных, — поэтому шаблон здесь.
+//
+// Штамп нужен не для красоты: браузер ставит новый сервис-воркер только если
+// байты sw.js отличаются от установленного. Пока здесь была захардкоженная
+// строка, каждый деплой отдавал побайтово одинаковый файл, registration.update()
+// не видел изменений, новый воркер не устанавливался и приложение на телефоне
+// могло месяцами крутить старый бандл.
+const BUILD_ID = '__BUILD_ID__';
+// Имя кэша тоже завязано на сборку: activate ниже удаляет все кэши с другими
+// именами, поэтому новый деплой заодно выбрасывает старый index.html и старые
+// /assets/*, а не живёт с ними бок о бок.
+const CACHE_NAME = `inka-${BUILD_ID}`;
 const urlsToCache = [
   '/',
   '/index.html',
@@ -8,9 +22,13 @@ const urlsToCache = [
 // Install event
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      // Предзагрузка не должна ронять установку: если сеть в этот момент
+      // барахлит, addAll отклоняется целиком, воркер не активируется и
+      // обновление откладывается на неопределённый срок. Кэш наполнится
+      // по ходу дела через обработчик fetch.
+      cache.addAll(urlsToCache).catch(() => undefined)
+    )
   );
   self.skipWaiting();
 });
@@ -50,6 +68,13 @@ self.addEventListener('fetch', (event) => {
   }
 
   const url = new URL(event.request.url);
+
+  // Проверка версии обязана видеть реальное состояние сервера, иначе она
+  // сравнивала бы идентификатор сборки сама с собой из кэша и никогда не
+  // сообщала бы об обновлении. Полностью пропускаем её мимо воркера.
+  if (url.pathname === '/version.json') {
+    return;
+  }
 
   if (isImmutableAsset(url)) {
     event.respondWith(
