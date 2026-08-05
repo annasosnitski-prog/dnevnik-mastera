@@ -305,51 +305,55 @@ test('getConsultationNumber keeps later numbers stable after an earlier consulta
   assert.equal(getConsultationNumber([c2, c3], c3), 2);
 });
 
+const TODAY = '2026-08-05';
+
 // ── getProjectLastActivityDate (M4) ───────────────────────────────────────
 // «Последняя реальная активность» — производная величина: только достоверные
 // сигналы (lastMeaningfulActivityAt, выполненные сессии, история консультаций
 // проекта), максимум по датам (границы дня). НЕ включает project.createdDate
 // — легаси-проект без ни одного достоверного сигнала возвращает null, а не
-// дату создания записи (см. domain/projectSelectors.ts).
+// дату создания записи (см. domain/projectSelectors.ts). Каждый кандидат
+// клэмпится к <= today — ошибочная будущая дата (баг/повреждённые данные)
+// не может задним числом «спасти» застывший проект.
 
 test('getProjectLastActivityDate returns null for a legacy project with no stored value and no other signal (scenario 5, 7)', () => {
   const p = makeProject({ createdDate: '2026-01-05', lastMeaningfulActivityAt: null });
-  assert.equal(getProjectLastActivityDate(p, [], []), null);
+  assert.equal(getProjectLastActivityDate(p, [], [], TODAY), null);
 });
 
 test('getProjectLastActivityDate does NOT fall back to createdDate even when createdDate is recent (scenario 7)', () => {
   const p = makeProject({ createdDate: '2026-07-30', lastMeaningfulActivityAt: null });
-  assert.equal(getProjectLastActivityDate(p, [], []), null);
+  assert.equal(getProjectLastActivityDate(p, [], [], TODAY), null);
 });
 
 test('getProjectLastActivityDate picks up a stored lastMeaningfulActivityAt once set (scenario 6 — "first meaningful change")', () => {
   const legacy = makeProject({ createdDate: '2026-01-05', lastMeaningfulActivityAt: null });
-  assert.equal(getProjectLastActivityDate(legacy, [], []), null);
+  assert.equal(getProjectLastActivityDate(legacy, [], [], TODAY), null);
   const afterFirstChange = { ...legacy, lastMeaningfulActivityAt: '2026-07-20T12:00:00.000Z' };
-  assert.equal(getProjectLastActivityDate(afterFirstChange, [], []), '2026-07-20');
+  assert.equal(getProjectLastActivityDate(afterFirstChange, [], [], TODAY), '2026-07-20');
 });
 
 test('getProjectLastActivityDate picks up a later stored lastMeaningfulActivityAt', () => {
   const p = makeProject({ createdDate: '2026-01-05', lastMeaningfulActivityAt: '2026-02-10' });
-  assert.equal(getProjectLastActivityDate(p, [], []), '2026-02-10');
+  assert.equal(getProjectLastActivityDate(p, [], [], TODAY), '2026-02-10');
 });
 
 test('getProjectLastActivityDate counts a done session linked to the project as real activity (scenario 8)', () => {
   const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
   const session = makeSession({ projectId: 'p1', date: '2026-03-01', done: true });
-  assert.equal(getProjectLastActivityDate(p, [session], []), '2026-03-01');
+  assert.equal(getProjectLastActivityDate(p, [session], [], TODAY), '2026-03-01');
 });
 
 test('getProjectLastActivityDate ignores a not-done session (only scheduled, no real event yet)', () => {
   const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
   const session = makeSession({ projectId: 'p1', date: '2026-06-01', done: false });
-  assert.equal(getProjectLastActivityDate(p, [session], []), null);
+  assert.equal(getProjectLastActivityDate(p, [session], [], TODAY), null);
 });
 
 test('getProjectLastActivityDate ignores a done session linked to a different project (scenario 18)', () => {
   const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: '2026-01-01' });
   const session = makeSession({ projectId: 'other-project', date: '2026-06-01', done: true });
-  assert.equal(getProjectLastActivityDate(p, [session], []), '2026-01-01');
+  assert.equal(getProjectLastActivityDate(p, [session], [], TODAY), '2026-01-01');
 });
 
 test('getProjectLastActivityDate counts consultation history as real activity (scenario 9)', () => {
@@ -362,7 +366,7 @@ test('getProjectLastActivityDate counts consultation history as real activity (s
       { id: 'h2', date: '2026-04-20T10:00:00.000Z', note: 'переведена в сессию' },
     ],
   });
-  assert.equal(getProjectLastActivityDate(p, [], [consultation]), '2026-04-20');
+  assert.equal(getProjectLastActivityDate(p, [], [consultation], TODAY), '2026-04-20');
 });
 
 test('getProjectLastActivityDate ignores history from a consultation of a different project (scenario 19)', () => {
@@ -372,7 +376,7 @@ test('getProjectLastActivityDate ignores history from a consultation of a differ
     projectId: 'other-project',
     history: [{ id: 'h1', date: '2026-05-01T10:00:00.000Z', note: 'создана' }],
   });
-  assert.equal(getProjectLastActivityDate(p, [], [consultation]), '2026-01-01');
+  assert.equal(getProjectLastActivityDate(p, [], [consultation], TODAY), '2026-01-01');
 });
 
 test('getProjectLastActivityDate takes the max across every signal at once', () => {
@@ -383,14 +387,57 @@ test('getProjectLastActivityDate takes the max across every signal at once', () 
     projectId: 'p1',
     history: [{ id: 'h1', date: '2026-05-05T00:00:00.000Z', note: 'создана' }],
   });
-  assert.equal(getProjectLastActivityDate(p, [session], [consultation]), '2026-05-05');
+  assert.equal(getProjectLastActivityDate(p, [session], [consultation], TODAY), '2026-05-05');
+});
+
+// Блокирующая дыра из ревью: done-сессия или запись истории с ошибочной
+// будущей датой (>today) не должна маскировать реальный застой — такая
+// дата отбрасывается как ненадёжная, а не засчитывается в «последнюю
+// активность» задним числом из будущего.
+
+test('getProjectLastActivityDate ignores a done session with an erroneous future date — does not rescue a stalled project', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
+  const futureSession = makeSession({ projectId: 'p1', date: '2026-12-25', done: true });
+  assert.equal(getProjectLastActivityDate(p, [futureSession], [], TODAY), null);
+});
+
+test('getProjectLastActivityDate falls back to an older, valid signal when a done session has a future date', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: '2026-01-01' });
+  const futureSession = makeSession({ projectId: 'p1', date: '2026-12-25', done: true });
+  assert.equal(getProjectLastActivityDate(p, [futureSession], [], TODAY), '2026-01-01');
+});
+
+test('getProjectLastActivityDate ignores a consultation history entry with an erroneous future timestamp', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
+  const consultation = makeConsultation({
+    id: 'c1',
+    projectId: 'p1',
+    history: [{ id: 'h1', date: '2026-12-25T10:00:00.000Z', note: 'ошибочная будущая запись' }],
+  });
+  assert.equal(getProjectLastActivityDate(p, [], [consultation], TODAY), null);
+});
+
+test('getProjectLastActivityDate ignores only the future history entry, keeps the valid past one', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: null });
+  const consultation = makeConsultation({
+    id: 'c1',
+    projectId: 'p1',
+    history: [
+      { id: 'h1', date: '2026-01-10T10:00:00.000Z', note: 'создана' },
+      { id: 'h2', date: '2026-12-25T10:00:00.000Z', note: 'ошибочная будущая запись' },
+    ],
+  });
+  assert.equal(getProjectLastActivityDate(p, [], [consultation], TODAY), '2026-01-10');
+});
+
+test('getProjectLastActivityDate ignores a future lastMeaningfulActivityAt too (defensive — saveProject never sets one, but the derivation stays strict)', () => {
+  const p = makeProject({ id: 'p1', lastMeaningfulActivityAt: '2026-12-25T00:00:00.000Z' });
+  assert.equal(getProjectLastActivityDate(p, [], [], TODAY), null);
 });
 
 // ── hasScheduledWork (M4) ──────────────────────────────────────────────────
 // Проект уже в движении (назначено будущее действие) — застой показывать
 // не нужно.
-
-const TODAY = '2026-08-05';
 
 test('hasScheduledWork is true for a future dated next step (scenario 12)', () => {
   const p = makeProject({ id: 'p1', nextActionText: 'Отправить эскиз', nextActionDate: '2026-08-10' });

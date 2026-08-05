@@ -138,6 +138,44 @@ test('staleProjects counts a done session sitting directly on a client-less (wor
   assert.equal(staleProjects([project], [], NOW).length, 0);
 });
 
+// ── Ошибочная будущая дата не спасает застывший проект (ревью-фикс) ────────
+// done-сессия или запись истории консультации с датой в будущем — не
+// «расписание» (isOpenSession/isOpenConsultation её уже исключают из
+// hasScheduledWork, done===true), но БЕЗ клэмпа к <=today такая запись
+// могла бы всё равно засчитаться в getProjectLastActivityDate как «реальная
+// активность» и надолго спрятать реальный застой.
+
+test('a done session with an erroneous future date does NOT rescue a stalled project', () => {
+  const stale = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 10);
+  const project = makeProject({ id: 'p1', lastMeaningfulActivityAt: stale });
+  const client = makeClient({ sessions: [makeSession({ projectId: 'p1', date: daysAfterNow(60), done: true, cancelled: false })] });
+  const result = staleProjects([project], [client], NOW);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].lastActivityDate, stale);
+});
+
+test('a consultation history entry with an erroneous future timestamp does NOT rescue a stalled project', () => {
+  const stale = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 10);
+  const project = makeProject({ id: 'p1', lastMeaningfulActivityAt: stale });
+  // done/completed so it's neither "open" (no accidental overdue-suppression
+  // via its own past date) nor "scheduled" — isolates exactly the thing
+  // under test: does the future HISTORY entry alone get excluded.
+  const client = makeClient({
+    consultations: [
+      makeConsultation({
+        id: 'c1',
+        projectId: 'p1',
+        done: true,
+        status: 'completed',
+        history: [{ id: 'h1', date: `${daysAfterNow(60)}T00:00:00.000Z`, note: 'ошибочная будущая запись' }],
+      }),
+    ],
+  });
+  const result = staleProjects([project], [client], NOW);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].lastActivityDate, stale);
+});
+
 // ── Запланированная работа подавляет застой (scenario 10, 11, 12) ──────────
 
 test('a future scheduled session suppresses the stale reminder (scenario 10)', () => {

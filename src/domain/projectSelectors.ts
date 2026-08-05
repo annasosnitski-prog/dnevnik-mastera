@@ -107,17 +107,19 @@ function toDateOnly(iso: string): string {
 // проект, а не подставлять собственный fallback: лучше не показать
 // карточку старого проекта, чем показать ложную.
 //
-// Только выполненные (done) сессии и записи истории консультаций несут
-// настоящую дату свершившегося события — обе по построению не могут
-// указывать в будущее (сессию нельзя отметить done заранее, история
-// пишется в момент реального действия), поэтому здесь не нужно отдельно
-// отфильтровывать «будущие» даты как активность — см. hasScheduledWork
-// ниже для будущих/незавершённых записей.
-export function getProjectLastActivityDate(project: Project, sessions: Session[], consultations: Consultation[]): string | null {
+// Каждый кандидат (lastMeaningfulActivityAt, дата done-сессии, запись
+// истории консультации) принимается ТОЛЬКО если он <= today — done-сессия
+// или запись истории с ошибочной будущей датой (повреждённые/ручные данные
+// в IndexedDB, баг в другом месте) не должны маскировать реальный застой:
+// такая запись просто отбрасывается как ненадёжная, а не засчитывается в
+// «последнюю активность» задним числом из будущего. `today` — yyyy-mm-dd
+// (см. localISO в buildReminders.ts).
+export function getProjectLastActivityDate(project: Project, sessions: Session[], consultations: Consultation[], today: string): string | null {
   let latest: string | null = null;
   const consider = (iso: string | null | undefined) => {
     if (!iso) return;
     const d = toDateOnly(iso);
+    if (d > today) return;
     if (latest === null || d > latest) latest = d;
   };
   consider(project.lastMeaningfulActivityAt);

@@ -191,7 +191,7 @@ export function staleProjects(projects: Project[], clients: Client[], now: Date)
     if (project.state !== 'active' || project.stage === 'completed') continue;
     if (hasOverdueWork(project, allSessions, allConsultations, today)) continue;
     if (hasScheduledWork(project, allSessions, allConsultations, today)) continue;
-    const lastActivityDate = getProjectLastActivityDate(project, allSessions, allConsultations);
+    const lastActivityDate = getProjectLastActivityDate(project, allSessions, allConsultations, today);
     if (lastActivityDate === null) continue;
     const since = daysSince(lastActivityDate, now);
     if (since >= STALE_PROJECT_THRESHOLD_DAYS) {
