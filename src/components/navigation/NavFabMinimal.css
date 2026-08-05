@@ -172,7 +172,7 @@
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='POSTiNKA'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M22,9Q20.5,19.9,10,23Q11.5,12.1,22,9Z'/%3E%3Cpath%20fill='none'%20stroke='black'%20stroke-width='2.4'%20stroke-linecap='round'%20d='M21,11L11,22'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M22,9Q20.5,19.9,10,23Q11.5,12.1,22,9ZM20.3,10.4L21.7,11.6L11.7,22.6L10.3,21.4Z'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Заметки'] {
