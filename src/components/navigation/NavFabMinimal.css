@@ -272,6 +272,12 @@
   transform: rotate(30deg) translateX(32px);
 }
 
+/* Keep the original client-tab icons and colours; remove only the active halo. */
+[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
+  [role='tab'] > span[aria-hidden='true'] {
+  box-shadow: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nav-fab--minimal .nav-fab__main,
   .nav-fab--minimal .nav-fab__item {
