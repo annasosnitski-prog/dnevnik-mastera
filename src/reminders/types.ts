@@ -29,6 +29,14 @@ export type UpcomingSoonItem = { client: Client; kind: 'session' | 'consultation
 // can route straight to the existing project viewer.
 export type ProjectSessionReminderItem = { project: Project; sessionId: string; date: string; time: string };
 
+// An active, not-completed project with no meaningful movement (see
+// getProjectLastActivityDate in domain/projectSelectors.ts) for at least
+// STALE_PROJECT_THRESHOLD_DAYS — a soft nudge to check in on it, not an
+// overdue action (see M4, buildReminders.ts's staleProjects). lastActivityDate
+// (yyyy-mm-dd) and daysSince ride along so the card and its reminder key can
+// both use the same computed value without recomputing it twice.
+export type StaleProjectItem = { project: Project; lastActivityDate: string; daysSince: number };
+
 // A ClientNote (Task = ClientNote, см. TECH_REFACTOR_AUDIT.md), normalized
 // with where it physically lives — client.notes (IndexedDB) or
 // masterInfo.notes (localStorage). Both stores hold the same ClientNote

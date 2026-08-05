@@ -12,7 +12,7 @@
 
 import type { Project } from '../domain/project';
 import { HEALING_STAGES } from './buildReminders.js';
-import type { HealingStage, OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
+import type { HealingStage, OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem, StaleProjectItem } from './types';
 
 // Полный id Task-напоминания (reminder.id) — им же ключуется «скрыть» (hide):
 // зависит от sourceId (client/master + конкретная задача), rule и dueDate.
@@ -109,4 +109,12 @@ export function projectReminderKey(p: Project): string {
     nextActionDate: p.nextActionDate,
     nextActionText: p.nextActionText,
   })}`;
+}
+
+// Дата в ключе (M4) — та же причина, что у overdueReminderKey/soonReminderKey:
+// как только у проекта появляется свежая активность, lastActivityDate
+// сдвигается вперёд и ключ меняется, поэтому старое закрытое/отложенное
+// напоминание о застое не прячет новое, если проект застынет снова позже.
+export function staleProjectReminderKey(it: StaleProjectItem): string {
+  return `project-stale:${it.project.id}:${it.lastActivityDate}`;
 }

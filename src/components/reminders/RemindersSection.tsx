@@ -11,12 +11,14 @@ import {
   projectReminderKey,
   soonProjectSessionReminderKey,
   soonReminderKey,
+  staleProjectReminderKey,
 } from '../../reminders/reminderKeys';
 import type {
   HealingItem,
   HealingStage,
   OverdueItem,
   ProjectSessionReminderItem,
+  StaleProjectItem,
   TaskReminderItem,
   UpcomingSoonItem,
 } from '../../reminders/types';
@@ -164,6 +166,15 @@ function snoozeShowAfter(days: number): string {
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + days);
   return d.toISOString();
+}
+
+// Русское склонение «N дней/дня/день» для карточки застоя проекта (M4).
+function daysWord(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'день';
+  if (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) return 'дня';
+  return 'дней';
 }
 
 // yyyy-mm-dd самого раннего дня, который можно выбрать в «Выбрать дату
@@ -654,6 +665,7 @@ export function RemindersSection({
   overdueProjectSessions,
   soonProjectSessions,
   dueProjects,
+  staleProjects,
   tasks,
   onOpenProject,
   onOpenEntry,
@@ -672,6 +684,9 @@ export function RemindersSection({
   overdueProjectSessions?: ProjectSessionReminderItem[];
   soonProjectSessions?: ProjectSessionReminderItem[];
   dueProjects?: Project[];
+  // Активные проекты без значимого движения (M4) — «мягкое» напоминание,
+  // отдельное от dueProjects (там — конкретный просроченный next step).
+  staleProjects?: StaleProjectItem[];
   tasks?: TaskReminderItem[];
   onOpenProject?: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
@@ -695,6 +710,7 @@ export function RemindersSection({
   const overdueProjectSessionList = overdueProjectSessions ?? [];
   const soonProjectSessionList = soonProjectSessions ?? [];
   const dueProjectsList = dueProjects ?? [];
+  const staleProjectsList = staleProjects ?? [];
   const taskList = tasks ?? [];
   const overdueFeed: ({ source: 'client'; item: OverdueItem } | { source: 'project'; item: ProjectSessionReminderItem })[] = [
     ...overdue.map((item) => ({ source: 'client' as const, item })),
@@ -761,6 +777,7 @@ export function RemindersSection({
     overdueProjectSessionList.length === 0 &&
     soonProjectSessionList.length === 0 &&
     dueProjectsList.length === 0 &&
+    staleProjectsList.length === 0 &&
     taskList.length === 0 &&
     hiddenBanners.length === 0
   ) return null;
@@ -980,6 +997,44 @@ export function RemindersSection({
                     <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       Следующий шаг: {p.nextActionText || '—'}
                       {p.nextActionDate ? ` · ${formatDate(p.nextActionDate)}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <ReminderMenuButton
+                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
+                      onPickDate={(showAfter) => flyOutThen(() => onSnooze(key, showAfter))}
+                      onHide={() => flyOutThen(() => hideReminder(key))}
+                    />
+                  </div>
+                </div>
+              )}
+            </SwipeDismissCard>
+          );
+        })}
+        {staleProjectsList.map((it) => {
+          const key = staleProjectReminderKey(it);
+          const { project: p } = it;
+          return (
+            <SwipeDismissCard key={key} onSwipeComplete={() => onSnooze(key, snoozeShowAfter(3))} revealLabel="Отложить на 3 дня" raised={raisedKey === key}>
+              {(flyOutThen) => (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    padding: '9px 10px',
+                    borderRadius: 2,
+                    border: '1px solid rgba(var(--gold-rgb),0.2)',
+                    background: 'rgba(var(--surface-rgb),0.018)',
+                  }}
+                >
+                  <div onClick={() => onOpenProject?.(p)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                    <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {p.title || 'Проект'}
+                    </div>
+                    <div style={{ fontSize: fs(11), color: COLORS.textFaint, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      Давно не двигался · {it.daysSince} {daysWord(it.daysSince)} без активности
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>

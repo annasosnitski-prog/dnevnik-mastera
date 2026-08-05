@@ -10,8 +10,9 @@
 
 import type { Client } from '../domain/client';
 import type { Project } from '../domain/project';
+import { getProjectLastActivityDate, hasScheduledWork, hasOverdueWork } from '../domain/projectSelectors.js';
 import { ISO_DATE_RE, isValidISODate } from '../utils/dates.js';
-import type { OverdueItem, HealingItem, HealingStage, UpcomingSoonItem, ProjectSessionReminderItem } from './types';
+import type { OverdueItem, HealingItem, HealingStage, UpcomingSoonItem, ProjectSessionReminderItem, StaleProjectItem } from './types';
 
 // Заживление проверяется в четыре захода вместо одной точки на 30-й день —
 // у каждой стадии своё окно (minDays включительно, maxDays исключительно).
@@ -152,4 +153,50 @@ export function overdueProjects(projects: Project[], now: Date): Project[] {
   return projects
     .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today && p.nextActionText.trim() !== '')
     .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
+}
+
+// Порог «застывания» (M4) — временный продуктовый порог: один календарный
+// месяц без значимой активности (см. isMeaningfulProjectChange/
+// getProjectLastActivityDate). Единственная именованная константа —
+// настройки в интерфейсе для неё пока нет.
+export const STALE_PROJECT_THRESHOLD_DAYS = 30;
+
+// Активные, не завершённые проекты, у которых не было значимого движения
+// (см. getProjectLastActivityDate в projectSelectors.ts) дольше
+// STALE_PROJECT_THRESHOLD_DAYS дней — «мягкое» напоминание «проект давно не
+// двигался», а не срочное действие (в отличие от overdueProjects, у которого
+// есть конкретный просроченный next step). paused/cancelled/archived
+// намеренно исключены — их «неподвижность» осознанная, не застой; stage
+// 'completed' исключён — работа закончена, двигаться больше нечему.
+//
+// Три независимые защиты от ложных карточек (M4):
+//  - getProjectLastActivityDate может вернуть null (легаси-проект без ни
+//    одного достоверного сигнала активности) — такой проект пропускается:
+//    лучше не показать карточку, чем показать ложную;
+//  - hasScheduledWork — уже назначено запланированное действие (будущий
+//    next step/сессия/консультация) — проект уже в движении, застой не
+//    показываем;
+//  - hasOverdueWork — уже есть конкретная просрочка (её показывает
+//    overdueProjects/overdueEntries) — мягкий застой не дублирует более
+//    конкретное напоминание.
+//
+// Сортировка — от самого давнего к недавнему (сначала то, что застыло
+// сильнее всего).
+export function staleProjects(projects: Project[], clients: Client[], now: Date): StaleProjectItem[] {
+  const today = localISO(now);
+  const allSessions = [...clients.flatMap((c) => c.sessions), ...projects.flatMap((p) => p.sessions)];
+  const allConsultations = clients.flatMap((c) => c.consultations);
+  const result: StaleProjectItem[] = [];
+  for (const project of projects) {
+    if (project.state !== 'active' || project.stage === 'completed') continue;
+    if (hasOverdueWork(project, allSessions, allConsultations, today)) continue;
+    if (hasScheduledWork(project, allSessions, allConsultations, today)) continue;
+    const lastActivityDate = getProjectLastActivityDate(project, allSessions, allConsultations, today);
+    if (lastActivityDate === null) continue;
+    const since = daysSince(lastActivityDate, now);
+    if (since >= STALE_PROJECT_THRESHOLD_DAYS) {
+      result.push({ project, lastActivityDate, daysSince: since });
+    }
+  }
+  return result.sort((a, b) => a.lastActivityDate.localeCompare(b.lastActivityDate));
 }

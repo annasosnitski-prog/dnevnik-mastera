@@ -201,5 +201,12 @@ export function normalizeProject(raw: any, index: number): Project {
     photos: Array.isArray(raw?.photos) ? raw.photos : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
     sessions: Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [],
+    // Легаси-проекты (до M4) не знают об этом поле — null, а НЕ createdDate
+    // и не текущая дата: старый проект вполне мог реально двигаться недавно,
+    // просто до того, как это поле начали писать. Задним числом подставлять
+    // сюда что-либо значит рисковать ложным «застоем» после обновления (см.
+    // Project.lastMeaningfulActivityAt в domain/project.ts). Первое же
+    // значимое изменение простановит настоящую дату через saveProject.
+    lastMeaningfulActivityAt: raw?.lastMeaningfulActivityAt ?? null,
   };
 }

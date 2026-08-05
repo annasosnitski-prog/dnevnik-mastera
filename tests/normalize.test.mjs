@@ -343,3 +343,25 @@ test('normalizeProject normalizes project-owned sessions ("сессии без �
   assert.equal(p.sessions[0].name, 'Без клиента');
   assert.equal(p.sessions[0].done, true);
 });
+
+// ── normalizeProject: lastMeaningfulActivityAt (M4) ───────────────────────
+// Легаси-запись без этого поля нормализуется в null, а НЕ в createdDate и
+// НЕ в текущую дату — старый проект мог реально двигаться недавно, просто
+// до появления этого поля; угадывание задним числом рискует массовым ложным
+// «застоем» после обновления (см. domain/project.ts, staleProjects в
+// reminders/buildReminders.ts).
+
+test('normalizeProject defaults lastMeaningfulActivityAt to null for a legacy record without it, NOT createdDate', () => {
+  const p = normalizeProject({ createdDate: '2026-01-05T00:00:00.000Z' }, 0);
+  assert.equal(p.lastMeaningfulActivityAt, null);
+});
+
+test('normalizeProject keeps an existing lastMeaningfulActivityAt unchanged', () => {
+  const p = normalizeProject({ createdDate: '2026-01-05T00:00:00.000Z', lastMeaningfulActivityAt: '2026-03-20T00:00:00.000Z' }, 0);
+  assert.equal(p.lastMeaningfulActivityAt, '2026-03-20T00:00:00.000Z');
+});
+
+test('normalizeProject keeps an explicit null lastMeaningfulActivityAt as null', () => {
+  const p = normalizeProject({ createdDate: '2026-01-05T00:00:00.000Z', lastMeaningfulActivityAt: null }, 0);
+  assert.equal(p.lastMeaningfulActivityAt, null);
+});

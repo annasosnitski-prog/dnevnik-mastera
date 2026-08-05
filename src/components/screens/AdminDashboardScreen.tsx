@@ -17,6 +17,7 @@ import type {
   HealingItem,
   OverdueItem,
   ProjectSessionReminderItem,
+  StaleProjectItem,
   TaskReminderItem,
   UpcomingSoonItem,
 } from '../../reminders/types';
@@ -47,6 +48,7 @@ export function AdminDashboardScreen({
   overdueProjectSessions,
   soonProjectSessions,
   dueProjects,
+  staleProjects,
   tasks,
   onOpenProject,
   onOpenEntry,
@@ -73,6 +75,9 @@ export function AdminDashboardScreen({
   soonProjectSessions: ProjectSessionReminderItem[];
   // Проекты с просроченным «следующим шагом» — в напоминания (Этап 3b).
   dueProjects: Project[];
+  // Активные проекты без значимого движения дольше порога (M4) — «мягкое»
+  // напоминание, отдельное от dueProjects.
+  staleProjects: StaleProjectItem[];
   // Task-напоминания (ClientNote.dueDate) — поверх того же engine.
   tasks: TaskReminderItem[];
   onOpenProject: (project: Project) => void;
@@ -140,6 +145,7 @@ export function AdminDashboardScreen({
           overdueProjectSessions={overdueProjectSessions}
           soonProjectSessions={soonProjectSessions}
           dueProjects={dueProjects}
+          staleProjects={staleProjects}
           tasks={tasks}
           onOpenProject={onOpenProject}
           onOpenEntry={onOpenEntry}

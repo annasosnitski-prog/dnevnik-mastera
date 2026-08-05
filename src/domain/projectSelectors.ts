@@ -10,6 +10,7 @@ import type { Project } from './project';
 import type { Session } from './session';
 import type { Consultation } from './consultation';
 import type { Client } from './client';
+import { ISO_DATE_RE } from '../utils/dates.js';
 
 // Проект по id. Возвращает null (а не undefined), чтобы вызывающий код
 // одинаково работал и через `if (!p)`, и через `?? fallback` — оба
@@ -74,6 +75,111 @@ export function getConsultationNumber(consultations: Consultation[], consultatio
   const sequence = getConsultationSequence(consultations, consultation.projectId);
   const index = sequence.findIndex((c) => c.id === consultation.id);
   return index === -1 ? null : index + 1;
+}
+
+// ===================== АКТИВНОСТЬ ПРОЕКТА (M4) =====================
+// «Последняя реальная активность» проекта — производная величина, а не
+// только сохранённое Project.lastMeaningfulActivityAt (который бампается
+// лишь при смене этапа/статуса/того-кто-должен-действовать/следующего шага,
+// см. isMeaningfulProjectChange в domain/project.ts). Сюда же примешиваются
+// сигналы, у которых УЖЕ есть собственная настоящая дата события — выполненная
+// сессия (session.date, когда done) и своя лента консультации
+// (ConsultationHistoryEntry.date) — без них проект с активной перепиской
+// консультаций, но без изменения next-step, ошибочно считался бы «застывшим».
+// Хранить эти сигналы отдельным полем не нужно и рискованно (легко забыть
+// пробросить бамп из ещё одного места saveClient) — они и так уже лежат в
+// самих сессиях/консультациях.
+//
+// Даты сравниваются только в границах дня (yyyy-mm-dd) — «застывание»
+// меряется целыми днями (как daysSince в buildReminders.ts), секунды внутри
+// суток для этого решения не важны.
+function toDateOnly(iso: string): string {
+  return iso.length >= 10 ? iso.slice(0, 10) : iso;
+}
+
+// Достоверна ли известная активность — намеренно НЕ включает
+// project.createdDate: для легаси-проекта (lastMeaningfulActivityAt===null,
+// см. normalizeProject) один только факт создания записи ничего не говорит
+// о том, двигался ли проект недавно — угадывание задним числом рискует
+// массовым ложным «застоем» после обновления. Возвращает null, когда о
+// проекте не известно ни одного достоверного сигнала — вызывающая сторона
+// (staleProjects в reminders/buildReminders.ts) обязана пропустить такой
+// проект, а не подставлять собственный fallback: лучше не показать
+// карточку старого проекта, чем показать ложную.
+//
+// Каждый кандидат (lastMeaningfulActivityAt, дата done-сессии, запись
+// истории консультации) принимается ТОЛЬКО если он <= today — done-сессия
+// или запись истории с ошибочной будущей датой (повреждённые/ручные данные
+// в IndexedDB, баг в другом месте) не должны маскировать реальный застой:
+// такая запись просто отбрасывается как ненадёжная, а не засчитывается в
+// «последнюю активность» задним числом из будущего. `today` — yyyy-mm-dd
+// (см. localISO в buildReminders.ts).
+export function getProjectLastActivityDate(project: Project, sessions: Session[], consultations: Consultation[], today: string): string | null {
+  let latest: string | null = null;
+  const consider = (iso: string | null | undefined) => {
+    if (!iso) return;
+    const d = toDateOnly(iso);
+    if (d > today) return;
+    if (latest === null || d > latest) latest = d;
+  };
+  consider(project.lastMeaningfulActivityAt);
+  // project.sessions покрывает «сессии без клиента» (Мастерская) — сессии
+  // клиентских проектов лежат в client.sessions, поэтому sessions сюда
+  // приходит объединённым списком по всем клиентам (см. вызывающий код).
+  for (const session of sessions) {
+    if (session.projectId === project.id && session.done && ISO_DATE_RE.test(session.date)) consider(session.date);
+  }
+  for (const consultation of consultations) {
+    if (consultation.projectId !== project.id) continue;
+    for (const entry of consultation.history) consider(entry.date);
+  }
+  return latest;
+}
+
+// «Открыта» — не выполнена/не завершена и не отменена; ровно тот же
+// предикат, что overdueEntries (reminders/buildReminders.ts) уже использует
+// для сессий, чтобы «просрочено» и «застой» смотрели на одни и те же записи
+// одинаково.
+function isOpenSession(session: Session): boolean {
+  return !session.done && !session.cancelled;
+}
+
+// status==='converted' уже подразумевает done:true (см. normalizeClient),
+// но проверяем явно — тот же предикат, что overdueEntries использует для
+// консультаций (см. buildReminders.ts).
+function isOpenConsultation(consultation: Consultation): boolean {
+  return !consultation.done && !consultation.cancelled && consultation.status !== 'converted';
+}
+
+// Уже есть подтверждённое запланированное действие (будущий next step,
+// будущая незавершённая сессия/консультация проекта) — застой показывать
+// не нужно, работа уже в движении, встреча или следующий шаг назначены
+// (M4, п. 4). `today` — yyyy-mm-dd (см. localISO в buildReminders.ts).
+export function hasScheduledWork(project: Project, sessions: Session[], consultations: Consultation[], today: string): boolean {
+  if (project.nextActionText.trim() !== '' && project.nextActionDate !== null && project.nextActionDate >= today) return true;
+  const hasFutureSession = sessions.some(
+    (s) => s.projectId === project.id && isOpenSession(s) && ISO_DATE_RE.test(s.date) && s.date >= today,
+  );
+  if (hasFutureSession) return true;
+  return consultations.some(
+    (c) => c.projectId === project.id && isOpenConsultation(c) && ISO_DATE_RE.test(c.date) && c.date >= today,
+  );
+}
+
+// Уже есть конкретная просрочка (просроченный next step / сессия /
+// консультация) — эти случаи уже показываются собственными, более
+// конкретными карточками (overdueProjects/overdueEntries), дублировать их
+// мягким «застоем» нельзя: «конкретная просрочка > запланированное
+// действие > мягкий застой» (M4, п. 5).
+export function hasOverdueWork(project: Project, sessions: Session[], consultations: Consultation[], today: string): boolean {
+  if (project.nextActionText.trim() !== '' && project.nextActionDate !== null && project.nextActionDate < today) return true;
+  const hasOverdueSession = sessions.some(
+    (s) => s.projectId === project.id && isOpenSession(s) && ISO_DATE_RE.test(s.date) && s.date < today,
+  );
+  if (hasOverdueSession) return true;
+  return consultations.some(
+    (c) => c.projectId === project.id && isOpenConsultation(c) && ISO_DATE_RE.test(c.date) && c.date < today,
+  );
 }
 
 // ===================== ПАПКИ ПРОЕКТОВ (view-model) =====================
