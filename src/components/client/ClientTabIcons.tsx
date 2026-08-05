@@ -1,60 +1,56 @@
 import type { ReactNode, SVGProps } from 'react';
 
-// Минимализм's line-icon set for the client detail tabs — same visual
-// language as NavFab's own minimal glyphs (see MinimalGlyph in
-// navigation/NavFab.tsx): one shared viewBox, one stroke weight, no fill,
-// currentColor so the caller drives colour (muted vs. the tab's own brand
-// colour, matching the toolbar palette already baked into gem-icons.svg).
+// Monumental client-tab icon set only. No tab backgrounds, sizing rules,
+// toolbar styling, glow system, or skin logic lives in this file.
 export type ClientTabIconName = 'sessions' | 'consultations' | 'content' | 'notes' | 'info';
 
 const common = {
   fill: 'none' as const,
-  strokeWidth: 1.45,
+  strokeWidth: 3.2,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
+  vectorEffect: 'non-scaling-stroke' as const,
 };
 
 function ClientTabGlyph({ name }: { name: ClientTabIconName }): ReactNode {
   switch (name) {
     case 'sessions':
-      // A plain clock face — the session's own place in time.
       return (
         <g {...common}>
-          <circle cx="0" cy="0" r="7" />
-          <path d="M0-4v4.5l3.2 2" />
+          <circle cx="0" cy="0" r="9" />
+          <path d="M0-5.5V.5L4.5 3.5" />
+          <path d="M-7.5-7.5-5-10M7.5-7.5 5-10" />
         </g>
       );
     case 'consultations':
-      // Two overlapping dialog outlines — an exchange between master and client.
       return (
         <g {...common}>
-          <rect x="-8" y="-7" width="10" height="7" rx="2" />
-          <rect x="-2" y="0" width="10" height="7" rx="2" />
+          <path d="M-11-8h13a4 4 0 0 1 4 4v5a4 4 0 0 1-4 4h-5l-5 4V5h-3a4 4 0 0 1-4-4v-5a4 4 0 0 1 4-4Z" />
+          <path d="M2 3h7a4 4 0 0 1 4 4v2a4 4 0 0 1-4 4H6l-4 3v-5" />
         </g>
       );
     case 'content':
-      // A feather — a single pointed blade along the diagonal, quill down its centre.
       return (
         <g {...common}>
-          <path d="M6-7Q4.5 3.9-6 7Q-4.5-3.9 6-7Z" />
-          <path d="M5-5-5 6" />
+          <path d="M10-11C8 1 1 9-10 11-8-1-1-9 10-11Z" />
+          <path d="M8-8-9 10" />
+          <path d="M1-2-5-3M5-6 0-7M-3 3-7 2" />
         </g>
       );
     case 'notes':
-      // A notebook — same pictogram as NavFab's own "Заметки" glyph (the same referent).
       return (
         <g {...common}>
-          <rect x="-6" y="-7" width="12" height="14" rx="1.4" />
-          <path d="M-3-3h6M-3 0h6M-3 3h4" />
+          <rect x="-9" y="-11" width="18" height="22" rx="2" />
+          <path d="M-4-5h8M-4 0h8M-4 5h6" />
+          <path d="M-9-7h-3M-9 0h-3M-9 7h-3" />
         </g>
       );
     case 'info':
-      // A circled "i".
       return (
         <g {...common}>
-          <circle cx="0" cy="0" r="7" />
-          <line x1="0" y1="-1.5" x2="0" y2="4" />
-          <circle cx="0" cy="-4.5" r="0.9" fill="currentColor" stroke="none" />
+          <circle cx="0" cy="0" r="10" />
+          <path d="M0-1v7" />
+          <circle cx="0" cy="-6" r="1.8" fill="currentColor" stroke="none" />
         </g>
       );
   }
@@ -62,7 +58,7 @@ function ClientTabGlyph({ name }: { name: ClientTabIconName }): ReactNode {
 
 export function ClientTabIcon({
   name,
-  size = 26,
+  size = 42,
   ...props
 }: { name: ClientTabIconName; size?: number } & SVGProps<SVGSVGElement>) {
   return (
@@ -73,9 +69,6 @@ export function ClientTabIcon({
       stroke="currentColor"
       aria-hidden="true"
       focusable={false}
-      // The global `svg { color: var(--gold) }` default (index.css) would
-      // otherwise win over the caller's own colour — `inherit` opts this
-      // back into the normal cascade from the tab button.
       style={{ display: 'block', color: 'inherit' }}
       {...props}
     >
