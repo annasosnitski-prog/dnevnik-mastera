@@ -108,17 +108,23 @@ function toDateOnly(iso: string): string {
 // карточку старого проекта, чем показать ложную.
 //
 // Каждый кандидат (lastMeaningfulActivityAt, дата done-сессии, запись
-// истории консультации) принимается ТОЛЬКО если он <= today — done-сессия
-// или запись истории с ошибочной будущей датой (повреждённые/ручные данные
-// в IndexedDB, баг в другом месте) не должны маскировать реальный застой:
-// такая запись просто отбрасывается как ненадёжная, а не засчитывается в
-// «последнюю активность» задним числом из будущего. `today` — yyyy-mm-dd
+// истории консультации) принимается ТОЛЬКО если он валиден по формату И
+// <= today — done-сессия или запись истории с ошибочной будущей датой
+// (повреждённые/ручные данные в IndexedDB, баг в другом месте) не должны
+// маскировать реальный застой: такая запись просто отбрасывается как
+// ненадёжная, а не засчитывается в «последнюю активность» задним числом из
+// будущего. Формат проверяется тем же ISO_DATE_RE, что уже использует M4
+// (hasScheduledWork/hasOverdueWork, вызывающий код для session.date ниже) —
+// пустая строка, обрезанная/произвольная строка или иначе повреждённое
+// значение отбрасываются здесь же, единым фильтром для всех трёх
+// источников, а не отдельным парсером под один из них. `today` — yyyy-mm-dd
 // (см. localISO в buildReminders.ts).
 export function getProjectLastActivityDate(project: Project, sessions: Session[], consultations: Consultation[], today: string): string | null {
   let latest: string | null = null;
   const consider = (iso: string | null | undefined) => {
     if (!iso) return;
     const d = toDateOnly(iso);
+    if (!ISO_DATE_RE.test(d)) return;
     if (d > today) return;
     if (latest === null || d > latest) latest = d;
   };
