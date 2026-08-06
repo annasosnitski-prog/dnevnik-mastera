@@ -668,24 +668,50 @@ function ProjectSessionReminderCard({
 // локальный React state, никогда не трогает onDismiss/onSnooze/onRestore
 // содержимого: карточки внутри остаются полностью себе на уме, секция лишь
 // решает, показывать их сейчас или нет.
+//
+// defaultOpen — только НАЧАЛЬНОЕ значение useState, применяется один раз
+// при монтировании (React так и задуман). Но группа не обязана
+// перемонтироваться, когда становится единственной непустой — сосед мог
+// просто опустеть, а эта секция как была смонтирована, так и осталась.
+// forceOpen — отдельный ДИНАМИЧЕСКИЙ признак «сейчас единственная непустая
+// группа» (см. RemindersSection ниже), пересчитывается на каждый рендер и
+// раскрывает уже смонтированную секцию через эффект, а не только на
+// монтировании. effectiveOpen = forceOpen || open — форс никогда не
+// перекрывает ручной выбор мастера тем, что «забывает» его: как только
+// forceOpen снова станет false (появился второй сосед), open уже равен
+// true (эффект его выставил), так что секция остаётся раскрытой, а не
+// откатывается обратно в свёрнутое defaultOpen.
 function ReminderGroupSection({
   title,
   count,
   defaultOpen,
+  forceOpen,
   children,
 }: {
   title: string;
   count: number;
   defaultOpen: boolean;
+  forceOpen: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    if (forceOpen) setOpen(true);
+  }, [forceOpen]);
+  const effectiveOpen = forceOpen || open;
   return (
     <div>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
+        onClick={() => {
+          // Пока группа единственная непустая, её нельзя свернуть обратно —
+          // иначе мастер увидела бы пустой экран без единственного
+          // источника внимания. Кнопка при этом остаётся обычной доступной
+          // кнопкой (не disabled), просто её клик временно не переключает.
+          if (!forceOpen) setOpen((o) => !o);
+        }}
+        aria-expanded={effectiveOpen}
+        aria-disabled={forceOpen}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -710,7 +736,7 @@ function ReminderGroupSection({
           style={{
             fontSize: fs(10),
             color: COLORS.textFaint,
-            transform: open ? 'rotate(180deg)' : 'none',
+            transform: effectiveOpen ? 'rotate(180deg)' : 'none',
             transition: 'transform 0.15s ease',
             flexShrink: 0,
           }}
@@ -718,7 +744,7 @@ function ReminderGroupSection({
           ▾
         </span>
       </button>
-      {open && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{children}</div>}
+      {effectiveOpen && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{children}</div>}
     </div>
   );
 }
@@ -852,6 +878,11 @@ export function RemindersSection({
   };
   const totalCount = totalReminderCount(counts);
   const visibleGroups = buildVisibleReminderGroups(counts);
+  // Динамический признак (не только для монтирования, в отличие от
+  // group.defaultOpen выше) — пересчитывается на каждый рендер, поэтому
+  // раскрывает уже смонтированную секцию, когда сосед опустел, а не только
+  // секцию, которая монтируется впервые уже единственной.
+  const forceOpen = visibleGroups.length === 1;
   const groupContentById: Record<string, React.ReactNode> = {
     action: (
       <>
@@ -1211,7 +1242,7 @@ export function RemindersSection({
           </div>
         ))}
         {visibleGroups.map((group) => (
-          <ReminderGroupSection key={group.id} title={group.title} count={group.count} defaultOpen={group.defaultOpen}>
+          <ReminderGroupSection key={group.id} title={group.title} count={group.count} defaultOpen={group.defaultOpen} forceOpen={forceOpen}>
             {groupContentById[group.id]}
           </ReminderGroupSection>
         ))}

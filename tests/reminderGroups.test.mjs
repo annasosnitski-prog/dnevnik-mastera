@@ -92,3 +92,56 @@ test('totalReminderCount has no notion of hidden banners at all', () => {
   // just pins the sum so a future refactor can't silently add one in.
   assert.equal(totalReminderCount({ action: 1, tasks: 0, soon: 0, healing: 0, stale: 0 }), 1);
 });
+
+// ── forceOpen: динамический переход к единственной непустой группе ─────────
+// Блокирующая дыра из ревью: useState(defaultOpen) применяется только при
+// монтировании, поэтому уже смонтированная секция (сосед которой опустел)
+// не раскрывалась бы сама по себе только через defaultOpen. RemindersSection
+// пересчитывает `forceOpen = visibleGroups.length === 1` на каждый рендер —
+// этот блок тестирует именно эту производную величину (то же выражение, что
+// использует компонент) на смене counts между рендерами, эмулируя переход
+// «healing+stale видимы» → «stale исчез» → «healing одна».
+function forceOpenFor(counts) {
+  return buildVisibleReminderGroups(counts).length === 1;
+}
+
+test('dynamic scenario: healing+stale visible with normal defaultOpen=false, then stale disappears — healing alone gets forceOpen=true', () => {
+  const before = buildVisibleReminderGroups({ ...EMPTY_COUNTS, healing: 1, stale: 1 });
+  assert.deepEqual(Object.fromEntries(before.map((g) => [g.id, g.defaultOpen])), { healing: false, stale: false });
+  assert.equal(forceOpenFor({ ...EMPTY_COUNTS, healing: 1, stale: 1 }), false);
+
+  // stale's only card gets hidden — its count drops to 0.
+  const after = buildVisibleReminderGroups({ ...EMPTY_COUNTS, healing: 1, stale: 0 });
+  assert.deepEqual(after.map((g) => g.id), ['healing']);
+  assert.equal(forceOpenFor({ ...EMPTY_COUNTS, healing: 1, stale: 0 }), true);
+});
+
+// 1. Единственная stale раскрыта.
+test('forceOpen is true when stale is the sole visible group', () => {
+  assert.equal(forceOpenFor({ ...EMPTY_COUNTS, stale: 2 }), true);
+});
+
+// 2. Единственная healing раскрыта.
+test('forceOpen is true when healing is the sole visible group', () => {
+  assert.equal(forceOpenFor({ ...EMPTY_COUNTS, healing: 4 }), true);
+});
+
+// 3. При двух группах forceOpen=false.
+test('forceOpen is false whenever two or more groups are visible', () => {
+  assert.equal(forceOpenFor({ ...EMPTY_COUNTS, action: 1, tasks: 1 }), false);
+  assert.equal(forceOpenFor({ action: 1, tasks: 1, soon: 1, healing: 1, stale: 1 }), false);
+});
+
+test('forceOpen is false when nothing is visible', () => {
+  assert.equal(forceOpenFor(EMPTY_COUNTS), false);
+});
+
+// 6. Переход 1 группа → 2 группы: forceOpen становится false снова — сам по
+// себе этот пересчёт не "закрывает" уже раскрытую секцию (это гарантирует
+// effectiveOpen = forceOpen || open в компоненте — open остаётся true,
+// выставленный эффектом на предыдущем рендере; здесь фиксируем только то,
+// что forceOpen корректно возвращается к false, когда появляется сосед).
+test('dynamic scenario: a second group appearing turns forceOpen back to false (component keeps the group open via its own `open` state, not tested here)', () => {
+  assert.equal(forceOpenFor({ ...EMPTY_COUNTS, healing: 1 }), true);
+  assert.equal(forceOpenFor({ ...EMPTY_COUNTS, healing: 1, stale: 1 }), false);
+});
