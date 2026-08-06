@@ -8,7 +8,7 @@
 
 import type { ClientNote } from './task';
 import type { Client } from './client';
-import { type UrgencyKey, URGENCY } from './urgency';
+import { type UrgencyKey, URGENCY } from './urgency.js';
 
 export const urgencyRank = (k: UrgencyKey): number => URGENCY.findIndex((u) => u.key === k);
 export const urgencyMeta = (k: UrgencyKey) => URGENCY.find((u) => u.key === k) || URGENCY[URGENCY.length - 1];
