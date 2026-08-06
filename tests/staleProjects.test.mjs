@@ -176,6 +176,49 @@ test('a consultation history entry with an erroneous future timestamp does NOT r
   assert.equal(result[0].lastActivityDate, stale);
 });
 
+test('a calendar-impossible done session date (e.g. 30 february) does NOT rescue a stalled project', () => {
+  const stale = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 10);
+  const project = makeProject({ id: 'p1', lastMeaningfulActivityAt: stale });
+  const client = makeClient({ sessions: [makeSession({ projectId: 'p1', date: '2026-02-30', done: true, cancelled: false })] });
+  const result = staleProjects([project], [client], NOW);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].lastActivityDate, stale);
+});
+
+// Точный сценарий из ревью: последняя реальная активность 40 дней назад +
+// done-сессия/запись истории через 10 дней в будущем = проект всё равно
+// застывший (не только с "далёким" будущим смещением в 60 дней выше).
+
+test('exact scenario: last real activity 40 days ago + a done session 10 days in the future = still stale', () => {
+  const activity40DaysAgo = daysBeforeNow(40);
+  const project = makeProject({ id: 'p1', lastMeaningfulActivityAt: activity40DaysAgo });
+  const client = makeClient({ sessions: [makeSession({ projectId: 'p1', date: daysAfterNow(10), done: true, cancelled: false })] });
+  const result = staleProjects([project], [client], NOW);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].project.id, 'p1');
+  assert.equal(result[0].lastActivityDate, activity40DaysAgo);
+});
+
+test('exact scenario: last real activity 40 days ago + a consultation history entry 10 days in the future = still stale', () => {
+  const activity40DaysAgo = daysBeforeNow(40);
+  const project = makeProject({ id: 'p1', lastMeaningfulActivityAt: activity40DaysAgo });
+  const client = makeClient({
+    consultations: [
+      makeConsultation({
+        id: 'c1',
+        projectId: 'p1',
+        done: true,
+        status: 'completed',
+        history: [{ id: 'h1', date: `${daysAfterNow(10)}T00:00:00.000Z`, note: 'ошибочная будущая запись' }],
+      }),
+    ],
+  });
+  const result = staleProjects([project], [client], NOW);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].project.id, 'p1');
+  assert.equal(result[0].lastActivityDate, activity40DaysAgo);
+});
+
 // ── Запланированная работа подавляет застой (scenario 10, 11, 12) ──────────
 
 test('a future scheduled session suppresses the stale reminder (scenario 10)', () => {

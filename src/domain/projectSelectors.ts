@@ -10,7 +10,7 @@ import type { Project } from './project';
 import type { Session } from './session';
 import type { Consultation } from './consultation';
 import type { Client } from './client';
-import { ISO_DATE_RE } from '../utils/dates.js';
+import { ISO_DATE_RE, isValidISODate } from '../utils/dates.js';
 
 // Проект по id. Возвращает null (а не undefined), чтобы вызывающий код
 // одинаково работал и через `if (!p)`, и через `?? fallback` — оба
@@ -108,17 +108,25 @@ function toDateOnly(iso: string): string {
 // карточку старого проекта, чем показать ложную.
 //
 // Каждый кандидат (lastMeaningfulActivityAt, дата done-сессии, запись
-// истории консультации) принимается ТОЛЬКО если он <= today — done-сессия
-// или запись истории с ошибочной будущей датой (повреждённые/ручные данные
-// в IndexedDB, баг в другом месте) не должны маскировать реальный застой:
-// такая запись просто отбрасывается как ненадёжная, а не засчитывается в
-// «последнюю активность» задним числом из будущего. `today` — yyyy-mm-dd
-// (см. localISO в buildReminders.ts).
+// истории консультации) принимается ТОЛЬКО если он валиден И <= today —
+// done-сессия или запись истории с ошибочной будущей датой (повреждённые/
+// ручные данные в IndexedDB, баг в другом месте) не должны маскировать
+// реальный застой: такая запись просто отбрасывается как ненадёжная, а не
+// засчитывается в «последнюю активность» задним числом из будущего.
+// Валидность — через isValidISODate (utils/dates.ts), а не только через
+// ISO_DATE_RE: одной формы yyyy-mm-dd недостаточно (см. её собственный
+// комментарий) — «2026-02-30»/«2026-13-10» ей соответствуют по форме, но
+// такой календарной даты не существует. Пустая строка, обрезанная/
+// произвольная строка, календарно невозможная дата — всё отбрасывается
+// здесь же, единым фильтром для всех трёх источников, а не отдельным
+// парсером под один из них. `today` — yyyy-mm-dd (см. localISO в
+// buildReminders.ts).
 export function getProjectLastActivityDate(project: Project, sessions: Session[], consultations: Consultation[], today: string): string | null {
   let latest: string | null = null;
   const consider = (iso: string | null | undefined) => {
     if (!iso) return;
     const d = toDateOnly(iso);
+    if (!isValidISODate(d)) return;
     if (d > today) return;
     if (latest === null || d > latest) latest = d;
   };
