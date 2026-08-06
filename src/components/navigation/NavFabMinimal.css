@@ -191,27 +191,27 @@
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M13,3h6v10h10v6H19v10h-6V19H3v-6h10Z'/%3E%3C/svg%3E");
 }
 
-/* Slim gold spokes: a narrow body tapering to a point at both ends. */
+/* Hairline gold spokes with long, needle-sharp tapers at both ends. */
 .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
   content: '';
   position: absolute;
-  top: calc(50% - 1.5px);
+  top: calc(50% - 1px);
   left: 50%;
   z-index: -1;
   width: 91px;
-  height: 3px;
+  height: 2px;
   transform-origin: 0 50%;
-  background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.86), rgba(var(--gold-rgb), 0.36));
-  -webkit-clip-path: polygon(0 50%, 7% 25%, 93% 25%, 100% 50%, 93% 75%, 7% 75%);
-  clip-path: polygon(0 50%, 7% 25%, 93% 25%, 100% 50%, 93% 75%, 7% 75%);
-  box-shadow: 0 0 4px rgba(var(--gold-rgb), 0.28);
-  opacity: 0.82;
+  background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.82), rgba(var(--gold-rgb), 0.32));
+  -webkit-clip-path: polygon(0 50%, 12% 30%, 88% 30%, 100% 50%, 88% 70%, 12% 70%);
+  clip-path: polygon(0 50%, 12% 30%, 88% 30%, 100% 50%, 88% 70%, 12% 70%);
+  box-shadow: 0 0 2px rgba(var(--gold-rgb), 0.18);
+  opacity: 0.78;
   pointer-events: none;
 }
 
 :root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
   box-shadow: none;
-  opacity: 0.62;
+  opacity: 0.56;
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(1)::after {
