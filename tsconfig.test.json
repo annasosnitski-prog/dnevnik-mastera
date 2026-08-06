@@ -31,6 +31,7 @@
     "src/reminders/reminderKeys.ts",
     "src/reminders/reminderState.ts",
     "src/reminders/hiddenReminderBanners.ts",
+    "src/components/reminders/reminderGroups.ts",
     "src/domain/project.ts",
     "src/domain/projectSelectors.ts",
     "src/domain/client.ts",
