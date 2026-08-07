@@ -6,8 +6,8 @@
      viewBox="0 0 320 64"
      role="img"
      aria-labelledby="title desc">
-  <title id="title">Gold pendant navigation icons</title>
-  <desc id="desc">A small gold pendant with a diamond halo and a coloured centre stone using the toolbar palette: green sessions, blue consultations, violet content, orange notes, and red info icons.</desc>
+  <title id="title">INKA gold client-tab pendants</title>
+  <desc id="desc">Five identically lit gold pendants with slightly sharper corners and small faceted centre stones in the exact toolbar colours.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -16,6 +16,7 @@
   <view id="info" viewBox="256 0 64 64"/>
 
   <defs>
+    <!-- Same gentle gold used by the toolbar's stamped plate. -->
     <linearGradient id="gold-metal" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#F7E4B8"/>
       <stop offset=".35" stop-color="#D8A94A"/>
@@ -23,15 +24,27 @@
       <stop offset="1" stop-color="#6E4A16"/>
     </linearGradient>
 
-    <radialGradient id="pave-diamond" cx=".35" cy=".3" r=".8">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset=".55" stop-color="#EFF4F8"/>
-      <stop offset="1" stop-color="#C3CFD8"/>
+    <!-- Exact toolbar pendant gold-face palette and light direction. -->
+    <radialGradient id="gold-face" cx=".34" cy=".2" r=".84">
+      <stop offset="0" stop-color="#FFF8D7"/>
+      <stop offset=".14" stop-color="#FFD777"/>
+      <stop offset=".34" stop-color="#C77A14"/>
+      <stop offset=".56" stop-color="#793804"/>
+      <stop offset=".76" stop-color="#EFAD3C"/>
+      <stop offset=".91" stop-color="#8E4709"/>
+      <stop offset="1" stop-color="#431A00"/>
     </radialGradient>
 
-    <!-- Cross-wise light/dark/light banding (not the diagonal gold-metal one)
-         so the bail-to-frame connector reads as a round soldered rod instead
-         of a flat stroked line. -->
+    <!-- Exact toolbar gold-edge palette. -->
+    <linearGradient id="gold-edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6B2C00"/>
+      <stop offset=".16" stop-color="#FFF0B3"/>
+      <stop offset=".35" stop-color="#B45F0B"/>
+      <stop offset=".55" stop-color="#FFD36E"/>
+      <stop offset=".75" stop-color="#7D3603"/>
+      <stop offset="1" stop-color="#F1B54A"/>
+    </linearGradient>
+
     <linearGradient id="rod-metal" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#6E4A16"/>
       <stop offset=".28" stop-color="#D8A94A"/>
@@ -40,83 +53,147 @@
       <stop offset="1" stop-color="#6E4A16"/>
     </linearGradient>
 
-    <!-- Hue-independent facet shading laid over each currentColor stone. -->
-    <linearGradient id="stone-facet-highlight" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".65"/>
-      <stop offset=".5" stop-color="#FFFFFF" stop-opacity=".14"/>
+    <!-- Exact toolbar pavé palette. -->
+    <radialGradient id="pave-diamond" cx=".32" cy=".26" r=".75">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".32" stop-color="#F8FBFF"/>
+      <stop offset=".63" stop-color="#CBD5DF"/>
+      <stop offset=".82" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#929DAA"/>
+    </radialGradient>
+
+    <linearGradient id="stone-light" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".72"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".18"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="stone-facet-shadow" x1="0" y1="0" x2="1" y2="1">
+
+    <linearGradient id="stone-dark" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#000000" stop-opacity="0"/>
-      <stop offset=".5" stop-color="#000000" stop-opacity=".18"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".5"/>
+      <stop offset=".55" stop-color="#000000" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".54"/>
     </linearGradient>
 
-    <!-- Soft ambient shadow instead of a neon glow — reads as real metal, not a video-game gem. -->
-    <filter id="pendant-shadow" x="-40%" y="-30%" width="180%" height="170%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="1.1" result="blur"/>
-      <feOffset in="blur" dy=".8" result="off"/>
-      <feComponentTransfer in="off" result="shadow"><feFuncA type="linear" slope=".38"/></feComponentTransfer>
-      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <linearGradient id="stone-table" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".48"/>
+      <stop offset=".44" stop-color="#FFFFFF" stop-opacity=".08"/>
+      <stop offset=".72" stop-color="#000000" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".46"/>
+    </linearGradient>
+
+    <filter id="pendant-shadow" x="-45%" y="-35%" width="190%" height="180%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.05" result="blur"/>
+      <feOffset in="blur" dy=".75" result="off"/>
+      <feComponentTransfer in="off" result="shadow">
+        <feFuncA type="linear" slope=".4"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
 
-    <!-- Colourless chrome: the bail and connector stay at their original size;
-         only the four-corner diamond body below is enlarged around its centre. -->
-    <g id="pendant-chrome">
-      <circle cx="32" cy="9" r="2.8" fill="none" stroke="url(#gold-metal)" stroke-width="1.8"/>
+    <filter id="stone-haze" x="-55%" y="-55%" width="210%" height="210%">
+      <feGaussianBlur stdDeviation=".7"/>
+    </filter>
+
+    <filter id="edge-glint" x="-40%" y="-80%" width="180%" height="260%">
+      <feGaussianBlur stdDeviation=".22"/>
+    </filter>
+
+    <clipPath id="stone-clip" clipPathUnits="userSpaceOnUse">
+      <rect x="-5.2" y="-5.2" width="10.4" height="10.4" rx=".9"/>
+    </clipPath>
+
+    <g id="pave-jewel">
+      <circle r="1.75" fill="#6A3A12" opacity=".76"/>
+      <circle r="1.4" fill="url(#pave-diamond)" stroke="#FFFFFF" stroke-width=".18"/>
+      <path d="M0,-1.08 .52,-.3 0,0 -.52,-.3Z" fill="#FFFFFF" opacity=".96"/>
+      <path d="M1.08,0 .4,.5 0,0 .52,-.3Z" fill="#C7D2DF" opacity=".88"/>
+      <path d="M0,1.08 -.4,.4 0,0 .4,.5Z" fill="#FFFFFF" opacity=".82"/>
+      <path d="M-1.08,0 -.52,-.3 0,0 -.4,.4Z" fill="#AEB9C5" opacity=".9"/>
+      <circle r=".22" fill="#FFFFFF" opacity=".94"/>
+    </g>
+
+    <g id="pendant-gold">
+      <!-- The mount stays exactly the same for every pendant. -->
+      <circle cx="32" cy="9" r="2.8" fill="none" stroke="url(#gold-face)" stroke-width="1.8"/>
       <rect x="31.05" y="11.3" width="1.9" height="5.4" rx=".95" fill="url(#rod-metal)" stroke="#5A3B10" stroke-width=".35"/>
       <line x1="31.5" y1="11.7" x2="31.5" y2="16" stroke="#FCEFD8" stroke-width=".4" stroke-linecap="round" opacity=".6"/>
 
       <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <rect x="-12.5" y="-12.5" width="25" height="25" rx="3.2" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".9"/>
-        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx="2.4" fill="#FCEFD8" stroke="url(#gold-metal)" stroke-width=".7"/>
+        <!-- Original broad frame; radii reduced only slightly. -->
+        <rect x="-12.5" y="-12.5" width="25" height="25" rx="2.75" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".9"/>
+        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx="2.05" fill="#FCEFD8" stroke="url(#gold-metal)" stroke-width=".7"/>
 
-        <circle cx="-9.8" cy="-9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="9.8" cy="-9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="9.8" cy="9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="-9.8" cy="9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="0" cy="-9.8" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-        <circle cx="9.8" cy="0" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-        <circle cx="0" cy="9.8" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-        <circle cx="-9.8" cy="0" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
+        <!-- Gold centre field: identical illumination on all five pendants. -->
+        <rect x="-7.9" y="-7.9" width="15.8" height="15.8" rx="1.55" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".45"/>
+        <rect x="-7.15" y="-7.15" width="14.3" height="14.3" rx="1.3" fill="none" stroke="url(#gold-edge)" stroke-width=".45" opacity=".82"/>
+        <path d="M-6.5-6.5H-.6" stroke="#FFF4C8" stroke-width=".7" stroke-linecap="round" opacity=".7" filter="url(#edge-glint)"/>
 
-        <circle cx="-12.5" cy="-12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-        <circle cx="12.5" cy="-12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-        <circle cx="12.5" cy="12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-        <circle cx="-12.5" cy="12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
+        <!-- Pavé arrangement remains part of the gold pendant, not the colour code. -->
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-9.8 -9.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(0 -9.8) scale(.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(9.8 -9.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(9.8 0) scale(.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(9.8 9.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(0 9.8) scale(.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-9.8 9.8)"/>
+        <use href="#pave-jewel" xlink:href="#pave-jewel" transform="translate(-9.8 0) scale(.8)"/>
       </g>
     </g>
 
-    <!-- Coloured centre stone scales with the diamond body, not with its mount. -->
+    <!-- Only this small centre stone changes colour. -->
     <g id="pendant-stone">
       <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <rect x="-7.6" y="-7.6" width="15.2" height="15.2" rx="1.9" fill="#241608"/>
-        <rect x="-7" y="-7" width="14" height="14" rx="1.8" fill="currentColor" stroke="#000000" stroke-opacity=".3" stroke-width=".4"/>
-        <path d="M-7 -7 7 -7 -7 7Z" fill="url(#stone-facet-highlight)"/>
-        <path d="M7 -7 7 7 -7 7Z" fill="url(#stone-facet-shadow)"/>
-        <path d="M-4.3 -4.3 -1.2 -1.2" stroke="#FFFFFF" stroke-width=".9" stroke-linecap="round" opacity=".6"/>
+        <rect x="-5.7" y="-5.7" width="11.4" height="11.4" rx="1.05" fill="currentColor" opacity=".24" filter="url(#stone-haze)"/>
+        <rect x="-5.8" y="-5.8" width="11.6" height="11.6" rx="1.1" fill="#241608" stroke="#4F1700" stroke-width=".45"/>
+        <rect x="-5.2" y="-5.2" width="10.4" height="10.4" rx=".9" fill="currentColor" stroke="#000000" stroke-opacity=".28" stroke-width=".35"/>
+
+        <g clip-path="url(#stone-clip)">
+          <path d="M-5.2-5.2H0L-2.1-2.1Z" fill="#FFFFFF" opacity=".18"/>
+          <path d="M0-5.2H5.2L2.1-2.1H-2.1Z" fill="url(#stone-light)"/>
+          <path d="M5.2-5.2V0L2.1-2.1Z" fill="#FFFFFF" opacity=".08"/>
+          <path d="M5.2 0V5.2L2.1 2.1V-2.1Z" fill="#000000" opacity=".18"/>
+          <path d="M5.2 5.2H0L2.1 2.1Z" fill="#000000" opacity=".28"/>
+          <path d="M0 5.2H-5.2L-2.1 2.1H2.1Z" fill="url(#stone-dark)"/>
+          <path d="M-5.2 5.2V0L-2.1 2.1Z" fill="#000000" opacity=".14"/>
+          <path d="M-5.2 0V-5.2L-2.1-2.1V2.1Z" fill="#FFFFFF" opacity=".06"/>
+
+          <rect x="-2.35" y="-2.35" width="4.7" height="4.7" rx=".22" fill="currentColor"/>
+          <rect x="-2.35" y="-2.35" width="4.7" height="4.7" rx=".22" fill="url(#stone-table)"/>
+
+          <g fill="none" stroke="#FFFFFF" stroke-opacity=".22" stroke-width=".22">
+            <rect x="-2.35" y="-2.35" width="4.7" height="4.7" rx=".22"/>
+            <path d="M-5.2-5.2-2.35-2.35M5.2-5.2 2.35-2.35M5.2 5.2 2.35 2.35M-5.2 5.2-2.35 2.35"/>
+            <path d="M0-5.2V-2.35M5.2 0H2.35M0 5.2V2.35M-5.2 0H-2.35"/>
+          </g>
+
+          <path d="M-2.1-2.35H1.35" stroke="#FFFFFF" stroke-width=".62" stroke-linecap="round" opacity=".86" filter="url(#edge-glint)"/>
+        </g>
       </g>
     </g>
   </defs>
 
+  <!-- Exact toolbar colour mapping: Clients, Projects, POSTiNKA, Notes, Admin. -->
   <g id="sessions-icon" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-gold" xlink:href="#pendant-gold"/>
     <use href="#pendant-stone" xlink:href="#pendant-stone" color="#5CFF24"/>
   </g>
   <g id="consultations-icon" transform="translate(64 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-gold" xlink:href="#pendant-gold"/>
     <use href="#pendant-stone" xlink:href="#pendant-stone" color="#00CFFF"/>
   </g>
   <g id="content-icon" transform="translate(128 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-gold" xlink:href="#pendant-gold"/>
     <use href="#pendant-stone" xlink:href="#pendant-stone" color="#C12FFF"/>
   </g>
   <g id="notes-icon" transform="translate(192 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-gold" xlink:href="#pendant-gold"/>
     <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FF8900"/>
   </g>
   <g id="info-icon" transform="translate(256 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-gold" xlink:href="#pendant-gold"/>
     <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FF3342"/>
   </g>
 </svg>

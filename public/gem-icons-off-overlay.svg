@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="64" viewBox="0 0 320 64" aria-hidden="true">
+  <defs>
+    <filter id="off-soften" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation=".55"/>
+    </filter>
+    <g id="off-stone">
+      <g transform="translate(32 34) rotate(45) scale(1.16)">
+        <!-- Cover only the coloured stone and its haze; the gold pendant stays untouched. -->
+        <rect x="-6.15" y="-6.15" width="12.3" height="12.3" rx="1.15" fill="#0D0B08" opacity=".52" filter="url(#off-soften)"/>
+        <rect x="-5.78" y="-5.78" width="11.56" height="11.56" rx="1.08" fill="#17120D" opacity=".64"/>
+        <rect x="-5.15" y="-5.15" width="10.3" height="10.3" rx=".88" fill="#2A241D" opacity=".28"/>
+      </g>
+    </g>
+  </defs>
+
+  <use href="#off-stone"/>
+  <use href="#off-stone" transform="translate(64 0)"/>
+  <use href="#off-stone" transform="translate(128 0)"/>
+  <use href="#off-stone" transform="translate(192 0)"/>
+  <use href="#off-stone" transform="translate(256 0)"/>
+</svg>

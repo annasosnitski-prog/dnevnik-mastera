@@ -64,6 +64,22 @@
         inset: 0;
         overflow: hidden;
       }
+
+      /* Gold stays identically lit on every client-tab pendant. Only the
+         small centre stone changes state: full light on the selected tab,
+         neutral dark overlay on the rest. */
+      div[role='tablist'][aria-label='Разделы клиента'] > button[role='tab'] > span[aria-hidden='true']:last-child {
+        opacity: 1 !important;
+        filter: none !important;
+      }
+
+      div[role='tablist'][aria-label='Разделы клиента'] > button[role='tab'][aria-selected='false'] > span[aria-hidden='true']:last-child {
+        background-image: url('/gem-icons-off-overlay.svg'), url('/gem-icons.svg') !important;
+      }
+
+      div[role='tablist'][aria-label='Разделы клиента'] > button[role='tab'][aria-selected='true'] > span[aria-hidden='true']:last-child {
+        background-image: url('/gem-icons.svg') !important;
+      }
     </style>
   </head>
   <body>
