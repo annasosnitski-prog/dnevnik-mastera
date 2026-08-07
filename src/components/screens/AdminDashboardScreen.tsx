@@ -20,15 +20,17 @@ import type {
   TaskReminderItem,
   UpcomingSoonItem,
 } from '../../reminders/types';
-import { formatDate } from '../../utils/dates';
+import { todayISO } from '../../utils/dates';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { GoldFrame } from '../ui/Stripes';
 import { COLORS, fs } from '../ui/designTokens';
-import { DASHBOARD_WINDOW_OPTIONS, type Prefs } from '../ui/preferences';
+import { type Prefs } from '../ui/preferences';
 import { buildAdminWorkSummary } from './adminWorkSummary';
 import { AdminWorkSummary } from './AdminWorkSummary';
+import { buildUpcomingSchedule } from './upcomingSchedule';
+import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 
 // ===================== ADMIN DASHBOARD =====================
 // The control panel: every reminder, the upcoming-sessions lookahead, and the
@@ -96,6 +98,7 @@ export function AdminDashboardScreen({
   onOpenNotes: (urgency: UrgencyKey) => void;
 }) {
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
+  const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
   const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.statsWindowDays);
 
   const statLabelStyle: React.CSSProperties = {
@@ -155,69 +158,23 @@ export function AdminDashboardScreen({
           onHideAllHealing={onHideAllHealing}
         />
 
-        {/* Upcoming sessions, with a master-configurable lookahead window —
-            same period picker as the stats grid below, so the two controls
-            read as one shared concept rather than two different ones. */}
-        <GoldFrame style={{ padding: '14px 16px' }}>
-          <div style={{ ...statLabelStyle, marginBottom: 0 }}>Предстоящие сессии</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: 8 }}>
-            {DASHBOARD_WINDOW_OPTIONS.map((o) => (
-              <div
-                key={o.days}
-                onClick={() => onChangePrefs({ ...prefs, upcomingWindowDays: o.days })}
-                style={{
-                  fontSize: fs(12),
-                  padding: '4px 10px',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  border: prefs.upcomingWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: prefs.upcomingWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: prefs.upcomingWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
-          </div>
-          {upcoming.length === 0 ? (
-            <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Нет запланированных сессий и консультаций</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {upcoming.map((it) => (
-                <div
-                  key={it.id}
-                  onClick={() => onOpenSession(it.client.id, it.id, it.kind)}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 10px',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                    border: '1px solid rgba(var(--gold-rgb),0.1)',
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: fs(14), color: COLORS.textPrimary }}>{it.client.name || '—'}</div>
-                    {it.kind === 'consultation' && (
-                      <div style={{ fontSize: fs(10), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>Консультация</div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: fs(12), color: COLORS.textGhost }}>
-                    {formatDate(it.date)}
-                    {it.time && <span style={{ color: COLORS.gold }}> · {it.time}</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </GoldFrame>
+        {/* Предстоящие записи (M5C) — компактно, без внешней GoldFrame, та же
+            визуальная логика, что у групп напоминаний и «Рабочей сводки».
+            upcomingItems по-прежнему единственный источник того, какие
+            записи попадают в список и в каком порядке — группировка по дням
+            только раскладывает уже готовый результат. */}
+        <UpcomingScheduleSection
+          groups={upcomingSchedule}
+          selectedWindowDays={prefs.upcomingWindowDays}
+          onChangeWindowDays={(days) => onChangePrefs({ ...prefs, upcomingWindowDays: days })}
+          onOpenSession={onOpenSession}
+        />
 
         {/* Обратный поток: брони от бота отдельным блоком (любой тег —
             бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
             [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
             справочный список, карточку мастер заводит в Дневнике сама
-            (см. calendarSync.ts). Сгруппирован с «Предстоящие сессии» —
+            (см. calendarSync.ts). Сгруппирован с «Предстоящие записи» —
             оба про то, что запланировано впереди. */}
         {syncActive(calendarSync) && (
           <GoldFrame style={{ padding: '14px 16px' }}>
