@@ -3,9 +3,8 @@ import type * as React from 'react';
 import type { Client } from '../../domain/client';
 import type { Project } from '../../domain/project';
 import type { ClientNote } from '../../domain/task';
-import { URGENCY, type UrgencyKey } from '../../domain/urgency';
+import type { UrgencyKey } from '../../domain/urgency';
 import { upcomingItems } from '../../domain/plannerSelectors';
-import { notesUrgencyCounts, urgencyCounts } from '../../domain/taskSelectors';
 import {
   fetchBotBookings,
   syncActive,
@@ -26,9 +25,10 @@ import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { GoldFrame } from '../ui/Stripes';
-import { SplitStatBlock } from '../ui/StatBlocks';
 import { COLORS, fs } from '../ui/designTokens';
 import { DASHBOARD_WINDOW_OPTIONS, type Prefs } from '../ui/preferences';
+import { buildAdminWorkSummary } from './adminWorkSummary';
+import { AdminWorkSummary } from './AdminWorkSummary';
 
 // ===================== ADMIN DASHBOARD =====================
 // The control panel: every reminder, the upcoming-sessions lookahead, and the
@@ -96,11 +96,7 @@ export function AdminDashboardScreen({
   onOpenNotes: (urgency: UrgencyKey) => void;
 }) {
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
-  const { urgent, important } = urgencyCounts(clients);
-  const personalNotes = notesUrgencyCounts(masterNotes);
-  const statsUpcoming = upcomingItems(clients, prefs.statsWindowDays);
-  const plannedSessionsCount = statsUpcoming.filter((i) => i.kind === 'session').length;
-  const plannedConsultationsCount = statsUpcoming.filter((i) => i.kind === 'consultation').length;
+  const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.statsWindowDays);
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -232,61 +228,14 @@ export function AdminDashboardScreen({
           </GoldFrame>
         )}
 
-        {/* Quick stats — clients (with срочно/важно in the lower half) beside
-            назначено сессий/консультаций. «Частый стиль» stays on Мастер. */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
-          {DASHBOARD_WINDOW_OPTIONS.map((o) => (
-            <div
-              key={o.days}
-              onClick={() => onChangePrefs({ ...prefs, statsWindowDays: o.days })}
-              style={{
-                fontSize: fs(12),
-                padding: '4px 10px',
-                borderRadius: 2,
-                cursor: 'pointer',
-                border: prefs.statsWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                background: prefs.statsWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                color: prefs.statsWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
-              }}
-            >
-              {o.label}
-            </div>
-          ))}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-          {/* Клиентов: count on top, срочно/важно pulled up into the lower half. */}
-          <GoldFrame style={{ padding: '16px 10px 14px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ textAlign: 'center', marginBottom: 13 }}>
-              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>Клиентов</div>
-              <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(30), fontWeight: 600, lineHeight: 1.15, color: COLORS.gold }}>{clients.length}</div>
-            </div>
-            <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: '100%', height: 1, marginBottom: 13 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
-              <div onClick={() => onOpenNotes('urgent')} role="button" aria-label={URGENCY[0].label} style={{ flex: 1, textAlign: 'center', cursor: 'pointer' }}>
-                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[0].emoji} {URGENCY[0].short}</div>
-                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{urgent}</div>
-              </div>
-              <div style={{ background: 'rgba(var(--gold-rgb),0.15)', width: 1, height: 34, flexShrink: 0 }} />
-              <div onClick={() => onOpenNotes('important')} role="button" aria-label={URGENCY[1].label} style={{ flex: 1, textAlign: 'center', cursor: 'pointer' }}>
-                <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>{URGENCY[1].emoji} {URGENCY[1].short}</div>
-                <div style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(20), fontWeight: 600, color: COLORS.gold }}>{important}</div>
-              </div>
-            </div>
-          </GoldFrame>
-          {/* Назначено сессий и консультаций — в одном блоке. */}
-          <SplitStatBlock
-            direction="column"
-            a={{ label: 'Назначено сессий', value: plannedSessionsCount }}
-            b={{ label: 'Консультаций', value: plannedConsultationsCount }}
-          />
-        </div>
-
-        {/* Личные заметки мастера — то же срочно/важно, только для заметок
-            без привязки к клиенту (папка хранения). Тап переходит в Блокнот
-            с этим фильтром уже включённым, как и у клиентских счётчиков выше. */}
-        <SplitStatBlock
-          a={{ label: `${URGENCY[0].emoji} ${URGENCY[0].short} · личные`, value: personalNotes.urgent, onClick: () => onOpenNotes('urgent') }}
-          b={{ label: `${URGENCY[1].emoji} ${URGENCY[1].short} · личные`, value: personalNotes.important, onClick: () => onOpenNotes('important') }}
+        {/* Рабочая сводка (M5B) — компактная замена прежней россыпи рамок:
+            тумблер периода статистики + карточка «Клиентов» + два
+            SplitStatBlock. Все семь чисел прежние, посчитаны снаружи. */}
+        <AdminWorkSummary
+          model={workSummary}
+          selectedWindowDays={prefs.statsWindowDays}
+          onChangeWindowDays={(days) => onChangePrefs({ ...prefs, statsWindowDays: days })}
+          onOpenNotes={onOpenNotes}
         />
       </div>
     </div>

@@ -11,8 +11,8 @@
 
 import type { Client } from './client';
 import type { Session } from './session';
-import { clientStyles } from './client';
-import { ISO_DATE_RE, todayISO, formatDate } from '../utils/dates';
+import { clientStyles } from './client.js';
+import { ISO_DATE_RE, todayISO, formatDate } from '../utils/dates.js';
 
 // Chronological session order: dated sessions rank by their date. A session
 // without a date has nothing to rank by, so it inherits the date of the
