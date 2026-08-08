@@ -141,10 +141,10 @@
   z-index: 2;
   width: 43px;
   height: 43px;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(0.75);
   border-radius: 0;
   background: currentColor;
-  filter: drop-shadow(0 1px 0 rgba(255, 220, 145, 0.14));
+  filter: blur(0.18px) drop-shadow(0 1px 0 rgba(255, 220, 145, 0.14));
   -webkit-mask-image: var(--inka-toolbar-mask);
   mask-image: var(--inka-toolbar-mask);
   -webkit-mask-repeat: no-repeat;
