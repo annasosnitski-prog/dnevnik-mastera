@@ -14,14 +14,13 @@
 
 .nav-fab__main--minimal,
 .nav-fab__item--minimal {
-  border: 1.5px solid rgba(var(--gold-rgb), 0.72) !important;
+  border: 0.8px solid rgba(var(--gold-rgb), 0.68) !important;
   outline: 0;
   background: radial-gradient(circle at 40% 34%, #2c2a27 0%, #181715 54%, #090908 100%);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 218, 142, 0.05),
-    0 0 0 1px rgba(0, 0, 0, 0.7),
-    0 0 17px rgba(var(--gold-rgb), 0.34),
-    0 11px 22px rgba(0, 0, 0, 0.58);
+    inset 0 0 0 0.5px rgba(255, 218, 142, 0.04),
+    0 0 8px rgba(var(--gold-rgb), 0.22),
+    0 9px 20px rgba(0, 0, 0, 0.54);
   color: var(--gold) !important;
   overflow: visible;
   touch-action: manipulation;
@@ -29,12 +28,12 @@
 
 :root[data-theme='light'] .nav-fab__main--minimal,
 :root[data-theme='light'] .nav-fab__item--minimal {
-  border-color: rgba(var(--gold-rgb), 0.58) !important;
+  border-color: rgba(var(--gold-rgb), 0.5) !important;
   background: radial-gradient(circle at 40% 34%, #fbf5e8 0%, #eee4d0 68%, #ddd0b7 100%);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.52),
-    0 1px 2px rgba(74, 49, 16, 0.12),
-    0 7px 15px rgba(74, 49, 16, 0.17);
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.46),
+    0 0 7px rgba(var(--gold-rgb), 0.11),
+    0 6px 13px rgba(74, 49, 16, 0.14);
 }
 
 .nav-fab__main--minimal {
@@ -43,22 +42,21 @@
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
-  width: 70px !important;
-  height: 70px !important;
+  width: 47px !important;
+  height: 47px !important;
   --nav-scale: 1 !important;
-  border-width: 2px !important;
+  border-width: 0.8px !important;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 218, 142, 0.06),
-    0 0 0 1px rgba(0, 0, 0, 0.74),
-    0 0 20px rgba(var(--gold-rgb), 0.4),
-    0 12px 24px rgba(0, 0, 0, 0.6);
+    inset 0 0 0 0.5px rgba(255, 218, 142, 0.04),
+    0 0 8px rgba(var(--gold-rgb), 0.24),
+    0 8px 18px rgba(0, 0, 0, 0.52);
 }
 
 :root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
-    0 1px 2px rgba(74, 49, 16, 0.13),
-    0 8px 17px rgba(74, 49, 16, 0.18);
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.48),
+    0 0 7px rgba(var(--gold-rgb), 0.11),
+    0 6px 13px rgba(74, 49, 16, 0.14);
 }
 
 /* External controls are one third smaller than the approved reference pass. */
@@ -77,22 +75,23 @@
 }
 
 .nav-fab--minimal .nav-fab__item--minimal-create {
-  border-color: rgba(235, 184, 76, 0.95) !important;
+  border-color: rgba(235, 184, 76, 0.82) !important;
   background: radial-gradient(circle at 42% 35%, #e0b354 0%, #c68c2e 68%, #a96618 100%) !important;
   color: #0a0907 !important;
   box-shadow:
-    inset 0 0 0 2px rgba(8, 7, 5, 0.92),
-    inset 0 0 0 4px rgba(229, 177, 70, 0.82),
-    0 0 19px rgba(var(--gold-rgb), 0.48),
-    0 12px 24px rgba(0, 0, 0, 0.58);
+    inset 0 0 0 1px rgba(8, 7, 5, 0.9),
+    inset 0 0 0 2.5px rgba(229, 177, 70, 0.72),
+    0 0 9px rgba(var(--gold-rgb), 0.26),
+    0 9px 20px rgba(0, 0, 0, 0.54);
 }
 
 :root[data-theme='light'] .nav-fab--minimal .nav-fab__item--minimal-create {
   color: #f8f1e2 !important;
   box-shadow:
-    inset 0 0 0 2px rgba(92, 60, 16, 0.68),
-    inset 0 0 0 4px rgba(235, 192, 99, 0.7),
-    0 8px 16px rgba(73, 49, 17, 0.2);
+    inset 0 0 0 1px rgba(92, 60, 16, 0.58),
+    inset 0 0 0 2.5px rgba(235, 192, 99, 0.62),
+    0 0 7px rgba(var(--gold-rgb), 0.1),
+    0 6px 13px rgba(73, 49, 17, 0.16);
 }
 
 .nav-fab--minimal .nav-fab__main--minimal > svg,
@@ -121,7 +120,7 @@
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal::before {
-  font-size: 42px;
+  font-size: 28px;
 }
 
 /* Approved icon mapping:
