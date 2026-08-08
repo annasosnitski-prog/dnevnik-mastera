@@ -111,11 +111,17 @@ export function UpcomingScheduleSection({
                       >
                         {name}
                       </span>
-                      {item.kind === 'consultation' && (
-                        <span style={{ display: 'block', fontSize: fs(10), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                          Консультация
-                        </span>
-                      )}
+                      <span
+                        style={{
+                          display: 'block',
+                          fontSize: fs(10),
+                          color: item.kind === 'consultation' ? COLORS.gold : COLORS.textGhost,
+                          letterSpacing: '1px',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {kindLabel}
+                      </span>
                     </span>
                     {item.time && <span style={{ fontSize: fs(12), color: COLORS.gold, flexShrink: 0 }}>{item.time}</span>}
                   </button>
