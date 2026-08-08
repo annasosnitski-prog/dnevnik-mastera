@@ -33,11 +33,12 @@ function ClientTabGlyph({ name }: { name: ClientTabIconName }): ReactNode {
         </g>
       );
     case 'content':
-      // A feather — a single pointed blade along the diagonal, quill down its centre.
+      // The same three-spark ✨ glyph used by POSTiNKA in the radial toolbar.
       return (
-        <g {...common}>
-          <path d="M6-7Q4.5 3.9-6 7Q-4.5-3.9 6-7Z" />
-          <path d="M5-5-5 6" />
+        <g transform="translate(-16 -16)" fill="currentColor" stroke="none">
+          <path d="M14 6C15 12 18 16 24 18C18 20 15 24 14 30C13 24 10 20 4 18C10 16 13 12 14 6Z" />
+          <path d="M24 2C24.6 5.3 26.4 7.4 30 8C26.4 8.6 24.6 10.7 24 14C23.4 10.7 21.6 8.6 18 8C21.6 7.4 23.4 5.3 24 2Z" />
+          <path d="M27 16C27.4 18.2 28.6 19.6 31 20C28.6 20.4 27.4 21.8 27 24C26.6 21.8 25.4 20.4 23 20C25.4 19.6 26.6 18.2 27 16Z" />
         </g>
       );
     case 'notes':
