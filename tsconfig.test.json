@@ -33,6 +33,7 @@
     "src/reminders/hiddenReminderBanners.ts",
     "src/components/reminders/reminderGroups.ts",
     "src/components/screens/adminWorkSummary.ts",
+    "src/components/screens/upcomingSchedule.ts",
     "src/domain/project.ts",
     "src/domain/projectSelectors.ts",
     "src/domain/plannerSelectors.ts",
