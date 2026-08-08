@@ -287,9 +287,11 @@
   transform: rotate(30deg) translateX(32px);
 }
 
-/* Preserve the original client-tab icons. Active state is gold, without a halo. */
+/* Client-tab circles are 25% smaller in minimalism; pictograms keep their own fixed SVG size. */
 [data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
   [role='tab'] > span[aria-hidden='true'] {
+  width: 40.5px !important;
+  height: 40.5px !important;
   box-shadow: none !important;
 }
 
