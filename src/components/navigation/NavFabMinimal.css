@@ -78,6 +78,34 @@
   color: var(--gold) !important;
 }
 
+/* Current destination stays gold like the rest of the toolbar; only its halo is brighter. */
+.nav-fab--minimal.nav-fab--open
+  .nav-fab__item--minimal:not(.nav-fab__item--dim):not(.nav-fab__item--minimal-create) {
+  border-color: rgba(var(--gold-rgb), 0.92) !important;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 218, 142, 0.08),
+    0 0 12px rgba(var(--gold-rgb), 0.52),
+    0 0 28px rgba(var(--gold-rgb), 0.25),
+    0 9px 20px rgba(0, 0, 0, 0.54);
+}
+
+.nav-fab--minimal.nav-fab--open
+  .nav-fab__item--minimal:not(.nav-fab__item--dim):not(.nav-fab__item--minimal-create)::before {
+  filter:
+    blur(0.18px)
+    drop-shadow(0 0 3px rgba(var(--gold-rgb), 0.58))
+    drop-shadow(0 0 8px rgba(var(--gold-rgb), 0.26));
+}
+
+:root[data-theme='light'] .nav-fab--minimal.nav-fab--open
+  .nav-fab__item--minimal:not(.nav-fab__item--dim):not(.nav-fab__item--minimal-create) {
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.54),
+    0 0 10px rgba(var(--gold-rgb), 0.26),
+    0 0 20px rgba(var(--gold-rgb), 0.12),
+    0 6px 13px rgba(74, 49, 16, 0.14);
+}
+
 .nav-fab--minimal .nav-fab__item--minimal-create {
   border-color: rgba(235, 184, 76, 0.82) !important;
   background: radial-gradient(circle at 42% 35%, #e0b354 0%, #c68c2e 68%, #a96618 100%) !important;
@@ -285,6 +313,12 @@
 .nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
   .nav-fab__item--minimal:nth-of-type(6)::after {
   transform: rotate(30deg) translateX(32px);
+}
+
+/* Keep the original tab-bar field height while the circles themselves stay 25% smaller. */
+[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента'] {
+  min-height: 61px;
+  align-items: center;
 }
 
 /* Client-tab circles are 25% smaller in minimalism; pictograms keep their own fixed SVG size. */
