@@ -223,6 +223,12 @@
 .nav-fab--minimal .nav-fab__item--minimal-create::before {
   width: 30px;
   height: 30px;
+  background: var(--gold);
+  opacity: 1;
+  filter:
+    blur(0.18px)
+    drop-shadow(0 0 3px rgba(var(--gold-rgb), 0.58))
+    drop-shadow(0 0 8px rgba(var(--gold-rgb), 0.26));
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет'] {
