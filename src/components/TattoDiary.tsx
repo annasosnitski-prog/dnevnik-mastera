@@ -2484,53 +2484,53 @@ export default function TattoDiary() {
       >
         {screen === 'summary' && (
           <Suspense fallback={null}>
-          <SummaryScreen
-            clients={clients}
-            projects={projects}
-            onOpenProject={(project) => setViewProject(project)}
-            masterNotes={masterInfo.notes}
-            onToggleDone={(clientId, note) => upsertNote(clientId, note)}
-            onEditNote={(clientId, note) => upsertNote(clientId, note)}
-            onDeleteNote={(clientId, noteId) => deleteNote(clientId, noteId)}
-            onOpenClient={(id) => {
-              setSelectedId(id);
-              setActiveTab('extra');
-              setScreen('detail');
-            }}
-            onOpenConsultation={(clientId, consultationId) => {
-              // Tap opens the read-only fullscreen viewer (not the edit form).
-              setViewEntry({ kind: 'consultation', clientId, id: consultationId });
-            }}
-            onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
-            onAddMasterNote={(text, urgency, photos, dueDate) =>
-              setMasterInfo({
-                ...masterInfo,
-                notes: [
-                  ...masterInfo.notes,
-                  { id: crypto.randomUUID(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId: null, dueDate },
-                ],
-              })
-            }
-            onAddNote={(clientId, text, urgency, photos, dueDate) =>
-              upsertNote(clientId, {
-                id: crypto.randomUUID(),
-                text,
-                urgency,
-                done: false,
-                createdDate: new Date().toISOString(),
-                photos,
-                projectId: null,
-                dueDate,
-              })
-            }
-            onToggleMasterDone={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
-            onEditMasterNote={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
-            onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
-            showComposer={showSummaryComposer}
-            onShowComposerChange={setShowSummaryComposer}
-            filter={summaryFilter}
-            onFilterChange={setSummaryFilter}
-          />
+            <SummaryScreen
+              clients={clients}
+              projects={projects}
+              onOpenProject={(project) => setViewProject(project)}
+              masterNotes={masterInfo.notes}
+              onToggleDone={(clientId, note) => upsertNote(clientId, note)}
+              onEditNote={(clientId, note) => upsertNote(clientId, note)}
+              onDeleteNote={(clientId, noteId) => deleteNote(clientId, noteId)}
+              onOpenClient={(id) => {
+                setSelectedId(id);
+                setActiveTab('extra');
+                setScreen('detail');
+              }}
+              onOpenConsultation={(clientId, consultationId) => {
+                // Tap opens the read-only fullscreen viewer (not the edit form).
+                setViewEntry({ kind: 'consultation', clientId, id: consultationId });
+              }}
+              onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
+              onAddMasterNote={(text, urgency, photos, dueDate) =>
+                setMasterInfo({
+                  ...masterInfo,
+                  notes: [
+                    ...masterInfo.notes,
+                    { id: crypto.randomUUID(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId: null, dueDate },
+                  ],
+                })
+              }
+              onAddNote={(clientId, text, urgency, photos, dueDate) =>
+                upsertNote(clientId, {
+                  id: crypto.randomUUID(),
+                  text,
+                  urgency,
+                  done: false,
+                  createdDate: new Date().toISOString(),
+                  photos,
+                  projectId: null,
+                  dueDate,
+                })
+              }
+              onToggleMasterDone={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
+              onEditMasterNote={(note) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === note.id ? note : n)) })}
+              onDeleteMasterNote={(noteId) => setMasterInfo({ ...masterInfo, notes: masterInfo.notes.filter((n) => n.id !== noteId) })}
+              showComposer={showSummaryComposer}
+              onShowComposerChange={setShowSummaryComposer}
+              filter={summaryFilter}
+              onFilterChange={setSummaryFilter}
+            />
           </Suspense>
         )}
       </div>
@@ -2609,36 +2609,36 @@ export default function TattoDiary() {
       >
         {screen === 'admin' && (
           <Suspense fallback={null}>
-          <AdminDashboardScreen
-            clients={clients}
-            masterNotes={masterInfo.notes}
-            prefs={prefs}
-            onChangePrefs={setPrefs}
-            onOpenSession={openEntryForEdit}
-            calendarSync={calendarSync}
-            overdue={visibleOverdue}
-            healing={visibleHealing}
-            soon={visibleSoon}
-            overdueProjectSessions={visibleOverdueProjectSessions}
-            soonProjectSessions={visibleSoonProjectSessions}
-            dueProjects={visibleDueProjects}
-            staleProjects={visibleStaleProjects}
-            tasks={visibleTaskReminders}
-            onOpenProject={(project) => setViewProject(project)}
-            onOpenEntry={openEntryForEdit}
-            onDismissReminder={handleDismissReminder}
-            onSnoozeReminder={handleSnoozeReminder}
-            onRestoreReminder={handleRestoreReminder}
-            onCancelEntry={markEntryCancelled}
-            onCompleteTask={completeTaskReminder}
-            onOpenTask={openTaskReminder}
-            onMarkHealed={markSessionHealed}
-            onHideAllHealing={handleHideAllHealing}
-            onOpenNotes={(urgency) => {
-              setSummaryFilter(urgency);
-              setScreen('summary');
-            }}
-          />
+            <AdminDashboardScreen
+              clients={clients}
+              masterNotes={masterInfo.notes}
+              prefs={prefs}
+              onChangePrefs={setPrefs}
+              onOpenSession={openEntryForEdit}
+              calendarSync={calendarSync}
+              overdue={visibleOverdue}
+              healing={visibleHealing}
+              soon={visibleSoon}
+              overdueProjectSessions={visibleOverdueProjectSessions}
+              soonProjectSessions={visibleSoonProjectSessions}
+              dueProjects={visibleDueProjects}
+              staleProjects={visibleStaleProjects}
+              tasks={visibleTaskReminders}
+              onOpenProject={(project) => setViewProject(project)}
+              onOpenEntry={openEntryForEdit}
+              onDismissReminder={handleDismissReminder}
+              onSnoozeReminder={handleSnoozeReminder}
+              onRestoreReminder={handleRestoreReminder}
+              onCancelEntry={markEntryCancelled}
+              onCompleteTask={completeTaskReminder}
+              onOpenTask={openTaskReminder}
+              onMarkHealed={markSessionHealed}
+              onHideAllHealing={handleHideAllHealing}
+              onOpenNotes={(urgency) => {
+                setSummaryFilter(urgency);
+                setScreen('summary');
+              }}
+            />
           </Suspense>
         )}
       </div>
@@ -2657,12 +2657,12 @@ export default function TattoDiary() {
       >
         {screen === 'workshop' && (
           <Suspense fallback={null}>
-          <WorkshopScreen
-            projects={projects}
-            projectsLoaded={projectsLoaded}
-            clients={clients}
-            onOpenProject={(project) => setViewProject(project)}
-          />
+            <WorkshopScreen
+              projects={projects}
+              projectsLoaded={projectsLoaded}
+              clients={clients}
+              onOpenProject={(project) => setViewProject(project)}
+            />
           </Suspense>
         )}
       </div>
@@ -2681,21 +2681,21 @@ export default function TattoDiary() {
       >
         {screen === 'settings' && (
           <Suspense fallback={null}>
-          <SettingsScreen
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            minimalism={minimalism}
-            onChangeMinimalism={setMinimalism}
-            prefs={prefs}
-            onChange={setPrefs}
-            onBack={() => setScreen('master')}
-            clients={clients}
-            masterNotes={masterInfo.notes}
-            projects={projects}
-            contentEntries={contentEntries}
-            onImport={replaceAllData}
-            onMigrateRecords={migrateRecordsIntoProjects}
-          />
+            <SettingsScreen
+              theme={theme}
+              onToggleTheme={toggleTheme}
+              minimalism={minimalism}
+              onChangeMinimalism={setMinimalism}
+              prefs={prefs}
+              onChange={setPrefs}
+              onBack={() => setScreen('master')}
+              clients={clients}
+              masterNotes={masterInfo.notes}
+              projects={projects}
+              contentEntries={contentEntries}
+              onImport={replaceAllData}
+              onMigrateRecords={migrateRecordsIntoProjects}
+            />
           </Suspense>
         )}
       </div>
@@ -2715,59 +2715,59 @@ export default function TattoDiary() {
       >
         {selectedClient && (
           <Suspense fallback={null}>
-          <DetailScreen
-            client={selectedClient}
-            activeTab={activeTab}
-            onTab={setActiveTab}
-            onBack={goBack}
-            onSave={saveClient}
-            onEditClient={() => setShowEditClientForm(true)}
-            onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
-            onDeleteSession={deleteSession}
-            onUpdateSessionPhotos={updateSessionPhotos}
-            onToggleSessionDone={toggleSessionDone}
-            onChainSession={startChainNextSession}
-            onEditConsultation={(consultation) => { setEditConsultation(consultation); setShowNewConsultationForm(true); }}
-            onDeleteConsultation={deleteConsultation}
-            onConvertConsultation={startConvertConsultationToSession}
-            onChainConsultation={startChainNextConsultation}
-            onViewSession={(session) => setViewEntry({ kind: 'session', clientId: selectedClient.id, id: session.id })}
-            onViewConsultation={(consultation) => setViewEntry({ kind: 'consultation', clientId: selectedClient.id, id: consultation.id })}
-            onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
-            onRemoveDocument={(docId) =>
-              saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
-            }
-            projects={projects}
-            onOpenProject={(project) => setViewProject(project)}
-            onCreateProject={() => {
-              setEditProject(null);
-              setNewProjectClientId(selectedClient.id);
-              setShowNewProjectForm(true);
-            }}
-            onUpsertNote={(note) => upsertNote(selectedClient.id, note)}
-            // Adding a note is NOT gated behind the mini-game. The composer
-            // clears its text the moment it hands the note off, so gating here
-            // (unlike client/session creation, which gates opening the form
-            // before anything is typed) could eat a task the master already
-            // wrote if they dismissed the game — leaving some clients missing
-            // tasks they thought they'd saved. Notes always save immediately.
-            onAddNote={(text, urgency, photos, dueDate) =>
-              upsertNote(selectedClient.id, {
-                id: crypto.randomUUID(),
-                text,
-                urgency,
-                done: false,
-                createdDate: new Date().toISOString(),
-                photos,
-                projectId: null,
-                dueDate,
-              })
-            }
-            onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
-            contentEntries={contentEntries}
-            onOpenContent={openContentWorkspace}
-            onImportClients={importClients}
-          />
+            <DetailScreen
+              client={selectedClient}
+              activeTab={activeTab}
+              onTab={setActiveTab}
+              onBack={goBack}
+              onSave={saveClient}
+              onEditClient={() => setShowEditClientForm(true)}
+              onEditSession={(session) => { setEditSession(session); setShowNewSessionForm(true); }}
+              onDeleteSession={deleteSession}
+              onUpdateSessionPhotos={updateSessionPhotos}
+              onToggleSessionDone={toggleSessionDone}
+              onChainSession={startChainNextSession}
+              onEditConsultation={(consultation) => { setEditConsultation(consultation); setShowNewConsultationForm(true); }}
+              onDeleteConsultation={deleteConsultation}
+              onConvertConsultation={startConvertConsultationToSession}
+              onChainConsultation={startChainNextConsultation}
+              onViewSession={(session) => setViewEntry({ kind: 'session', clientId: selectedClient.id, id: session.id })}
+              onViewConsultation={(consultation) => setViewEntry({ kind: 'consultation', clientId: selectedClient.id, id: consultation.id })}
+              onAddDocument={(doc) => saveClient({ ...selectedClient, documents: [...selectedClient.documents, doc] })}
+              onRemoveDocument={(docId) =>
+                saveClient({ ...selectedClient, documents: selectedClient.documents.filter((d) => d.id !== docId) })
+              }
+              projects={projects}
+              onOpenProject={(project) => setViewProject(project)}
+              onCreateProject={() => {
+                setEditProject(null);
+                setNewProjectClientId(selectedClient.id);
+                setShowNewProjectForm(true);
+              }}
+              onUpsertNote={(note) => upsertNote(selectedClient.id, note)}
+              // Adding a note is NOT gated behind the mini-game. The composer
+              // clears its text the moment it hands the note off, so gating here
+              // (unlike client/session creation, which gates opening the form
+              // before anything is typed) could eat a task the master already
+              // wrote if they dismissed the game — leaving some clients missing
+              // tasks they thought they'd saved. Notes always save immediately.
+              onAddNote={(text, urgency, photos, dueDate) =>
+                upsertNote(selectedClient.id, {
+                  id: crypto.randomUUID(),
+                  text,
+                  urgency,
+                  done: false,
+                  createdDate: new Date().toISOString(),
+                  photos,
+                  projectId: null,
+                  dueDate,
+                })
+              }
+              onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
+              contentEntries={contentEntries}
+              onOpenContent={openContentWorkspace}
+              onImportClients={importClients}
+            />
           </Suspense>
         )}
       </div>
@@ -3255,23 +3255,23 @@ function TrialGate({
 
         <div style={{ minHeight: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
           <Suspense fallback={null}>
-          {stage === 'playing' &&
-            (gameKind === 'rps' ? (
-              <RPSGame key={round} onResult={handleResult} />
-            ) : gameKind === 'cups' ? (
-              <CupsGame key={round} onResult={handleResult} />
-            ) : (
-              <BlackjackGame key={round} onResult={handleResult} />
-            ))}
+            {stage === 'playing' &&
+              (gameKind === 'rps' ? (
+                <RPSGame key={round} onResult={handleResult} />
+              ) : gameKind === 'cups' ? (
+                <CupsGame key={round} onResult={handleResult} />
+              ) : (
+                <BlackjackGame key={round} onResult={handleResult} />
+              ))}
 
-          {stage === 'taunt' && (
-            <>
-              <RPSTauntFace />
-              <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
-                Ну и ладно — так и быть, проходи!
-              </div>
-            </>
-          )}
+            {stage === 'taunt' && (
+              <>
+                <RPSTauntFace />
+                <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                  Ну и ладно — так и быть, проходи!
+                </div>
+              </>
+            )}
           </Suspense>
         </div>
       </div>
