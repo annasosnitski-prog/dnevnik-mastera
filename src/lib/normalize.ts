@@ -41,6 +41,8 @@ export function normalizeSession(s: any, i: number): Session {
     cancelled: s?.cancelled ?? false,
     projectId: s?.projectId ?? null,
     sourceConsultationId: s?.sourceConsultationId ?? null,
+    previousSessionId: s?.previousSessionId ?? null,
+    nextSessionId: s?.nextSessionId ?? null,
   };
 }
 

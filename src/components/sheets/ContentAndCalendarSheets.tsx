@@ -95,6 +95,8 @@ export function TimelineViewSheet({
   onOpenConvertedSession,
   onChainNextConsultation,
   onOpenNextConsultation,
+  onChainNextSession,
+  onOpenNextSession,
   onSaveNextStep,
 }: {
   open: boolean;
@@ -128,6 +130,13 @@ export function TimelineViewSheet({
   // Следующая консультация уже назначена (Consultation.nextConsultationId) —
   // рендерится вместо «Назначить следующую консультацию →».
   onOpenNextConsultation?: () => void;
+  // «Назначить следующую сессию» — тот же паттерн для сессии (см.
+  // Session.previousSessionId), рендерится только для просмотра сессии
+  // (isConsult below == false).
+  onChainNextSession?: () => void;
+  // Следующая сессия уже назначена (Session.nextSessionId) — рендерится
+  // вместо «Назначить следующую сессию →».
+  onOpenNextSession?: () => void;
   // Единственный next step ПРОЕКТА (не сессии/консультации — см.
   // NextStepRow) — рендерится только когда запись привязана к проекту
   // (currentProject ниже), пишет напрямую в тот же объект Project.
@@ -317,6 +326,51 @@ export function TimelineViewSheet({
             <ViewField label="Краски" value={session.colors} />
             <ViewField label="Иглы" value={session.needles} />
             <ViewField label="Реакция кожи" value={session.skinReaction} />
+            {/* «Назначить следующую сессию» — сессия никогда не заменяется
+                другой (см. Session.previousSessionId). Скрыто только для
+                отменённой — продолжать нечего. */}
+            {!session.cancelled &&
+              (onOpenNextSession ? (
+                <div
+                  onClick={onOpenNextSession}
+                  role="button"
+                  style={{
+                    textAlign: 'center',
+                    padding: '9px 12px',
+                    border: '1px solid rgba(var(--gold-rgb),0.15)',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    color: COLORS.textFaint,
+                    fontSize: fs(12),
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Следующая сессия →
+                </div>
+              ) : (
+                onChainNextSession && (
+                  <div
+                    onClick={onChainNextSession}
+                    role="button"
+                    style={{
+                      textAlign: 'center',
+                      padding: '9px 12px',
+                      border: '1px solid rgba(var(--gold-rgb),0.3)',
+                      borderRadius: 2,
+                      cursor: 'pointer',
+                      color: COLORS.gold,
+                      fontSize: fs(12),
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Назначить следующую сессию →
+                  </div>
+                )
+              ))}
             <ContentPanel
               clientId={clientId}
               sourceType="session"

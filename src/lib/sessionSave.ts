@@ -51,10 +51,17 @@ function sessionFields(data: SessionFormData) {
 
 // Сессия клиента (client.sessions) — тот же набор полей и то же слияние
 // client.styles, что и в handleAddSession, только владелец передан явно.
+// editingSessionId — редактирование существующей записи (previousSessionId
+// не трогается, чужая цепочка не переписывается). previousSessionId — только
+// для НОВОЙ записи, назначенной как продолжение другой («Назначить
+// следующую сессию», см. TattoDiary's startChainNextSession); null/не
+// передан — обычная «Новая сессия», не часть цепочки. Тот же паттерн, что
+// upsertConsultation в consultationSave.ts.
 export function upsertClientSession(
   client: Client,
   data: SessionFormData,
   editingSessionId: string | null,
+  previousSessionId: string | null = null,
 ): { client: Client; sessionId: string } {
   const fields = sessionFields(data);
   let sessions: Session[];
@@ -64,7 +71,21 @@ export function upsertClientSession(
     sessionId = editingSessionId;
   } else {
     sessionId = crypto.randomUUID();
-    sessions = [...client.sessions, { id: sessionId, cancelled: false, sourceConsultationId: null, ...fields }];
+    const newSession: Session = {
+      id: sessionId,
+      cancelled: false,
+      sourceConsultationId: null,
+      previousSessionId,
+      nextSessionId: null,
+      ...fields,
+    };
+    // Обратная ссылка на источник цепочки проставляется той же мутацией —
+    // previous и new меняются одним атомарным изменением client.sessions,
+    // как upsertConsultation делает для previousConsultationId/nextConsultationId.
+    const base = previousSessionId
+      ? client.sessions.map((s) => (s.id === previousSessionId ? { ...s, nextSessionId: sessionId } : s))
+      : client.sessions;
+    sessions = [...base, newSession];
   }
   const styles = clientStyles(client);
   const mergedStyles = fields.style && !styles.includes(fields.style) ? [...styles, fields.style] : styles;
@@ -148,7 +169,10 @@ export function upsertProjectSession(
     sessionId = editingSessionId;
   } else {
     sessionId = crypto.randomUUID();
-    sessions = [...project.sessions, { id: sessionId, cancelled: false, sourceConsultationId: null, ...fields }];
+    // «Сессия без клиента» — цепочка «Назначить следующую сессию» не
+    // распространяется на Мастерскую (тот же охват, что у консультаций,
+    // у которых тоже нет варианта без клиента); поля просто по умолчанию null.
+    sessions = [...project.sessions, { id: sessionId, cancelled: false, sourceConsultationId: null, previousSessionId: null, nextSessionId: null, ...fields }];
   }
   return { project: { ...project, sessions }, sessionId };
 }

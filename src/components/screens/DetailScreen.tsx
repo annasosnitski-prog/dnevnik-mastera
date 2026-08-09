@@ -182,6 +182,7 @@ export function DetailScreen({
   onDeleteSession,
   onUpdateSessionPhotos,
   onToggleSessionDone,
+  onChainSession,
   onEditConsultation,
   onDeleteConsultation,
   onConvertConsultation,
@@ -210,6 +211,11 @@ export function DetailScreen({
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
   onToggleSessionDone: (sessionId: string) => void;
+  // «Назначить следующую сессию» — session is never replaced; opens a fresh
+  // session record linked to this one (see
+  // Session.previousSessionId/nextSessionId), same pattern as
+  // onChainConsultation below.
+  onChainSession: (session: Session) => void;
   onEditConsultation: (consultation: Consultation) => void;
   onDeleteConsultation: (consultationId: string) => void;
   // Consultation happened, master and client agreed on a work session —
@@ -659,6 +665,7 @@ export function DetailScreen({
             onDeleteSession={onDeleteSession}
             onUpdateSessionPhotos={onUpdateSessionPhotos}
             onToggleSessionDone={onToggleSessionDone}
+            onChainSession={onChainSession}
             onEditConsultation={onEditConsultation}
             onDeleteConsultation={onDeleteConsultation}
             onConvertConsultation={onConvertConsultation}
@@ -1600,6 +1607,7 @@ function SessionsTab({
   onDeleteSession,
   onUpdateSessionPhotos,
   onToggleSessionDone,
+  onChainSession,
   onEditConsultation,
   onDeleteConsultation,
   onConvertConsultation,
@@ -1613,6 +1621,8 @@ function SessionsTab({
   onDeleteSession: (sessionId: string) => void;
   onUpdateSessionPhotos: (sessionId: string, photos: string[]) => void;
   onToggleSessionDone: (sessionId: string) => void;
+  // «Назначить следующую сессию» — см. TattoDiary's startChainNextSession.
+  onChainSession: (session: Session) => void;
   onEditConsultation: (consultation: Consultation) => void;
   onDeleteConsultation: (consultationId: string) => void;
   onConvertConsultation: (consultation: Consultation) => void;
@@ -1662,17 +1672,27 @@ function SessionsTab({
       {sessions.length === 0 && (
         <div style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', marginBottom: 14 }}>Сессий пока нет.</div>
       )}
-      {sessions.map((session) => (
-        <SessionRow
-          key={session.id}
-          session={session}
-          onEdit={onEditSession}
-          onDelete={() => onDeleteSession(session.id)}
-          onView={onViewSession}
-          onToggleDone={() => onToggleSessionDone(session.id)}
-          onUpdatePhotos={(photos) => onUpdateSessionPhotos(session.id, photos)}
-        />
-      ))}
+      {sessions.map((session) => {
+        // «Следующая сессия» уже назначена — открываем её вместо повторного
+        // создания (см. Session.nextSessionId). Тот же допустимый
+        // dangling-паттерн, что nextConsultationId уже использует выше.
+        const nextSession = session.nextSessionId
+          ? client.sessions.find((s) => s.id === session.nextSessionId) ?? null
+          : null;
+        return (
+          <SessionRow
+            key={session.id}
+            session={session}
+            onEdit={onEditSession}
+            onDelete={() => onDeleteSession(session.id)}
+            onView={onViewSession}
+            onToggleDone={() => onToggleSessionDone(session.id)}
+            onUpdatePhotos={(photos) => onUpdateSessionPhotos(session.id, photos)}
+            onChainNext={() => onChainSession(session)}
+            onOpenNext={nextSession ? () => onViewSession(nextSession) : undefined}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -1878,6 +1898,8 @@ function SessionRow({
   onView,
   onToggleDone,
   onUpdatePhotos,
+  onChainNext,
+  onOpenNext,
 }: {
   session: Session;
   onEdit: (session: Session) => void;
@@ -1885,6 +1907,11 @@ function SessionRow({
   onView: (session: Session) => void;
   onToggleDone: () => void;
   onUpdatePhotos: (photos: string[]) => void;
+  // «Назначить следующую сессию» — см. TattoDiary's startChainNextSession.
+  onChainNext: () => void;
+  // Следующая сессия уже назначена (Session.nextSessionId) — открывает её
+  // вместо повторного создания. undefined, если следующей нет.
+  onOpenNext?: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const { swipeStyle, swipeHandlers, dragging } = useSwipeToReveal(() => setConfirming(true));
@@ -1966,6 +1993,26 @@ function SessionRow({
               </span>
             )}
             {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
+            {/* «Назначить следующую сессию» — сессия никогда не заменяется
+                другой (см. Session.previousSessionId). Once a next one
+                exists, taps open it instead of creating a duplicate branch.
+                Hidden only for a cancelled session — nothing to continue. */}
+            {!session.cancelled && (
+              <div
+                className="inka-back"
+                onClick={onOpenNext ?? onChainNext}
+                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+                title={onOpenNext ? 'Открыть следующую сессию' : 'Назначить следующую сессию'}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                  {onOpenNext ? (
+                    <path d="M4 3L11 8L4 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  ) : (
+                    <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  )}
+                </svg>
+              </div>
+            )}
             <div
               className="inka-back"
               onClick={() => onEdit(session)}
