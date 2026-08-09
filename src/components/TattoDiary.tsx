@@ -685,6 +685,13 @@ export default function TattoDiary() {
   // не исчезает — цепочка только растёт, ничего не заменяется (см.
   // startChainNextConsultation ниже).
   const [chainFromConsultation, setChainFromConsultation] = useState<Consultation | null>(null);
+  // Сессия, от которой назначается следующая («Назначить следующую сессию»)
+  // — тот же паттерн, что chainFromConsultation выше, но для сессий (см.
+  // Session.previousSessionId/nextSessionId в lib/sessionSave.ts). Отдельное
+  // состояние от convertingConsultation — их источники не пересекаются
+  // (startChainNextSession/startConvertConsultationToSession каждый сбрасывает
+  // состояние другого, чтобы в NewSessionSheet не утёк чужой префилл).
+  const [chainFromSession, setChainFromSession] = useState<Session | null>(null);
   // «Творческая мастерская» — standalone projects, not tied to any client.
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
@@ -1183,6 +1190,7 @@ export default function TattoDiary() {
     setShowNewSessionForm(false);
     setEditSession(null);
     setConvertingConsultation(null);
+    setChainFromSession(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
@@ -1339,6 +1347,10 @@ export default function TattoDiary() {
     setActiveTab('sessions');
     setEditSession(null);
     setConvertingConsultation(consultation);
+    // NewSessionSheet's prefill source must be unambiguous — clear any
+    // pending «next session» chain so it doesn't leak into this different
+    // prefill (see chainFromSession/startChainNextSession below).
+    setChainFromSession(null);
     setShowNewSessionForm(true);
     setViewEntry(null);
   };
@@ -1355,6 +1367,22 @@ export default function TattoDiary() {
     setEditConsultation(null);
     setChainFromConsultation(consultation);
     setShowNewConsultationForm(true);
+    setViewEntry(null);
+  };
+
+  // «Назначить следующую сессию» — та же сессия остаётся как есть (см.
+  // заголовок Session.previousSessionId), открывается NewSessionSheet в
+  // режиме создания (editSession===null), предзаполненный зоной/стилем/
+  // проектом предыдущей встречи (см. chainFrom в NewSessionSheet) — но с
+  // чистыми заметками/фото/статусом, это отдельная запись. Связь
+  // проставляется в handleAddSession через chainFromSession. Не пересекается
+  // с «Перевести в сессию» — тот же взаимный сброс, что там.
+  const startChainNextSession = (session: Session) => {
+    setActiveTab('sessions');
+    setEditSession(null);
+    setConvertingConsultation(null);
+    setChainFromSession(session);
+    setShowNewSessionForm(true);
     setViewEntry(null);
   };
 
@@ -1773,7 +1801,12 @@ export default function TattoDiary() {
   // же helper со своим явным clientId (см. saveSessionForContentLink ниже).
   const handleAddSession = (data: SessionFormData) => {
     if (!selectedClient) return;
-    const { client: updatedClient, sessionId } = upsertClientSession(selectedClient, data, editSession?.id ?? null);
+    const { client: updatedClient, sessionId } = upsertClientSession(
+      selectedClient,
+      data,
+      editSession?.id ?? null,
+      chainFromSession?.id ?? null,
+    );
     // Конвертация консультации (см. startConvertConsultationToSession) — она
     // остаётся в истории (status:'converted'), а не удаляется, но связывается
     // с получившейся сессией тем же saveClient, что её добавляет, так что обе
@@ -1788,6 +1821,7 @@ export default function TattoDiary() {
     setShowNewSessionForm(false);
     setEditSession(null);
     setConvertingConsultation(null);
+    setChainFromSession(null);
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
@@ -2669,6 +2703,7 @@ export default function TattoDiary() {
             onDeleteSession={deleteSession}
             onUpdateSessionPhotos={updateSessionPhotos}
             onToggleSessionDone={toggleSessionDone}
+            onChainSession={startChainNextSession}
             onEditConsultation={(consultation) => { setEditConsultation(consultation); setShowNewConsultationForm(true); }}
             onDeleteConsultation={deleteConsultation}
             onConvertConsultation={startConvertConsultationToSession}
@@ -2763,6 +2798,7 @@ export default function TattoDiary() {
         initial={editSession}
         initialDate={calendarCreateDate ?? undefined}
         prefillConsultation={convertingConsultation}
+        chainFrom={chainFromSession}
         onClose={closeNewSession}
         onAdd={saveSessionFromNewSessionSheet}
       />
@@ -2950,6 +2986,19 @@ export default function TattoDiary() {
         onOpenNextConsultation={
           viewedConsultation?.nextConsultationId && viewEntry
             ? () => setViewEntry({ kind: 'consultation', clientId: viewEntry.clientId, id: viewedConsultation.nextConsultationId! })
+            : undefined
+        }
+        onChainNextSession={
+          viewedSession
+            ? () => {
+                if (viewEntry) setSelectedId(viewEntry.clientId);
+                startChainNextSession(viewedSession);
+              }
+            : undefined
+        }
+        onOpenNextSession={
+          viewedSession?.nextSessionId && viewEntry
+            ? () => setViewEntry({ kind: 'session', clientId: viewEntry.clientId, id: viewedSession.nextSessionId! })
             : undefined
         }
         onSaveNextStep={(text, date, type) => {

@@ -74,6 +74,7 @@ export function NewSessionSheet({
   initial,
   initialDate,
   prefillConsultation,
+  chainFrom,
   onClose,
   onAdd,
 }: {
@@ -95,6 +96,15 @@ export function NewSessionSheet({
   // намеренно НЕ переносится — консультация уже прошла, а сессия это новая,
   // ещё не назначенная встреча для работы.
   prefillConsultation?: Consultation | null;
+  // Сессия, от которой назначается следующая («Назначить следующую сессию» —
+  // DetailScreen/TimelineViewSheet, см. TattoDiary's startChainNextSession) —
+  // предзаполняет только зону/стиль/проект (продолжение той же работы);
+  // заметки/фото/статус остаются пустыми/по умолчанию — это отдельная запись,
+  // а не копия предыдущей. Игнорируется при редактировании (initial имеет
+  // приоритет) и не пересекается с prefillConsultation — это два разных
+  // источника, каждый устанавливается своим действием. Дата намеренно НЕ
+  // переносится, тем же принципом, что prefillConsultation выше.
+  chainFrom?: Session | null;
   onClose: () => void;
   onAdd: (data: {
     name: string;
@@ -147,18 +157,19 @@ export function NewSessionSheet({
       setDate(initial?.date ?? initialDate ?? '');
       setTime(initial?.time ?? '');
       setDuration(initial?.duration ?? '');
-      setStyle(initial?.style ?? prefillConsultation?.style ?? '');
-      setArea(initial?.area ?? prefillConsultation?.area ?? '');
+      setStyle(initial?.style ?? prefillConsultation?.style ?? chainFrom?.style ?? '');
+      setArea(initial?.area ?? prefillConsultation?.area ?? chainFrom?.area ?? '');
       setColors(initial?.colors ?? '');
       setNeedles(initial?.needles ?? '');
       setSkinReaction(initial?.skinReaction ?? '');
       setNote(initial?.note ?? consultationNoteSummary(prefillConsultation));
       setPhotos(initial?.photos ?? prefillConsultation?.photos ?? []);
       // A converted consultation is always a future booking, not yet done —
-      // same reasoning as the initialDate case just below.
-      setDone(initial ? initial.done : !initialDate && !prefillConsultation);
+      // same reasoning as the initialDate case just below. A chained next
+      // session is the same: it hasn't happened yet.
+      setDone(initial ? initial.done : !initialDate && !prefillConsultation && !chainFrom);
       setHealed(initial?.healed ?? false);
-      setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? presetProjectId ?? null);
+      setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,7 +206,7 @@ export function NewSessionSheet({
         {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
-          {isEdit ? 'Редактировать сессию' : 'Новая сессия'}
+          {isEdit ? 'Редактировать сессию' : chainFrom ? 'Следующая сессия' : 'Новая сессия'}
         </div>
         {!isEdit && prefillConsultation && (
           <div style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', marginTop: 4, letterSpacing: '0.3px' }}>

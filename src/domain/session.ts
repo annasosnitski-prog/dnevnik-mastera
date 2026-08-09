@@ -30,4 +30,17 @@ export interface Session {
   // startConvertConsultationToSession в TattoDiary.tsx). null для сессий,
   // созданных напрямую (обычная форма, из ContentLinkPickerSheet и т.п.).
   sourceConsultationId: string | null;
+  // ── Цепочка повторных сессий («Назначить следующую сессию») ── тот же
+  // link-паттерн, что Consultation.previousConsultationId/nextConsultationId:
+  // сессия никогда не заменяется другой — у каждой следующей встречи своя
+  // собственная запись со своими датой/статусом/заметками, связанная с
+  // предыдущей только этими двумя id. null-цепочка (обе ссылки null) —
+  // обычная, не повторная сессия; для записей до этой фичи previousSessionId
+  // всегда null (миграция не нужна, см. normalizeSession в lib/normalize.ts).
+  previousSessionId: string | null;
+  // Обратная ссылка на следующую сессию — не обязательна для корректности
+  // (можно найти перебором по previousSessionId), но убирает этот перебор
+  // из каждого места, где нужно узнать «уже назначена ли следующая»
+  // (та же роль, что Consultation.nextConsultationId).
+  nextSessionId: string | null;
 }

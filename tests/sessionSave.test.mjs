@@ -124,6 +124,89 @@ test('upsertClientSession defaults a new session\'s sourceConsultationId to null
   assert.equal(updated.sessions[0].sourceConsultationId, null);
 });
 
+test('upsertClientSession appends a new session with no chain link by default', () => {
+  const client = makeClient();
+  const { client: updated, sessionId } = upsertClientSession(client, makeSessionData(), null);
+
+  assert.equal(updated.sessions.length, 1);
+  assert.equal(updated.sessions[0].id, sessionId);
+  assert.equal(updated.sessions[0].previousSessionId, null);
+  assert.equal(updated.sessions[0].nextSessionId, null);
+});
+
+test('upsertClientSession never replaces an existing session — the source stays in the array', () => {
+  const source = { id: 'session-1', name: '', cancelled: false, date: '2026-01-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null, previousSessionId: null, nextSessionId: null };
+  const client = makeClient({ sessions: [source] });
+
+  const { client: updated } = upsertClientSession(client, makeSessionData(), null, 'session-1');
+
+  assert.equal(updated.sessions.length, 2);
+  assert.ok(updated.sessions.some((s) => s.id === 'session-1'));
+});
+
+test('upsertClientSession («Назначить следующую сессию») links both sides of the chain', () => {
+  const source = { id: 'session-1', name: '', cancelled: false, date: '2026-01-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null, previousSessionId: null, nextSessionId: null };
+  const client = makeClient({ sessions: [source] });
+
+  const { client: updated, sessionId } = upsertClientSession(client, makeSessionData(), null, 'session-1');
+
+  const previous = updated.sessions.find((s) => s.id === 'session-1');
+  const next = updated.sessions.find((s) => s.id === sessionId);
+  assert.equal(previous.nextSessionId, sessionId);
+  assert.equal(next.previousSessionId, 'session-1');
+});
+
+test('upsertClientSession keeps the previous session\'s own date/note untouched when chaining', () => {
+  const source = { id: 'session-1', name: '', cancelled: false, date: '2026-01-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: 'старые заметки', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null, previousSessionId: null, nextSessionId: null };
+  const client = makeClient({ sessions: [source] });
+
+  const { client: updated } = upsertClientSession(client, makeSessionData({ date: '2026-02-01' }), null, 'session-1');
+
+  const previous = updated.sessions.find((s) => s.id === 'session-1');
+  assert.equal(previous.date, '2026-01-01');
+  assert.equal(previous.note, 'старые заметки');
+});
+
+test('upsertClientSession gives the new chained session its own note, not copied from the previous one', () => {
+  const source = { id: 'session-1', name: '', cancelled: false, date: '2026-01-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: 'старые заметки', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null, previousSessionId: null, nextSessionId: null };
+  const client = makeClient({ sessions: [source] });
+
+  const { client: updated, sessionId } = upsertClientSession(client, makeSessionData({ note: '' }), null, 'session-1');
+
+  const next = updated.sessions.find((s) => s.id === sessionId);
+  assert.equal(next.note, '');
+});
+
+test('upsertClientSession editing an existing session does not touch previousSessionId', () => {
+  const existing = { id: 'session-9', name: '', cancelled: false, date: '2026-01-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: false, healed: false, projectId: null, sourceConsultationId: null, previousSessionId: 'session-8', nextSessionId: null };
+  const client = makeClient({ sessions: [existing] });
+
+  const { client: updated, sessionId } = upsertClientSession(client, makeSessionData({ date: '2026-05-05' }), 'session-9');
+
+  assert.equal(sessionId, 'session-9');
+  assert.equal(updated.sessions.length, 1);
+  assert.equal(updated.sessions[0].date, '2026-05-05');
+  assert.equal(updated.sessions[0].previousSessionId, 'session-8');
+});
+
+test('upsertClientSession leaves unrelated sessions untouched when chaining', () => {
+  const source = { id: 'session-1', name: '', cancelled: false, date: '2026-01-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null, previousSessionId: null, nextSessionId: null };
+  const unrelated = { id: 'session-2', name: '', cancelled: false, date: '2026-01-01', time: '', duration: '', style: '', area: '', colors: '', needles: '', skinReaction: '', note: '', photos: [], done: true, healed: false, projectId: null, sourceConsultationId: null, previousSessionId: null, nextSessionId: null };
+  const client = makeClient({ sessions: [source, unrelated] });
+
+  const { client: updated } = upsertClientSession(client, makeSessionData(), null, 'session-1');
+
+  const stillUnrelated = updated.sessions.find((s) => s.id === 'session-2');
+  assert.equal(stillUnrelated.nextSessionId, null);
+});
+
+test('upsertProjectSession defaults previousSessionId/nextSessionId to null — chaining not supported for client-less sessions', () => {
+  const project = makeProject();
+  const { project: updated } = upsertProjectSession(project, makeSessionData(), null);
+  assert.equal(updated.sessions[0].previousSessionId, null);
+  assert.equal(updated.sessions[0].nextSessionId, null);
+});
+
 function makeConsultation(overrides = {}) {
   return {
     id: 'consult-1',
