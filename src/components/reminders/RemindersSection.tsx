@@ -758,6 +758,7 @@ export function RemindersSection({
   dueProjects,
   staleProjects,
   tasks,
+  clients,
   onOpenProject,
   onOpenEntry,
   onDismiss,
@@ -779,6 +780,10 @@ export function RemindersSection({
   // отдельное от dueProjects (там — конкретный просроченный next step).
   staleProjects?: StaleProjectItem[];
   tasks?: TaskReminderItem[];
+  // Для подписи имени клиента на карточках задач — TaskReminderItem
+  // намеренно хранит только clientId (доменный слой не знает о React),
+  // имя резолвится здесь, в презентационном слое.
+  clients?: Client[];
   onOpenProject?: (project: Project) => void;
   onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onDismiss: (key: string) => void;
@@ -803,6 +808,12 @@ export function RemindersSection({
   const dueProjectsList = dueProjects ?? [];
   const staleProjectsList = staleProjects ?? [];
   const taskList = tasks ?? [];
+  const clientById = new Map((clients ?? []).map((c) => [c.id, c]));
+  // Клиентская задача подписывается именем клиента; личная задача мастера
+  // (без клиента, scope 'master') — тем же словом, что уже использует
+  // «Рабочая сводка» (M5B) для различения клиентских/личных заметок.
+  const taskOwnerLabel = (it: TaskReminderItem): string =>
+    it.scope === 'master' ? 'Личная задача' : clientById.get(it.clientId ?? '')?.name || '—';
   const overdueFeed: ({ source: 'client'; item: OverdueItem } | { source: 'project'; item: ProjectSessionReminderItem })[] = [
     ...overdue.map((item) => ({ source: 'client' as const, item })),
     ...overdueProjectSessionList.map((item) => ({ source: 'project' as const, item })),
@@ -995,6 +1006,9 @@ export function RemindersSection({
                     <div onClick={() => onOpenTask?.(it)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
                       <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {it.text || 'Задача'}
+                      </div>
+                      <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {taskOwnerLabel(it)}
                       </div>
                       <div style={{ fontSize: fs(11), color: it.rule === 'task_overdue' ? 'var(--urgent)' : COLORS.gold, marginTop: 2 }}>
                         {it.rule === 'task_overdue' ? 'Просрочена' : 'Срок сегодня'} · {formatDate(it.dueDate)}

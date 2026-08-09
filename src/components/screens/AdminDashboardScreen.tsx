@@ -146,6 +146,7 @@ export function AdminDashboardScreen({
           dueProjects={dueProjects}
           staleProjects={staleProjects}
           tasks={tasks}
+          clients={clients}
           onOpenProject={onOpenProject}
           onOpenEntry={onOpenEntry}
           onDismiss={onDismissReminder}

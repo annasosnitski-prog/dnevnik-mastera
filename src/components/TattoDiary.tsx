@@ -287,15 +287,17 @@ export const SKIN_TYPES: { value: string; label: string }[] = [
 
 // ===================== DERIVED HELPERS =====================
 
-// Tear-off calendar square — weekday/day/month, showing the soonest upcoming
-// session or consultation. Positioned by the caller (each screen places it
-// inside its own header), so it scrolls away with the rest of that header
-// instead of staying pinned on screen — unlike the Сортировка/Фильтры/Поиск
-// circles, which stay fixed regardless of scroll.
-function UpcomingDateBadge({ clients, onOpen }: { clients: Client[]; onOpen: () => void }) {
-  const next = upcomingItems(clients, 365)[0];
-  const parts = next ? dateParts(next.date) : null;
-  if (!next || !parts) return null;
+// Tear-off calendar square — weekday/day/month of TODAY, doubling as the
+// «Открыть календарь» launcher. Always shows today's date (was the soonest
+// upcoming session/consultation's date before — confusing next to a «today»
+// -looking icon, and it vanished entirely once there was nothing upcoming).
+// Positioned by the caller (each screen places it inside its own header), so
+// it scrolls away with the rest of that header instead of staying pinned on
+// screen — unlike the Сортировка/Фильтры/Поиск circles, which stay fixed
+// regardless of scroll.
+function TodayDateBadge({ onOpen }: { onOpen: () => void }) {
+  const parts = dateParts(todayISO());
+  if (!parts) return null;
   return (
     <div
       onClick={onOpen}
@@ -2429,7 +2431,7 @@ export default function TattoDiary() {
         />
       )}
 
-      {/* Upcoming-date tag — pinned next to the logo (sibling of the screens,
+      {/* Today's-date tag — pinned next to the logo (sibling of the screens,
           so it never scrolls away with the client grid underneath). Shown on
           every main screen except Мастер (the master's own profile has no
           use for it). Create-client moved to the nav FAB's contextual create
@@ -2438,7 +2440,7 @@ export default function TattoDiary() {
           with it — see the header render below. */}
       {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
         <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 31px)', right: 20, zIndex: 20 }}>
-          <UpcomingDateBadge clients={clients} onOpen={() => setShowCalendar(true)} />
+          <TodayDateBadge onOpen={() => setShowCalendar(true)} />
         </div>
       )}
 
