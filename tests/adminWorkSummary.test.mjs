@@ -79,8 +79,8 @@ test('consultations are counted separately from sessions', () => {
   assert.equal(model.plannedConsultationsCount, 1);
 });
 
-// 4. Выбранный statsWindowDays влияет на оба счётчика нагрузки.
-test('selected statsWindowDays affects both load counters', () => {
+// 4. Выбранный windowDays влияет на оба счётчика нагрузки.
+test('selected windowDays affects both load counters', () => {
   const client = makeClient({
     sessions: [makeSession({ id: 's1', date: isoDaysFromNow(5) })],
     consultations: [makeConsultation({ id: 'c1', date: isoDaysFromNow(5) })],
@@ -170,14 +170,14 @@ test('does not mutate the input clients or masterNotes arrays', () => {
   assert.deepEqual(masterNotes, notesBefore);
 });
 
-// 13. Смена statsWindowDays не трогает upcomingWindowDays — buildAdminWorkSummary
-// вообще не принимает и не возвращает upcomingWindowDays, это гарантировано
-// сигнатурой; здесь дополнительно фиксируем, что вызов не имеет побочных
-// эффектов на внешний объект с обоими независимыми полями.
-test('changing statsWindowDays never touches upcomingWindowDays', () => {
-  const prefs = { upcomingWindowDays: 7, statsWindowDays: 3 };
+// 13. windowDays теперь — тот же общий период Админки, что и upcomingWindowDays
+// (M5D объединил их в Prefs), но buildAdminWorkSummary как была чистой
+// функцией, так и осталась: не читает и не возвращает upcomingWindowDays,
+// не имеет побочных эффектов на переданные объекты.
+test('buildAdminWorkSummary stays a pure function of windowDays — no leakage, no side effects', () => {
+  const prefs = { upcomingWindowDays: 7 };
   const before = { ...prefs };
-  buildAdminWorkSummary([], [], prefs.statsWindowDays);
+  buildAdminWorkSummary([], [], prefs.upcomingWindowDays);
   buildAdminWorkSummary([], [], 30);
   assert.deepEqual(prefs, before);
 

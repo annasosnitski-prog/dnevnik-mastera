@@ -1,23 +1,20 @@
 import type * as React from 'react';
 import type { UrgencyKey } from '../../domain/urgency';
 import { COLORS, fs } from '../ui/designTokens';
-import { DASHBOARD_WINDOW_OPTIONS } from '../ui/preferences';
 import type { AdminWorkSummaryModel } from './adminWorkSummary';
 
-// Компактная «Рабочая сводка» (M5B) — заменяет прежнюю россыпь отдельных
-// рамок (тумблер периода + большая карточка «Клиентов» + два SplitStatBlock)
-// одной секцией: заголовки, компактные строки, тонкие разделители — без
-// карточки-в-карточке и без нового расчёта. Все семь чисел уже посчитаны
-// снаружи (buildAdminWorkSummary) — здесь только раскладка.
+// Компактная «Рабочая сводка» (M5B, упрощена в M5D) — заменяет прежнюю
+// россыпь отдельных рамок одной секцией: заголовки, компактные строки,
+// тонкие разделители — без карточки-в-карточке и без нового расчёта. Все
+// семь чисел уже посчитаны снаружи (buildAdminWorkSummary) — здесь только
+// раскладка. Свой тумблер периода убран (M5D) — период теперь один общий,
+// живёт в шапке Админки и виден на всех вкладках; модель уже посчитана под
+// него снаружи, этому компоненту сам номер периода знать не нужно.
 export function AdminWorkSummary({
   model,
-  selectedWindowDays,
-  onChangeWindowDays,
   onOpenNotes,
 }: {
   model: AdminWorkSummaryModel;
-  selectedWindowDays: number;
-  onChangeWindowDays: (days: number) => void;
   onOpenNotes: (urgency: UrgencyKey) => void;
 }) {
   const sectionHeadingStyle: React.CSSProperties = {
@@ -43,31 +40,6 @@ export function AdminWorkSummary({
       <div style={dividerStyle} />
 
       <div style={{ padding: '12px 0' }}>
-        <div style={subheadStyle}>Период нагрузки</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-          {DASHBOARD_WINDOW_OPTIONS.map((o) => (
-            <button
-              key={o.days}
-              type="button"
-              onClick={() => onChangeWindowDays(o.days)}
-              aria-pressed={selectedWindowDays === o.days}
-              style={{
-                appearance: 'none',
-                font: 'inherit',
-                fontSize: fs(12),
-                padding: '4px 10px',
-                borderRadius: 2,
-                cursor: 'pointer',
-                border: selectedWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                background: selectedWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                color: selectedWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
-              }}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-
         <div style={subheadStyle}>Нагрузка</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
           <span style={rowLabelStyle}>Назначено сессий</span>

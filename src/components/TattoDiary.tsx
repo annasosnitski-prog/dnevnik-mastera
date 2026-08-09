@@ -236,7 +236,7 @@ import {
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
-import { DASHBOARD_WINDOW_OPTIONS, DEFAULT_PREFS, type Prefs } from './ui/preferences';
+import { DEFAULT_PREFS, MANUAL_WINDOW_DAYS_MAX, type Prefs } from './ui/preferences';
 export { DEFAULT_PREFS, type Prefs } from './ui/preferences';
 import { readInitialMinimalism, applyMinimalism } from './ui/minimalism';
 
@@ -460,8 +460,12 @@ function readInitialPrefs(): Prefs {
         // Clamp to the new floor (1.0): older values below it are lifted.
         textScale: typeof p.textScale === 'number' ? Math.max(1, p.textScale) : 1,
         textBright: p.textBright === 'high' || p.textBright === 'max' ? p.textBright : 'normal',
-        upcomingWindowDays: DASHBOARD_WINDOW_OPTIONS.some((o) => o.days === p.upcomingWindowDays) ? p.upcomingWindowDays : 7,
-        statsWindowDays: DASHBOARD_WINDOW_OPTIONS.some((o) => o.days === p.statsWindowDays) ? p.statsWindowDays : 30,
+        // Больше не ограничен DASHBOARD_WINDOW_OPTIONS — ручной ввод периода
+        // допускает любое целое число дней в разумных пределах.
+        upcomingWindowDays:
+          Number.isInteger(p.upcomingWindowDays) && p.upcomingWindowDays >= 1 && p.upcomingWindowDays <= MANUAL_WINDOW_DAYS_MAX
+            ? p.upcomingWindowDays
+            : 7,
         gameMode: typeof p.gameMode === 'boolean' ? p.gameMode : true,
       };
     }

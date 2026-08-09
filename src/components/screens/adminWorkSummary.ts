@@ -19,15 +19,15 @@ export interface AdminWorkSummaryModel {
   personalImportantCount: number;
 }
 
-// statsWindowDays only feeds upcomingItems here — it never touches
-// upcomingWindowDays, which stays the «Предстоящие сессии» list's own,
-// independent period (see Prefs).
+// windowDays feeds upcomingItems here — the same shared Admin period (M5D)
+// that also drives «Предстоящие записи» (was a separate statsWindowDays
+// before M5D; the two periods are now one and the same, see Prefs).
 export function buildAdminWorkSummary(
   clients: Client[],
   masterNotes: ClientNote[],
-  statsWindowDays: number,
+  windowDays: number,
 ): AdminWorkSummaryModel {
-  const load = upcomingItems(clients, statsWindowDays);
+  const load = upcomingItems(clients, windowDays);
   const client = urgencyCounts(clients);
   const personal = notesUrgencyCounts(masterNotes);
   return {

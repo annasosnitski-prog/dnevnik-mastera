@@ -860,6 +860,17 @@ export function RemindersSection({
     onDismiss(key);
     showHiddenBanner([key]);
   };
+  // «Скрыть» для «Давно не двигалось» (M5D) — обычный hideReminder скрыл бы
+  // карточку навсегда: ключ включает lastActivityDate, а у застывшего проекта
+  // эта дата сама по себе не меняется, значит dismissedIds держал бы его
+  // скрытым бесконечно. Вместо permanent-dismiss — снооз на 45 дней вперёд:
+  // тот же видимый эффект (карточка исчезает, есть баннер «Вернуть»), но
+  // мастер снова увидит напоминание не позже чем через 45 дней, если проект
+  // так и останется без движения.
+  const hideStaleReminder = (key: string) => {
+    onSnooze(key, snoozeShowAfter(45));
+    showHiddenBanner([key]);
+  };
   const hideAllHealing = (sessionId: string) => {
     onHideAllHealing(sessionId);
     showHiddenBanner(healingReminderKeysForSession(sessionId));
@@ -1213,7 +1224,7 @@ export function RemindersSection({
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
                       onPickDate={(showAfter) => flyOutThen(() => onSnooze(key, showAfter))}
-                      onHide={() => flyOutThen(() => hideReminder(key))}
+                      onHide={() => flyOutThen(() => hideStaleReminder(key))}
                     />
                   </div>
                 </div>

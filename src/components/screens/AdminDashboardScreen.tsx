@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type * as React from 'react';
 import type { Client } from '../../domain/client';
 import type { Project } from '../../domain/project';
@@ -26,11 +26,15 @@ import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { GoldFrame } from '../ui/Stripes';
 import { COLORS, fs } from '../ui/designTokens';
-import { type Prefs } from '../ui/preferences';
+import { DASHBOARD_WINDOW_OPTIONS, MANUAL_WINDOW_DAYS_MAX, type Prefs } from '../ui/preferences';
+import { buildAdminNotesGroups } from './adminNotesList';
+import { AdminNotesList } from './AdminNotesList';
 import { buildAdminWorkSummary } from './adminWorkSummary';
 import { AdminWorkSummary } from './AdminWorkSummary';
 import { buildUpcomingSchedule } from './upcomingSchedule';
 import { UpcomingScheduleSection } from './UpcomingScheduleSection';
+
+type AdminTab = 'records' | 'tasks' | 'summary';
 
 // ===================== ADMIN DASHBOARD =====================
 // The control panel: every reminder, the upcoming-sessions lookahead, and the
@@ -97,9 +101,29 @@ export function AdminDashboardScreen({
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
   onOpenNotes: (urgency: UrgencyKey) => void;
 }) {
+  const [activeTab, setActiveTab] = useState<AdminTab>('tasks');
+
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
-  const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.statsWindowDays);
+  const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.upcomingWindowDays);
+  const notesGroups = buildAdminNotesGroups(clients, masterNotes);
+
+  const tabStyle = (tab: AdminTab): React.CSSProperties => ({
+    flex: 1,
+    minWidth: 0,
+    appearance: 'none',
+    font: 'inherit',
+    padding: '9px 4px',
+    background: 'none',
+    border: 'none',
+    borderBottom: activeTab === tab ? `1px solid ${COLORS.gold}` : '1px solid transparent',
+    color: activeTab === tab ? COLORS.gold : COLORS.textFaint,
+    fontSize: fs(11),
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    transition: 'border-color 0.25s, color 0.25s',
+  });
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -111,91 +135,192 @@ export function AdminDashboardScreen({
 
   return (
     <div style={{ minHeight: '100%' }}>
-      <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
-      <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        <div
-          style={{
-            fontFamily: DROP_CAP_FONT,
-            fontSize: fs(24),
-            color: COLORS.gold,
-            letterSpacing: '5px',
-            textTransform: 'uppercase',
-          }}
-        >
-          Админка
+      {/* Шапка стабильна и «липкая» — тот же приём, что на карточке клиента:
+          заголовок, переключатель периода и вкладки остаются на месте, пока
+          прокручивается содержимое вкладки ниже. Родительский скролл-контейнер
+          (TattoDiary.tsx) уже overflowY:'auto' — sticky работает без изменений
+          снаружи этого компонента. */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 2, background: COLORS.bg }}>
+        <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+        <div style={{ padding: '6px 24px 12px' }}>
+          <div
+            style={{
+              fontFamily: DROP_CAP_FONT,
+              fontSize: fs(24),
+              color: COLORS.gold,
+              letterSpacing: '5px',
+              textTransform: 'uppercase',
+            }}
+          >
+            Админка
+          </div>
+          <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+            Управление и распорядок
+          </div>
+          <StarDivider />
+
+          {/* Общий период Админки (M5D) — один переключатель на шапке вместо
+              прежних двух независимых тумблеров у «Предстоящих записей» и
+              «Рабочей сводки». Управляет только вкладками «Записи» и «Рабочая
+              сводка»; вкладка «Задачи» от него не зависит. */}
+          <div style={{ marginTop: 10 }}>
+            <PeriodToggle days={prefs.upcomingWindowDays} onChange={(days) => onChangePrefs({ ...prefs, upcomingWindowDays: days })} />
+          </div>
         </div>
-        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Управление и статистика
+
+        <div role="tablist" aria-label="Разделы админки" style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.15)', padding: '0 20px' }}>
+          <button type="button" role="tab" aria-selected={activeTab === 'records'} onClick={() => setActiveTab('records')} style={tabStyle('records')}>
+            Записи
+          </button>
+          <button type="button" role="tab" aria-selected={activeTab === 'tasks'} onClick={() => setActiveTab('tasks')} style={tabStyle('tasks')}>
+            Задачи
+          </button>
+          <button type="button" role="tab" aria-selected={activeTab === 'summary'} onClick={() => setActiveTab('summary')} style={tabStyle('summary')}>
+            Рабочая сводка
+          </button>
         </div>
-        <StarDivider />
       </div>
 
-      <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* «Запланировать» now lives only behind the nav FAB's contextual
-            create button (same calendar-driven creation walk) — this screen
-            no longer duplicates it as its own standalone button. */}
+      <div style={{ padding: '16px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {activeTab === 'records' && (
+          <>
+            {/* Предстоящие записи (M5C) — компактно, без внешней GoldFrame, та
+                же визуальная логика, что у групп напоминаний и «Рабочей
+                сводки». upcomingItems по-прежнему единственный источник того,
+                какие записи попадают в список и в каком порядке — группировка
+                по дням только раскладывает уже готовый результат. */}
+            <UpcomingScheduleSection groups={upcomingSchedule} onOpenSession={onOpenSession} />
 
-        {/* Уведомления и напоминания идут наверх, над блоком предстоящих
-            сессий — это то, что требует внимания мастера в первую очередь. */}
-        <RemindersSection
-          overdue={overdue}
-          healing={healing}
-          soon={soon}
-          overdueProjectSessions={overdueProjectSessions}
-          soonProjectSessions={soonProjectSessions}
-          dueProjects={dueProjects}
-          staleProjects={staleProjects}
-          tasks={tasks}
-          clients={clients}
-          onOpenProject={onOpenProject}
-          onOpenEntry={onOpenEntry}
-          onDismiss={onDismissReminder}
-          onSnooze={onSnoozeReminder}
-          onRestore={onRestoreReminder}
-          onCancel={onCancelEntry}
-          onCompleteTask={onCompleteTask}
-          onOpenTask={onOpenTask}
-          onMarkHealed={onMarkHealed}
-          onHideAllHealing={onHideAllHealing}
-        />
-
-        {/* Предстоящие записи (M5C) — компактно, без внешней GoldFrame, та же
-            визуальная логика, что у групп напоминаний и «Рабочей сводки».
-            upcomingItems по-прежнему единственный источник того, какие
-            записи попадают в список и в каком порядке — группировка по дням
-            только раскладывает уже готовый результат. */}
-        <UpcomingScheduleSection
-          groups={upcomingSchedule}
-          selectedWindowDays={prefs.upcomingWindowDays}
-          onChangeWindowDays={(days) => onChangePrefs({ ...prefs, upcomingWindowDays: days })}
-          onOpenSession={onOpenSession}
-        />
-
-        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
-            бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
-            [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
-            справочный список, карточку мастер заводит в Дневнике сама
-            (см. calendarSync.ts). Сгруппирован с «Предстоящие записи» —
-            оба про то, что запланировано впереди. */}
-        {syncActive(calendarSync) && (
-          <GoldFrame style={{ padding: '14px 16px' }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
-            <div style={{ marginTop: 8 }}>
-              <BotBookingsList settings={calendarSync} />
-            </div>
-          </GoldFrame>
+            {/* Обратный поток: брони от бота отдельным блоком (любой тег —
+                бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
+                [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
+                справочный список, карточку мастер заводит в Дневнике сама
+                (см. calendarSync.ts). Объединена с «Предстоящие записи» в одну
+                вкладку (M5D) — обе про то, что запланировано впереди. */}
+            {syncActive(calendarSync) && (
+              <GoldFrame style={{ padding: '14px 16px' }}>
+                <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
+                <div style={{ marginTop: 8 }}>
+                  <BotBookingsList settings={calendarSync} />
+                </div>
+              </GoldFrame>
+            )}
+          </>
         )}
 
-        {/* Рабочая сводка (M5B) — компактная замена прежней россыпи рамок:
-            тумблер периода статистики + карточка «Клиентов» + два
-            SplitStatBlock. Все семь чисел прежние, посчитаны снаружи. */}
-        <AdminWorkSummary
-          model={workSummary}
-          selectedWindowDays={prefs.statsWindowDays}
-          onChangeWindowDays={(days) => onChangePrefs({ ...prefs, statsWindowDays: days })}
-          onOpenNotes={onOpenNotes}
-        />
+        {activeTab === 'tasks' && (
+          <>
+            {/* Уведомления и напоминания — то, что уже требует действия по
+                дате (просрочки/скоро/заживление/давно не двигалось/задачи). */}
+            <RemindersSection
+              overdue={overdue}
+              healing={healing}
+              soon={soon}
+              overdueProjectSessions={overdueProjectSessions}
+              soonProjectSessions={soonProjectSessions}
+              dueProjects={dueProjects}
+              staleProjects={staleProjects}
+              tasks={tasks}
+              clients={clients}
+              onOpenProject={onOpenProject}
+              onOpenEntry={onOpenEntry}
+              onDismiss={onDismissReminder}
+              onSnooze={onSnoozeReminder}
+              onRestore={onRestoreReminder}
+              onCancel={onCancelEntry}
+              onCompleteTask={onCompleteTask}
+              onOpenTask={onOpenTask}
+              onMarkHealed={onMarkHealed}
+              onHideAllHealing={onHideAllHealing}
+            />
+
+            {/* Расширенный список (M5D) — вообще все незавершённые заметки по
+                всем четырём уровням срочности, включая заметки без срока;
+                дополняет радар напоминаний выше, не дублирует его правила. */}
+            <AdminNotesList groups={notesGroups} onOpenNotes={onOpenNotes} />
+          </>
+        )}
+
+        {activeTab === 'summary' && (
+          /* Рабочая сводка (M5B) — компактная замена прежней россыпи рамок:
+             карточка «Клиентов» + два SplitStatBlock. Свой тумблер периода
+             убран (M5D) — период общий, живёт в шапке. */
+          <AdminWorkSummary model={workSummary} onOpenNotes={onOpenNotes} />
+        )}
       </div>
+    </div>
+  );
+}
+
+// ===================== ПЕРЕКЛЮЧАТЕЛЬ ПЕРИОДА =====================
+// Общий период Админки (M5D) — живёт в шапке, управляет вкладками «Записи» и
+// «Рабочая сводка». Четыре быстрых пресета (DASHBOARD_WINDOW_OPTIONS) плюс
+// свободный ввод числа дней вручную — значение больше не ограничено списком
+// пресетов, только разумным потолком MANUAL_WINDOW_DAYS_MAX.
+function PeriodToggle({ days, onChange }: { days: number; onChange: (days: number) => void }) {
+  const [manualText, setManualText] = useState(String(days));
+
+  useEffect(() => {
+    setManualText(String(days));
+  }, [days]);
+
+  const commitManual = () => {
+    const n = Math.round(Number(manualText));
+    if (Number.isFinite(n) && n >= 1) {
+      onChange(Math.min(n, MANUAL_WINDOW_DAYS_MAX));
+    } else {
+      setManualText(String(days));
+    }
+  };
+
+  const presetBtnStyle = (selected: boolean): React.CSSProperties => ({
+    appearance: 'none',
+    font: 'inherit',
+    fontSize: fs(12),
+    padding: '4px 10px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    border: selected ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+    background: selected ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+    color: selected ? COLORS.gold : COLORS.textFaint,
+  });
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      {DASHBOARD_WINDOW_OPTIONS.map((o) => (
+        <button key={o.days} type="button" onClick={() => onChange(o.days)} aria-pressed={days === o.days} style={presetBtnStyle(days === o.days)}>
+          {o.label}
+        </button>
+      ))}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: fs(12), color: COLORS.textFaint, marginLeft: 2 }}>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={MANUAL_WINDOW_DAYS_MAX}
+          value={manualText}
+          onChange={(e) => setManualText(e.target.value)}
+          onBlur={commitManual}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitManual();
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          aria-label="Свой период, дней"
+          style={{
+            width: 52,
+            font: 'inherit',
+            fontSize: fs(12),
+            padding: '3px 6px',
+            borderRadius: 2,
+            border: '1px solid rgba(var(--gold-rgb),0.15)',
+            background: 'transparent',
+            color: COLORS.textPrimary,
+          }}
+        />
+        дней
+      </label>
     </div>
   );
 }

@@ -1,24 +1,20 @@
 import type * as React from 'react';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
-import { DASHBOARD_WINDOW_OPTIONS } from '../ui/preferences';
 import type { UpcomingDayGroup } from './upcomingSchedule';
 
-// Компактное «Предстоящие записи» (M5C) — заменяет прежний блок внутри
-// большой GoldFrame той же визуальной логикой, что уже применяется в группах
-// напоминаний и «Рабочей сводке»: заголовок, тонкие разделители, компактные
-// строки, без внешней рамки и без карточки вокруг каждой группы дня. Группы
-// уже посчитаны снаружи (buildUpcomingSchedule) — здесь только раскладка;
-// какие записи допустимы и в каком порядке — по-прежнему решает upcomingItems.
+// Компактное «Предстоящие записи» (M5C, упрощена в M5D) — та же визуальная
+// логика, что у групп напоминаний и «Рабочей сводки»: заголовок, тонкие
+// разделители, компактные строки, без внешней рамки и без карточки вокруг
+// каждой группы дня. Группы уже посчитаны снаружи (buildUpcomingSchedule) —
+// здесь только раскладка; какие записи допустимы и в каком порядке —
+// по-прежнему решает upcomingItems. Свой тумблер периода убран (M5D) —
+// период теперь один общий, живёт в шапке Админки.
 export function UpcomingScheduleSection({
   groups,
-  selectedWindowDays,
-  onChangeWindowDays,
   onOpenSession,
 }: {
   groups: UpcomingDayGroup[];
-  selectedWindowDays: number;
-  onChangeWindowDays: (days: number) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
 }) {
   const totalCount = groups.reduce((sum, g) => sum + g.items.length, 0);
@@ -29,7 +25,6 @@ export function UpcomingScheduleSection({
     letterSpacing: '1.5px',
     textTransform: 'uppercase',
   };
-  const subheadStyle: React.CSSProperties = { ...sectionHeadingStyle, fontSize: fs(10), marginBottom: 8 };
   const dayLabelStyle: React.CSSProperties = { ...sectionHeadingStyle, fontSize: fs(10), margin: '12px 0 6px' };
   const dividerStyle: React.CSSProperties = { background: 'rgba(var(--gold-rgb),0.15)', width: '100%', height: 1, margin: '12px 0' };
 
@@ -38,31 +33,6 @@ export function UpcomingScheduleSection({
       <div style={sectionHeadingStyle}>Предстоящие записи · {totalCount}</div>
 
       <div style={dividerStyle} />
-
-      <div style={subheadStyle}>Период расписания</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {DASHBOARD_WINDOW_OPTIONS.map((o) => (
-          <button
-            key={o.days}
-            type="button"
-            onClick={() => onChangeWindowDays(o.days)}
-            aria-pressed={selectedWindowDays === o.days}
-            style={{
-              appearance: 'none',
-              font: 'inherit',
-              fontSize: fs(12),
-              padding: '4px 10px',
-              borderRadius: 2,
-              cursor: 'pointer',
-              border: selectedWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-              background: selectedWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-              color: selectedWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
-            }}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
 
       {groups.length === 0 ? (
         <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 12 }}>

@@ -3,13 +3,18 @@ export interface Prefs {
   brightness: number; // app brightness 0.75–1.15 (CSS filter)
   textScale: number; // text size 1.0–1.75 (font multiplier; 1.0 shown as 80%)
   textBright: 'normal' | 'high' | 'max'; // text tone level (dark theme)
-  upcomingWindowDays: number; // how many days ahead the dashboard's "upcoming sessions" widget looks
-  statsWindowDays: number; // how many days ahead the dashboard's stat-grid counters (sessions/consultations) look
+  // Единственный период Админки — живёт в её общей шапке (вкладки Записи и
+  // Рабочая сводка читают одно и то же значение). Раньше это были два
+  // независимых поля (upcomingWindowDays у «Предстоящие сессии» и
+  // statsWindowDays у статистики) — по явной просьбе мастера объединены в
+  // одно. Вкладка «Задачи» от него не зависит вовсе.
+  upcomingWindowDays: number;
   gameMode: boolean; // rock-paper-scissors gate before creating a client/session/note
 }
 
-// Shared by both of Админка's period pickers («Предстоящие сессии» and the
-// stats grid) so the two read as one control, not two different ones.
+// Готовые варианты общего периода Админки; помимо них можно ввести
+// произвольное число дней вручную (см. MANUAL_WINDOW_DAYS_MAX ниже) —
+// допустимость значения больше не ограничена этим списком.
 export const DASHBOARD_WINDOW_OPTIONS: { days: number; label: string }[] = [
   { days: 3, label: '3 дня' },
   { days: 7, label: '7 дней' },
@@ -17,4 +22,7 @@ export const DASHBOARD_WINDOW_OPTIONS: { days: number; label: string }[] = [
   { days: 30, label: 'Месяц' },
 ];
 
-export const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7, statsWindowDays: 30, gameMode: true };
+// Разумный верхний предел для ручного ввода периода.
+export const MANUAL_WINDOW_DAYS_MAX = 365;
+
+export const DEFAULT_PREFS: Prefs = { brightness: 1, textScale: 1, textBright: 'normal', upcomingWindowDays: 7, gameMode: true };
