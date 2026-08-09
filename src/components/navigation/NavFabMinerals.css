@@ -1,0 +1,64 @@
+:root[data-theme='light'] .nav-fab__item:not(.nav-fab__item--minimal) > span[aria-hidden='true'] {
+  position: relative;
+  isolation: isolate;
+}
+
+:root[data-theme='light'] .nav-fab__item:not(.nav-fab__item--minimal) > span[aria-hidden='true']::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  opacity: .76;
+  mix-blend-mode: soft-light;
+  box-shadow: inset 0 0 7px rgba(255,255,255,.32), inset 0 0 11px rgba(0,0,0,.16);
+}
+
+/* Клиенты — малахит: концентрические зелёные жилы, но ровно в палитре раздела. */
+:root[data-theme='light'] .nav-fab__item[aria-label='Клиенты'] > span[aria-hidden='true']::after {
+  background:
+    radial-gradient(ellipse at 54% 46%, transparent 0 16%, rgba(6,72,16,.55) 17% 20%, transparent 21% 29%, rgba(255,255,255,.20) 30% 33%, transparent 34% 43%, rgba(3,57,13,.62) 44% 48%, transparent 49% 59%),
+    repeating-radial-gradient(ellipse at 48% 52%, rgba(92,255,36,.08) 0 4px, rgba(0,78,20,.34) 5px 7px, rgba(255,255,255,.10) 8px 10px);
+}
+
+/* Личный кабинет — цитрин: сохраняет жёлтый код раздела, вместо ухода в коричневый. */
+:root[data-theme='light'] .nav-fab__item[aria-label='Личный кабинет'] > span[aria-hidden='true']::after {
+  background:
+    linear-gradient(118deg, transparent 0 30%, rgba(255,255,255,.62) 31% 35%, transparent 36% 52%, rgba(112,73,0,.34) 53% 57%, transparent 58%),
+    conic-gradient(from 16deg at 50% 50%, rgba(255,224,0,.10), rgba(119,79,0,.38), rgba(255,246,157,.48), rgba(255,224,0,.08), rgba(103,68,0,.33), rgba(255,224,0,.10));
+}
+
+/* POSTiNKA — аметист: глубокие фиолетовые зоны и светлая кварцевая прожилка. */
+:root[data-theme='light'] .nav-fab__item[aria-label='POSTiNKA'] > span[aria-hidden='true']::after {
+  background:
+    linear-gradient(132deg, transparent 0 36%, rgba(255,255,255,.55) 37% 40%, rgba(203,166,255,.32) 41% 45%, transparent 46%),
+    radial-gradient(circle at 35% 34%, rgba(255,255,255,.28), transparent 28%),
+    conic-gradient(from 205deg, rgba(70,0,104,.50), rgba(193,47,255,.10), rgba(113,14,171,.46), rgba(232,190,255,.27), rgba(70,0,104,.50));
+}
+
+/* Проекты — лабрадорит: тёмная база и характерная голубая вспышка. */
+:root[data-theme='light'] .nav-fab__item[aria-label='Проекты'] > span[aria-hidden='true']::after {
+  background:
+    linear-gradient(116deg, transparent 0 30%, rgba(150,249,255,.16) 31%, rgba(0,207,255,.78) 39%, rgba(70,94,255,.42) 48%, transparent 58%),
+    linear-gradient(28deg, rgba(4,28,36,.46), rgba(255,255,255,.05) 45%, rgba(8,41,54,.52));
+}
+
+/* Заметки — тигровый глаз: одна шёлковая световая полоса, оранжевый остаётся оранжевым. */
+:root[data-theme='light'] .nav-fab__item[aria-label='Заметки'] > span[aria-hidden='true']::after {
+  background:
+    linear-gradient(105deg, rgba(62,28,0,.48) 0 26%, rgba(255,137,0,.18) 34%, rgba(255,225,143,.72) 45%, rgba(255,137,0,.28) 54%, rgba(75,31,0,.50) 68% 100%),
+    repeating-linear-gradient(15deg, transparent 0 7px, rgba(255,255,255,.09) 8px, transparent 10px);
+}
+
+/* Админка — гранат: почти чёрный красный с узкими рубиновыми бликами. */
+:root[data-theme='light'] .nav-fab__item[aria-label='Админка'] > span[aria-hidden='true']::after {
+  background:
+    linear-gradient(128deg, transparent 0 26%, rgba(255,211,211,.34) 27% 31%, transparent 32% 61%, rgba(255,51,66,.48) 62% 69%, transparent 70%),
+    conic-gradient(from 22deg, rgba(57,0,7,.66), rgba(255,51,66,.12), rgba(105,0,14,.62), rgba(255,111,121,.23), rgba(57,0,7,.66));
+}
+
+/* В светлой теме убираем прежний неоновый ореол: минерал должен светиться из материала, не вокруг кнопки. */
+:root[data-theme='light'] .nav-fab__item:not(.nav-fab__item--minimal) > span[aria-hidden='true'] {
+  filter: saturate(1.18) contrast(1.06) drop-shadow(0 2px 5px rgba(86,61,20,.18)) !important;
+}
