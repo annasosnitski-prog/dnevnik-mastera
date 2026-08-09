@@ -1889,6 +1889,13 @@ input[type='date'] {
   }
 }
 .inka-meteor {
+  /* Matches the keyframe's resting state (opacity 0 for 99.5% of the
+     cycle): without this, the element sits at its un-animated default
+     (fully opaque, unrotated — a flat gold bar) for however long the
+     browser takes to actually start ticking the animation after mount,
+     which reads as a frozen horizontal streak that then jumps/flickers
+     into its correct rotated position once the animation engine catches up. */
+  opacity: 0;
   animation-name: inka-meteor;
   animation-timing-function: ease-in;
   animation-iteration-count: infinite;
