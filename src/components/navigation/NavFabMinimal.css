@@ -14,14 +14,14 @@
 
 .nav-fab__main--minimal,
 .nav-fab__item--minimal {
-  border: 1.5px solid rgba(var(--gold-rgb), 0.72) !important;
+  border: 0.8px solid rgba(var(--gold-rgb), 0.68) !important;
   outline: 0;
   background: radial-gradient(circle at 40% 34%, #2c2a27 0%, #181715 54%, #090908 100%);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 218, 142, 0.05),
-    0 0 0 1px rgba(0, 0, 0, 0.7),
-    0 0 17px rgba(var(--gold-rgb), 0.34),
-    0 11px 22px rgba(0, 0, 0, 0.58);
+    inset 0 0 0 0.5px rgba(255, 218, 142, 0.04),
+    0 0 10px rgba(var(--gold-rgb), 0.3),
+    0 0 20px rgba(var(--gold-rgb), 0.12),
+    0 9px 20px rgba(0, 0, 0, 0.54);
   color: var(--gold) !important;
   overflow: visible;
   touch-action: manipulation;
@@ -29,12 +29,13 @@
 
 :root[data-theme='light'] .nav-fab__main--minimal,
 :root[data-theme='light'] .nav-fab__item--minimal {
-  border-color: rgba(var(--gold-rgb), 0.58) !important;
+  border-color: rgba(var(--gold-rgb), 0.5) !important;
   background: radial-gradient(circle at 40% 34%, #fbf5e8 0%, #eee4d0 68%, #ddd0b7 100%);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.52),
-    0 1px 2px rgba(74, 49, 16, 0.12),
-    0 7px 15px rgba(74, 49, 16, 0.17);
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.46),
+    0 0 8px rgba(var(--gold-rgb), 0.14),
+    0 0 16px rgba(var(--gold-rgb), 0.07),
+    0 6px 13px rgba(74, 49, 16, 0.14);
 }
 
 .nav-fab__main--minimal {
@@ -43,22 +44,23 @@
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
-  width: 70px !important;
-  height: 70px !important;
+  width: 47px !important;
+  height: 47px !important;
   --nav-scale: 1 !important;
-  border-width: 2px !important;
+  border-width: 0.8px !important;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 218, 142, 0.06),
-    0 0 0 1px rgba(0, 0, 0, 0.74),
-    0 0 20px rgba(var(--gold-rgb), 0.4),
-    0 12px 24px rgba(0, 0, 0, 0.6);
+    inset 0 0 0 0.5px rgba(255, 218, 142, 0.04),
+    0 0 10px rgba(var(--gold-rgb), 0.32),
+    0 0 19px rgba(var(--gold-rgb), 0.13),
+    0 8px 18px rgba(0, 0, 0, 0.52);
 }
 
 :root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
-    0 1px 2px rgba(74, 49, 16, 0.13),
-    0 8px 17px rgba(74, 49, 16, 0.18);
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.48),
+    0 0 8px rgba(var(--gold-rgb), 0.15),
+    0 0 16px rgba(var(--gold-rgb), 0.07),
+    0 6px 13px rgba(74, 49, 16, 0.14);
 }
 
 /* External controls are one third smaller than the approved reference pass. */
@@ -67,32 +69,87 @@
   height: 64px;
 }
 
+/* Non-current destinations keep the same gold, but sit one visual step back. */
 .nav-fab--minimal .nav-fab__item--dim {
-  opacity: 1;
-  filter: none;
+  border-color: rgba(var(--gold-rgb), 0.42) !important;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 218, 142, 0.025),
+    0 0 6px rgba(var(--gold-rgb), 0.16),
+    0 0 13px rgba(var(--gold-rgb), 0.055),
+    0 8px 18px rgba(0, 0, 0, 0.5);
+}
+
+.nav-fab--minimal .nav-fab__item--dim::before {
+  opacity: 0.72;
+}
+
+:root[data-theme='light'] .nav-fab--minimal .nav-fab__item--dim {
+  border-color: rgba(var(--gold-rgb), 0.32) !important;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.34),
+    0 0 5px rgba(var(--gold-rgb), 0.07),
+    0 0 10px rgba(var(--gold-rgb), 0.03),
+    0 5px 11px rgba(74, 49, 16, 0.1);
 }
 
 .nav-fab--minimal .nav-fab__item--minimal:not(.nav-fab__item--minimal-create) {
   color: var(--gold) !important;
 }
 
+/* Current destination stays gold like the rest of the toolbar; only its halo is brighter. */
+.nav-fab--minimal.nav-fab--open
+  .nav-fab__item--minimal:not(.nav-fab__item--dim):not(.nav-fab__item--minimal-create) {
+  border-color: rgba(var(--gold-rgb), 0.92) !important;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 218, 142, 0.08),
+    0 0 12px rgba(var(--gold-rgb), 0.52),
+    0 0 28px rgba(var(--gold-rgb), 0.25),
+    0 9px 20px rgba(0, 0, 0, 0.54);
+}
+
+.nav-fab--minimal.nav-fab--open
+  .nav-fab__item--minimal:not(.nav-fab__item--dim):not(.nav-fab__item--minimal-create)::before {
+  filter:
+    blur(0.18px)
+    drop-shadow(0 0 3px rgba(var(--gold-rgb), 0.58))
+    drop-shadow(0 0 8px rgba(var(--gold-rgb), 0.26));
+}
+
+:root[data-theme='light'] .nav-fab--minimal.nav-fab--open
+  .nav-fab__item--minimal:not(.nav-fab__item--dim):not(.nav-fab__item--minimal-create) {
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.54),
+    0 0 10px rgba(var(--gold-rgb), 0.26),
+    0 0 20px rgba(var(--gold-rgb), 0.12),
+    0 6px 13px rgba(74, 49, 16, 0.14);
+}
+
+/* The create disc is 60% transparent; the plus remains fully legible. */
 .nav-fab--minimal .nav-fab__item--minimal-create {
-  border-color: rgba(235, 184, 76, 0.95) !important;
-  background: radial-gradient(circle at 42% 35%, #e0b354 0%, #c68c2e 68%, #a96618 100%) !important;
+  border-color: rgba(235, 184, 76, 0.33) !important;
+  background: radial-gradient(
+    circle at 42% 35%,
+    rgba(224, 179, 84, 0.4) 0%,
+    rgba(198, 140, 46, 0.4) 68%,
+    rgba(169, 102, 24, 0.4) 100%
+  ) !important;
   color: #0a0907 !important;
   box-shadow:
-    inset 0 0 0 2px rgba(8, 7, 5, 0.92),
-    inset 0 0 0 4px rgba(229, 177, 70, 0.82),
-    0 0 19px rgba(var(--gold-rgb), 0.48),
-    0 12px 24px rgba(0, 0, 0, 0.58);
+    inset 0 0 0 1px rgba(8, 7, 5, 0.36),
+    inset 0 0 0 2.5px rgba(229, 177, 70, 0.29),
+    0 0 11px rgba(var(--gold-rgb), 0.14),
+    0 0 21px rgba(var(--gold-rgb), 0.06),
+    0 9px 20px rgba(0, 0, 0, 0.22);
 }
 
 :root[data-theme='light'] .nav-fab--minimal .nav-fab__item--minimal-create {
   color: #f8f1e2 !important;
   box-shadow:
-    inset 0 0 0 2px rgba(92, 60, 16, 0.68),
-    inset 0 0 0 4px rgba(235, 192, 99, 0.7),
-    0 8px 16px rgba(73, 49, 17, 0.2);
+    inset 0 0 0 1px rgba(92, 60, 16, 0.23),
+    inset 0 0 0 2.5px rgba(235, 192, 99, 0.25),
+    0 0 8px rgba(var(--gold-rgb), 0.06),
+    0 0 16px rgba(var(--gold-rgb), 0.03),
+    0 6px 13px rgba(73, 49, 17, 0.06);
 }
 
 .nav-fab--minimal .nav-fab__main--minimal > svg,
@@ -121,12 +178,12 @@
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal::before {
-  font-size: 42px;
+  font-size: 28px;
 }
 
 /* Approved icon mapping:
    closed padlock = Личный кабинет; paired silhouettes = Клиенты;
-   four-point spark = POSTiNKA; document = Заметки;
+   sparkle cluster = POSTiNKA; document = Заметки;
    pencil = Проекты; door key = Админка; plus = Создать. */
 .nav-fab--minimal .nav-fab__item--minimal::before {
   content: '';
@@ -136,10 +193,10 @@
   z-index: 2;
   width: 43px;
   height: 43px;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(0.75);
   border-radius: 0;
   background: currentColor;
-  filter: drop-shadow(0 1px 0 rgba(255, 220, 145, 0.14));
+  filter: blur(0.18px) drop-shadow(0 1px 0 rgba(255, 220, 145, 0.14));
   -webkit-mask-image: var(--inka-toolbar-mask);
   mask-image: var(--inka-toolbar-mask);
   -webkit-mask-repeat: no-repeat;
@@ -163,6 +220,17 @@
   height: 37px;
 }
 
+.nav-fab--minimal .nav-fab__item--minimal-create::before {
+  width: 30px;
+  height: 30px;
+  background: var(--gold);
+  opacity: 1;
+  filter:
+    blur(0.18px)
+    drop-shadow(0 0 3px rgba(var(--gold-rgb), 0.58))
+    drop-shadow(0 0 8px rgba(var(--gold-rgb), 0.26));
+}
+
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет'] {
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M8,14V10a8,8,0,0,1,16,0v4h3v16H5V14Zm4,0h8V10a4,4,0,0,0-8,0Zm4,5a2.4,2.4,0,0,1,1.5,4.3L19,27H13l1.5-3.7A2.4,2.4,0,0,1,16,19Z'/%3E%3C/svg%3E");
 }
@@ -172,7 +240,7 @@
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='POSTiNKA'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M16,2c1.6,7.6,6.4,12.4,14,14-7.6,1.6-12.4,6.4-14,14-1.6-7.6-6.4-12.4-14-14C9.6,14.4,14.4,9.6,16,2Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M14%206C15%2012%2018%2016%2024%2018C18%2020%2015%2024%2014%2030C13%2024%2010%2020%204%2018C10%2016%2013%2012%2014%206Z'/%3E%3Cpath%20fill='black'%20d='M24%202C24.6%205.3%2026.4%207.4%2030%208C26.4%208.6%2024.6%2010.7%2024%2014C23.4%2010.7%2021.6%208.6%2018%208C21.6%207.4%2023.4%205.3%2024%202Z'/%3E%3Cpath%20fill='black'%20d='M27%2016C27.4%2018.2%2028.6%2019.6%2031%2020C28.6%2020.4%2027.4%2021.8%2027%2024C26.6%2021.8%2025.4%2020.4%2023%2020C25.4%2019.6%2026.6%2018.2%2027%2016Z'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Заметки'] {
@@ -191,26 +259,31 @@
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M13,3h6v10h10v6H19v10h-6V19H3v-6h10Z'/%3E%3C/svg%3E");
 }
 
-/* Straight, equal-length gold spokes. */
+/* Hairline gold spokes with long, needle-sharp tapers at both ends. */
 .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
   content: '';
   position: absolute;
-  top: 50%;
+  top: calc(50% - 1px);
   left: 50%;
   z-index: -1;
   width: 91px;
   height: 2px;
   transform-origin: 0 50%;
-  background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.92), rgba(var(--gold-rgb), 0.42));
-  box-shadow: 0 0 7px rgba(var(--gold-rgb), 0.42);
-  opacity: 0.9;
+  background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.84), rgba(var(--gold-rgb), 0.36));
+  -webkit-clip-path: polygon(0 50%, 12% 30%, 88% 30%, 100% 50%, 88% 70%, 12% 70%);
+  clip-path: polygon(0 50%, 12% 30%, 88% 30%, 100% 50%, 88% 70%, 12% 70%);
+  box-shadow:
+    0 0 4px rgba(var(--gold-rgb), 0.38),
+    0 0 10px rgba(var(--gold-rgb), 0.18);
+  opacity: 0.82;
   pointer-events: none;
 }
 
 :root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
-  height: 1px;
-  box-shadow: none;
-  opacity: 0.72;
+  box-shadow:
+    0 0 4px rgba(var(--gold-rgb), 0.16),
+    0 0 8px rgba(var(--gold-rgb), 0.08);
+  opacity: 0.6;
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(1)::after {
@@ -270,6 +343,63 @@
 .nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
   .nav-fab__item--minimal:nth-of-type(6)::after {
   transform: rotate(30deg) translateX(32px);
+}
+
+/* Keep the original tab-bar field height while the circles themselves stay 25% smaller. */
+[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента'] {
+  min-height: 61px;
+  align-items: center;
+}
+
+/* Minimal client tabs use the circle itself as the selected-state indicator. */
+[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента'] [role='tab'] {
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+}
+
+[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
+  [role='tab'][aria-selected='true']::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Client-tab circles are 25% smaller in minimalism; pictograms keep their own fixed SVG size. */
+[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
+  [role='tab'] > span[aria-hidden='true'] {
+  width: 40.5px !important;
+  height: 40.5px !important;
+  box-shadow: none !important;
+}
+
+/* Selected client tab matches the active toolbar destination: gold rim, halo and icon glow. */
+[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
+  [role='tab'][aria-selected='true'] > span[aria-hidden='true'] {
+  color: var(--gold) !important;
+  border-color: rgba(var(--gold-rgb), 0.92) !important;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 218, 142, 0.08),
+    0 0 12px rgba(var(--gold-rgb), 0.52),
+    0 0 28px rgba(var(--gold-rgb), 0.25),
+    0 9px 20px rgba(0, 0, 0, 0.54) !important;
+}
+
+[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
+  [role='tab'][aria-selected='true'] > span[aria-hidden='true'] > svg {
+  filter:
+    blur(0.18px)
+    drop-shadow(0 0 3px rgba(var(--gold-rgb), 0.58))
+    drop-shadow(0 0 8px rgba(var(--gold-rgb), 0.26));
+}
+
+:root[data-theme='light'] [data-minimalism='true']
+  [role='tablist'][aria-label='Разделы клиента']
+  [role='tab'][aria-selected='true'] > span[aria-hidden='true'] {
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.54),
+    0 0 10px rgba(var(--gold-rgb), 0.26),
+    0 0 20px rgba(var(--gold-rgb), 0.12),
+    0 6px 13px rgba(74, 49, 16, 0.14) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
