@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useRef, useMemo, type ReactNode, type SVGProps } from 'react';
+import { memo, useState, useEffect, useRef, useMemo, lazy, Suspense, type ReactNode, type SVGProps } from 'react';
 import { createPortal } from 'react-dom';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
@@ -130,30 +130,42 @@ import {
   AviationBackground,
 } from './effects/SkyBackgrounds';
 // Экраны вынесены в отдельные модули (PR 8+ рефакторинга). Логика и разметка
-// не менялись — только перенос; каждый экран prop-driven.
-import { WorkshopScreen } from './screens/WorkshopScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
-import { SummaryScreen } from './screens/SummaryScreen';
-import { AdminDashboardScreen } from './screens/AdminDashboardScreen';
+// не менялись — только перенос; каждый экран prop-driven. Ни один из них не
+// нужен для самого первого экрана (screen === 'list' на старте) — раньше все
+// они (плюс DetailScreen ниже) всё равно безусловно попадали в один-
+// единственный бандл (534 КБ/147 КБ gzip — Vite сам предупреждал об этом при
+// сборке), и устройство разбирало и выполняло их код ещё до отрисовки списка
+// клиентов. React.lazy откладывает загрузку каждого экрана до первого
+// перехода на него.
+const WorkshopScreen = lazy(() => import('./screens/WorkshopScreen').then((m) => ({ default: m.WorkshopScreen })));
+const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen })));
+const SummaryScreen = lazy(() => import('./screens/SummaryScreen').then((m) => ({ default: m.SummaryScreen })));
+const AdminDashboardScreen = lazy(() => import('./screens/AdminDashboardScreen').then((m) => ({ default: m.AdminDashboardScreen })));
 // Общие форм-контролы клиента вынесены в отдельный модуль (PR 10 рефакторинга).
-import { SessionPhotos } from './client/ClientControls';
-// Кластер «карточка клиента» вынесен в отдельный модуль (PR 11 рефакторинга).
-// AddChatLinkForm/AddMasterLinkForm переиспользуются дашбордами здесь,
-// поэтому импортируются обратно.
-import {
-  DetailScreen,
-  AddChatLinkForm,
-  AddMasterLinkForm,
-} from './screens/DetailScreen';
+// AddChatLinkForm/AddMasterLinkForm живут здесь же (не в screens/DetailScreen,
+// хотя изначально были частью того переноса) — их переиспользуют дашборды
+// прямо в этом файле, а DetailScreen грузится лениво (см. ниже); если бы эти
+// формы остались в screens/DetailScreen.tsx, этот статический импорт утянул
+// бы весь тот экран обратно в основной бандл.
+import { SessionPhotos, AddChatLinkForm, AddMasterLinkForm } from './client/ClientControls';
+// Кластер «карточка клиента» вынесен в отдельный модуль (PR 11 рефакторинга) —
+// самый большой из экранов (2600+ строк), поэтому лениво (см. выше про
+// остальные экраны). AddChatLinkForm/AddMasterLinkForm выше — не отсюда, см.
+// комментарий у их импорта.
+const DetailScreen = lazy(() => import('./screens/DetailScreen').then((m) => ({ default: m.DetailScreen })));
 import { ArchetypeToolbar } from './content/ArchetypeToolbar';
 import { ActionButton, ContentEntryActions } from './content/ContentEntryActions';
 // Иконки и мини-игры вынесены в отдельные модули (PR 2 рефакторинга).
-// Логика и разметка не менялись — только перенос.
+// Логика и разметка не менялись — только перенос. Мини-игры показываются
+// только внутри TrialGate — редкого overlay (обязателен для самого первого
+// клиента, иначе шанс сработать 15% на создание карточки/сессии/заметки или
+// на возврат в приложение) — поэтому тоже лениво.
 import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon } from './icons/SocialIcons';
 import { StarDivider } from './icons/StarIcons';
-import { RPSGame, RPSTauntFace } from './games/RPSGame';
-import { CupsGame } from './games/CupsGame';
-import { BlackjackGame } from './games/BlackjackGame';
+const RPSGame = lazy(() => import('./games/RPSGame').then((m) => ({ default: m.RPSGame })));
+const RPSTauntFace = lazy(() => import('./games/RPSGame').then((m) => ({ default: m.RPSTauntFace })));
+const CupsGame = lazy(() => import('./games/CupsGame').then((m) => ({ default: m.CupsGame })));
+const BlackjackGame = lazy(() => import('./games/BlackjackGame').then((m) => ({ default: m.BlackjackGame })));
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
@@ -2471,6 +2483,7 @@ export default function TattoDiary() {
         }}
       >
         {screen === 'summary' && (
+          <Suspense fallback={null}>
           <SummaryScreen
             clients={clients}
             projects={projects}
@@ -2518,6 +2531,7 @@ export default function TattoDiary() {
             filter={summaryFilter}
             onFilterChange={setSummaryFilter}
           />
+          </Suspense>
         )}
       </div>
 
@@ -2594,6 +2608,7 @@ export default function TattoDiary() {
         }}
       >
         {screen === 'admin' && (
+          <Suspense fallback={null}>
           <AdminDashboardScreen
             clients={clients}
             masterNotes={masterInfo.notes}
@@ -2624,6 +2639,7 @@ export default function TattoDiary() {
               setScreen('summary');
             }}
           />
+          </Suspense>
         )}
       </div>
 
@@ -2640,12 +2656,14 @@ export default function TattoDiary() {
         }}
       >
         {screen === 'workshop' && (
+          <Suspense fallback={null}>
           <WorkshopScreen
             projects={projects}
             projectsLoaded={projectsLoaded}
             clients={clients}
             onOpenProject={(project) => setViewProject(project)}
           />
+          </Suspense>
         )}
       </div>
 
@@ -2662,6 +2680,7 @@ export default function TattoDiary() {
         }}
       >
         {screen === 'settings' && (
+          <Suspense fallback={null}>
           <SettingsScreen
             theme={theme}
             onToggleTheme={toggleTheme}
@@ -2677,6 +2696,7 @@ export default function TattoDiary() {
             onImport={replaceAllData}
             onMigrateRecords={migrateRecordsIntoProjects}
           />
+          </Suspense>
         )}
       </div>
 
@@ -2694,6 +2714,7 @@ export default function TattoDiary() {
         }}
       >
         {selectedClient && (
+          <Suspense fallback={null}>
           <DetailScreen
             client={selectedClient}
             activeTab={activeTab}
@@ -2747,6 +2768,7 @@ export default function TattoDiary() {
             onOpenContent={openContentWorkspace}
             onImportClients={importClients}
           />
+          </Suspense>
         )}
       </div>
 
@@ -3232,6 +3254,7 @@ function TrialGate({
         </div>
 
         <div style={{ minHeight: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+          <Suspense fallback={null}>
           {stage === 'playing' &&
             (gameKind === 'rps' ? (
               <RPSGame key={round} onResult={handleResult} />
@@ -3249,6 +3272,7 @@ function TrialGate({
               </div>
             </>
           )}
+          </Suspense>
         </div>
       </div>
     </div>

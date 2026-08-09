@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { type ClientType, CLIENT_TYPES } from '../../domain/client';
+import { type ClientType, CLIENT_TYPES, type ChatPlatform, PLATFORM_LABELS } from '../../domain/client';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
 import { type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep } from '../../domain/project';
 import { downsizeForStorage } from '../../lib/imagePreview';
@@ -733,6 +733,233 @@ export function ProjectCategoryChips({ value, onPick }: { value: ProjectCategory
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Вынесено из screens/DetailScreen.tsx: используются и им самим, и
+// дашбордами в TattoDiary.tsx (карточка мастера/клиента), а DetailScreen
+// лениво подгружается (React.lazy) — если бы эти формы остались там,
+// статический импорт из TattoDiary.tsx утянул бы весь DetailScreen обратно
+// в основной бандл. Логика и разметка не менялись — чистый перенос.
+export function AddChatLinkForm({ onAdd }: { onAdd: (platform: ChatPlatform, raw: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [platform, setPlatform] = useState<ChatPlatform>('whatsapp');
+  const [raw, setRaw] = useState('');
+
+  if (!open) {
+    return (
+      <div
+        className="inka-dashed"
+        onClick={() => setOpen(true)}
+        style={{
+          marginTop: 4,
+          border: '1px dashed rgba(var(--gold-rgb),0.18)',
+          borderRadius: 2,
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <span style={{ fontSize: fs(13), color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+          Добавить ссылку
+        </span>
+      </div>
+    );
+  }
+
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    background: COLORS.bg,
+    border: '1px solid rgba(var(--gold-rgb),0.18)',
+    borderRadius: 2,
+    padding: '9px 12px',
+    fontFamily: "'Inter', sans-serif",
+    color: COLORS.textPrimary,
+    outline: 'none',
+    marginBottom: 8,
+  };
+
+  return (
+    <div
+      style={{
+        marginTop: 4,
+        border: '1px solid rgba(var(--gold-rgb),0.18)',
+        borderRadius: 2,
+        padding: 13,
+        background: 'rgba(var(--surface-rgb),0.018)',
+      }}
+    >
+      <select value={platform} onChange={(e) => setPlatform(e.target.value as ChatPlatform)} style={selectStyle}>
+        {(Object.keys(PLATFORM_LABELS) as ChatPlatform[]).map((p) => (
+          <option key={p} value={p} style={{ background: COLORS.bg }}>
+            {PLATFORM_LABELS[p]}
+          </option>
+        ))}
+      </select>
+      <input
+        value={raw}
+        onChange={(e) => setRaw(e.target.value)}
+        placeholder="Телефон, @ник или ссылка"
+        style={{ ...INPUT_STYLE, marginBottom: 8 }}
+      />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div
+          onClick={() => {
+            setOpen(false);
+            setRaw('');
+          }}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            textAlign: 'center',
+            padding: '9px 4px',
+            borderRadius: 2,
+            border: '1px solid rgba(var(--gold-rgb),0.15)',
+            color: COLORS.textFaint,
+            fontSize: fs(13),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            wordBreak: 'break-word',
+          }}
+        >
+          Отмена
+        </div>
+        <div
+          className="inka-submit"
+          onClick={() => {
+            if (!raw.trim()) return;
+            onAdd(platform, raw);
+            setRaw('');
+            setOpen(false);
+          }}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            textAlign: 'center',
+            padding: '9px 4px',
+            borderRadius: 2,
+            border: '1px solid rgba(var(--gold-rgb),0.35)',
+            background: 'rgba(var(--gold-rgb),0.05)',
+            color: COLORS.gold,
+            fontSize: fs(13),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            wordBreak: 'break-word',
+          }}
+        >
+          Добавить
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Free-form add-a-row form for the master's own card (Настройки → Карточка
+// мастера): unlike the client's ChatLink form, there's no fixed platform
+// enum here — a label ("Instagram", "СБП Тинькофф"...) plus a free value.
+export function AddMasterLinkForm({ onAdd }: { onAdd: (label: string, value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState('');
+  const [value, setValue] = useState('');
+
+  if (!open) {
+    return (
+      <div
+        className="inka-dashed"
+        onClick={() => setOpen(true)}
+        style={{
+          marginTop: 4,
+          border: '1px dashed rgba(var(--gold-rgb),0.18)',
+          borderRadius: 2,
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+          <line x1="5.5" y1="1.5" x2="5.5" y2="9.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <span style={{ fontSize: fs(13), color: 'rgba(var(--gold-rgb),0.5)', letterSpacing: '1px', textTransform: 'uppercase', fontStyle: 'italic' }}>
+          Добавить
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 4,
+        border: '1px solid rgba(var(--gold-rgb),0.18)',
+        borderRadius: 2,
+        padding: 13,
+        background: 'rgba(var(--surface-rgb),0.018)',
+      }}
+    >
+      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Название (Instagram, СБП...)" style={{ ...INPUT_STYLE, marginBottom: 8 }} />
+      <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="Ссылка, номер, реквизиты..." style={{ ...INPUT_STYLE, marginBottom: 8 }} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div
+          onClick={() => {
+            setOpen(false);
+            setLabel('');
+            setValue('');
+          }}
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '9px',
+            borderRadius: 2,
+            border: '1px solid rgba(var(--gold-rgb),0.15)',
+            color: COLORS.textFaint,
+            fontSize: fs(13),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Отмена
+        </div>
+        <div
+          className="inka-submit"
+          onClick={() => {
+            if (!label.trim() || !value.trim()) return;
+            onAdd(label, value);
+            setLabel('');
+            setValue('');
+            setOpen(false);
+          }}
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            padding: '9px',
+            borderRadius: 2,
+            border: '1px solid rgba(var(--gold-rgb),0.35)',
+            background: 'rgba(var(--gold-rgb),0.05)',
+            color: COLORS.gold,
+            fontSize: fs(13),
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Добавить
+        </div>
+      </div>
     </div>
   );
 }
