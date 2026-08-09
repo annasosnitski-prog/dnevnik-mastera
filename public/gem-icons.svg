@@ -1,13 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="320"
-     height="64"
-     viewBox="0 0 320 64"
-     role="img"
-     aria-labelledby="title desc">
-  <title id="title">Gold pendant navigation icons</title>
-  <desc id="desc">A small gold pendant with a diamond halo and a coloured centre stone using the toolbar palette: green sessions, blue consultations, violet content, orange notes, and red info icons.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="64" viewBox="0 0 320 64" role="img" aria-labelledby="title desc">
+  <title id="title">Mineral client tab icons</title>
+  <desc id="desc">Diamond-cut client tabs using the same section palette as the toolbar: malachite, moonstone, amethyst, tiger eye and garnet.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -16,107 +10,87 @@
   <view id="info" viewBox="256 0 64 64"/>
 
   <defs>
-    <linearGradient id="gold-metal" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#F7E4B8"/>
-      <stop offset=".35" stop-color="#D8A94A"/>
-      <stop offset=".7" stop-color="#A3722A"/>
-      <stop offset="1" stop-color="#6E4A16"/>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF0BD"/><stop offset=".24" stop-color="#C98C2F"/>
+      <stop offset=".5" stop-color="#7D4A0E"/><stop offset=".72" stop-color="#F4C75D"/><stop offset="1" stop-color="#6E3C08"/>
     </linearGradient>
-
-    <radialGradient id="pave-diamond" cx=".35" cy=".3" r=".8">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset=".55" stop-color="#EFF4F8"/>
-      <stop offset="1" stop-color="#C3CFD8"/>
+    <radialGradient id="diamond" cx=".3" cy=".25" r=".8">
+      <stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#eef4f7"/><stop offset="1" stop-color="#aeb9c2"/>
     </radialGradient>
-
-    <!-- Cross-wise light/dark/light banding (not the diagonal gold-metal one)
-         so the bail-to-frame connector reads as a round soldered rod instead
-         of a flat stroked line. -->
-    <linearGradient id="rod-metal" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#6E4A16"/>
-      <stop offset=".28" stop-color="#D8A94A"/>
-      <stop offset=".5" stop-color="#F9EAC2"/>
-      <stop offset=".72" stop-color="#D8A94A"/>
-      <stop offset="1" stop-color="#6E4A16"/>
-    </linearGradient>
-
-    <!-- Hue-independent facet shading laid over each currentColor stone. -->
-    <linearGradient id="stone-facet-highlight" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".65"/>
-      <stop offset=".5" stop-color="#FFFFFF" stop-opacity=".14"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="stone-facet-shadow" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#000000" stop-opacity="0"/>
-      <stop offset=".5" stop-color="#000000" stop-opacity=".18"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".5"/>
-    </linearGradient>
-
-    <!-- Soft ambient shadow instead of a neon glow — reads as real metal, not a video-game gem. -->
-    <filter id="pendant-shadow" x="-40%" y="-30%" width="180%" height="170%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="1.1" result="blur"/>
-      <feOffset in="blur" dy=".8" result="off"/>
-      <feComponentTransfer in="off" result="shadow"><feFuncA type="linear" slope=".38"/></feComponentTransfer>
-      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation=".9" result="b"/><feOffset in="b" dy=".8" result="o"/>
+      <feComponentTransfer in="o" result="s"><feFuncA type="linear" slope=".3"/></feComponentTransfer>
+      <feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
 
-    <!-- Colourless chrome: the bail and connector stay at their original size;
-         only the four-corner diamond body below is enlarged around its centre. -->
-    <g id="pendant-chrome">
-      <circle cx="32" cy="9" r="2.8" fill="none" stroke="url(#gold-metal)" stroke-width="1.8"/>
-      <rect x="31.05" y="11.3" width="1.9" height="5.4" rx=".95" fill="url(#rod-metal)" stroke="#5A3B10" stroke-width=".35"/>
-      <line x1="31.5" y1="11.7" x2="31.5" y2="16" stroke="#FCEFD8" stroke-width=".4" stroke-linecap="round" opacity=".6"/>
+    <pattern id="malachite" width="18" height="18" patternUnits="userSpaceOnUse">
+      <rect width="18" height="18" fill="#5CFF24"/>
+      <ellipse cx="8" cy="9" rx="8" ry="5" fill="none" stroke="#0B6A22" stroke-width="2.2" opacity=".75"/>
+      <ellipse cx="8" cy="9" rx="5" ry="3" fill="none" stroke="#D5FFBE" stroke-width="1.2" opacity=".5"/>
+      <path d="M-2 3C4 8 10 0 20 7M-3 15C4 10 12 19 21 12" fill="none" stroke="#064B18" stroke-width="1.4" opacity=".7"/>
+    </pattern>
+    <radialGradient id="moonstone" cx=".38" cy=".32" r=".82">
+      <stop offset="0" stop-color="#fff"/><stop offset=".34" stop-color="#dff9ff"/>
+      <stop offset=".52" stop-color="#00CFFF" stop-opacity=".82"/><stop offset=".68" stop-color="#cfd9ff"/>
+      <stop offset="1" stop-color="#7d9daa"/>
+    </radialGradient>
+    <radialGradient id="amethyst" cx=".35" cy=".25" r=".85">
+      <stop offset="0" stop-color="#f4d8ff"/><stop offset=".34" stop-color="#C12FFF"/>
+      <stop offset=".72" stop-color="#681493"/><stop offset="1" stop-color="#2f083e"/>
+    </radialGradient>
+    <linearGradient id="tiger" x1="0" y1="0" x2="1" y2=".25">
+      <stop offset="0" stop-color="#4b2100"/><stop offset=".28" stop-color="#FF8900"/>
+      <stop offset=".46" stop-color="#ffe29a"/><stop offset=".58" stop-color="#d66d00"/><stop offset="1" stop-color="#3a1800"/>
+    </linearGradient>
+    <radialGradient id="garnet" cx=".32" cy=".23" r=".9">
+      <stop offset="0" stop-color="#ffadb5"/><stop offset=".25" stop-color="#FF3342"/>
+      <stop offset=".62" stop-color="#8a0713"/><stop offset="1" stop-color="#260006"/>
+    </radialGradient>
 
-      <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <rect x="-12.5" y="-12.5" width="25" height="25" rx="3.2" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".9"/>
-        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx="2.4" fill="#FCEFD8" stroke="url(#gold-metal)" stroke-width=".7"/>
+    <linearGradient id="facetLight" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".72"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="facetDark" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".46"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>
 
-        <circle cx="-9.8" cy="-9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="9.8" cy="-9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="9.8" cy="9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="-9.8" cy="9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="0" cy="-9.8" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-        <circle cx="9.8" cy="0" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-        <circle cx="0" cy="9.8" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-        <circle cx="-9.8" cy="0" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-
-        <circle cx="-12.5" cy="-12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-        <circle cx="12.5" cy="-12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-        <circle cx="12.5" cy="12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-        <circle cx="-12.5" cy="12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
+    <g id="frame">
+      <g transform="translate(32 32) rotate(45)">
+        <rect x="-21" y="-21" width="42" height="42" rx="6" fill="url(#gold)" stroke="#5a3108" stroke-width="1"/>
+        <rect x="-18.6" y="-18.6" width="37.2" height="37.2" rx="4.8" fill="#f8ead0" stroke="url(#gold)" stroke-width="1"/>
+        <circle cx="-18.5" cy="-18.5" r="2" fill="url(#diamond)"/><circle cx="18.5" cy="-18.5" r="2" fill="url(#diamond)"/>
+        <circle cx="18.5" cy="18.5" r="2" fill="url(#diamond)"/><circle cx="-18.5" cy="18.5" r="2" fill="url(#diamond)"/>
       </g>
     </g>
 
-    <!-- Coloured centre stone scales with the diamond body, not with its mount. -->
-    <g id="pendant-stone">
-      <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <rect x="-7.6" y="-7.6" width="15.2" height="15.2" rx="1.9" fill="#241608"/>
-        <rect x="-7" y="-7" width="14" height="14" rx="1.8" fill="currentColor" stroke="#000000" stroke-opacity=".3" stroke-width=".4"/>
-        <path d="M-7 -7 7 -7 -7 7Z" fill="url(#stone-facet-highlight)"/>
-        <path d="M7 -7 7 7 -7 7Z" fill="url(#stone-facet-shadow)"/>
-        <path d="M-4.3 -4.3 -1.2 -1.2" stroke="#FFFFFF" stroke-width=".9" stroke-linecap="round" opacity=".6"/>
-      </g>
+    <g id="facets">
+      <path d="M32 13 51 32 32 27Z" fill="url(#facetLight)" opacity=".52"/>
+      <path d="M51 32 32 51 37 32Z" fill="url(#facetDark)" opacity=".5"/>
+      <path d="M32 51 13 32 32 37Z" fill="#000" opacity=".12"/>
+      <path d="M13 32 32 13 27 32Z" fill="#fff" opacity=".16"/>
+      <path d="M23 22 28 18" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".72"/>
     </g>
   </defs>
 
-  <g id="sessions-icon" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#5CFF24"/>
+  <g id="sessions-icon" filter="url(#shadow)">
+    <use href="#frame"/>
+    <rect x="17" y="17" width="30" height="30" rx="4" transform="rotate(45 32 32)" fill="url(#malachite)" stroke="#0b4f1c" stroke-width=".7"/>
+    <use href="#facets"/>
   </g>
-  <g id="consultations-icon" transform="translate(64 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#00CFFF"/>
+  <g id="consultations-icon" transform="translate(64 0)" filter="url(#shadow)">
+    <use href="#frame"/>
+    <rect x="17" y="17" width="30" height="30" rx="4" transform="rotate(45 32 32)" fill="url(#moonstone)" stroke="#4a7889" stroke-width=".7"/>
+    <use href="#facets"/>
   </g>
-  <g id="content-icon" transform="translate(128 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#C12FFF"/>
+  <g id="content-icon" transform="translate(128 0)" filter="url(#shadow)">
+    <use href="#frame"/>
+    <rect x="17" y="17" width="30" height="30" rx="4" transform="rotate(45 32 32)" fill="url(#amethyst)" stroke="#4b0a68" stroke-width=".7"/>
+    <use href="#facets"/>
   </g>
-  <g id="notes-icon" transform="translate(192 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FF8900"/>
+  <g id="notes-icon" transform="translate(192 0)" filter="url(#shadow)">
+    <use href="#frame"/>
+    <rect x="17" y="17" width="30" height="30" rx="4" transform="rotate(45 32 32)" fill="url(#tiger)" stroke="#5b2a00" stroke-width=".7"/>
+    <use href="#facets"/>
   </g>
-  <g id="info-icon" transform="translate(256 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FF3342"/>
+  <g id="info-icon" transform="translate(256 0)" filter="url(#shadow)">
+    <use href="#frame"/>
+    <rect x="17" y="17" width="30" height="30" rx="4" transform="rotate(45 32 32)" fill="url(#garnet)" stroke="#57040b" stroke-width=".7"/>
+    <use href="#facets"/>
   </g>
 </svg>
