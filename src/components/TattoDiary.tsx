@@ -2493,12 +2493,13 @@ export default function TattoDiary() {
 
       {/* Today's-date tag — pinned next to the logo (sibling of the screens,
           so it never scrolls away with the client grid underneath). Shown on
-          every main screen except Мастер (the master's own profile has no
-          use for it). Create-client moved to the nav FAB's contextual create
-          action — see NavFab / onCreate below. Сортировка/Фильтры/Поиск, by
-          contrast, now live inside the List header itself and scroll away
-          with it — see the header render below. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
+          every screen, no exceptions — the open project viewer (viewProject)
+          doesn't count as a sheet (see sheetOpen above), so the badge stays
+          visible over it too. Create-client moved to the nav FAB's
+          contextual create action — see NavFab / onCreate below.
+          Сортировка/Фильтры/Поиск, by contrast, live inside the List header
+          itself and scroll away with it — see the header render below. */}
+      {!sheetOpen && (
         <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 31px)', right: 20, zIndex: 20 }}>
           <TodayDateBadge onOpen={() => setShowCalendar(true)} />
         </div>
