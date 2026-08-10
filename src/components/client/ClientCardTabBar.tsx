@@ -227,7 +227,6 @@ export function ClientCardTabBar<T extends string>({
           role="tab"
           aria-selected={activeTab === tab.id}
           aria-label={tab.label}
-          title={tab.label}
           onClick={() => onTab(tab.id)}
           style={TAB_BUTTON_STYLE}
         >

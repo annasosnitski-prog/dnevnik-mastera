@@ -19,7 +19,7 @@ export const TERRITORY_COLORS = {
   clients: '#5CFF24',
   personal: '#FFE000',
   content: '#C12FFF',
-  projects: '#0047AB',
+  projects: '#4F46E5',
   notes: '#FF8900',
   admin: '#FF3342',
 } as const;

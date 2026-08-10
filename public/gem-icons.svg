@@ -7,7 +7,7 @@
      role="img"
      aria-labelledby="title desc">
   <title id="title">Round gold medallion navigation icons</title>
-  <desc id="desc">Six round gold medallions matching the radial toolbar hub, each with a centre stone one sixth of the sprite diameter: red sessions, green consultations, violet content, orange notes, yellow info, and cobalt projects.</desc>
+  <desc id="desc">Six round gold medallions matching the radial toolbar hub, each with a centre stone one sixth of the sprite diameter: red sessions, green consultations, violet content, orange notes, yellow info, and indigo projects.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -132,7 +132,7 @@
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="projects-icon" color="#0047AB" transform="translate(320 0)" filter="url(#medallion-shadow)">
+  <g id="projects-icon" color="#4F46E5" transform="translate(320 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>

@@ -46,7 +46,7 @@ test('toolbar and client tabs share one semantic colour palette', () => {
   assert.match(designTokens, /clients: '#5CFF24'/);
   assert.match(designTokens, /personal: '#FFE000'/);
   assert.match(designTokens, /content: '#C12FFF'/);
-  assert.match(designTokens, /projects: '#0047AB'/);
+  assert.match(designTokens, /projects: '#4F46E5'/);
   assert.match(designTokens, /notes: '#FF8900'/);
   assert.match(designTokens, /admin: '#FF3342'/);
 
@@ -65,7 +65,12 @@ test('ornate tabs use the main-button gold material and a one-sixth centre stone
   assert.match(gemSprite, /id="sessions-icon" color="#FF3342"/);
   assert.match(gemSprite, /id="consultations-icon" color="#5CFF24"/);
   assert.match(gemSprite, /id="info-icon" color="#FFE000"/);
-  assert.match(gemSprite, /id="projects-icon" color="#0047AB"/);
+  assert.match(gemSprite, /id="projects-icon" color="#4F46E5"/);
+});
+
+test('tab names stay accessible without browser-native tooltip boxes', () => {
+  assert.match(tabBarModule, /aria-label=\{tab\.label\}/);
+  assert.doesNotMatch(tabBarModule, /title=\{tab\.label\}/);
 });
 
 test('tab medallions shrink inside their fixed slots without an active underline', () => {
