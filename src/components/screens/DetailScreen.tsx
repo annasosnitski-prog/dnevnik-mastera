@@ -504,8 +504,8 @@ export function DetailScreen({
             boxShadow: `
               0 1px 0 rgba(255,240,179,.34) inset,
               0 1px 3px rgba(0,0,0,.38),
-              0 0 4px rgba(255,215,119,.55),
-              0 0 10px color-mix(in srgb, ${client.color} 18%, rgba(226,182,85,.24) 82%)`,
+              0 0 3px rgba(255,215,119,.42),
+              0 0 7px color-mix(in srgb, ${client.color} 14%, rgba(226,182,85,.18) 86%)`,
           }}
         >
           <span
@@ -563,8 +563,8 @@ export function DetailScreen({
                   position: 'absolute',
                   left: `${((index + 1) / CLIENT_TABS.length) * 100}%`,
                   top: 0,
-                  width: 7,
-                  height: 7,
+                  width: 5.5,
+                  height: 5.5,
                   transform: 'translate(-50%, -50%)',
                   borderRadius: '50%',
                   border: '0.5px solid rgba(255,240,179,.82)',
@@ -572,13 +572,13 @@ export function DetailScreen({
                     #FFFDF0 0%,
                     #FFF0B3 16%,
                     #FFD777 34%,
-                    #C77A14 63%,
+                    #B88B32 63%,
                     #6B2C00 82%,
                     #431A00 100%)`,
                   boxShadow: `
-                    0 0 2px rgba(255,240,179,.95),
-                    0 0 6px rgba(255,215,119,.72),
-                    0 0 12px rgba(226,182,85,.35),
+                    0 0 1.5px rgba(255,240,179,.78),
+                    0 0 4px rgba(255,215,119,.36),
+                    0 0 7px rgba(226,182,85,.14),
                     0 1px 1px rgba(0,0,0,.45)`,
                 }}
               />
