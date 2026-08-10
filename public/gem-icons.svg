@@ -7,7 +7,7 @@
      role="img"
      aria-labelledby="title desc">
   <title id="title">Round gold medallion navigation icons</title>
-  <desc id="desc">Six round gold medallions matching the radial toolbar hub, each with a centre stone one sixth of the sprite diameter: red sessions, green consultations, violet content, orange notes, yellow info, and indigo projects.</desc>
+  <desc id="desc">Six round gold medallions matching the radial toolbar hub, each with a centre stone one sixth of the sprite diameter: ruby sessions, emerald consultations, amethyst content, fire-opal notes, citrine info, and dark-sapphire projects.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -112,27 +112,27 @@
     </g>
   </defs>
 
-  <g id="sessions-icon" color="#FF3342" filter="url(#medallion-shadow)">
+  <g id="sessions-icon" color="#B01236" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="consultations-icon" color="#5CFF24" transform="translate(64 0)" filter="url(#medallion-shadow)">
+  <g id="consultations-icon" color="#008A5A" transform="translate(64 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="content-icon" color="#C12FFF" transform="translate(128 0)" filter="url(#medallion-shadow)">
+  <g id="content-icon" color="#7040A0" transform="translate(128 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="notes-icon" color="#FF8900" transform="translate(192 0)" filter="url(#medallion-shadow)">
+  <g id="notes-icon" color="#D45A1F" transform="translate(192 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="info-icon" color="#FFE000" transform="translate(256 0)" filter="url(#medallion-shadow)">
+  <g id="info-icon" color="#C99516" transform="translate(256 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="projects-icon" color="#4F46E5" transform="translate(320 0)" filter="url(#medallion-shadow)">
+  <g id="projects-icon" color="#173F8F" transform="translate(320 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
