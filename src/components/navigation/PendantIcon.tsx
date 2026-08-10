@@ -44,6 +44,10 @@ export function PendantIcon({
   const coreGlow = `pendant-coreglow-${uid}`;
   const coreBleed = `pendant-corebleed-${uid}`;
   const tableFace = `pendant-tableface-${uid}`;
+  const stoneDepth = `pendant-stonedepth-${uid}`;
+  const depthCaustic = `pendant-depthcaustic-${uid}`;
+  const edgeRefraction = `pendant-edgerefraction-${uid}`;
+  const surfaceLens = `pendant-surfacelens-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
   const mix = (pct: number, tint: "white" | "black") => `color-mix(in srgb, ${color} ${100 - pct}%, ${tint} ${pct}%)`;
@@ -56,6 +60,11 @@ export function PendantIcon({
   // every wedge below is derived from innerR, so the surrounding crown
   // facets widen to fill the space this gives up automatically.
   const innerR = stoneR * 0.47;
+  // The pavilion sits optically below the crown. Its facets converge a
+  // little off-centre instead of on the face's geometric centre: this
+  // parallax is what makes the stone read as a thick transparent body,
+  // rather than several coloured polygons printed on one flat disc.
+  const pavilionFocus: [number, number] = [cx + 4.6, cy + 5.2];
   const angles = [0, 45, 90, 135, 180, 225, 270, 315];
   const outerPts = angles.map((deg) => point(cx, cy, deg, stoneR));
   const innerPts = angles.map((deg) => point(cx, cy, deg, innerR));
@@ -136,10 +145,10 @@ export function PendantIcon({
           <radialGradient id={goldFace} cx=".34" cy=".2" r=".84">
             <stop offset="0" stopColor="#FFF8D7" />
             <stop offset=".14" stopColor="#FFD777" />
-            <stop offset=".34" stopColor="#C77A14" />
+            <stop offset=".34" stopColor="#B88B32" />
             <stop offset=".56" stopColor="#793804" />
-            <stop offset=".76" stopColor="#EFAD3C" />
-            <stop offset=".91" stopColor="#8E4709" />
+            <stop offset=".76" stopColor="#E2B655" />
+            <stop offset=".91" stopColor="#7C5315" />
             <stop offset="1" stopColor="#431A00" />
           </radialGradient>
           {/* A much gentler sheen than goldFace's dramatic dome-lit radial —
@@ -154,10 +163,10 @@ export function PendantIcon({
           <linearGradient id={goldEdge} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor="#6B2C00" />
             <stop offset=".16" stopColor="#FFF0B3" />
-            <stop offset=".35" stopColor="#B45F0B" />
+            <stop offset=".35" stopColor="#9F772C" />
             <stop offset=".55" stopColor="#FFD36E" />
             <stop offset=".75" stopColor="#7D3603" />
-            <stop offset="1" stopColor="#F1B54A" />
+            <stop offset="1" stopColor="#E6BE68" />
           </linearGradient>
           <radialGradient id={diamondBase} cx=".32" cy=".26" r=".75">
             <stop offset="0" stopColor="#FFFFFF" />
@@ -209,6 +218,62 @@ export function PendantIcon({
             <stop offset=".7" stopColor={color} stopOpacity=".3" />
             <stop offset="1" stopColor={color} stopOpacity="0" />
           </radialGradient>
+          {/* The dense body under the visible crown. The centre remains
+              saturated while the lower-right side falls into a near-black
+              mineral shadow; a lighter rim returns at the edge where light
+              exits through the girdle. */}
+          <radialGradient
+            id={stoneDepth}
+            gradientUnits="userSpaceOnUse"
+            cx={cx - 5.5}
+            cy={cy - 6.5}
+            r={stoneR * 1.38}
+          >
+            <stop offset="0" stopColor={mix(52, "white")} />
+            <stop offset=".18" stopColor={color} />
+            <stop offset=".52" stopColor={mix(58, "black")} />
+            <stop offset=".78" stopColor={mix(90, "black")} />
+            <stop offset="1" stopColor={mix(18, "black")} />
+          </radialGradient>
+          {/* Light reappearing inside the opposite half after travelling
+              through the pavilion. Kept as a crisp vector caustic so the
+              added depth does not add another expensive blur filter. */}
+          <radialGradient id={depthCaustic} cx=".5" cy=".5" r=".5">
+            <stop offset="0" stopColor={mix(78, "white")} stopOpacity=".9" />
+            <stop offset=".38" stopColor={mix(46, "white")} stopOpacity=".58" />
+            <stop offset="1" stopColor={color} stopOpacity="0" />
+          </radialGradient>
+          {/* Refraction changes around the full thickness of the girdle:
+              bright at the entry edge, dark at the shadow edge, then a
+              narrow coloured return where light exits the stone. */}
+          <linearGradient
+            id={edgeRefraction}
+            gradientUnits="userSpaceOnUse"
+            x1={cx - stoneR}
+            y1={cy - stoneR}
+            x2={cx + stoneR}
+            y2={cy + stoneR}
+          >
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".98" />
+            <stop offset=".25" stopColor={mix(42, "white")} stopOpacity=".52" />
+            <stop offset=".58" stopColor={mix(90, "black")} stopOpacity=".98" />
+            <stop offset=".82" stopColor={mix(22, "white")} stopOpacity=".76" />
+            <stop offset="1" stopColor="#FFFFFF" stopOpacity=".38" />
+          </linearGradient>
+          {/* A very quiet front-surface lens. It ties the crown back into
+              one curved volume after the deeper pavilion facets are drawn. */}
+          <radialGradient
+            id={surfaceLens}
+            gradientUnits="userSpaceOnUse"
+            cx={cx - 7}
+            cy={cy - 8}
+            r={stoneR * 1.45}
+          >
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".3" />
+            <stop offset=".38" stopColor="#FFFFFF" stopOpacity=".08" />
+            <stop offset=".68" stopColor={color} stopOpacity="0" />
+            <stop offset="1" stopColor="#000000" stopOpacity=".32" />
+          </radialGradient>
           {/* Fixed to the stone's true centre (userSpaceOnUse, not each
               facet's own bounding box) so this one gradient washes every
               facet by its real distance from the glowing core, however dark
@@ -216,8 +281,8 @@ export function PendantIcon({
               diffusing through a translucent stone doesn't stop at a facet
               edge. */}
           <radialGradient id={coreBleed} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r={stoneR * 0.95}>
-            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".3" />
-            <stop offset=".5" stopColor="#FFFFFF" stopOpacity=".11" />
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".42" />
+            <stop offset=".5" stopColor="#FFFFFF" stopOpacity=".16" />
             <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
           </radialGradient>
           {/* The table facet's own tone follows the same light-to-shadow
@@ -277,7 +342,46 @@ export function PendantIcon({
                 escaping a lit potion bottle rather than staying inside a
                 solid surface. */}
             <circle cx={cx} cy={cy} r={stoneR * 1.08} fill={mix(30, "white")} opacity=".3" style={{ filter: "blur(1.4px)" }} />
-            <circle cx={cx} cy={cy} r={stoneR} fill={mix(40, "black")} />
+            <circle data-optical-layer="pavilion-depth" cx={cx} cy={cy} r={stoneR} fill={`url(#${stoneDepth})`} />
+            {/* Rear pavilion: these planes meet below and behind the table,
+                at pavilionFocus, instead of sharing the crown's centre. */}
+            <g data-optical-layer="pavilion-facets">
+              {angles.map((_, i) => {
+                const shade = Math.cos(((i * 45 - 18) * Math.PI) / 180);
+                const points = [outerPts[i], outerPts[(i + 1) % 8], pavilionFocus]
+                  .map(([x, y]) => `${x},${y}`)
+                  .join(" ");
+                return (
+                  <polygon
+                    key={`pavilion-${i}`}
+                    points={points}
+                    fill={shade >= 0 ? mix(30, "white") : mix(88, "black")}
+                    opacity={shade >= 0 ? 0.32 + shade * 0.24 : 0.3 + Math.abs(shade) * 0.38}
+                  />
+                );
+              })}
+            </g>
+            <ellipse
+              data-optical-layer="internal-caustic"
+              cx={cx + 7.4}
+              cy={cy + 7.2}
+              rx={stoneR * 0.52}
+              ry={stoneR * 0.2}
+              transform={`rotate(-38 ${cx + 7.4} ${cy + 7.2})`}
+              fill={`url(#${depthCaustic})`}
+            />
+            <ellipse
+              data-optical-layer="internal-reflection"
+              cx={cx + 2.4}
+              cy={cy + 2.8}
+              rx={stoneR * 0.77}
+              ry={stoneR * 0.7}
+              transform={`rotate(-12 ${cx + 2.4} ${cy + 2.8})`}
+              fill="none"
+              stroke={`url(#${edgeRefraction})`}
+              strokeWidth=".9"
+              opacity=".48"
+            />
             <circle cx={cx} cy={cy} r={stoneR * 0.72} fill={`url(#${coreGlow})`} style={{ filter: "blur(.5px)" }} />
             <polygon points={quadrant(0)} fill={`url(#${qTop})`} />
             <polygon points={quadrant(2)} fill={`url(#${qRight})`} />
@@ -341,6 +445,23 @@ export function PendantIcon({
             {glint(innerPts[4], innerPts[5], 0.15, 0.85, 1.1, 0.75)}
             {glint(outerPts[2], innerPts[2], 0.25, 0.75, 1, 0.6)}
             {glint(innerPts[6], innerPts[7], 0.2, 0.8, 0.85, 0.45)}
+            <circle
+              data-optical-layer="surface-lens"
+              cx={cx}
+              cy={cy}
+              r={stoneR - 0.45}
+              fill={`url(#${surfaceLens})`}
+              pointerEvents="none"
+            />
+            <circle
+              data-optical-layer="refracted-girdle"
+              cx={cx}
+              cy={cy}
+              r={stoneR - 0.85}
+              fill="none"
+              stroke={`url(#${edgeRefraction})`}
+              strokeWidth="1.65"
+            />
           </g>
         )}
 

@@ -480,24 +480,62 @@ export function DetailScreen({
           </div>
         )}
 
-        {/* Client marker stripe — the "rod" the tab pendants hang from below.
-            Stays the client's own colour; a light-glint band and a shadow
-            terminator band are laid across it so it reads as a lit metal bar
-            rather than a flat rectangle. */}
+        {/* Gold tube carrying the tab medallions. The client's marker colour
+            is present as reflected light along the whole tube, not as a flat
+            painted strip. */}
         <div
           style={{
-            height: 4,
+            position: 'relative',
+            boxSizing: 'border-box',
+            height: 5,
             width: '100%',
             flexShrink: 0,
-            background: `linear-gradient(90deg,
-              color-mix(in srgb, ${client.color} 100%, black 32%) 0%,
-              ${client.color} 18%,
-              ${client.color} 36%,
-              color-mix(in srgb, ${client.color} 55%, white 45%) 50%,
-              ${client.color} 64%,
-              ${client.color} 100%)`,
+            overflow: 'hidden',
+            borderRadius: 999,
+            borderTop: '1px solid #FFF0B3',
+            borderBottom: '1px solid #431A00',
+            background: `linear-gradient(180deg,
+              #6B2C00 0%,
+              #FFD777 18%,
+              #FFF8D7 36%,
+              #EFAD3C 52%,
+              #A55408 72%,
+              #431A00 100%)`,
+            boxShadow: '0 1px 0 rgba(255,240,179,.28) inset, 0 1px 3px rgba(0,0,0,.38)',
           }}
-        />
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: '36%',
+              height: '32%',
+              background: `linear-gradient(90deg,
+                color-mix(in srgb, ${client.color} 60%, #793804 40%) 0%,
+                ${client.color} 20%,
+                color-mix(in srgb, ${client.color} 54%, white 46%) 50%,
+                ${client.color} 80%,
+                color-mix(in srgb, ${client.color} 60%, #793804 40%) 100%)`,
+              opacity: 0.72,
+              filter: 'blur(.45px)',
+              mixBlendMode: 'screen',
+            }}
+          />
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: '1%',
+              right: '1%',
+              top: 1,
+              height: 1,
+              borderRadius: 999,
+              background: 'linear-gradient(90deg, transparent, rgba(255,248,215,.75) 18%, rgba(255,248,215,.2) 72%, transparent)',
+            }}
+          />
+        </div>
       </div>
 
       <ClientCardTabBar tabs={CLIENT_TABS} activeTab={activeTab} onTab={onTab} ariaLabel="Разделы клиента" />
