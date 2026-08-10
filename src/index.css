@@ -1603,6 +1603,12 @@ input[type='date'] {
 .client-card-tabbar__medallion {
   filter: drop-shadow(0 -1px 1.2px rgba(255, 215, 119, 0.24));
 }
+.client-card-tabbar__marker {
+  isolation: isolate;
+}
+.client-card-tabbar__pendulum {
+  z-index: 1;
+}
 .client-card-tabbar__active-halo {
   position: absolute;
   z-index: 0;
@@ -1615,7 +1621,7 @@ input[type='date'] {
   pointer-events: none;
   background:
     radial-gradient(
-      ellipse 27px 34px at 50% 61%,
+      ellipse 27px 34px at 50% 50%,
       color-mix(in srgb, var(--active-gem-color) 36%, transparent) 0%,
       rgba(255, 215, 119, 0.28) 38%,
       rgba(226, 182, 85, 0.12) 56%,
