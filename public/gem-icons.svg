@@ -6,8 +6,8 @@
      viewBox="0 0 384 64"
      role="img"
      aria-labelledby="title desc">
-  <title id="title">Gold pendant navigation icons</title>
-  <desc id="desc">A small gold pendant with a diamond halo and a coloured centre stone using the toolbar palette: green sessions, blue consultations, violet content, orange notes, red info, and yellow projects icons.</desc>
+  <title id="title">Round gold medallion navigation icons</title>
+  <desc id="desc">Six round gold medallions matching the radial toolbar hub, each with a centre stone one sixth of the sprite diameter: red sessions, green consultations, violet content, orange notes, yellow info, and cobalt projects.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -17,111 +17,119 @@
   <view id="projects" viewBox="320 0 64 64"/>
 
   <defs>
-    <linearGradient id="gold-metal" x1="0" y1="0" x2="1" y2="1">
+    <!-- Exact metal language used by the main radial-toolbar button. -->
+    <radialGradient id="gold-face" cx=".34" cy=".2" r=".84">
+      <stop offset="0" stop-color="#FFF8D7"/>
+      <stop offset=".14" stop-color="#FFD777"/>
+      <stop offset=".34" stop-color="#C77A14"/>
+      <stop offset=".56" stop-color="#793804"/>
+      <stop offset=".76" stop-color="#EFAD3C"/>
+      <stop offset=".91" stop-color="#8E4709"/>
+      <stop offset="1" stop-color="#431A00"/>
+    </radialGradient>
+    <linearGradient id="plate-face" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#F7E4B8"/>
       <stop offset=".35" stop-color="#D8A94A"/>
       <stop offset=".7" stop-color="#A3722A"/>
       <stop offset="1" stop-color="#6E4A16"/>
     </linearGradient>
-
-    <radialGradient id="pave-diamond" cx=".35" cy=".3" r=".8">
+    <linearGradient id="gold-edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6B2C00"/>
+      <stop offset=".16" stop-color="#FFF0B3"/>
+      <stop offset=".35" stop-color="#B45F0B"/>
+      <stop offset=".55" stop-color="#FFD36E"/>
+      <stop offset=".75" stop-color="#7D3603"/>
+      <stop offset="1" stop-color="#F1B54A"/>
+    </linearGradient>
+    <radialGradient id="diamond-base" cx=".32" cy=".26" r=".75">
       <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset=".55" stop-color="#EFF4F8"/>
-      <stop offset="1" stop-color="#C3CFD8"/>
+      <stop offset=".32" stop-color="#F8FBFF"/>
+      <stop offset=".63" stop-color="#CBD5DF"/>
+      <stop offset=".82" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#929DAA"/>
     </radialGradient>
 
-    <!-- Cross-wise light/dark/light banding (not the diagonal gold-metal one)
-         so the bail-to-frame connector reads as a round soldered rod instead
-         of a flat stroked line. -->
-    <linearGradient id="rod-metal" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#6E4A16"/>
-      <stop offset=".28" stop-color="#D8A94A"/>
-      <stop offset=".5" stop-color="#F9EAC2"/>
-      <stop offset=".72" stop-color="#D8A94A"/>
-      <stop offset="1" stop-color="#6E4A16"/>
-    </linearGradient>
-
-    <!-- Hue-independent facet shading laid over each currentColor stone. -->
-    <linearGradient id="stone-facet-highlight" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".65"/>
-      <stop offset=".5" stop-color="#FFFFFF" stop-opacity=".14"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="stone-facet-shadow" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#000000" stop-opacity="0"/>
-      <stop offset=".5" stop-color="#000000" stop-opacity=".18"/>
-      <stop offset="1" stop-color="#000000" stop-opacity=".5"/>
-    </linearGradient>
-
-    <!-- Soft ambient shadow instead of a neon glow — reads as real metal, not a video-game gem. -->
-    <filter id="pendant-shadow" x="-40%" y="-30%" width="180%" height="170%">
+    <filter id="medallion-shadow" x="-20%" y="-20%" width="140%" height="150%">
       <feGaussianBlur in="SourceAlpha" stdDeviation="1.1" result="blur"/>
-      <feOffset in="blur" dy=".8" result="off"/>
-      <feComponentTransfer in="off" result="shadow"><feFuncA type="linear" slope=".38"/></feComponentTransfer>
-      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <feOffset in="blur" dy="1" result="off"/>
+      <feComponentTransfer in="off" result="shadow">
+        <feFuncA type="linear" slope=".45"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="stone-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="1.25"/>
     </filter>
 
-    <!-- Colourless chrome: the bail and connector stay at their original size;
-         only the four-corner diamond body below is enlarged around its centre. -->
-    <g id="pendant-chrome">
-      <circle cx="32" cy="9" r="2.8" fill="none" stroke="url(#gold-metal)" stroke-width="1.8"/>
-      <rect x="31.05" y="11.3" width="1.9" height="5.4" rx=".95" fill="url(#rod-metal)" stroke="#5A3B10" stroke-width=".35"/>
-      <line x1="31.5" y1="11.7" x2="31.5" y2="16" stroke="#FCEFD8" stroke-width=".4" stroke-linecap="round" opacity=".6"/>
-
-      <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <rect x="-12.5" y="-12.5" width="25" height="25" rx="3.2" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".9"/>
-        <rect x="-9.8" y="-9.8" width="19.6" height="19.6" rx="2.4" fill="#FCEFD8" stroke="url(#gold-metal)" stroke-width=".7"/>
-
-        <circle cx="-9.8" cy="-9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="9.8" cy="-9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="9.8" cy="9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="-9.8" cy="9.8" r="1.7" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".35"/>
-        <circle cx="0" cy="-9.8" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-        <circle cx="9.8" cy="0" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-        <circle cx="0" cy="9.8" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-        <circle cx="-9.8" cy="0" r="1.35" fill="url(#pave-diamond)" stroke="#8B98A4" stroke-width=".3"/>
-
-        <circle cx="-12.5" cy="-12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-        <circle cx="12.5" cy="-12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-        <circle cx="12.5" cy="12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-        <circle cx="-12.5" cy="12.5" r="1.25" fill="url(#gold-metal)" stroke="#5A3B10" stroke-width=".3"/>
-      </g>
+    <g id="pave">
+      <circle r="2" fill="#7D5A2A" opacity=".7"/>
+      <circle r="1.5" fill="url(#diamond-base)" stroke="#FFFFFF" stroke-width=".22"/>
+      <path d="M0-1.15.55-.35 0 0-.55-.35Z" fill="#FFFFFF" opacity=".95"/>
+      <path d="M1.15 0 .45.55 0 0 .55-.35Z" fill="#C7D2DF" opacity=".9"/>
+      <path d="M0 1.15-.45.42 0 0 .45.55Z" fill="#FFFFFF" opacity=".82"/>
+      <path d="M-1.15 0-.55-.35 0 0-.45.42Z" fill="#AEB9C5" opacity=".9"/>
+      <circle r=".28" fill="#FFFFFF" opacity=".9"/>
     </g>
 
-    <!-- Coloured centre stone scales with the diamond body, not with its mount. -->
-    <g id="pendant-stone">
-      <g transform="translate(32 34) rotate(45) scale(1.16)">
-        <rect x="-7.6" y="-7.6" width="15.2" height="15.2" rx="1.9" fill="#241608"/>
-        <rect x="-7" y="-7" width="14" height="14" rx="1.8" fill="currentColor" stroke="#000000" stroke-opacity=".3" stroke-width=".4"/>
-        <path d="M-7 -7 7 -7 -7 7Z" fill="url(#stone-facet-highlight)"/>
-        <path d="M7 -7 7 7 -7 7Z" fill="url(#stone-facet-shadow)"/>
-        <path d="M-4.3 -4.3 -1.2 -1.2" stroke="#FFFFFF" stroke-width=".9" stroke-linecap="round" opacity=".6"/>
-      </g>
+    <g id="gold-medallion">
+      <circle cx="32" cy="32" r="29" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".7"/>
+      <circle cx="32" cy="32" r="28" fill="none" stroke="url(#gold-edge)" stroke-width=".95"/>
+      <circle cx="32" cy="32" r="24.5" fill="#2C0A00" stroke="#FFCF68" stroke-width=".8"/>
+      <circle cx="32" cy="32" r="23.65" fill="none" stroke="#6A2702" stroke-width=".4"/>
+      <circle cx="32" cy="32" r="23" fill="url(#plate-face)" stroke="#4B1A00" stroke-width=".5"/>
+      <circle cx="32" cy="32" r="20" fill="none" stroke="url(#gold-edge)" stroke-width=".5"/>
+      <path d="M22 20 30 15" stroke="#FFF0B3" stroke-width="1.2" stroke-linecap="round" opacity=".4"/>
+
+      <use href="#pave" xlink:href="#pave" transform="translate(32 5.2)"/>
+      <use href="#pave" xlink:href="#pave" transform="translate(50.95 13.05)"/>
+      <use href="#pave" xlink:href="#pave" transform="translate(58.8 32)"/>
+      <use href="#pave" xlink:href="#pave" transform="translate(50.95 50.95)"/>
+      <use href="#pave" xlink:href="#pave" transform="translate(32 58.8)"/>
+      <use href="#pave" xlink:href="#pave" transform="translate(13.05 50.95)"/>
+      <use href="#pave" xlink:href="#pave" transform="translate(5.2 32)"/>
+      <use href="#pave" xlink:href="#pave" transform="translate(13.05 13.05)"/>
+    </g>
+
+    <!-- The coloured face is exactly 10.666666px across: 64px / 6. -->
+    <g id="centre-stone">
+      <circle cx="32" cy="32" r="6.15" fill="#2C0A00" stroke="url(#gold-edge)" stroke-width=".7"/>
+      <circle cx="32" cy="32" r="5.333333" fill="currentColor" opacity=".38" filter="url(#stone-glow)"/>
+      <circle cx="32" cy="32" r="5.333333" fill="currentColor" stroke="#160800" stroke-opacity=".7" stroke-width=".35"/>
+      <path d="M32 26.667 37.333 32 32 32Z" fill="#FFFFFF" opacity=".34"/>
+      <path d="M37.333 32 32 37.333 32 32Z" fill="#000000" opacity=".23"/>
+      <path d="M32 37.333 26.667 32 32 32Z" fill="#000000" opacity=".38"/>
+      <path d="M26.667 32 32 26.667 32 32Z" fill="#FFFFFF" opacity=".12"/>
+      <circle cx="32" cy="32" r="2.25" fill="#FFFFFF" opacity=".1"/>
+      <path d="M29.25 29.35 31.2 27.9" stroke="#FFFFFF" stroke-width=".75" stroke-linecap="round" opacity=".9"/>
+      <circle cx="32" cy="32" r="5.333333" fill="none" stroke="#FFFFFF" stroke-opacity=".25" stroke-width=".25"/>
     </g>
   </defs>
 
-  <g id="sessions-icon" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#5CFF24"/>
+  <g id="sessions-icon" color="#FF3342" filter="url(#medallion-shadow)">
+    <use href="#gold-medallion" xlink:href="#gold-medallion"/>
+    <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="consultations-icon" transform="translate(64 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#00CFFF"/>
+  <g id="consultations-icon" color="#5CFF24" transform="translate(64 0)" filter="url(#medallion-shadow)">
+    <use href="#gold-medallion" xlink:href="#gold-medallion"/>
+    <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="content-icon" transform="translate(128 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#C12FFF"/>
+  <g id="content-icon" color="#C12FFF" transform="translate(128 0)" filter="url(#medallion-shadow)">
+    <use href="#gold-medallion" xlink:href="#gold-medallion"/>
+    <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="notes-icon" transform="translate(192 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FF8900"/>
+  <g id="notes-icon" color="#FF8900" transform="translate(192 0)" filter="url(#medallion-shadow)">
+    <use href="#gold-medallion" xlink:href="#gold-medallion"/>
+    <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="info-icon" transform="translate(256 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FF3342"/>
+  <g id="info-icon" color="#FFE000" transform="translate(256 0)" filter="url(#medallion-shadow)">
+    <use href="#gold-medallion" xlink:href="#gold-medallion"/>
+    <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="projects-icon" transform="translate(320 0)" filter="url(#pendant-shadow)">
-    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
-    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FFE000"/>
+  <g id="projects-icon" color="#0047AB" transform="translate(320 0)" filter="url(#medallion-shadow)">
+    <use href="#gold-medallion" xlink:href="#gold-medallion"/>
+    <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
 </svg>

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useMinimalism } from '../ui/minimalism';
-import { COLORS } from '../ui/designTokens';
+import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
 
 // Разделяемый каркас вкладок «карточки клиента» (подвеска-самоцвет + строка
@@ -22,17 +22,15 @@ const GEM_INDEX: Record<ClientTabIconName, number> = {
   projects: 5,
 };
 
-// Та же «палитра тулбара», из которой уже вырезан каждый самоцвет (см.
-// собственный <desc> gem-icons.svg) — переиспользуется как активный цвет
-// линейной иконки в Минимализме, чтобы переключение Минимализма не меняло,
-// какой цвет за какой вкладкой закреплён.
+// The client tabs map their meanings onto the same territory palette as the
+// radial toolbar. Ornate and minimal skins therefore keep one colour contract.
 const GEM_COLOR: Record<ClientTabIconName, string> = {
-  sessions: '#5CFF24',
-  consultations: '#00CFFF',
-  content: '#C12FFF',
-  notes: '#FF8900',
-  info: '#FF3342',
-  projects: '#FFE000',
+  sessions: TERRITORY_COLORS.admin,
+  consultations: TERRITORY_COLORS.clients,
+  content: TERRITORY_COLORS.content,
+  notes: TERRITORY_COLORS.notes,
+  info: TERRITORY_COLORS.personal,
+  projects: TERRITORY_COLORS.projects,
 };
 
 const TABLIST_STYLE: CSSProperties = {
@@ -97,15 +95,13 @@ function GemLink() {
 // Минимализм swaps the gem sprite + chain for a plain circle carrying a
 // linear icon from ClientTabIcons — same tab logic/order, just a different
 // functional-layer skin (see NavFab's own minimal branch for the same idea
-// applied to the nav hub). gemKind changes only the ornate sprite slot; the
-// semantic icon in Минимализм always comes from kind.
+// applied to the nav hub). The semantic kind selects both the sprite slot and
+// the minimal icon, so those two skins cannot disagree.
 function GemTabMarker({
   kind,
-  gemKind = kind,
   active,
 }: {
   kind: ClientTabIconName;
-  gemKind?: ClientTabIconName;
   active: boolean;
 }) {
   const minimalism = useMinimalism();
@@ -150,7 +146,7 @@ function GemTabMarker({
           backgroundImage: 'url(/gem-icons.svg)',
           backgroundRepeat: 'no-repeat',
           backgroundSize: `${GEM_SIZE * 6}px ${GEM_SIZE}px`,
-          backgroundPosition: `${-GEM_INDEX[gemKind] * GEM_SIZE}px 0`,
+          backgroundPosition: `${-GEM_INDEX[kind] * GEM_SIZE}px 0`,
           opacity: active ? 1 : 0.62,
           filter: active ? 'none' : 'saturate(0.72) brightness(0.82)',
           transition: 'opacity 0.25s, filter 0.25s',
@@ -166,13 +162,6 @@ export interface ClientCardTabDef<T extends string> {
   label: string;
 }
 
-function clientOrnateGemKind(kind: ClientTabIconName, clientTabs: boolean): ClientTabIconName {
-  if (!clientTabs) return kind;
-  if (kind === 'projects') return 'info';
-  if (kind === 'info') return 'projects';
-  return kind;
-}
-
 // One large gemstone per tab; labels stay available to assistive technology
 // and hover tooltips without competing for horizontal room.
 export function ClientCardTabBar<T extends string>({
@@ -186,8 +175,6 @@ export function ClientCardTabBar<T extends string>({
   onTab: (tab: T) => void;
   ariaLabel: string;
 }) {
-  const clientTabs = ariaLabel === 'Разделы клиента';
-
   return (
     <div className="client-card-tabbar" role="tablist" aria-label={ariaLabel} style={TABLIST_STYLE}>
       {tabs.map((tab) => (
@@ -204,7 +191,6 @@ export function ClientCardTabBar<T extends string>({
         >
           <GemTabMarker
             kind={tab.kind}
-            gemKind={clientOrnateGemKind(tab.kind, clientTabs)}
             active={activeTab === tab.id}
           />
         </button>

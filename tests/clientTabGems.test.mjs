@@ -16,6 +16,8 @@ const detailScreen = readFileSync(
 );
 const tattoDiary = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
 const gemSprite = readFileSync(new URL('../public/gem-icons.svg', import.meta.url), 'utf8');
+const navFab = readFileSync(new URL('../src/components/navigation/NavFab.tsx', import.meta.url), 'utf8');
+const designTokens = readFileSync(new URL('../src/components/ui/designTokens.ts', import.meta.url), 'utf8');
 
 test('each client tab crops exactly one tile from the shared gemstone sprite', () => {
   assert.doesNotMatch(tabBarModule, /gem-icons\.svg#/);
@@ -37,6 +39,32 @@ test('all six tabs keep the same order as the six tiles in gem-icons.svg', () =>
   assert.match(gemSprite, /id="notes-icon"[\s\S]*transform="translate\(192 0\)"/);
   assert.match(gemSprite, /id="info-icon"[\s\S]*transform="translate\(256 0\)"/);
   assert.match(gemSprite, /id="projects-icon"[\s\S]*transform="translate\(320 0\)"/);
+});
+
+test('toolbar and client tabs share one semantic colour palette', () => {
+  assert.match(designTokens, /clients: '#5CFF24'/);
+  assert.match(designTokens, /personal: '#FFE000'/);
+  assert.match(designTokens, /content: '#C12FFF'/);
+  assert.match(designTokens, /projects: '#0047AB'/);
+  assert.match(designTokens, /notes: '#FF8900'/);
+  assert.match(designTokens, /admin: '#FF3342'/);
+
+  assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
+  assert.match(tabBarModule, /sessions: TERRITORY_COLORS\.admin/);
+  assert.match(tabBarModule, /consultations: TERRITORY_COLORS\.clients/);
+  assert.match(tabBarModule, /info: TERRITORY_COLORS\.personal/);
+  assert.match(tabBarModule, /projects: TERRITORY_COLORS\.projects/);
+  assert.doesNotMatch(tabBarModule, /clientOrnateGemKind|gemKind/);
+});
+
+test('ornate tabs use the main-button gold material and a one-sixth centre stone', () => {
+  assert.match(gemSprite, /id="gold-face"[\s\S]*stop-color="#FFF8D7"[\s\S]*stop-color="#431A00"/);
+  assert.match(gemSprite, /id="gold-medallion"[\s\S]*r="29" fill="url\(#gold-face\)"/);
+  assert.equal((gemSprite.match(/r="5\.333333"/g) ?? []).length, 3);
+  assert.match(gemSprite, /id="sessions-icon" color="#FF3342"/);
+  assert.match(gemSprite, /id="consultations-icon" color="#5CFF24"/);
+  assert.match(gemSprite, /id="info-icon" color="#FFE000"/);
+  assert.match(gemSprite, /id="projects-icon" color="#0047AB"/);
 });
 
 test('the client card wires its six tabs (Проекты included) in gem order via the shared tab bar', () => {
