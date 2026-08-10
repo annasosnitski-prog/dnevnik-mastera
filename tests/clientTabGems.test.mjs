@@ -63,9 +63,11 @@ test('toolbar stones render optical depth below the crown without extra blur fil
   assert.match(pendantIcon, /data-optical-layer="pavilion-depth"/);
   assert.match(pendantIcon, /data-optical-layer="pavilion-facets"/);
   assert.match(pendantIcon, /data-optical-layer="internal-caustic"/);
+  assert.match(pendantIcon, /data-optical-layer="internal-reflection"/);
   assert.match(pendantIcon, /data-optical-layer="surface-lens"/);
   assert.match(pendantIcon, /data-optical-layer="refracted-girdle"/);
-  assert.match(pendantIcon, /const pavilionFocus: \[number, number\] = \[cx \+ 2\.8, cy \+ 3\.4\]/);
+  assert.match(pendantIcon, /const pavilionFocus: \[number, number\] = \[cx \+ 4\.6, cy \+ 5\.2\]/);
+  assert.match(pendantIcon, /strokeWidth="1\.65"/);
   assert.match(pendantIcon, /id=\{depthCaustic\}[\s\S]*crisp vector caustic|crisp vector caustic[\s\S]*id=\{depthCaustic\}/);
 });
 
