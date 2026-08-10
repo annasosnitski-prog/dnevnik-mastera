@@ -387,57 +387,98 @@ export function NewSessionSheet({
 export function ProjectSessionPickerSheet({
   open,
   projects,
+  clients = [],
   clientId = null,
+  scope,
   onClose,
   onPick,
   onCreateProject,
 }: {
   open: boolean;
   projects: Project[];
+  // Только для scope==='all' — имена клиентов для группировки списка.
+  clients?: Client[];
   // null (по умолчанию) — «сессия без клиента» (Мастерская), список
   // проектов БЕЗ клиента, как раньше. Задан — список проектов ЭТОГО
   // клиента (content-link цепочка для клиентской ContentEntry), а не
-  // клиентских по умолчанию.
+  // клиентских по умолчанию. Игнорируется, если scope==='all'.
   clientId?: string | null;
+  // 'all' — все проекты сразу, сгруппированные по клиенту (+ «Мастерская»)
+  // — для контекста без единого явного владельца (Админка). Без этого —
+  // прежнее поведение: только clientId/client-less.
+  scope?: 'all';
   onClose: () => void;
   onPick: (project: Project) => void;
   onCreateProject: () => void;
 }) {
   const eligible = clientId ? projects.filter((p) => p.clientId === clientId) : projects.filter((p) => !p.clientId);
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '11px 13px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    border: '1px solid rgba(var(--gold-rgb),0.2)',
+    background: 'rgba(var(--surface-rgb),0.018)',
+  };
+  const projectRow = (p: Project) => (
+    <div key={p.id} onClick={() => onPick(p)} style={rowStyle}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+      <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {p.title || 'Без названия'}
+      </span>
+    </div>
+  );
+  const groupLabelStyle: React.CSSProperties = {
+    fontSize: fs(10),
+    color: COLORS.textGhost,
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    margin: '6px 0 2px',
+  };
+
   return (
-    <BottomSheet open={open} heightPct={50}>
+    <BottomSheet open={open} heightPct={scope === 'all' ? 62 : 50}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>В какой проект?</div>
         <SheetStarDivider />
       </div>
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {eligible.length === 0 ? (
+        {scope === 'all' ? (
+          <>
+            {projects.length === 0 && (
+              <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет ни одного проекта — создайте первый.</div>
+            )}
+            {clients.map((c) => {
+              const clientProjects = projects.filter((p) => p.clientId === c.id);
+              if (clientProjects.length === 0) return null;
+              return (
+                <div key={c.id}>
+                  <div style={groupLabelStyle}>{`${c.name} ${c.surname}`.trim() || 'Клиент'}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{clientProjects.map(projectRow)}</div>
+                </div>
+              );
+            })}
+            {(() => {
+              const clientless = projects.filter((p) => !p.clientId);
+              if (clientless.length === 0) return null;
+              return (
+                <div>
+                  <div style={groupLabelStyle}>Мастерская</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{clientless.map(projectRow)}</div>
+                </div>
+              );
+            })()}
+          </>
+        ) : eligible.length === 0 ? (
           <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
             {clientId ? 'Пока нет проектов у этого клиента — создайте первый.' : 'Пока нет проектов без клиента — создайте первый.'}
           </div>
         ) : (
-          eligible.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => onPick(p)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '11px 13px',
-                borderRadius: 2,
-                cursor: 'pointer',
-                border: '1px solid rgba(var(--gold-rgb),0.2)',
-                background: 'rgba(var(--surface-rgb),0.018)',
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-              <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.title || 'Без названия'}
-              </span>
-            </div>
-          ))
+          eligible.map(projectRow)
         )}
         <div
           onClick={onCreateProject}

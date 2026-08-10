@@ -692,7 +692,7 @@ export default function TattoDiary() {
   // (см. onCreate у NavFab и рендер CreateChoiceSheet ниже). 'workshop'
   // обслуживает и «Мастерскую», и «Личный кабинет» мастера — оба места
   // создают client-less сущности одинаково.
-  const [createChoiceContext, setCreateChoiceContext] = useState<'detail' | 'workshop' | 'viewProject' | null>(null);
+  const [createChoiceContext, setCreateChoiceContext] = useState<'detail' | 'workshop' | 'viewProject' | 'admin' | null>(null);
   const [showNewConsultationForm, setShowNewConsultationForm] = useState(false);
   const [editConsultation, setEditConsultation] = useState<Consultation | null>(null);
   // Consultation being turned into a session («Перевести в сессию») —
@@ -719,11 +719,14 @@ export default function TattoDiary() {
   // «Творческая мастерская» — standalone projects, not tied to any client.
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
-  // Пикер «в какой проект» для client-less сессии/консультации (Мастерская,
-  // Личный кабинет) — projectPickerKind решает, какая форма откроется после
-  // выбора/создания проекта.
+  // Пикер «в какой проект» для сессии/консультации (Мастерская, Личный
+  // кабинет, Админка) — projectPickerKind решает, какая форма откроется
+  // после выбора/создания проекта; projectPickerScope — 'clientless' (как
+  // раньше, Мастерская/Личный кабинет) или 'all' (Админка — все проекты,
+  // сгруппированные по клиенту, см. ProjectSessionPickerSheet scope='all').
   const [showProjectSessionPicker, setShowProjectSessionPicker] = useState(false);
   const [projectPickerKind, setProjectPickerKind] = useState<'session' | 'consultation'>('session');
+  const [projectPickerScope, setProjectPickerScope] = useState<'clientless' | 'all'>('clientless');
   // Заметка через CreateChoiceSheet (карточка клиента/мастера, «Мастерская»,
   // открытый проект) — контекст решает clientId/projectId, с которыми
   // заметка создаётся.
@@ -2478,7 +2481,7 @@ export default function TattoDiary() {
               : screen === 'summary'
                 ? () => setShowSummaryComposer(true)
                 : screen === 'admin'
-                  ? () => setShowCalendar(true)
+                  ? () => setCreateChoiceContext('admin')
                   : screen === 'detail' && selectedClient
                     ? () => setCreateChoiceContext('detail')
                     : screen === 'master' || screen === 'workshop'
@@ -2885,7 +2888,13 @@ export default function TattoDiary() {
       <CreateChoiceSheet
         open={createChoiceContext !== null}
         onClose={() => setCreateChoiceContext(null)}
-        options={createChoiceContext === 'viewProject' ? ['session', 'consultation', 'note'] : ['project', 'session', 'consultation', 'note']}
+        options={
+          createChoiceContext === 'viewProject'
+            ? ['session', 'consultation', 'note']
+            : createChoiceContext === 'admin'
+              ? ['project', 'session', 'consultation']
+              : ['project', 'session', 'consultation', 'note']
+        }
         onPick={(kind) => {
           const context = createChoiceContext;
           setCreateChoiceContext(null);
@@ -2933,9 +2942,22 @@ export default function TattoDiary() {
               setShowNewProjectForm(true);
             } else if (kind === 'session' || kind === 'consultation') {
               setProjectPickerKind(kind);
+              setProjectPickerScope('clientless');
               setShowProjectSessionPicker(true);
             } else if (kind === 'note') {
               setNoteComposerContext({ clientId: null, projectId: null });
+            }
+            return;
+          }
+          if (context === 'admin') {
+            if (kind === 'project') {
+              setEditProject(null);
+              setNewProjectClientId(null);
+              setShowNewProjectForm(true);
+            } else if (kind === 'session' || kind === 'consultation') {
+              setProjectPickerKind(kind);
+              setProjectPickerScope('all');
+              setShowProjectSessionPicker(true);
             }
           }
         }}
@@ -2943,6 +2965,8 @@ export default function TattoDiary() {
       <ProjectSessionPickerSheet
         open={showProjectSessionPicker}
         projects={projects}
+        clients={projectPickerScope === 'all' ? clients : []}
+        scope={projectPickerScope === 'all' ? 'all' : undefined}
         clientId={pendingContentLinkRef.current?.preferredClientId ?? null}
         onClose={() => {
           setShowProjectSessionPicker(false);
