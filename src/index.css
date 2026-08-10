@@ -1592,7 +1592,7 @@ input[type='date'] {
   }
 }
 .pendant-swing {
-  transform-origin: 50% 10%;
+  transform-origin: 50% -6px;
   animation: pendant-swing 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 

@@ -486,7 +486,8 @@ export function DetailScreen({
         <div
           style={{
             position: 'relative',
-            height: 8,
+            boxSizing: 'border-box',
+            height: 5,
             width: '100%',
             flexShrink: 0,
             overflow: 'hidden',
@@ -500,7 +501,7 @@ export function DetailScreen({
               #EFAD3C 52%,
               #A55408 72%,
               #431A00 100%)`,
-            boxShadow: '0 1px 0 rgba(255,240,179,.34) inset, 0 2px 4px rgba(0,0,0,.42)',
+            boxShadow: '0 1px 0 rgba(255,240,179,.28) inset, 0 1px 3px rgba(0,0,0,.38)',
           }}
         >
           <span
@@ -509,8 +510,8 @@ export function DetailScreen({
               position: 'absolute',
               left: 0,
               right: 0,
-              top: '33%',
-              height: '38%',
+              top: '36%',
+              height: '32%',
               background: `linear-gradient(90deg,
                 color-mix(in srgb, ${client.color} 60%, #793804 40%) 0%,
                 ${client.color} 20%,

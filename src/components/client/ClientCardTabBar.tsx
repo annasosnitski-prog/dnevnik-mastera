@@ -55,34 +55,71 @@ const TAB_BUTTON_STYLE: CSSProperties = {
   position: 'relative',
 };
 
-// Each pendant hangs from a small gold jump-ring that hooks right onto the
-// client-colour rod (overlapping its 4px band, like a bail threaded onto a
-// chain) plus a link bridging down to the pendant's own bail — the rod
-// itself never changes colour or shape, only the pendant below it swaps per
-// tab.
+// One substantial jump-ring wraps the gold tube; a folded bail links that
+// ring to the medallion and disappears behind its top edge. Both pieces move
+// with the medallion, so the selected tab swings from the tube instead of
+// leaving a static connector floating above it.
 function GemLink() {
   return (
-    <span aria-hidden="true" style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
-      <span
-        style={{
-          display: 'block',
-          width: 4,
-          height: 4,
-          margin: '0 auto',
-          borderRadius: '50%',
-          border: '1.2px solid rgba(var(--gold-rgb),0.95)',
-        }}
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 18 24"
+      style={{
+        position: 'absolute',
+        top: -10,
+        left: '50%',
+        width: 18,
+        height: 24,
+        transform: 'translateX(-50%)',
+        overflow: 'visible',
+        pointerEvents: 'none',
+        zIndex: 1,
+      }}
+    >
+      {/* Folded bail first: its lower edge is hidden by the medallion face. */}
+      <path
+        d="M6.2 10.2 C6.2 15.2 6.8 19.6 9 21.6 C11.2 19.6 11.8 15.2 11.8 10.2"
+        fill="none"
+        stroke="#4B1A00"
+        strokeWidth="4.2"
+        strokeLinecap="round"
       />
-      <span
-        style={{
-          display: 'block',
-          width: 1.4,
-          height: 8,
-          margin: '0 auto',
-          background: 'linear-gradient(180deg, rgba(var(--gold-rgb),0.85), rgba(var(--gold-rgb),0.3))',
-        }}
+      <path
+        d="M6.2 10.2 C6.2 15.2 6.8 19.6 9 21.6 C11.2 19.6 11.8 15.2 11.8 10.2"
+        fill="none"
+        stroke="#C77A14"
+        strokeWidth="2.9"
+        strokeLinecap="round"
       />
-    </span>
+      <path
+        d="M7 10.7 C7 14.7 7.3 17.6 8.2 19.1"
+        fill="none"
+        stroke="#FFF0B3"
+        strokeWidth=".75"
+        strokeLinecap="round"
+        opacity=".88"
+      />
+
+      {/* Thick oval jump-ring: large enough to read as hardware at 54px. */}
+      <ellipse cx="9" cy="6.8" rx="5.3" ry="6" fill="none" stroke="#4B1A00" strokeWidth="4" />
+      <ellipse cx="9" cy="6.8" rx="5.3" ry="6" fill="none" stroke="#C77A14" strokeWidth="2.8" />
+      <path
+        d="M5.8 3.2 C7.2 .9 10.8 .6 12.5 2.8"
+        fill="none"
+        stroke="#FFF0B3"
+        strokeWidth=".9"
+        strokeLinecap="round"
+        opacity=".94"
+      />
+      <path
+        d="M12.9 9.5 C12 11.5 10.4 12.7 8.8 12.8"
+        fill="none"
+        stroke="#793804"
+        strokeWidth="1"
+        strokeLinecap="round"
+        opacity=".9"
+      />
+    </svg>
   );
 }
 
@@ -127,26 +164,37 @@ function GemTabMarker({
   }
 
   return (
-    <>
+    <span
+      aria-hidden="true"
+      className={active ? 'client-card-tabbar__marker pendant-swing' : 'client-card-tabbar__marker'}
+      style={{
+        position: 'relative',
+        display: 'block',
+        width: GEM_SIZE,
+        height: GEM_SIZE,
+        flexShrink: 0,
+        opacity: active ? 1 : 0.62,
+        filter: active ? 'none' : 'saturate(0.72) brightness(0.82)',
+        transition: 'opacity 0.25s, filter 0.25s',
+      }}
+    >
       <GemLink />
       <span
         aria-hidden="true"
-        className={active ? 'client-card-tabbar__marker pendant-swing' : 'client-card-tabbar__marker'}
         style={{
+          position: 'absolute',
+          inset: 0,
           display: 'block',
           width: GEM_SIZE,
           height: GEM_SIZE,
-          flexShrink: 0,
           backgroundImage: 'url(/gem-icons.svg)',
           backgroundRepeat: 'no-repeat',
           backgroundSize: `${GEM_SIZE * 6}px ${GEM_SIZE}px`,
           backgroundPosition: `${-GEM_INDEX[kind] * GEM_SIZE}px 0`,
-          opacity: active ? 1 : 0.62,
-          filter: active ? 'none' : 'saturate(0.72) brightness(0.82)',
-          transition: 'opacity 0.25s, filter 0.25s',
+          zIndex: 2,
         }}
       />
-    </>
+    </span>
   );
 }
 

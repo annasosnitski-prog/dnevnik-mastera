@@ -18,6 +18,7 @@ const tattoDiary = readFileSync(new URL('../src/components/TattoDiary.tsx', impo
 const gemSprite = readFileSync(new URL('../public/gem-icons.svg', import.meta.url), 'utf8');
 const navFab = readFileSync(new URL('../src/components/navigation/NavFab.tsx', import.meta.url), 'utf8');
 const designTokens = readFileSync(new URL('../src/components/ui/designTokens.ts', import.meta.url), 'utf8');
+const indexCss = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
 
 test('each client tab crops exactly one tile from the shared gemstone sprite', () => {
   assert.doesNotMatch(tabBarModule, /gem-icons\.svg#/);
@@ -75,9 +76,18 @@ test('tab medallions shrink inside their fixed slots without an active underline
 });
 
 test('client tabs hang from a gold tube carrying the client-colour reflection', () => {
-  assert.match(detailScreen, /height: 8,[\s\S]*borderRadius: 999/);
+  assert.match(detailScreen, /boxSizing: 'border-box',[\s\S]*height: 5,[\s\S]*borderRadius: 999/);
   assert.match(detailScreen, /#FFD777[\s\S]*#FFF8D7[\s\S]*#431A00/);
   assert.match(detailScreen, /color-mix\(in srgb, \$\{client\.color\}[\s\S]*mixBlendMode: 'screen'/);
+});
+
+test('heavy pendant hardware swings with the medallion from the thinner tube', () => {
+  assert.match(tabBarModule, /function GemLink\(\)[\s\S]*<svg[\s\S]*viewBox="0 0 18 24"/);
+  assert.match(tabBarModule, /<ellipse cx="9" cy="6\.8" rx="5\.3" ry="6"[\s\S]*strokeWidth="4"/);
+  assert.match(tabBarModule, /d="M6\.2 10\.2 C6\.2 15\.2 6\.8 19\.6 9 21\.6/);
+  assert.doesNotMatch(tabBarModule, /width: 1\.4,[\s\S]*height: 8/);
+  assert.match(tabBarModule, /className=\{active \? 'client-card-tabbar__marker pendant-swing'/);
+  assert.match(indexCss, /\.pendant-swing\s*\{[\s\S]*transform-origin: 50% -6px/);
 });
 
 test('the client card wires its six tabs (Проекты included) in gem order via the shared tab bar', () => {
