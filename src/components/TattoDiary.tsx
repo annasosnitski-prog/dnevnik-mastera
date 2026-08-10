@@ -102,8 +102,6 @@ import { normalizeClientNote, normalizeClient, normalizeProject } from '../lib/n
 // разметка не менялись — только перенос.
 import { TopStripe, RightStripe, GemCorner, GoldFrame } from './ui/Stripes';
 import { StatBlock } from './ui/StatBlocks';
-import { SheetStarDivider } from './ui/TextAtoms';
-import { BottomSheet, SheetCloseButton } from './ui/Sheet';
 import { COLORS, fs, setTextScale } from './ui/designTokens';
 export { COLORS, DONE_EMOJI, fs } from './ui/designTokens';
 // Bottom sheets вынесены в отдельные модули (PR 5 рефакторинга). Логика и
@@ -116,6 +114,7 @@ import {
   ProjectViewSheet,
   NewProjectSheet,
 } from './sheets/SessionAndProjectSheets';
+import { CreateChoiceSheet } from './sheets/CreateChoiceSheet';
 import {
   ContentShareSheet,
   TimelineViewSheet,
@@ -2888,39 +2887,39 @@ export default function TattoDiary() {
         onAdd={saveSessionFromNewSessionSheet}
       />
 
-      {/* ═══════════ ADD CHOICE (session vs consultation) ═══════════ */}
-      <AddChoiceSheet
+      {/* ═══════════ ADD CHOICE (карточка клиента) ═══════════ */}
+      <CreateChoiceSheet
         open={showAddChoice}
         onClose={() => setShowAddChoice(false)}
-        onPickSession={() => {
+        options={['session', 'consultation']}
+        onPick={(kind) => {
           setShowAddChoice(false);
           runGated(false, () => {
-            setEditSession(null);
-            setShowNewSessionForm(true);
-          });
-        }}
-        onPickConsultation={() => {
-          setShowAddChoice(false);
-          runGated(false, () => {
-            setEditConsultation(null);
-            setShowNewConsultationForm(true);
+            if (kind === 'session') {
+              setEditSession(null);
+              setShowNewSessionForm(true);
+            } else if (kind === 'consultation') {
+              setEditConsultation(null);
+              setShowNewConsultationForm(true);
+            }
           });
         }}
       />
 
       {/* ═══════════ МАСТЕРСКАЯ: «СОЗДАТЬ» → проект / сессия без клиента ═══════════ */}
-      <WorkshopCreateChoiceSheet
+      <CreateChoiceSheet
         open={showWorkshopCreateChoice}
         onClose={() => setShowWorkshopCreateChoice(false)}
-        onPickProject={() => {
+        options={['project', 'session']}
+        onPick={(kind) => {
           setShowWorkshopCreateChoice(false);
-          setEditProject(null);
-          setNewProjectClientId(null);
-          setShowNewProjectForm(true);
-        }}
-        onPickSession={() => {
-          setShowWorkshopCreateChoice(false);
-          setShowProjectSessionPicker(true);
+          if (kind === 'project') {
+            setEditProject(null);
+            setNewProjectClientId(null);
+            setShowNewProjectForm(true);
+          } else if (kind === 'session') {
+            setShowProjectSessionPicker(true);
+          }
         }}
       />
       <ProjectSessionPickerSheet
@@ -3132,16 +3131,15 @@ export default function TattoDiary() {
           карточка) → сама форма сессии/консультации, с датой из календаря.
           Only one of these four is ever open — `calendarWalkStep` is a
           single value, so the sheets are mutually exclusive by construction. */}
-      <AddChoiceSheet
+      <CreateChoiceSheet
         open={calendarWalkStep === 'kind'}
         onClose={cancelCalendarWalk}
-        onPickSession={() => {
-          setCalendarEventKind('session');
-          setCalendarWalkStep('clientKind');
-        }}
-        onPickConsultation={() => {
-          setCalendarEventKind('consultation');
-          setCalendarWalkStep('clientKind');
+        options={['session', 'consultation']}
+        onPick={(kind) => {
+          if (kind === 'session' || kind === 'consultation') {
+            setCalendarEventKind(kind);
+            setCalendarWalkStep('clientKind');
+          }
         }}
       />
       <ClientKindChoiceSheet
@@ -6214,173 +6212,7 @@ export function ContentPanel({
 }
 
 
-// Tapping "+" on the sessions tab asks which kind of entry to create first —
-// a regular tattoo session, or a consultation (mood board + creative brief,
-// scheduled the same way a session is).
-function AddChoiceSheet({
-  open,
-  onClose,
-  onPickSession,
-  onPickConsultation,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onPickSession: () => void;
-  onPickConsultation: () => void;
-}) {
-  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
-    <div
-      onClick={onClick}
-      role="button"
-      aria-label={title}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        border: '1px solid rgba(var(--gold-rgb),0.25)',
-        borderRadius: 2,
-        padding: '16px',
-        cursor: 'pointer',
-        background: 'rgba(var(--gold-rgb),0.03)',
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          color: 'var(--gold)',
-        }}
-      >
-        {icon}
-      </div>
-      <div>
-        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
-      </div>
-    </div>
-  );
-
-  return (
-    <BottomSheet open={open} heightPct={34}>
-      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        <SheetCloseButton onClose={onClose} />
-        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Что добавить?</div>
-        <SheetStarDivider />
-      </div>
-      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {choice(
-          'Сессия',
-          'Дата, техника, стиль, зона работы...',
-          onPickSession,
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <rect x="3" y="4.5" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="6.5" y1="2.5" x2="6.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            <line x1="13.5" y1="2.5" x2="13.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>,
-        )}
-        {choice(
-          'Консультация',
-          'Референсы, идея, данные о коже...',
-          onPickConsultation,
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <rect x="3" y="4" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
-            <circle cx="7" cy="8" r="1.3" stroke="currentColor" strokeWidth="1.1" />
-            <path d="M3 14L8 10L11 12.5L14 9.5L17 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>,
-        )}
-      </div>
-    </BottomSheet>
-  );
-}
-
-// Мастерская's own «Создать»: «Новый проект» (бриф-карточка, как раньше) или
-// «Сессия» без клиента (сразу просит выбрать/создать проект — см.
-// ProjectSessionPickerSheet ниже), Этап 3b-доп.
-function WorkshopCreateChoiceSheet({
-  open,
-  onClose,
-  onPickProject,
-  onPickSession,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onPickProject: () => void;
-  onPickSession: () => void;
-}) {
-  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
-    <div
-      onClick={onClick}
-      role="button"
-      aria-label={title}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        border: '1px solid rgba(var(--gold-rgb),0.25)',
-        borderRadius: 2,
-        padding: '16px',
-        cursor: 'pointer',
-        background: 'rgba(var(--gold-rgb),0.03)',
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          color: 'var(--gold)',
-        }}
-      >
-        {icon}
-      </div>
-      <div>
-        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
-      </div>
-    </div>
-  );
-
-  return (
-    <BottomSheet open={open} heightPct={34}>
-      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        <SheetCloseButton onClose={onClose} />
-        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Что добавить?</div>
-        <SheetStarDivider />
-      </div>
-      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {choice(
-          'Новый проект',
-          'Бриф: тип, место, стиль, референсы...',
-          onPickProject,
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>,
-        )}
-        {choice(
-          'Сессия',
-          'Без клиента — привяжете позже',
-          onPickSession,
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <rect x="3" y="4.5" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="6.5" y1="2.5" x2="6.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            <line x1="13.5" y1="2.5" x2="13.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>,
-        )}
-      </div>
-    </BottomSheet>
-  );
-}
+// Единая шторка выбора создаваемой сущности вынесена в
+// src/components/sheets/CreateChoiceSheet.tsx (см. импорт выше) — заменяет
+// прежние отдельные AddChoiceSheet/WorkshopCreateChoiceSheet.
 
