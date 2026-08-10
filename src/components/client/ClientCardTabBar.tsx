@@ -87,7 +87,7 @@ function GemJumpRing({ active }: { active: boolean }) {
         {/* Front wire: this half crosses in front of the tube, making the rod
             visibly pass through the ring rather than sit behind the drawing. */}
         <path d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" />
-        <path d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#C77A14" strokeWidth="2.9" strokeLinecap="round" />
+        <path d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#D8B46A" strokeWidth="2.9" strokeLinecap="round" />
         <path d="M7.1 11.8 C4.7 9.7 4.5 5.8 6.1 2.7" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".92" />
         <path d="M11.2 11.7 C12.5 10.3 13.1 8.6 13.1 7" fill="none" stroke="#793804" strokeWidth=".9" strokeLinecap="round" opacity=".9" />
       </svg>
@@ -115,7 +115,7 @@ function GemBail() {
     >
       {/* A folded bail hangs from one hinge and slips behind the medallion. */}
       <path d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#C77A14" strokeWidth="2.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#D8B46A" strokeWidth="2.9" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M8.6 1.8 C8.1 4.8 7.2 7.4 7 10.3" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".88" />
     </svg>
   );
@@ -195,6 +195,13 @@ function GemTabMarker({
           height: GEM_SIZE,
         }}
       >
+        <span
+          aria-hidden="true"
+          className={active
+            ? 'client-card-tabbar__gem-glow client-card-tabbar__gem-glow--active'
+            : 'client-card-tabbar__gem-glow'}
+          style={{ '--gem-glow-color': color } as CSSProperties}
+        />
         <GemBail />
         <span
           aria-hidden="true"
