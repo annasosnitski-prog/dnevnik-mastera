@@ -24,6 +24,7 @@
     "src/lib/contentProject.ts",
     "src/lib/sessionSave.ts",
     "src/lib/consultationSave.ts",
+    "src/lib/autoProject.ts",
     "src/lib/calendarSync.ts",
     "src/lib/normalize.ts",
     "src/lib/reminderMessages.ts",

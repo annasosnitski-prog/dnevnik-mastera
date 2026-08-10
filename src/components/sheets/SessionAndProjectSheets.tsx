@@ -229,19 +229,22 @@ export function NewSessionSheet({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
         </div>
 
-        {clientProjects.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Проект</FieldLabel>
-            <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
-              <option value="">— без проекта —</option>
-              {clientProjects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title || 'Без названия'}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* Поле всегда видно (даже когда у владельца ещё нет ни одного
+            проекта) — сессия больше не может остаться совсем без проекта:
+            если мастер не выбрала существующий, ensureProjectId в
+            TattoDiary.tsx молча заведёт новый под тем же владельцем при
+            сохранении (см. handleAddSession/saveSessionFromNewSessionSheet). */}
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Проект</FieldLabel>
+          <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
+            <option value="">— создать новый проект —</option>
+            {clientProjects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title || 'Без названия'}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Date & time stacked full-width. Side-by-side used to overlap on
             iOS, where the native pickers keep a large intrinsic width and
@@ -622,19 +625,21 @@ export function NewConsultationSheet({
             <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
           </div>
 
-          {clientProjects.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <FieldLabel>Проект</FieldLabel>
-              <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
-                <option value="">— без проекта —</option>
-                {clientProjects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title || 'Без названия'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Поле всегда видно — см. тот же комментарий у NewSessionSheet:
+              консультация тоже больше не может остаться без проекта,
+              ensureProjectId заведёт его молча при сохранении, если не
+              выбран существующий. */}
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Проект</FieldLabel>
+            <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
+              <option value="">— создать новый проект —</option>
+              {clientProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title || 'Без названия'}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Общие заметки</FieldLabel>

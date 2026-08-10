@@ -92,6 +92,7 @@ import {
 } from '../lib/contentLink';
 import { upsertClientSession, upsertProjectSession, applyConsultationConversion, applyConsultationRestoration, type SessionFormData } from '../lib/sessionSave';
 import { upsertConsultation, upsertProjectConsultation, type ConsultationFormData } from '../lib/consultationSave';
+import { bucketProjectId, bucketProjectTitle, makeBucketProject } from '../lib/autoProject';
 // Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
 // не менялась — только перенос.
 import { isRTL, firstLetter, nameRest } from '../lib/textFormat';
@@ -1322,6 +1323,24 @@ export default function TattoDiary() {
     saveClient({ ...restored, sessions: restored.sessions.filter((s) => s.id !== sessionId) });
   };
 
+  // «Сессия/консультация не может быть без проекта» — если форма не
+  // предложила конкретный projectId (мастер оставила «— создать новый
+  // проект —»), молча заводим/переиспользуем ОДИН проект-«отстойник» на
+  // владельца (bucket-<clientId> / bucket-master, тот же id, что уже даёт
+  // «Собрать старые записи в проекты» — см. migrateRecordsIntoProjects), а
+  // не плодим новый проект при каждом отдельном «не выбрала». Существующий
+  // бакет (в т.ч. созданный старой миграцией, с названием «Записи · ФИО»)
+  // переиспользуется как есть, не переименовывается.
+  const ensureProjectId = (projectId: string | null, ownerClient: Client | null): string => {
+    if (projectId) return projectId;
+    const id = bucketProjectId(ownerClient?.id ?? null);
+    if (projects.some((p) => p.id === id)) return id;
+    const title = bucketProjectTitle(ownerClient, masterInfo.name);
+    const color = ownerClient?.color || MARKER_COLORS[0];
+    saveProject(makeBucketProject(id, title, color, ownerClient?.id ?? null));
+    return id;
+  };
+
   // Сохранение чистой логики (client.consultations + связь цепочки) вынесено
   // в upsertConsultation (src/lib/consultationSave.ts) — см. upsertClientSession
   // выше для того же паттерна с сессиями. previousConsultationId идёт от
@@ -1331,7 +1350,7 @@ export default function TattoDiary() {
     if (!selectedClient) return;
     const { client: updatedClient } = upsertConsultation(
       selectedClient,
-      data,
+      { ...data, projectId: ensureProjectId(data.projectId, selectedClient) },
       editConsultation?.id ?? null,
       chainFromConsultation?.id ?? null,
     );
@@ -1603,34 +1622,16 @@ export default function TattoDiary() {
       const orphanSessions = client.sessions.filter((s) => !s.projectId);
       const orphanConsults = client.consultations.filter((c) => !c.projectId);
       if (orphanSessions.length === 0 && orphanConsults.length === 0) continue;
-      const bucketId = `bucket-${client.id}`;
+      // Тот же bucket-<clientId> id, что и у «отстойника» из ensureProjectId
+      // (см. handleAddConsultation выше) — один и тот же проект, откуда бы он
+      // ни завёлся. Название здесь намеренно с префиксом «Записи ·» (легаси
+      // этой миграции, не переименовываем задним числом уже существующие
+      // бакеты); ensureProjectId для новых бакетов использует «просто имя»
+      // (см. lib/autoProject.ts).
+      const bucketId = bucketProjectId(client.id);
       const fullName = `${client.name} ${client.surname}`.trim() || 'Клиент';
       if (!existingProjectIds.has(bucketId)) {
-        saveProject({
-          id: bucketId,
-          title: `Записи · ${fullName}`,
-          color: client.color || MARKER_COLORS[0],
-          category: 'tattoo',
-          clientId: client.id,
-          stage: 'in_progress',
-          state: 'active',
-          waitingFor: 'none',
-          nextActionText: '',
-          nextActionDate: null,
-          nextActionType: null,
-          priority: 'normal',
-          area: '',
-          style: '',
-          generalNotes: '',
-          feeling: '',
-          creative: '',
-          inspirationSources: '',
-          photos: [],
-          createdDate: new Date().toISOString(),
-          lastMeaningfulActivityAt: new Date().toISOString(),
-          sessions: [],
-          consultations: [],
-        });
+        saveProject(makeBucketProject(bucketId, `Записи · ${fullName}`, client.color || MARKER_COLORS[0], client.id));
         existingProjectIds.add(bucketId);
         buckets += 1;
       }
@@ -1853,9 +1854,10 @@ export default function TattoDiary() {
   // же helper со своим явным clientId (см. saveSessionForContentLink ниже).
   const handleAddSession = (data: SessionFormData) => {
     if (!selectedClient) return;
+    const projectId = ensureProjectId(data.projectId, selectedClient);
     const { client: updatedClient, sessionId } = upsertClientSession(
       selectedClient,
-      data,
+      { ...data, projectId },
       editSession?.id ?? null,
       chainFromSession?.id ?? null,
     );
@@ -1869,7 +1871,7 @@ export default function TattoDiary() {
     saveClient(finalClient);
     // Авто-переход этапа проекта (Этап 3b): выполненная сессия → «В работе»,
     // запланированная (ещё не выполнена) → «Записан». Только вперёд.
-    advanceProjectStage(data.projectId, data.done ? 'in_progress' : 'booked');
+    advanceProjectStage(projectId, data.done ? 'in_progress' : 'booked');
     setShowNewSessionForm(false);
     setEditSession(null);
     setConvertingConsultation(null);
