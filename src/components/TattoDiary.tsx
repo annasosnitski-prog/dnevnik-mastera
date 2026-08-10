@@ -9,6 +9,7 @@ import {
   syncActive,
   diffAndSync,
   setConflictHandler,
+  fetchBotBookings,
   DEFAULT_ENDPOINT,
   type CalendarSyncSettings,
 } from '../lib/calendarSync';
@@ -3878,6 +3879,22 @@ function MasterDashboardScreen({
   const [showSyncSecret, setShowSyncSecret] = useState(false);
   const [showContentSecret, setShowContentSecret] = useState(false);
 
+  // «Проверить соединение» прямо в настройках синхронизации — раньше
+  // единственным способом узнать, работает ли связь с ботом, было зайти
+  // в Админку и открыть «Брони от бота». Дёргаем тот же bot-bookings,
+  // что и тот виджет, но здесь просто нужен статус, а не список.
+  const [syncCheck, setSyncCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'error'; message?: string }>({
+    status: 'idle',
+  });
+  const checkCalendarSync = () => {
+    setSyncCheck({ status: 'checking' });
+    fetchBotBookings(calendarSync)
+      .then((b) => setSyncCheck({ status: 'ok', message: `подключено — записей от бота: ${b.length}.` }))
+      .catch((err) =>
+        setSyncCheck({ status: 'error', message: err instanceof Error ? err.message : 'не получилось проверить соединение.' })
+      );
+  };
+
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
     color: COLORS.textGhost,
@@ -4303,6 +4320,37 @@ function MasterDashboardScreen({
               ? 'нужен секретный код — без него синхронизация не работает.'
               : 'выключена: записи остаются только в дневнике.'}
           </div>
+          {syncActive(calendarSync) && (
+            <div style={{ marginTop: 10 }}>
+              <span
+                onClick={syncCheck.status === 'checking' ? undefined : checkCalendarSync}
+                role="button"
+                aria-label="Проверить соединение с ботом"
+                style={{
+                  fontSize: fs(11),
+                  color: COLORS.gold,
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  cursor: syncCheck.status === 'checking' ? 'default' : 'pointer',
+                  opacity: syncCheck.status === 'checking' ? 0.5 : 1,
+                }}
+              >
+                {syncCheck.status === 'checking' ? 'проверяю…' : 'проверить соединение'}
+              </span>
+              {syncCheck.message && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: fs(11),
+                    fontStyle: 'italic',
+                    color: syncCheck.status === 'error' ? '#C99' : COLORS.textGhost,
+                  }}
+                >
+                  {syncCheck.message}
+                </div>
+              )}
+            </div>
+          )}
         </GoldFrame>
 
         {/* ContentINKA — тот же принцип, что «Инка-календарь» выше, свой
