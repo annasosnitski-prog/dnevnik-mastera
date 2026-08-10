@@ -93,7 +93,7 @@ test('jump-ring is threaded through the tube and swivels through a true profile'
   assert.doesNotMatch(tabBarModule, /width: 1\.4,[\s\S]*height: 8/);
   assert.match(tabBarModule, /<GemJumpRing active=\{active\} \/>[\s\S]*className=\{active \? 'client-card-tabbar__pendulum pendant-swing'/);
   assert.doesNotMatch(tabBarModule, /client-card-tabbar__marker pendant-swing/);
-  assert.match(indexCss, /@keyframes jump-ring-swivel[\s\S]*rotateX\(58deg\)[\s\S]*rotateX\(88deg\)[\s\S]*rotateX\(111deg\)/);
+  assert.match(indexCss, /@keyframes jump-ring-swivel[\s\S]*rotateY\(58deg\)[\s\S]*rotateY\(88deg\)[\s\S]*rotateY\(111deg\)/);
   assert.match(indexCss, /\.pendant-swing\s*\{[\s\S]*transform-origin: 50% 3px/);
 });
 
