@@ -1,19 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="320"
+     width="384"
      height="64"
-     viewBox="0 0 320 64"
+     viewBox="0 0 384 64"
      role="img"
      aria-labelledby="title desc">
   <title id="title">Gold pendant navigation icons</title>
-  <desc id="desc">A small gold pendant with a diamond halo and a coloured centre stone using the toolbar palette: green sessions, blue consultations, violet content, orange notes, and red info icons.</desc>
+  <desc id="desc">A small gold pendant with a diamond halo and a coloured centre stone using the toolbar palette: green sessions, blue consultations, violet content, orange notes, red info, and yellow projects icons.</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
   <view id="content" viewBox="128 0 64 64"/>
   <view id="notes" viewBox="192 0 64 64"/>
   <view id="info" viewBox="256 0 64 64"/>
+  <view id="projects" viewBox="320 0 64 64"/>
 
   <defs>
     <linearGradient id="gold-metal" x1="0" y1="0" x2="1" y2="1">
@@ -118,5 +119,9 @@
   <g id="info-icon" transform="translate(256 0)" filter="url(#pendant-shadow)">
     <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
     <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FF3342"/>
+  </g>
+  <g id="projects-icon" transform="translate(320 0)" filter="url(#pendant-shadow)">
+    <use href="#pendant-chrome" xlink:href="#pendant-chrome"/>
+    <use href="#pendant-stone" xlink:href="#pendant-stone" color="#FFE000"/>
   </g>
 </svg>

@@ -148,6 +148,7 @@ const AdminDashboardScreen = lazy(() => import('./screens/AdminDashboardScreen')
 // формы остались в screens/DetailScreen.tsx, этот статический импорт утянул
 // бы весь тот экран обратно в основной бандл.
 import { SessionPhotos, AddChatLinkForm, AddMasterLinkForm } from './client/ClientControls';
+import { ClientCardTabBar, type ClientCardTabDef } from './client/ClientCardTabBar';
 // Кластер «карточка клиента» вынесен в отдельный модуль (PR 11 рефакторинга) —
 // самый большой из экранов (2600+ строк), поэтому лениво (см. выше про
 // остальные экраны). AddChatLinkForm/AddMasterLinkForm выше — не отсюда, см.
@@ -190,6 +191,7 @@ import { ISO_DATE_RE, formatDate, dateParts, todayISO } from '../utils/dates';
 import {
   getProjectById,
   getProjectsByClientId,
+  getWorkshopProjects,
   getConsultationNumber,
 } from '../domain/projectSelectors';
 export { clientNameFor } from '../domain/projectSelectors';
@@ -666,7 +668,7 @@ export default function TattoDiary() {
   // Так же транзиентно и не persisted, как contentNavigation.
   const [contentFocusEntryId, setContentFocusEntryId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'content' | 'extra'>('sessions');
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'content' | 'extra' | 'projects'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorFilter, setColorFilter] = useState<string>('all');
@@ -2558,6 +2560,13 @@ export default function TattoDiary() {
             contentSync={contentSync}
             onChangeContentSync={setContentSync}
             onOpenContent={() => setScreen('content')}
+            projects={projects}
+            onOpenProject={(project) => setViewProject(project)}
+            onCreateProject={() => {
+              setEditProject(null);
+              setNewProjectClientId(null);
+              setShowNewProjectForm(true);
+            }}
           />
         )}
       </div>
@@ -3746,6 +3755,11 @@ function downloadContentPhoto(entryId: string, photo: ResolvedContentPhoto): voi
 }
 
 // ===================== MASTER DASHBOARD =====================
+const MASTER_TABS: ClientCardTabDef<'info' | 'projects'>[] = [
+  { id: 'info', kind: 'info', label: 'Инфо' },
+  { id: 'projects', kind: 'projects', label: 'Проекты' },
+];
+
 function MasterDashboardScreen({
   clients,
   masterInfo,
@@ -3756,6 +3770,9 @@ function MasterDashboardScreen({
   contentSync,
   onChangeContentSync,
   onOpenContent,
+  projects,
+  onOpenProject,
+  onCreateProject,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
@@ -3766,11 +3783,20 @@ function MasterDashboardScreen({
   contentSync: ContentSyncSettings;
   onChangeContentSync: (s: ContentSyncSettings) => void;
   onOpenContent: () => void;
+  // Проекты мастера без клиента («Мастерская») — тот же каркас вкладок, что
+  // у карточки клиента (см. ClientCardTabBar), своя вкладка «Проекты».
+  projects: Project[];
+  onOpenProject: (project: Project) => void;
+  onCreateProject: () => void;
 }) {
+  const [tab, setTab] = useState<'info' | 'projects'>('info');
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
 
   const style = mostUsedStyle(clients);
+  // «Проекты мастера» (clientId === null) — та же выборка, что «Мастерская»
+  // использует для своей одноимённой папки (см. buildProjectFolders).
+  const workshopProjects = getWorkshopProjects(projects);
 
   const addMasterLink = (label: string, value: string) => {
     const link: MasterLink = { id: crypto.randomUUID(), label: label.trim(), value: value.trim() };
@@ -3913,7 +3939,16 @@ function MasterDashboardScreen({
         <StarDivider />
       </div>
 
+      {/* Та же строка вкладок-самоцветов, что у карточки клиента (см. её
+          собственный комментарий в client/ClientCardTabBar.tsx) — «оформим
+          личный кабинет по форме как карточка клиента»: Инфо — весь прежний
+          профиль ниже, Проекты — «Проекты мастера» (без клиента), раньше
+          жившие только в общей Мастерской. */}
+      <ClientCardTabBar tabs={MASTER_TABS} activeTab={tab} onTab={setTab} ariaLabel="Разделы личного кабинета" />
+
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {tab === 'info' && (
+        <>
         {/* Имя + «Частый стиль» share one row — two columns, since both are
             short, glanceable facts rather than editable forms. */}
         <div style={{ display: 'flex', gap: 12 }}>
@@ -4404,6 +4439,30 @@ function MasterDashboardScreen({
             </div>
           )}
         </GoldFrame>
+        </>
+      )}
+
+      {tab === 'projects' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Проекты мастера</div>
+            <span onClick={onCreateProject} style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
+              + Новый
+            </span>
+          </div>
+          {workshopProjects.length === 0 ? (
+            <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
+              Пока нет своих проектов — нажмите «+ Новый», чтобы добавить первый
+            </div>
+          ) : (
+            <div className="inka-client-grid" style={{ display: 'grid', gap: 10 }}>
+              {workshopProjects.map((p) => (
+                <ProjectCard key={p.id} project={p} clientName={null} onClick={() => onOpenProject(p)} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
       </div>
     </div>
   );
