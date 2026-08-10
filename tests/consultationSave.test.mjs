@@ -1,7 +1,36 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { upsertConsultation } from '../.test-dist/src/lib/consultationSave.js';
+import { upsertConsultation, upsertProjectConsultation } from '../.test-dist/src/lib/consultationSave.js';
+
+function makeProject(overrides = {}) {
+  return {
+    id: 'project-1',
+    title: 'Дракон',
+    color: '#B0413E',
+    category: 'tattoo',
+    clientId: null,
+    stage: 'idea',
+    state: 'active',
+    waitingFor: 'none',
+    nextActionText: '',
+    nextActionDate: null,
+    nextActionType: null,
+    priority: 'normal',
+    area: '',
+    style: '',
+    generalNotes: '',
+    feeling: '',
+    creative: '',
+    inspirationSources: '',
+    photos: [],
+    createdDate: '2026-01-01',
+    sessions: [],
+    consultations: [],
+    lastMeaningfulActivityAt: '2026-01-01',
+    ...overrides,
+  };
+}
 
 function makeClient(overrides = {}) {
   return {
@@ -166,4 +195,47 @@ test('upsertConsultation leaves unrelated consultations untouched when chaining'
   const stillUnrelated = updated.consultations.find((c) => c.id === 'consult-2');
   assert.equal(stillUnrelated.nextConsultationId, null);
   assert.equal(stillUnrelated.history.length, 0);
+});
+
+// ── upsertProjectConsultation (client-less/Мастерская) ──────────────────────
+
+test('upsertProjectConsultation appends a new consultation to project.consultations, not client.consultations', () => {
+  const project = makeProject();
+  const { project: updated, consultationId } = upsertProjectConsultation(project, makeConsultationData(), null);
+
+  assert.equal(updated.consultations.length, 1);
+  assert.equal(updated.consultations[0].id, consultationId);
+  assert.equal(updated.consultations[0].projectId, 'project-1');
+  assert.equal(updated.consultations[0].status, 'active');
+  assert.equal(updated.consultations[0].history.length, 1);
+});
+
+test('upsertProjectConsultation editing an existing consultation keeps its id and appends a history entry', () => {
+  const existing = makeConsultation({ id: 'consult-9', date: '2026-01-01', history: [{ id: 'h1', date: '2026-01-01T00:00:00.000Z', note: 'Консультация создана' }] });
+  const project = makeProject({ consultations: [existing] });
+
+  const { project: updated, consultationId } = upsertProjectConsultation(project, makeConsultationData({ date: '2026-05-05' }), 'consult-9');
+
+  assert.equal(consultationId, 'consult-9');
+  assert.equal(updated.consultations.length, 1);
+  assert.equal(updated.consultations[0].date, '2026-05-05');
+  assert.equal(updated.consultations[0].history.length, 2);
+});
+
+test('upsertProjectConsultation defaults previousConsultationId/nextConsultationId to null — chaining not supported for client-less consultations', () => {
+  const project = makeProject();
+  const { project: updated } = upsertProjectConsultation(project, makeConsultationData(), null);
+
+  assert.equal(updated.consultations[0].previousConsultationId, null);
+  assert.equal(updated.consultations[0].nextConsultationId, null);
+});
+
+test('upsertProjectConsultation does not mutate the input project', () => {
+  const source = makeConsultation({ id: 'consult-1' });
+  const project = makeProject({ consultations: [source] });
+  const snapshot = structuredClone(project);
+
+  upsertProjectConsultation(project, makeConsultationData(), null);
+
+  assert.deepEqual(project, snapshot);
 });

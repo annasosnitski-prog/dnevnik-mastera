@@ -78,6 +78,73 @@ export function normalizeClientNote(raw: any, index: number, idPrefix: 'n' | 'm'
   };
 }
 
+// Единая нормализация Consultation для клиентских и client-less (Project)
+// консультаций — вынесено из normalizeClient, чтобы normalizeProject могла
+// переиспользовать ту же логику для Project.consultations. `sessions` — уже
+// нормализованный список-владелец (client.sessions или project.sessions),
+// нужен только для hasLiveConvertedSession-проверки ниже. idPrefix сохраняет
+// прежний fallback-id `c` для клиентских записей; `pc` — для проектных.
+export function normalizeConsultation(cn: any, i: number, sessions: Session[], idPrefix: 'c' | 'pc' = 'c'): Consultation {
+  const rawStatus: ConsultationStatus = CONSULTATION_STATUSES.includes(cn?.status) ? cn.status : 'active';
+  const id = String(cn?.id ?? `${Date.now()}-${idPrefix}${i}`);
+  const rawConvertedToSessionId = rawStatus === 'converted' ? cn?.convertedToSessionId ?? null : null;
+  // A 'converted' status only stays 'converted' if it's backed by a
+  // real, mutually-linked session (see hasLiveConvertedSession in
+  // domain/consultation.ts — status/convertedToSessionId alone
+  // aren't enough). Otherwise it's broken data — the session it
+  // pointed at was deleted outside the normal flow, a corrupted
+  // backup, or a session whose own sourceConsultationId disagrees —
+  // and it demotes to 'completed' so it doesn't become permanently
+  // undeletable (isConsultationDeletable) while pointing at nothing.
+  // No history entry is added here: that would re-append on every
+  // load. An entry is only ever added for a real user deletion, by
+  // applyConsultationRestoration in lib/sessionSave.ts.
+  const hasLiveSession =
+    rawConvertedToSessionId !== null &&
+    sessions.some((s) => s.id === rawConvertedToSessionId && s.sourceConsultationId === id);
+  const status: ConsultationStatus = rawStatus === 'converted' && !hasLiveSession ? 'completed' : rawStatus;
+  const convertedToSessionId = hasLiveSession ? rawConvertedToSessionId : null;
+  return {
+    id,
+    date: cn?.date ?? '',
+    time: cn?.time ?? '',
+    area: cn?.area ?? '',
+    style: cn?.style ?? '',
+    generalNotes: cn?.generalNotes ?? '',
+    feeling: cn?.feeling ?? '',
+    creative: cn?.creative ?? '',
+    inspirationSources: cn?.inspirationSources ?? '',
+    outcome: cn?.outcome ?? '',
+    // Намеренно не читаем cn?.nextStep — поле убрано из модели
+    // (единственный next step теперь только на Project, см.
+    // domain/consultation.ts). Старые backup/IndexedDB-записи могут
+    // ещё содержать этот ключ в сыром JSON — он просто игнорируется,
+    // отдельной миграции с удалением ключа не требуется.
+    urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
+    photos: Array.isArray(cn?.photos) ? cn.photos : [],
+    // Конвертированная консультация всегда done (в т.ч. только что
+    // разжалованная в 'completed' выше — см. done: true в спеке
+    // «Повреждённые старые данные») — так существующие фильтры по
+    // done/cancelled (plannerSelectors.ts, buildReminders.ts
+    // overdueEntries) не показывают её как незавершённую, даже если
+    // это поле в сыром объекте не выставлено.
+    done: rawStatus === 'converted' ? true : Boolean(cn?.done),
+    cancelled: Boolean(cn?.cancelled),
+    status,
+    convertedToSessionId,
+    // Цепочка повторных консультаций — отсутствует в записях до этой
+    // фичи, тогда обе ссылки null (запись считается началом своей
+    // цепочки, см. Consultation.previousConsultationId). Дальше
+    // ссылки не валидируются на существование цели — тот же принцип,
+    // что уже применён к convertedToSessionId/sourceConsultationId.
+    previousConsultationId: cn?.previousConsultationId ?? null,
+    nextConsultationId: cn?.nextConsultationId ?? null,
+    history: normalizeConsultationHistory(cn?.history),
+    createdDate: cn?.createdDate ?? new Date().toISOString(),
+    projectId: cn?.projectId ?? null,
+  };
+}
+
 export function normalizeClient(raw: any, index: number): Client {
   const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
 
@@ -110,66 +177,7 @@ export function normalizeClient(raw: any, index: number): Client {
     chatLinks: Array.isArray(raw?.chatLinks) ? raw.chatLinks : [],
     sessions,
     consultations: Array.isArray(raw?.consultations)
-      ? raw.consultations.map((cn: any, i: number): Consultation => {
-          const rawStatus: ConsultationStatus = CONSULTATION_STATUSES.includes(cn?.status) ? cn.status : 'active';
-          const id = String(cn?.id ?? `${Date.now()}-c${i}`);
-          const rawConvertedToSessionId = rawStatus === 'converted' ? cn?.convertedToSessionId ?? null : null;
-          // A 'converted' status only stays 'converted' if it's backed by a
-          // real, mutually-linked session (see hasLiveConvertedSession in
-          // domain/consultation.ts — status/convertedToSessionId alone
-          // aren't enough). Otherwise it's broken data — the session it
-          // pointed at was deleted outside the normal flow, a corrupted
-          // backup, or a session whose own sourceConsultationId disagrees —
-          // and it demotes to 'completed' so it doesn't become permanently
-          // undeletable (isConsultationDeletable) while pointing at nothing.
-          // No history entry is added here: that would re-append on every
-          // load. An entry is only ever added for a real user deletion, by
-          // applyConsultationRestoration in lib/sessionSave.ts.
-          const hasLiveSession =
-            rawConvertedToSessionId !== null &&
-            sessions.some((s) => s.id === rawConvertedToSessionId && s.sourceConsultationId === id);
-          const status: ConsultationStatus = rawStatus === 'converted' && !hasLiveSession ? 'completed' : rawStatus;
-          const convertedToSessionId = hasLiveSession ? rawConvertedToSessionId : null;
-          return {
-            id,
-            date: cn?.date ?? '',
-            time: cn?.time ?? '',
-            area: cn?.area ?? '',
-            style: cn?.style ?? '',
-            generalNotes: cn?.generalNotes ?? '',
-            feeling: cn?.feeling ?? '',
-            creative: cn?.creative ?? '',
-            inspirationSources: cn?.inspirationSources ?? '',
-            outcome: cn?.outcome ?? '',
-            // Намеренно не читаем cn?.nextStep — поле убрано из модели
-            // (единственный next step теперь только на Project, см.
-            // domain/consultation.ts). Старые backup/IndexedDB-записи могут
-            // ещё содержать этот ключ в сыром JSON — он просто игнорируется,
-            // отдельной миграции с удалением ключа не требуется.
-            urgency: URGENCY.some((u) => u.key === cn?.urgency) ? cn.urgency : 'normal',
-            photos: Array.isArray(cn?.photos) ? cn.photos : [],
-            // Конвертированная консультация всегда done (в т.ч. только что
-            // разжалованная в 'completed' выше — см. done: true в спеке
-            // «Повреждённые старые данные») — так существующие фильтры по
-            // done/cancelled (plannerSelectors.ts, buildReminders.ts
-            // overdueEntries) не показывают её как незавершённую, даже если
-            // это поле в сыром объекте не выставлено.
-            done: rawStatus === 'converted' ? true : Boolean(cn?.done),
-            cancelled: Boolean(cn?.cancelled),
-            status,
-            convertedToSessionId,
-            // Цепочка повторных консультаций — отсутствует в записях до этой
-            // фичи, тогда обе ссылки null (запись считается началом своей
-            // цепочки, см. Consultation.previousConsultationId). Дальше
-            // ссылки не валидируются на существование цели — тот же принцип,
-            // что уже применён к convertedToSessionId/sourceConsultationId.
-            previousConsultationId: cn?.previousConsultationId ?? null,
-            nextConsultationId: cn?.nextConsultationId ?? null,
-            history: normalizeConsultationHistory(cn?.history),
-            createdDate: cn?.createdDate ?? new Date().toISOString(),
-            projectId: cn?.projectId ?? null,
-          };
-        })
+      ? raw.consultations.map((cn: any, i: number) => normalizeConsultation(cn, i, sessions, 'c'))
       : [],
     documents: Array.isArray(raw?.documents) ? raw.documents : [],
     notes: Array.isArray(raw?.notes) ? raw.notes.map((n: any, i: number) => normalizeClientNote(n, i, 'n')) : [],
@@ -178,6 +186,7 @@ export function normalizeClient(raw: any, index: number): Client {
 }
 
 export function normalizeProject(raw: any, index: number): Project {
+  const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
   return {
     id: String(raw?.id ?? Date.now() + index),
     title: raw?.title ?? '',
@@ -202,7 +211,10 @@ export function normalizeProject(raw: any, index: number): Project {
     inspirationSources: raw?.inspirationSources ?? '',
     photos: Array.isArray(raw?.photos) ? raw.photos : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
-    sessions: Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [],
+    sessions,
+    consultations: Array.isArray(raw?.consultations)
+      ? raw.consultations.map((cn: any, i: number) => normalizeConsultation(cn, i, sessions, 'pc'))
+      : [],
     // Легаси-проекты (до M4) не знают об этом поле — null, а НЕ createdDate
     // и не текущая дата: старый проект вполне мог реально двигаться недавно,
     // просто до того, как это поле начали писать. Задним числом подставлять

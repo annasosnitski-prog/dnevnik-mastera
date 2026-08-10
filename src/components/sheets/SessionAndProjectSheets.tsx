@@ -775,6 +775,7 @@ export function ProjectViewSheet({
   onEdit,
   onOpenEntry,
   onEditProjectSession,
+  onEditProjectConsultation,
   onToggleTaskDone,
   onOpenContentEntry,
   onSaveNextStep,
@@ -797,6 +798,8 @@ export function ProjectViewSheet({
   // кнопку «Создать» (остаётся видна поверх этого просмотра — см. onCreate
   // у NavFab), отдельных кнопок создания здесь больше нет.
   onEditProjectSession: (projectId: string, session: Session) => void;
+  // Зеркало onEditProjectSession выше, для Project.consultations.
+  onEditProjectConsultation: (projectId: string, consultation: Consultation) => void;
   onToggleTaskDone: (clientId: string | null, note: ClientNote) => void;
   // Тап по карточке контента — открыть её в уже существующем ContentINKA,
   // без нового экрана и без изменения самого редактора.
@@ -818,6 +821,7 @@ export function ProjectViewSheet({
   const ownSessions = project && !linkedClient
     ? project.sessions.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))
     : [];
+  const ownConsults = project && !linkedClient ? getConsultationSequence(project.consultations, project.id) : [];
   const linkedTasks = project
     ? linkedClient
       ? getTasksByProjectId(linkedClient.notes, project.id)
@@ -892,7 +896,7 @@ export function ProjectViewSheet({
             <ViewField label="Креатив" value={project.creative} />
             <ViewField label="Источники вдохновения" value={project.inspirationSources} />
 
-            {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0) && (
+            {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0 || ownConsults.length > 0) && (
               <div>
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Записи проекта</div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -926,10 +930,21 @@ export function ProjectViewSheet({
                       onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'session', s.id)}
                     />
                   ))}
+                  {ownConsults.map((c, i) => (
+                    <ChainEntryRow
+                      key={`oc-${c.id}`}
+                      showArrow={i > 0}
+                      label={`Консультация ${i + 1} · без клиента`}
+                      title={c.area || '—'}
+                      date={c.date}
+                      style={entryRowStyle}
+                      onClick={() => project && onEditProjectConsultation(project.id, c)}
+                    />
+                  ))}
                   {ownSessions.map((s, i) => (
                     <ChainEntryRow
                       key={`os-${s.id}`}
-                      showArrow={i > 0}
+                      showArrow={i > 0 || ownConsults.length > 0}
                       label={`Сессия ${i + 1} · без клиента`}
                       title={s.name || s.area || '—'}
                       date={s.date}

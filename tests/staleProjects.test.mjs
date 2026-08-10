@@ -26,6 +26,7 @@ function makeProject(overrides = {}) {
     photos: [],
     createdDate: '2026-01-01',
     sessions: [],
+    consultations: [],
     lastMeaningfulActivityAt: '2026-01-01',
     ...overrides,
   };
@@ -134,6 +135,29 @@ test('staleProjects counts a done session sitting directly on a client-less (wor
     clientId: null,
     lastMeaningfulActivityAt: stale,
     sessions: [makeSession({ projectId: 'p1', date: recent, done: true })],
+  });
+  assert.equal(staleProjects([project], [], NOW).length, 0);
+});
+
+test('staleProjects is rescued by a consultation history entry sitting directly on a client-less (workshop) project', () => {
+  const stale = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 10);
+  const recent = daysBeforeNow(1);
+  const project = makeProject({
+    id: 'p1',
+    clientId: null,
+    lastMeaningfulActivityAt: stale,
+    consultations: [makeConsultation({ id: 'c1', projectId: 'p1', history: [{ id: 'h1', date: `${recent}T00:00:00.000Z`, note: 'встреча' }] })],
+  });
+  assert.equal(staleProjects([project], [], NOW).length, 0);
+});
+
+test('a future scheduled consultation on a client-less (workshop) project suppresses the stale reminder', () => {
+  const stale = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 10);
+  const project = makeProject({
+    id: 'p1',
+    clientId: null,
+    lastMeaningfulActivityAt: stale,
+    consultations: [makeConsultation({ id: 'c1', projectId: 'p1', date: daysAfterNow(3) })],
   });
   assert.equal(staleProjects([project], [], NOW).length, 0);
 });

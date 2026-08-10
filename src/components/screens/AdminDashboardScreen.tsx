@@ -16,6 +16,7 @@ import type {
   HealingItem,
   OverdueItem,
   ProjectSessionReminderItem,
+  ProjectConsultationReminderItem,
   StaleProjectItem,
   TaskReminderItem,
   UpcomingSoonItem,
@@ -49,6 +50,8 @@ export function AdminDashboardScreen({
   soon,
   overdueProjectSessions,
   soonProjectSessions,
+  overdueProjectConsultations,
+  soonProjectConsultations,
   dueProjects,
   staleProjects,
   tasks,
@@ -75,6 +78,8 @@ export function AdminDashboardScreen({
   soon: UpcomingSoonItem[];
   overdueProjectSessions: ProjectSessionReminderItem[];
   soonProjectSessions: ProjectSessionReminderItem[];
+  overdueProjectConsultations: ProjectConsultationReminderItem[];
+  soonProjectConsultations: ProjectConsultationReminderItem[];
   // Проекты с просроченным «следующим шагом» — в напоминания (Этап 3b).
   dueProjects: Project[];
   // Активные проекты без значимого движения дольше порога (M4) — «мягкое»
@@ -143,6 +148,8 @@ export function AdminDashboardScreen({
           soon={soon}
           overdueProjectSessions={overdueProjectSessions}
           soonProjectSessions={soonProjectSessions}
+          overdueProjectConsultations={overdueProjectConsultations}
+          soonProjectConsultations={soonProjectConsultations}
           dueProjects={dueProjects}
           staleProjects={staleProjects}
           tasks={tasks}

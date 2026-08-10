@@ -12,7 +12,15 @@
 
 import type { Project } from '../domain/project';
 import { HEALING_STAGES } from './buildReminders.js';
-import type { HealingStage, OverdueItem, HealingItem, UpcomingSoonItem, ProjectSessionReminderItem, StaleProjectItem } from './types';
+import type {
+  HealingStage,
+  OverdueItem,
+  HealingItem,
+  UpcomingSoonItem,
+  ProjectSessionReminderItem,
+  ProjectConsultationReminderItem,
+  StaleProjectItem,
+} from './types';
 
 // Полный id Task-напоминания (reminder.id) — им же ключуется «скрыть» (hide):
 // зависит от sourceId (client/master + конкретная задача), rule и dueDate.
@@ -70,6 +78,14 @@ export function overdueProjectSessionReminderKey(it: ProjectSessionReminderItem)
 
 export function soonProjectSessionReminderKey(it: ProjectSessionReminderItem): string {
   return `project-session:soon:${it.project.id}:${it.sessionId}:${it.date}:${it.time}`;
+}
+
+export function overdueProjectConsultationReminderKey(it: ProjectConsultationReminderItem): string {
+  return `project-consultation:overdue:${it.project.id}:${it.consultationId}:${it.date}`;
+}
+
+export function soonProjectConsultationReminderKey(it: ProjectConsultationReminderItem): string {
+  return `project-consultation:soon:${it.project.id}:${it.consultationId}:${it.date}:${it.time}`;
 }
 
 // Нормализация свободного текста действия перед построением подписи: убрать

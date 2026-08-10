@@ -6,6 +6,8 @@ import {
   soonReminderKey,
   overdueProjectSessionReminderKey,
   soonProjectSessionReminderKey,
+  overdueProjectConsultationReminderKey,
+  soonProjectConsultationReminderKey,
   healingReminderKey,
   healingReminderKeysForSession,
   staleProjectReminderKey,
@@ -47,6 +49,19 @@ test('soonProjectSessionReminderKey carries date and time', () => {
   const key = soonProjectSessionReminderKey(base);
   assert.notEqual(key, soonProjectSessionReminderKey({ ...base, date: '2026-01-11' }));
   assert.notEqual(key, soonProjectSessionReminderKey({ ...base, time: '15:00' }));
+});
+
+test('overdueProjectConsultationReminderKey carries the consultation date', () => {
+  const before = overdueProjectConsultationReminderKey({ project, consultationId: 'consult-1', date: '2026-01-10', time: '' });
+  const after = overdueProjectConsultationReminderKey({ project, consultationId: 'consult-1', date: '2026-01-20', time: '' });
+  assert.notEqual(before, after);
+});
+
+test('soonProjectConsultationReminderKey carries date and time', () => {
+  const base = { project, consultationId: 'consult-1', date: '2026-01-10', time: '14:00' };
+  const key = soonProjectConsultationReminderKey(base);
+  assert.notEqual(key, soonProjectConsultationReminderKey({ ...base, date: '2026-01-11' }));
+  assert.notEqual(key, soonProjectConsultationReminderKey({ ...base, time: '15:00' }));
 });
 
 test('healingReminderKey stays per-stage (unchanged shape)', () => {

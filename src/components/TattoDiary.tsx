@@ -91,7 +91,7 @@ import {
   type ContentEntryLink,
 } from '../lib/contentLink';
 import { upsertClientSession, upsertProjectSession, applyConsultationConversion, applyConsultationRestoration, type SessionFormData } from '../lib/sessionSave';
-import { upsertConsultation, type ConsultationFormData } from '../lib/consultationSave';
+import { upsertConsultation, upsertProjectConsultation, type ConsultationFormData } from '../lib/consultationSave';
 // Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
 // не менялась — только перенос.
 import { isRTL, firstLetter, nameRest } from '../lib/textFormat';
@@ -212,6 +212,8 @@ import {
   upcomingSoonReminders,
   overdueProjectSessions,
   upcomingSoonProjectSessions,
+  overdueProjectConsultations,
+  upcomingSoonProjectConsultations,
   overdueProjects,
   staleProjects,
 } from '../reminders/buildReminders';
@@ -223,6 +225,8 @@ import {
   soonReminderKey,
   overdueProjectSessionReminderKey,
   soonProjectSessionReminderKey,
+  overdueProjectConsultationReminderKey,
+  soonProjectConsultationReminderKey,
   projectReminderKey,
   staleProjectReminderKey,
 } from '../reminders/reminderKeys';
@@ -737,6 +741,8 @@ export default function TattoDiary() {
   // Если задан — открытая форма «Новая сессия» сохраняет в Project.sessions
   // этого проекта (сессия без клиента), а не в client.sessions (Этап 3b-доп.).
   const [sessionTargetProjectId, setSessionTargetProjectId] = useState<string | null>(null);
+  // Зеркало sessionTargetProjectId выше, для Project.consultations.
+  const [consultationTargetProjectId, setConsultationTargetProjectId] = useState<string | null>(null);
   // ContentLinkPickerSheet «Сохранить в…» → «Создать проект»/«Создать
   // сессию» запускает уже существующие сценарии (NewProjectSheet, либо
   // ProjectSessionPickerSheet+NewSessionSheet) — этот ref запоминает, какую
@@ -1223,6 +1229,7 @@ export default function TattoDiary() {
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
+    setConsultationTargetProjectId(null);
   };
   const closeEditClient = () => setShowEditClientForm(false);
   const closeBackdrop = () => {
@@ -1425,24 +1432,27 @@ export default function TattoDiary() {
   }) => {
     if (editProject) {
       // Клиента только что привязали к проекту, у которого копились «сессии
-      // без клиента» (см. Project.sessions) — переносим их клиенту с той же
-      // связью через projectId и чистим с проекта. Раньше clientId не было —
-      // значит client.sessions этого проекта ещё нет, дублей не возникнет.
-      if (!editProject.clientId && data.clientId && editProject.sessions.length > 0) {
+      // без клиента» и/или «консультации без клиента» (см. Project.sessions/
+      // Project.consultations) — переносим их клиенту с той же связью через
+      // projectId и чистим с проекта. Раньше clientId не было — значит
+      // client.sessions/client.consultations этого проекта ещё нет, дублей
+      // не возникнет.
+      if (!editProject.clientId && data.clientId && (editProject.sessions.length > 0 || editProject.consultations.length > 0)) {
         const client = clients.find((c) => c.id === data.clientId);
         if (client) {
           saveClient({
             ...client,
             sessions: [...client.sessions, ...editProject.sessions.map((s) => ({ ...s, projectId: editProject.id }))],
+            consultations: [...client.consultations, ...editProject.consultations.map((c) => ({ ...c, projectId: editProject.id }))],
           });
         }
-        saveProject({ ...editProject, ...data, sessions: [] });
+        saveProject({ ...editProject, ...data, sessions: [], consultations: [] });
       } else {
         saveProject({ ...editProject, ...data });
       }
     } else {
       const newProjectId = crypto.randomUUID();
-      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], ...data });
+      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], consultations: [], ...data });
       // Проект создан из ContentLinkPickerSheet «Сохранить в…».
       if (pendingContentLinkRef.current) {
         if (pendingContentLinkRef.current.target === 'project') {
@@ -1490,6 +1500,31 @@ export default function TattoDiary() {
       linkContentEntryTo(pendingContentLinkRef.current.entryId, { type: 'session', sessionId });
       pendingContentLinkRef.current = null;
     }
+  };
+
+  // «Консультация без клиента» — зеркало handleAddProjectSession выше, для
+  // Project.consultations. Нет content-link привязки (content-link не
+  // поддерживает консультацию как цель, только проект/сессию) и нет
+  // advanceProjectStage (handleAddConsultation тоже его не вызывает —
+  // этап проекта двигают только сессии).
+  const handleAddProjectConsultation = (projectId: string, data: ConsultationFormData) => {
+    const p = getProjectById(projects, projectId);
+    if (!p) return;
+    const { project: updatedProject } = upsertProjectConsultation(p, { ...data, projectId }, editConsultation?.id ?? null);
+    saveProject(updatedProject);
+  };
+
+  // Единственная точка сохранения для NewConsultationSheet — зеркало
+  // saveSessionFromNewSessionSheet выше, без content-link-ветки (content-link
+  // не поддерживает консультацию как цель, только проект/сессию, см.
+  // lib/contentLink.ts).
+  const saveConsultationFromNewConsultationSheet = (data: ConsultationFormData) => {
+    if (consultationTargetProjectId) {
+      handleAddProjectConsultation(consultationTargetProjectId, data);
+      closeNewConsultation();
+      return;
+    }
+    handleAddConsultation(data);
   };
 
   // Единственная точка сохранения для NewSessionSheet (кроме calendar-walk,
@@ -1594,6 +1629,7 @@ export default function TattoDiary() {
           createdDate: new Date().toISOString(),
           lastMeaningfulActivityAt: new Date().toISOString(),
           sessions: [],
+          consultations: [],
         });
         existingProjectIds.add(bucketId);
         buckets += 1;
@@ -1885,6 +1921,18 @@ export default function TattoDiary() {
   const visibleSoonProjectSessions = filterVisibleReminders(
     upcomingSoonProjectSessions(projects, remindersNow),
     soonProjectSessionReminderKey,
+    reminderState,
+    remindersNow,
+  );
+  const visibleOverdueProjectConsultations = filterVisibleReminders(
+    overdueProjectConsultations(projects, remindersNow),
+    overdueProjectConsultationReminderKey,
+    reminderState,
+    remindersNow,
+  );
+  const visibleSoonProjectConsultations = filterVisibleReminders(
+    upcomingSoonProjectConsultations(projects, remindersNow),
+    soonProjectConsultationReminderKey,
     reminderState,
     remindersNow,
   );
@@ -2401,10 +2449,10 @@ export default function TattoDiary() {
           adminBadges={[
             // Просроченная задача (task_overdue) — как urgent; задача на
             // сегодня (task_due) — как reminder, рядом с healing/soon/проекты.
-            ...(visibleOverdue.length > 0 || visibleOverdueProjectSessions.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_overdue')
+            ...(visibleOverdue.length > 0 || visibleOverdueProjectSessions.length > 0 || visibleOverdueProjectConsultations.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_overdue')
               ? (['urgent'] as const)
               : []),
-            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleSoonProjectSessions.length > 0 || visibleDueProjects.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_due')
+            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleSoonProjectSessions.length > 0 || visibleSoonProjectConsultations.length > 0 || visibleDueProjects.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_due')
               ? (['reminder'] as const)
               : []),
           ]}
@@ -2630,6 +2678,8 @@ export default function TattoDiary() {
               soon={visibleSoon}
               overdueProjectSessions={visibleOverdueProjectSessions}
               soonProjectSessions={visibleSoonProjectSessions}
+              overdueProjectConsultations={visibleOverdueProjectConsultations}
+              soonProjectConsultations={visibleSoonProjectConsultations}
               dueProjects={visibleDueProjects}
               staleProjects={visibleStaleProjects}
               tasks={visibleTaskReminders}
@@ -2898,15 +2948,25 @@ export default function TattoDiary() {
       {/* ═══════════ NEW / EDIT CONSULTATION SHEET ═══════════ */}
       <NewConsultationSheet
         open={showNewConsultationForm}
-        clientName={selectedClient?.name || ''}
-        client={selectedClient}
-        clientProjects={selectedClient ? getProjectsByClientId(projects, selectedClient.id) : []}
-        presetProjectId={presetEntryProjectId}
+        clientName={
+          consultationTargetProjectId
+            ? getProjectById(projects, consultationTargetProjectId)?.title || 'Проект'
+            : selectedClient?.name || ''
+        }
+        client={consultationTargetProjectId ? null : selectedClient}
+        clientProjects={
+          consultationTargetProjectId
+            ? projects.filter((p) => p.id === consultationTargetProjectId)
+            : selectedClient
+            ? getProjectsByClientId(projects, selectedClient.id)
+            : []
+        }
+        presetProjectId={consultationTargetProjectId ?? presetEntryProjectId}
         initial={editConsultation}
         initialDate={calendarCreateDate ?? undefined}
         chainFrom={chainFromConsultation}
         onClose={closeNewConsultation}
-        onAdd={handleAddConsultation}
+        onAdd={saveConsultationFromNewConsultationSheet}
       />
 
       {/* ═══════════ NEW / EDIT PROJECT SHEET (Творческая мастерская) ═══════════ */}
@@ -2948,6 +3008,12 @@ export default function TattoDiary() {
           setEditSession(session);
           setSessionTargetProjectId(projectId);
           setShowNewSessionForm(true);
+        }}
+        onEditProjectConsultation={(projectId, consultation) => {
+          setViewProject(null);
+          setEditConsultation(consultation);
+          setConsultationTargetProjectId(projectId);
+          setShowNewConsultationForm(true);
         }}
         onToggleTaskDone={(clientId, note) => {
           if (clientId) {

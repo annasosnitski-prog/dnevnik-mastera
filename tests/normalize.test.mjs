@@ -344,6 +344,24 @@ test('normalizeProject normalizes project-owned sessions ("сессии без �
   assert.equal(p.sessions[0].done, true);
 });
 
+test('normalizeProject defaults consultations to an empty array when missing', () => {
+  const p = normalizeProject({}, 0);
+  assert.deepEqual(p.consultations, []);
+});
+
+test('normalizeProject normalizes project-owned consultations ("консультации без клиента") the same way as client consultations', () => {
+  const p = normalizeProject({ consultations: [{ area: 'Без клиента' }] }, 0);
+  assert.equal(p.consultations[0].area, 'Без клиента');
+  assert.equal(p.consultations[0].status, 'active');
+  assert.equal(p.consultations[0].projectId, null);
+});
+
+test('normalizeProject demotes a project-owned converted consultation pointing at a missing session, same rule as client consultations', () => {
+  const p = normalizeProject({ consultations: [{ status: 'converted', convertedToSessionId: 'ghost' }] }, 0);
+  assert.equal(p.consultations[0].status, 'completed');
+  assert.equal(p.consultations[0].convertedToSessionId, null);
+});
+
 // ── normalizeProject: lastMeaningfulActivityAt (M4) ───────────────────────
 // Легаси-запись без этого поля нормализуется в null, а НЕ в createdDate и
 // НЕ в текущую дату — старый проект мог реально двигаться недавно, просто
