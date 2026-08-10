@@ -1924,7 +1924,7 @@ export default function TattoDiary() {
     >
       {/* Shared sky — one instance behind every screen instead of a copy per
           screen. Screens used to each mount their own StarfieldBackground/
-          CloudsBackground/AviationBackground (plus this dot-grid), which
+          CloudsBackground/AviationBackground, which
           meant up to two full sets animating at once (List's, which is
           never unmounted, plus whichever other screen was open) — real GPU
           load and battery/heat cost on a phone for a purely decorative
@@ -1932,15 +1932,6 @@ export default function TattoDiary() {
           identical (the content was never screen-specific) at half the
           animation cost. */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 0, background: COLORS.bg }}>
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
-            backgroundSize: '22px 22px',
-            pointerEvents: 'none',
-          }}
-        />
         <StarfieldBackground />
         <CloudsBackground />
         <AviationBackground />
@@ -6374,4 +6365,3 @@ function WorkshopCreateChoiceSheet({
     </BottomSheet>
   );
 }
-

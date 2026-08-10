@@ -100,6 +100,7 @@ function GemBail() {
     <svg
       aria-hidden="true"
       viewBox="0 0 18 14"
+      className="client-card-tabbar__bail"
       style={{
         position: 'absolute',
         top: 1,
@@ -175,6 +176,13 @@ function GemTabMarker({
         transition: 'opacity 0.25s, filter 0.25s',
       }}
     >
+      {active && (
+        <span
+          aria-hidden="true"
+          className="client-card-tabbar__active-halo"
+          style={{ '--active-gem-color': color } as CSSProperties}
+        />
+      )}
       <GemJumpRing active={active} />
       <span
         aria-hidden="true"
@@ -190,6 +198,7 @@ function GemTabMarker({
         <GemBail />
         <span
           aria-hidden="true"
+          className="client-card-tabbar__medallion"
           style={{
             position: 'absolute',
             inset: 0,
