@@ -2038,24 +2038,33 @@ export function NoteItem({
 export function NoteComposer({
   onAdd,
   clients,
+  presetClientId = null,
+  presetProjectId = null,
 }: {
-  onAdd: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, clientId: string | null) => void;
+  onAdd: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, clientId: string | null, projectId: string | null) => void;
   clients?: Client[];
+  // Предзаполняет клиента (например, из открытой карточки клиента) — но
+  // поле остаётся редактируемым через тот же select, если clients передан.
+  presetClientId?: string | null;
+  // Заметка создаётся уже привязанной к проекту (например, из открытого
+  // просмотра проекта) — в отличие от клиента, здесь нет своего picker'а в
+  // форме, значение просто передаётся насквозь в onAdd.
+  presetProjectId?: string | null;
 }) {
   const [text, setText] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
-  const [clientId, setClientId] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(presetClientId);
   const submit = () => {
     const t = text.trim();
     if (!t) return;
-    onAdd(t, urgency, photos, dueDate || null, clientId);
+    onAdd(t, urgency, photos, dueDate || null, clientId, presetProjectId);
     setText('');
     setUrgency('important');
     setPhotos([]);
     setDueDate('');
-    setClientId(null);
+    setClientId(presetClientId);
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

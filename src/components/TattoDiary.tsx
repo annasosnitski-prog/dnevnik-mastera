@@ -115,6 +115,7 @@ import {
   NewProjectSheet,
 } from './sheets/SessionAndProjectSheets';
 import { CreateChoiceSheet } from './sheets/CreateChoiceSheet';
+import { NoteComposerSheet } from './sheets/NoteComposerSheet';
 import {
   ContentShareSheet,
   TimelineViewSheet,
@@ -686,9 +687,12 @@ export default function TattoDiary() {
   const [showEditClientForm, setShowEditClientForm] = useState(false);
   // Session being edited (null when adding a new one).
   const [editSession, setEditSession] = useState<Session | null>(null);
-  // Tapping "+" on the sessions tab first asks «Сессия» or «Консультация» —
-  // this holds that choice sheet's open state.
-  const [showAddChoice, setShowAddChoice] = useState(false);
+  // Единая шторка выбора создаваемой сущности (CreateChoiceSheet) — какой
+  // контекст сейчас её открыл, решает набор опций и то, куда ведёт выбор
+  // (см. onCreate у NavFab и рендер CreateChoiceSheet ниже). 'workshop'
+  // обслуживает и «Мастерскую», и «Личный кабинет» мастера — оба места
+  // создают client-less сущности одинаково.
+  const [createChoiceContext, setCreateChoiceContext] = useState<'detail' | 'workshop' | 'viewProject' | null>(null);
   const [showNewConsultationForm, setShowNewConsultationForm] = useState(false);
   const [editConsultation, setEditConsultation] = useState<Consultation | null>(null);
   // Consultation being turned into a session («Перевести в сессию») —
@@ -715,11 +719,15 @@ export default function TattoDiary() {
   // «Творческая мастерская» — standalone projects, not tied to any client.
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
-  // Главная кнопка «Создать» на Мастерской спрашивает «Новый проект» или
-  // «Сессия без клиента» — держит открытость этого выбора и, для второго
-  // варианта, открытость пикера «в какой проект».
-  const [showWorkshopCreateChoice, setShowWorkshopCreateChoice] = useState(false);
+  // Пикер «в какой проект» для client-less сессии/консультации (Мастерская,
+  // Личный кабинет) — projectPickerKind решает, какая форма откроется после
+  // выбора/создания проекта.
   const [showProjectSessionPicker, setShowProjectSessionPicker] = useState(false);
+  const [projectPickerKind, setProjectPickerKind] = useState<'session' | 'consultation'>('session');
+  // Заметка через CreateChoiceSheet (карточка клиента/мастера, «Мастерская»,
+  // открытый проект) — контекст решает clientId/projectId, с которыми
+  // заметка создаётся.
+  const [noteComposerContext, setNoteComposerContext] = useState<{ clientId: string | null; projectId: string | null } | null>(null);
   // Read-only fullscreen viewer for a consultation or a session, opened by
   // tapping the card body (the pencil still edits). Holds the client id so the
   // viewer always reflects the latest stored copy even after an edit.
@@ -1237,7 +1245,7 @@ export default function TattoDiary() {
     setShowNewSessionForm(false);
     setShowEditClientForm(false);
     setShowNewConsultationForm(false);
-    setShowAddChoice(false);
+    setCreateChoiceContext(null);
     setEditSession(null);
     setEditConsultation(null);
     setChainFromConsultation(null);
@@ -1885,9 +1893,9 @@ export default function TattoDiary() {
     showNewSessionForm ||
     showEditClientForm ||
     showNewConsultationForm ||
-    showAddChoice ||
-    showWorkshopCreateChoice ||
+    createChoiceContext !== null ||
     showProjectSessionPicker ||
+    !!noteComposerContext ||
     showNewProjectForm ||
     !!viewEntry ||
     showCalendar ||
@@ -2457,28 +2465,14 @@ export default function TattoDiary() {
               ? (['reminder'] as const)
               : []),
           ]}
-          // Contextual create — same action each screen's own «+» used to
-          // trigger, now all reachable from one place. Мастер has none.
-          // Открытый просмотр проекта (viewProject) переопределяет экранную
-          // логику — «Создать» тут же заводит сессию/консультацию именно
+          // Contextual create — открывает единую CreateChoiceSheet с нужным
+          // контекстом; сам выбор внутри неё см. в её onPick ниже. Открытый
+          // просмотр проекта (viewProject) переопределяет экранную логику —
+          // «Создать» тут же предлагает сессию/консультацию/заметку именно
           // для этого проекта, а не то, что обычно делает текущий screen.
           onCreate={
             viewProject
-              ? () => {
-                  if (viewProject.clientId) {
-                    const client = clients.find((c) => c.id === viewProject.clientId);
-                    if (!client) return;
-                    setViewProject(null);
-                    setSelectedId(client.id);
-                    setPresetEntryProjectId(viewProject.id);
-                    setShowAddChoice(true);
-                  } else {
-                    setViewProject(null);
-                    setEditSession(null);
-                    setSessionTargetProjectId(viewProject.id);
-                    setShowNewSessionForm(true);
-                  }
-                }
+              ? () => setCreateChoiceContext('viewProject')
               : screen === 'list' || screen === 'settings'
               ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
               : screen === 'summary'
@@ -2486,9 +2480,9 @@ export default function TattoDiary() {
                 : screen === 'admin'
                   ? () => setShowCalendar(true)
                   : screen === 'detail' && selectedClient
-                    ? () => setShowAddChoice(true)
-                    : screen === 'workshop'
-                      ? () => setShowWorkshopCreateChoice(true)
+                    ? () => setCreateChoiceContext('detail')
+                    : screen === 'master' || screen === 'workshop'
+                      ? () => setCreateChoiceContext('workshop')
                       : undefined
           }
         />
@@ -2887,38 +2881,62 @@ export default function TattoDiary() {
         onAdd={saveSessionFromNewSessionSheet}
       />
 
-      {/* ═══════════ ADD CHOICE (карточка клиента) ═══════════ */}
+      {/* ═══════════ CREATE CHOICE (карточка клиента / мастера, «Мастерская», открытый проект) ═══════════ */}
       <CreateChoiceSheet
-        open={showAddChoice}
-        onClose={() => setShowAddChoice(false)}
-        options={['session', 'consultation']}
+        open={createChoiceContext !== null}
+        onClose={() => setCreateChoiceContext(null)}
+        options={createChoiceContext === 'viewProject' ? ['session', 'consultation', 'note'] : ['project', 'session', 'consultation', 'note']}
         onPick={(kind) => {
-          setShowAddChoice(false);
-          runGated(false, () => {
+          const context = createChoiceContext;
+          setCreateChoiceContext(null);
+          if (context === 'viewProject') {
+            if (!viewProject) return;
+            const project = viewProject;
+            setViewProject(null);
             if (kind === 'session') {
               setEditSession(null);
+              setSessionTargetProjectId(project.id);
               setShowNewSessionForm(true);
             } else if (kind === 'consultation') {
               setEditConsultation(null);
+              setConsultationTargetProjectId(project.id);
               setShowNewConsultationForm(true);
+            } else if (kind === 'note') {
+              setNoteComposerContext({ clientId: project.clientId, projectId: project.id });
             }
-          });
-        }}
-      />
-
-      {/* ═══════════ МАСТЕРСКАЯ: «СОЗДАТЬ» → проект / сессия без клиента ═══════════ */}
-      <CreateChoiceSheet
-        open={showWorkshopCreateChoice}
-        onClose={() => setShowWorkshopCreateChoice(false)}
-        options={['project', 'session']}
-        onPick={(kind) => {
-          setShowWorkshopCreateChoice(false);
-          if (kind === 'project') {
-            setEditProject(null);
-            setNewProjectClientId(null);
-            setShowNewProjectForm(true);
-          } else if (kind === 'session') {
-            setShowProjectSessionPicker(true);
+            return;
+          }
+          if (context === 'detail') {
+            if (!selectedClient) return;
+            const client = selectedClient;
+            runGated(false, () => {
+              if (kind === 'project') {
+                setEditProject(null);
+                setNewProjectClientId(client.id);
+                setShowNewProjectForm(true);
+              } else if (kind === 'session') {
+                setEditSession(null);
+                setShowNewSessionForm(true);
+              } else if (kind === 'consultation') {
+                setEditConsultation(null);
+                setShowNewConsultationForm(true);
+              } else if (kind === 'note') {
+                setNoteComposerContext({ clientId: client.id, projectId: null });
+              }
+            });
+            return;
+          }
+          if (context === 'workshop') {
+            if (kind === 'project') {
+              setEditProject(null);
+              setNewProjectClientId(null);
+              setShowNewProjectForm(true);
+            } else if (kind === 'session' || kind === 'consultation') {
+              setProjectPickerKind(kind);
+              setShowProjectSessionPicker(true);
+            } else if (kind === 'note') {
+              setNoteComposerContext({ clientId: null, projectId: null });
+            }
           }
         }}
       />
@@ -2932,9 +2950,15 @@ export default function TattoDiary() {
         }}
         onPick={(project) => {
           setShowProjectSessionPicker(false);
-          setEditSession(null);
-          setSessionTargetProjectId(project.id);
-          setShowNewSessionForm(true);
+          if (projectPickerKind === 'consultation') {
+            setEditConsultation(null);
+            setConsultationTargetProjectId(project.id);
+            setShowNewConsultationForm(true);
+          } else {
+            setEditSession(null);
+            setSessionTargetProjectId(project.id);
+            setShowNewSessionForm(true);
+          }
         }}
         onCreateProject={() => {
           setShowProjectSessionPicker(false);
@@ -2943,6 +2967,35 @@ export default function TattoDiary() {
           // предзаполниться этим же клиентом, а не «Мастерская».
           setNewProjectClientId(pendingContentLinkRef.current?.preferredClientId ?? null);
           setShowNewProjectForm(true);
+        }}
+      />
+      <NoteComposerSheet
+        open={!!noteComposerContext}
+        onClose={() => setNoteComposerContext(null)}
+        presetClientId={noteComposerContext?.clientId ?? null}
+        presetProjectId={noteComposerContext?.projectId ?? null}
+        onAdd={(text, urgency, photos, dueDate, clientId, projectId) => {
+          if (clientId) {
+            upsertNote(clientId, {
+              id: crypto.randomUUID(),
+              text,
+              urgency,
+              done: false,
+              createdDate: new Date().toISOString(),
+              photos,
+              projectId,
+              dueDate,
+            });
+          } else {
+            setMasterInfo({
+              ...masterInfo,
+              notes: [
+                ...masterInfo.notes,
+                { id: crypto.randomUUID(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId, dueDate },
+              ],
+            });
+          }
+          setNoteComposerContext(null);
         }}
       />
 
