@@ -127,7 +127,9 @@ test('tube light falls onto the pendant hardware and upper crown', () => {
 
 test('active medallion halo rises into the tube glow without following the pendulum swing', () => {
   assert.match(tabBarModule, /active && \([\s\S]*className="client-card-tabbar__active-halo"[\s\S]*--active-gem-color/);
-  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*top: -17px[\s\S]*ellipse 18px 42px at 50% 0%/);
+  assert.match(indexCss, /\.client-card-tabbar__marker[\s\S]*isolation: isolate/);
+  assert.match(indexCss, /\.client-card-tabbar__pendulum[\s\S]*z-index: 1/);
+  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*z-index: 0[\s\S]*top: -17px[\s\S]*ellipse 27px 34px at 50% 50%[\s\S]*ellipse 18px 42px at 50% 0%/);
   assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*rgba\(255, 248, 215, 0\.3\)[\s\S]*rgba\(255, 215, 119, 0\.2\)/);
   assert.match(tabBarModule, /client-card-tabbar__active-halo[\s\S]*<GemJumpRing active=\{active\} \/>[\s\S]*client-card-tabbar__pendulum/);
 });
