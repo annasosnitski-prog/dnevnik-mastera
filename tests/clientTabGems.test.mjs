@@ -114,6 +114,21 @@ test('client tabs hang from a gold tube carrying the client-colour reflection', 
   assert.match(detailScreen, /boxSizing: 'border-box',[\s\S]*height: 5,[\s\S]*borderRadius: 999/);
   assert.match(detailScreen, /#FFD777[\s\S]*#FFF8D7[\s\S]*#431A00/);
   assert.match(detailScreen, /color-mix\(in srgb, \$\{client\.color\}[\s\S]*mixBlendMode: 'screen'/);
+  assert.match(detailScreen, /0 0 4px rgba\(255,215,119,\.55\)/);
+});
+
+test('tube light falls onto the pendant hardware and upper crown', () => {
+  assert.match(tabBarModule, /className="client-card-tabbar__bail"/);
+  assert.match(tabBarModule, /className="client-card-tabbar__medallion"/);
+  assert.match(indexCss, /\.client-card-tabbar__jump-ring[\s\S]*drop-shadow\(0 -1px 1px rgba\(255, 215, 119, 0\.58\)\)/);
+  assert.match(indexCss, /\.client-card-tabbar__bail[\s\S]*drop-shadow\(0 -1px 0\.8px rgba\(255, 240, 179, 0\.42\)\)/);
+  assert.match(gemSprite, /data-tube-reflection="ambient"[\s\S]*data-tube-reflection="highlight"/);
+});
+
+test('shared sky keeps irregular stars without a repeating dot grid', () => {
+  assert.match(tattoDiary, /<StarfieldBackground \/>/);
+  assert.doesNotMatch(tattoDiary, /backgroundSize: '22px 22px'/);
+  assert.doesNotMatch(tattoDiary, /rgba\(var\(--gold-rgb\),0\.035\) 1px/);
 });
 
 test('jump-ring is threaded through the tube and swivels through a true profile', () => {

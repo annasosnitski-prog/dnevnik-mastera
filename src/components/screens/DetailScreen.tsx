@@ -501,7 +501,11 @@ export function DetailScreen({
               #EFAD3C 52%,
               #A55408 72%,
               #431A00 100%)`,
-            boxShadow: '0 1px 0 rgba(255,240,179,.28) inset, 0 1px 3px rgba(0,0,0,.38)',
+            boxShadow: `
+              0 1px 0 rgba(255,240,179,.34) inset,
+              0 1px 3px rgba(0,0,0,.38),
+              0 0 4px rgba(255,215,119,.55),
+              0 0 10px color-mix(in srgb, ${client.color} 18%, rgba(226,182,85,.24) 82%)`,
           }}
         >
           <span

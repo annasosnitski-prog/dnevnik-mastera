@@ -100,6 +100,7 @@ function GemBail() {
     <svg
       aria-hidden="true"
       viewBox="0 0 18 14"
+      className="client-card-tabbar__bail"
       style={{
         position: 'absolute',
         top: 1,
@@ -190,6 +191,7 @@ function GemTabMarker({
         <GemBail />
         <span
           aria-hidden="true"
+          className="client-card-tabbar__medallion"
           style={{
             position: 'absolute',
             inset: 0,
