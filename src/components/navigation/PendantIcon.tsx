@@ -145,10 +145,10 @@ export function PendantIcon({
           <radialGradient id={goldFace} cx=".34" cy=".2" r=".84">
             <stop offset="0" stopColor="#FFF8D7" />
             <stop offset=".14" stopColor="#FFD777" />
-            <stop offset=".34" stopColor="#C77A14" />
+            <stop offset=".34" stopColor="#B88B32" />
             <stop offset=".56" stopColor="#793804" />
-            <stop offset=".76" stopColor="#EFAD3C" />
-            <stop offset=".91" stopColor="#8E4709" />
+            <stop offset=".76" stopColor="#E2B655" />
+            <stop offset=".91" stopColor="#7C5315" />
             <stop offset="1" stopColor="#431A00" />
           </radialGradient>
           {/* A much gentler sheen than goldFace's dramatic dome-lit radial —
@@ -163,10 +163,10 @@ export function PendantIcon({
           <linearGradient id={goldEdge} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor="#6B2C00" />
             <stop offset=".16" stopColor="#FFF0B3" />
-            <stop offset=".35" stopColor="#B45F0B" />
+            <stop offset=".35" stopColor="#9F772C" />
             <stop offset=".55" stopColor="#FFD36E" />
             <stop offset=".75" stopColor="#7D3603" />
-            <stop offset="1" stopColor="#F1B54A" />
+            <stop offset="1" stopColor="#E6BE68" />
           </linearGradient>
           <radialGradient id={diamondBase} cx=".32" cy=".26" r=".75">
             <stop offset="0" stopColor="#FFFFFF" />

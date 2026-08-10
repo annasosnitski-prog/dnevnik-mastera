@@ -21,10 +21,10 @@
     <radialGradient id="gold-face" cx=".34" cy=".2" r=".84">
       <stop offset="0" stop-color="#FFF8D7"/>
       <stop offset=".14" stop-color="#FFD777"/>
-      <stop offset=".34" stop-color="#C77A14"/>
+      <stop offset=".34" stop-color="#B88B32"/>
       <stop offset=".56" stop-color="#793804"/>
-      <stop offset=".76" stop-color="#EFAD3C"/>
-      <stop offset=".91" stop-color="#8E4709"/>
+      <stop offset=".76" stop-color="#E2B655"/>
+      <stop offset=".91" stop-color="#7C5315"/>
       <stop offset="1" stop-color="#431A00"/>
     </radialGradient>
     <linearGradient id="plate-face" x1="0" y1="0" x2="1" y2="1">
@@ -36,10 +36,10 @@
     <linearGradient id="gold-edge" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#6B2C00"/>
       <stop offset=".16" stop-color="#FFF0B3"/>
-      <stop offset=".35" stop-color="#B45F0B"/>
+      <stop offset=".35" stop-color="#9F772C"/>
       <stop offset=".55" stop-color="#FFD36E"/>
       <stop offset=".75" stop-color="#7D3603"/>
-      <stop offset="1" stop-color="#F1B54A"/>
+      <stop offset="1" stop-color="#E6BE68"/>
     </linearGradient>
     <radialGradient id="diamond-base" cx=".32" cy=".26" r=".75">
       <stop offset="0" stop-color="#FFFFFF"/>
@@ -120,7 +120,7 @@
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="content-icon" color="#7040A0" transform="translate(128 0)" filter="url(#medallion-shadow)">
+  <g id="content-icon" color="#7935B2" transform="translate(128 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
@@ -132,7 +132,7 @@
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="projects-icon" color="#173F8F" transform="translate(320 0)" filter="url(#medallion-shadow)">
+  <g id="projects-icon" color="#1448A7" transform="translate(320 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>

@@ -46,8 +46,8 @@ test('all six tabs keep the same order as the six tiles in gem-icons.svg', () =>
 test('toolbar and client tabs share one semantic colour palette', () => {
   assert.match(designTokens, /clients: '#008A5A'/);
   assert.match(designTokens, /personal: '#C99516'/);
-  assert.match(designTokens, /content: '#7040A0'/);
-  assert.match(designTokens, /projects: '#173F8F'/);
+  assert.match(designTokens, /content: '#7935B2'/);
+  assert.match(designTokens, /projects: '#1448A7'/);
   assert.match(designTokens, /notes: '#D45A1F'/);
   assert.match(designTokens, /admin: '#B01236'/);
 
@@ -72,13 +72,16 @@ test('toolbar stones render optical depth below the crown without extra blur fil
 });
 
 test('ornate tabs use the main-button gold material and a one-sixth centre stone', () => {
-  assert.match(gemSprite, /id="gold-face"[\s\S]*stop-color="#FFF8D7"[\s\S]*stop-color="#431A00"/);
+  assert.match(gemSprite, /id="gold-face"[\s\S]*stop-color="#FFF8D7"[\s\S]*stop-color="#B88B32"[\s\S]*stop-color="#E2B655"[\s\S]*stop-color="#431A00"/);
+  assert.doesNotMatch(pendantIcon, /#C77A14|#EFAD3C|#B45F0B|#F1B54A/);
+  assert.doesNotMatch(gemSprite, /#C77A14|#EFAD3C|#B45F0B|#F1B54A/);
   assert.match(gemSprite, /id="gold-medallion"[\s\S]*scale\(\.724138\)[\s\S]*r="29" fill="url\(#gold-face\)"/);
   assert.equal((gemSprite.match(/r="5\.333333"/g) ?? []).length, 3);
   assert.match(gemSprite, /id="sessions-icon" color="#B01236"/);
   assert.match(gemSprite, /id="consultations-icon" color="#008A5A"/);
   assert.match(gemSprite, /id="info-icon" color="#C99516"/);
-  assert.match(gemSprite, /id="projects-icon" color="#173F8F"/);
+  assert.match(gemSprite, /id="content-icon" color="#7935B2"/);
+  assert.match(gemSprite, /id="projects-icon" color="#1448A7"/);
 });
 
 test('tab names stay accessible without browser-native tooltip boxes', () => {

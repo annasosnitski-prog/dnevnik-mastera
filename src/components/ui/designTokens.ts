@@ -19,8 +19,8 @@ export const TERRITORY_COLORS = {
   // Emerald · citrine · amethyst · dark sapphire · fire opal · ruby.
   clients: '#008A5A',
   personal: '#C99516',
-  content: '#7040A0',
-  projects: '#173F8F',
+  content: '#7935B2',
+  projects: '#1448A7',
   notes: '#D45A1F',
   admin: '#B01236',
 } as const;
