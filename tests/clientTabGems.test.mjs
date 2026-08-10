@@ -117,6 +117,16 @@ test('client tabs hang from a gold tube carrying the client-colour reflection', 
   assert.match(detailScreen, /0 0 4px rgba\(255,215,119,\.55\)/);
 });
 
+test('gold tube has five glowing spherical separators centred between six medallions', () => {
+  assert.match(detailScreen, /data-tube-dividers[\s\S]*left: 8,[\s\S]*right: 8,[\s\S]*top: '50%'/);
+  assert.match(detailScreen, /CLIENT_TABS\.slice\(0, -1\)\.map/);
+  assert.match(detailScreen, /data-tube-divider=\{index \+ 1\}/);
+  assert.match(detailScreen, /\(\(index \+ 1\) \/ CLIENT_TABS\.length\) \* 100/);
+  assert.match(detailScreen, /width: 7,[\s\S]*height: 7,[\s\S]*borderRadius: '50%'/);
+  assert.match(detailScreen, /#FFFDF0[\s\S]*#FFD777[\s\S]*#C77A14[\s\S]*#431A00/);
+  assert.match(detailScreen, /0 0 6px rgba\(255,215,119,\.72\)/);
+});
+
 test('tube light falls onto the pendant hardware and upper crown', () => {
   assert.match(tabBarModule, /className="client-card-tabbar__bail"/);
   assert.match(tabBarModule, /className="client-card-tabbar__medallion"/);
