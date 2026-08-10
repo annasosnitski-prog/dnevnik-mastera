@@ -125,6 +125,13 @@ test('tube light falls onto the pendant hardware and upper crown', () => {
   assert.match(gemSprite, /data-tube-reflection="ambient"[\s\S]*data-tube-reflection="highlight"/);
 });
 
+test('active medallion halo rises into the tube glow without following the pendulum swing', () => {
+  assert.match(tabBarModule, /active && \([\s\S]*className="client-card-tabbar__active-halo"[\s\S]*--active-gem-color/);
+  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*top: -17px[\s\S]*ellipse 18px 42px at 50% 0%/);
+  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*rgba\(255, 248, 215, 0\.3\)[\s\S]*rgba\(255, 215, 119, 0\.2\)/);
+  assert.match(tabBarModule, /client-card-tabbar__active-halo[\s\S]*<GemJumpRing active=\{active\} \/>[\s\S]*client-card-tabbar__pendulum/);
+});
+
 test('shared sky keeps irregular stars without a repeating dot grid', () => {
   assert.match(tattoDiary, /<StarfieldBackground \/>/);
   assert.doesNotMatch(tattoDiary, /backgroundSize: '22px 22px'/);

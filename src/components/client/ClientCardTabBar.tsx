@@ -176,6 +176,13 @@ function GemTabMarker({
         transition: 'opacity 0.25s, filter 0.25s',
       }}
     >
+      {active && (
+        <span
+          aria-hidden="true"
+          className="client-card-tabbar__active-halo"
+          style={{ '--active-gem-color': color } as CSSProperties}
+        />
+      )}
       <GemJumpRing active={active} />
       <span
         aria-hidden="true"
