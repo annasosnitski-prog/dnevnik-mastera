@@ -215,7 +215,9 @@ const MASTER_FOLDER_TITLE = 'Проекты мастера';
 // у настоящей папки этого клиента.
 const MISSING_CLIENT_FOLDER_TITLE = 'Клиент не найден';
 
-export function buildProjectFolders(projects: Project[], clients: Client[]): ProjectFolder[] {
+// today — yyyy-mm-dd (см. localISO в buildReminders.ts) — задаёт «сейчас»
+// для сортировки папок по активности (M6, см. ниже).
+export function buildProjectFolders(projects: Project[], clients: Client[], today: string): ProjectFolder[] {
   const projectsByClientId = new Map<string, Project[]>();
   const masterProjects: Project[] = [];
   const unknownClientIdsInFirstAppearanceOrder: string[] = [];
@@ -243,13 +245,15 @@ export function buildProjectFolders(projects: Project[], clients: Client[]): Pro
     }
   }
 
-  const folders: ProjectFolder[] = [];
+  const clientFolders: ProjectFolder[] = [];
 
-  // Известные клиентские папки — в порядке clients.
+  // Известные клиентские папки — у КАЖДОГО клиента есть папка (M6), даже
+  // без единого проекта — «Мастерская» больше не прячет клиента, пока он не
+  // завёл первый проект, это и есть его будущее место для проектов с
+  // момента создания клиента.
   for (const client of clients) {
-    const clientProjects = projectsByClientId.get(client.id);
-    if (!clientProjects || clientProjects.length === 0) continue;
-    folders.push({
+    const clientProjects = projectsByClientId.get(client.id) ?? [];
+    clientFolders.push({
       id: `client:${client.id}`,
       title: `${client.name} ${client.surname}`.trim(),
       type: 'client',
@@ -260,11 +264,12 @@ export function buildProjectFolders(projects: Project[], clients: Client[]): Pro
   }
 
   // Fallback-папки для ссылок на отсутствующих клиентов — по первому
-  // появлению соответствующего clientId в projects.
+  // появлению соответствующего clientId в projects. В отличие от известных
+  // клиентов выше, эта ветка по построению никогда не пуста (unknownClientId
+  // попадает сюда только вместе с хотя бы одним проектом), continue не нужен.
   for (const clientId of unknownClientIdsInFirstAppearanceOrder) {
-    const clientProjects = projectsByClientId.get(clientId);
-    if (!clientProjects || clientProjects.length === 0) continue;
-    folders.push({
+    const clientProjects = projectsByClientId.get(clientId) ?? [];
+    clientFolders.push({
       id: `client:${clientId}`,
       title: MISSING_CLIENT_FOLDER_TITLE,
       type: 'client',
@@ -274,7 +279,32 @@ export function buildProjectFolders(projects: Project[], clients: Client[]): Pro
     });
   }
 
-  // «Проекты мастера» — всегда последняя, визуально равноправная папка.
+  // Сортировка клиентских папок (M6): просрочка → запланированное → есть
+  // проекты без активности → ни одного проекта — в самом конце. Та же логика
+  // «просрочка/запланировано», что уже использует staleProjects
+  // (reminders/buildReminders.ts) для отдельных проектов — здесь папка
+  // получает ранг лучшего из своих проектов. Сортировка stable — порядок
+  // внутри одного ранга не меняется (для клиентов — порядок clients, как и
+  // раньше).
+  const allSessions = [...clients.flatMap((c) => c.sessions), ...projects.flatMap((p) => p.sessions)];
+  const allConsultations = [...clients.flatMap((c) => c.consultations), ...projects.flatMap((p) => p.consultations)];
+  const folderRank = (folder: ProjectFolder): number => {
+    if (folder.projects.length === 0) return 3;
+    if (folder.projects.some((p) => hasOverdueWork(p, allSessions, allConsultations, today))) return 0;
+    if (folder.projects.some((p) => hasScheduledWork(p, allSessions, allConsultations, today))) return 1;
+    return 2;
+  };
+  const sortedClientFolders = clientFolders
+    .map((folder, index) => ({ folder, index }))
+    .sort((a, b) => folderRank(a.folder) - folderRank(b.folder) || a.index - b.index)
+    .map(({ folder }) => folder);
+
+  const folders: ProjectFolder[] = [...sortedClientFolders];
+
+  // «Проекты мастера» — всегда последняя, визуально равноправная папка
+  // (не участвует в сортировке по активности выше — это не «клиент без
+  // проекта», а агрегат всех client-less проектов, его место в конце —
+  // осознанный, не активностный выбор).
   if (masterProjects.length > 0) {
     folders.push({
       id: 'master',
