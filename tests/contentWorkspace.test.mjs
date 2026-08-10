@@ -127,7 +127,9 @@ test('client Content tab uses the same compact hand-off surface', () => {
   const source = readFileSync(new URL('../src/components/screens/DetailScreen.tsx', import.meta.url), 'utf8');
   const clientTab = source.slice(source.indexOf('function ClientContentTab({'), source.indexOf('// ── Info tab ──'));
 
-  assert.match(source, /onTab\('content'\)/);
+  // Строка вкладок теперь строится из данных (см. clientTabGems.test.mjs) —
+  // «Контент» задаётся записью в CLIENT_TABS, а не отдельным onClick.
+  assert.match(source, /\{ id: 'content', kind: 'content', label: 'Контент' \}/);
   assert.match(clientTab, /<ContentPanel/);
   assert.match(clientTab, /sourceType=\{source\.sourceType\}/);
   assert.doesNotMatch(clientTab, /textDraft|sendToContent|onSaveEntry|onDeleteEntry/);

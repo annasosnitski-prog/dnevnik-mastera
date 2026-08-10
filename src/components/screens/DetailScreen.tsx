@@ -13,7 +13,7 @@ import { type Session } from '../../domain/session';
 import { type Consultation, isConsultationDeletable } from '../../domain/consultation';
 import { type ClientNote } from '../../domain/task';
 import { type UrgencyKey } from '../../domain/urgency';
-import { type Project, PROJECT_STAGES } from '../../domain/project';
+import { type Project } from '../../domain/project';
 import { getProjectsByClientId, getConsultationNumber } from '../../domain/projectSelectors';
 import { urgencyMeta, urgencyRank } from '../../domain/taskSelectors';
 import { lastSessionDate } from '../../domain/plannerSelectors';
@@ -29,14 +29,14 @@ import {
   SKIN_TYPES,
   INPUT_STYLE,
   ContentPanel,
+  ProjectCard,
   useSwipeToReveal,
   shareOrDownloadJSON,
 } from '../TattoDiary';
 import { SessionPhotos, SkinTonePalette, UrgencyChips, AddChatLinkForm } from '../client/ClientControls';
-import { ClientTabIcon } from '../client/ClientTabIcons';
+import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { GoldFrame } from '../ui/Stripes';
 import { MetaLabel, MetaValue, SectionDivider, SectionHeader } from '../ui/TextAtoms';
-import { useMinimalism } from '../ui/minimalism';
 
 // Вынесено из TattoDiary.tsx (PR 11 рефакторинга) — весь кластер «карточка
 // клиента»: экран DetailScreen + его вкладки (Инфо/Сессии/Консультации/
@@ -153,26 +153,16 @@ function CoverNoteEditor({ client, onSave }: { client: Client; onSave: (c: Clien
 }
 
 // ===================== DETAIL SCREEN =====================
-const CLIENT_TAB_GEM_SIZE = 54;
-const CLIENT_TAB_GEM_INDEX = {
-  sessions: 0,
-  consultations: 1,
-  content: 2,
-  notes: 3,
-  info: 4,
-} as const;
-type ClientTabGem = keyof typeof CLIENT_TAB_GEM_INDEX;
-// Same «toolbar palette» each tab's gem stone is already cut from (see
-// gem-icons.svg's own <desc>) — reused as the minimalist icon's active
-// colour so switching Минимализм on/off never changes which colour means
-// which tab.
-const CLIENT_TAB_COLOR: Record<ClientTabGem, string> = {
-  sessions: '#5CFF24',
-  consultations: '#00CFFF',
-  content: '#C12FFF',
-  notes: '#FF8900',
-  info: '#FF3342',
-};
+// Каркас вкладок (подвеска-самоцвет + строка вкладок) — в client/ClientCardTabBar.tsx,
+// общий с Личным кабинетом мастера (см. его собственный комментарий).
+const CLIENT_TABS: ClientCardTabDef<'sessions' | 'consultations' | 'content' | 'extra' | 'info' | 'projects'>[] = [
+  { id: 'sessions', kind: 'sessions', label: 'Сессии' },
+  { id: 'consultations', kind: 'consultations', label: 'Консультации' },
+  { id: 'content', kind: 'content', label: 'Контент' },
+  { id: 'extra', kind: 'notes', label: 'Заметки' },
+  { id: 'info', kind: 'info', label: 'Инфо' },
+  { id: 'projects', kind: 'projects', label: 'Проекты' },
+];
 
 export function DetailScreen({
   client,
@@ -205,8 +195,8 @@ export function DetailScreen({
   onCreateProject,
 }: {
   client: Client;
-  activeTab: 'info' | 'sessions' | 'consultations' | 'content' | 'extra';
-  onTab: (t: 'info' | 'sessions' | 'consultations' | 'content' | 'extra') => void;
+  activeTab: 'info' | 'sessions' | 'consultations' | 'content' | 'extra' | 'projects';
+  onTab: (t: 'info' | 'sessions' | 'consultations' | 'content' | 'extra' | 'projects') => void;
   onBack: () => void;
   onSave: (client: Client) => void;
   onEditClient: () => void;
@@ -246,107 +236,6 @@ export function DetailScreen({
   onOpenProject: (project: Project) => void;
   onCreateProject: () => void;
 }) {
-  const minimalism = useMinimalism();
-  const tabStyle = (tab: typeof activeTab): React.CSSProperties => ({
-    flex: 1,
-    minWidth: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    appearance: 'none',
-    padding: '4px 1px 3px',
-    background: 'none',
-    borderTop: 'none',
-    borderRight: 'none',
-    borderLeft: 'none',
-    borderBottom: activeTab === tab ? `1px solid ${COLORS.gold}` : '1px solid transparent',
-    cursor: 'pointer',
-    transition: 'border-color 0.25s',
-    position: 'relative',
-  });
-
-  // Each pendant hangs from a small gold jump-ring that hooks right onto the
-  // client-colour rod (overlapping its 4px band, like a bail threaded onto a
-  // chain) plus a link bridging down to the pendant's own bail — the rod
-  // itself never changes colour or shape, only the pendant below it swaps
-  // per tab.
-  const gemLink = (
-    <span aria-hidden="true" style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
-      <span
-        style={{
-          display: 'block',
-          width: 4,
-          height: 4,
-          margin: '0 auto',
-          borderRadius: '50%',
-          border: '1.2px solid rgba(var(--gold-rgb),0.95)',
-        }}
-      />
-      <span
-        style={{
-          display: 'block',
-          width: 1.4,
-          height: 8,
-          margin: '0 auto',
-          background: 'linear-gradient(180deg, rgba(var(--gold-rgb),0.85), rgba(var(--gold-rgb),0.3))',
-        }}
-      />
-    </span>
-  );
-
-  // Минимализм swaps the gem sprite + chain for a plain circle carrying a
-  // linear icon from ClientTabIcons — same tab logic/order, just a different
-  // functional-layer skin (see NavFab's own minimal branch for the same idea
-  // applied to the nav hub).
-  const gemMarker = (kind: ClientTabGem, tab: typeof activeTab) => {
-    if (minimalism) {
-      const isActive = activeTab === tab;
-      return (
-        <span
-          aria-hidden="true"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: CLIENT_TAB_GEM_SIZE,
-            height: CLIENT_TAB_GEM_SIZE,
-            flexShrink: 0,
-            borderRadius: '50%',
-            background: 'rgba(var(--surface-rgb),0.07)',
-            border: `1px solid ${isActive ? CLIENT_TAB_COLOR[kind] : 'rgba(var(--gold-rgb),0.2)'}`,
-            boxShadow: isActive ? `0 0 0 1.5px ${CLIENT_TAB_COLOR[kind]}, 0 0 14px -4px ${CLIENT_TAB_COLOR[kind]}` : undefined,
-            color: isActive ? CLIENT_TAB_COLOR[kind] : 'var(--toolbar-icon)',
-            transition: 'color 0.25s, border-color 0.25s, box-shadow 0.25s',
-          }}
-        >
-          <ClientTabIcon name={kind} size={26} />
-        </span>
-      );
-    }
-    return (
-      <>
-        {gemLink}
-        <span
-          aria-hidden="true"
-          className={activeTab === tab ? 'pendant-swing' : undefined}
-          style={{
-            display: 'block',
-            width: CLIENT_TAB_GEM_SIZE,
-            height: CLIENT_TAB_GEM_SIZE,
-            flexShrink: 0,
-            backgroundImage: 'url(/gem-icons.svg)',
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: `${CLIENT_TAB_GEM_SIZE * 5}px ${CLIENT_TAB_GEM_SIZE}px`,
-            backgroundPosition: `${-CLIENT_TAB_GEM_INDEX[kind] * CLIENT_TAB_GEM_SIZE}px 0`,
-            opacity: activeTab === tab ? 1 : 0.62,
-            filter: activeTab === tab ? 'none' : 'saturate(0.72) brightness(0.82)',
-            transition: 'opacity 0.25s, filter 0.25s',
-          }}
-        />
-      </>
-    );
-  };
-
   // The tab-content scroller is a single reused DOM node across every client
   // and every tab, so its scrollTop otherwise carries over — opening a new
   // client (or switching tabs) could land you mid-scroll instead of at top.
@@ -611,25 +500,7 @@ export function DetailScreen({
         />
       </div>
 
-      {/* One large gemstone per tab; labels stay available to assistive
-          technology and hover tooltips without competing for horizontal room. */}
-      <div role="tablist" aria-label="Разделы клиента" style={{ display: 'flex', borderBottom: '1px solid rgba(var(--gold-rgb),0.1)', padding: '0 8px', background: COLORS.bg, flexShrink: 0 }}>
-        <button type="button" role="tab" aria-selected={activeTab === 'sessions'} aria-label="Сессии" title="Сессии" onClick={() => onTab('sessions')} style={tabStyle('sessions')}>
-          {gemMarker('sessions', 'sessions')}
-        </button>
-        <button type="button" role="tab" aria-selected={activeTab === 'consultations'} aria-label="Консультации" title="Консультации" onClick={() => onTab('consultations')} style={tabStyle('consultations')}>
-          {gemMarker('consultations', 'consultations')}
-        </button>
-        <button type="button" role="tab" aria-selected={activeTab === 'content'} aria-label="Контент" title="Контент" onClick={() => onTab('content')} style={tabStyle('content')}>
-          {gemMarker('content', 'content')}
-        </button>
-        <button type="button" role="tab" aria-selected={activeTab === 'extra'} aria-label="Заметки" title="Заметки" onClick={() => onTab('extra')} style={tabStyle('extra')}>
-          {gemMarker('notes', 'extra')}
-        </button>
-        <button type="button" role="tab" aria-selected={activeTab === 'info'} aria-label="Инфо" title="Инфо" onClick={() => onTab('info')} style={tabStyle('info')}>
-          {gemMarker('info', 'info')}
-        </button>
-      </div>
+      <ClientCardTabBar tabs={CLIENT_TABS} activeTab={activeTab} onTab={onTab} ariaLabel="Разделы клиента" />
 
       {/* Sub-header — pinned below the tab bar (never scrolls), shown on
           both the Сессии and Консультации tabs, labelled per tab now that
@@ -680,12 +551,9 @@ export function DetailScreen({
         {activeTab === 'info' && (
           <InfoTab
             client={client}
-            projects={projects}
             onSave={onSave}
             onAddDocument={onAddDocument}
             onRemoveDocument={onRemoveDocument}
-            onOpenProject={onOpenProject}
-            onCreateProject={onCreateProject}
           />
         )}
         {activeTab === 'extra' && (
@@ -699,6 +567,9 @@ export function DetailScreen({
         )}
         {activeTab === 'content' && (
           <ClientContentTab client={client} entries={contentEntries} onOpenContent={onOpenContent} />
+        )}
+        {activeTab === 'projects' && (
+          <ProjectsTab client={client} projects={projects} onOpenProject={onOpenProject} onCreateProject={onCreateProject} />
         )}
       </div>
     </>
@@ -752,25 +623,67 @@ function ClientContentTab({
   );
 }
 
-// ── Info tab ──
-function InfoTab({
+// ── Проекты клиента (Этап 3a, своя вкладка с PR «карточка клиента ↔ Личный
+//    кабинет») — та же ProjectCard (и та же сетка), что и в Мастерской, а не
+//    отдельный компактный список: здесь у вкладки есть собственное место,
+//    как у Сессий/Заметок. ──
+function ProjectsTab({
   client,
   projects,
-  onSave,
-  onAddDocument,
-  onRemoveDocument,
   onOpenProject,
   onCreateProject,
 }: {
   client: Client;
-  // Проекты этого клиента (Этап 3a) — видно сразу, что их может быть
-  // несколько, без похода в Мастерскую и фильтра по клиенту.
   projects: Project[];
+  onOpenProject: (project: Project) => void;
+  onCreateProject: () => void;
+}) {
+  const clientProjects = getProjectsByClientId(projects, client.id);
+
+  return (
+    <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div
+          style={{
+            fontFamily: "'Kelly Slab', 'Playfair Display', serif",
+            fontSize: fs(11),
+            color: COLORS.textGhost,
+            letterSpacing: '3.5px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Проекты
+        </div>
+        <span onClick={onCreateProject} style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
+          + Новый
+        </span>
+      </div>
+      {clientProjects.length === 0 ? (
+        <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
+          Пока нет проектов — нажмите «+ Новый», чтобы добавить первый
+        </div>
+      ) : (
+        <div className="inka-client-grid" style={{ display: 'grid', gap: 10 }}>
+          {clientProjects.map((p) => (
+            <ProjectCard key={p.id} project={p} clientName={null} onClick={() => onOpenProject(p)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Info tab ──
+function InfoTab({
+  client,
+  onSave,
+  onAddDocument,
+  onRemoveDocument,
+}: {
+  client: Client;
   onSave: (client: Client) => void;
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
-  onOpenProject: (project: Project) => void;
-  onCreateProject: () => void;
 }) {
   const metaCell = (span = false): React.CSSProperties => ({
     background: 'rgba(var(--surface-rgb),0.018)',
@@ -779,64 +692,11 @@ function InfoTab({
     padding: 13,
     gridColumn: span ? 'span 2' : undefined,
   });
-  const clientProjects = getProjectsByClientId(projects, client.id);
 
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
       {/* Contacts — moved to the top (was master notes) */}
       <ContactsSection client={client} onSave={onSave} first />
-
-      <SectionDivider />
-
-      {/* Проекты клиента (Этап 3a) — один клиент может иметь несколько. */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div
-            style={{
-              fontFamily: "'Kelly Slab', 'Playfair Display', serif",
-              fontSize: fs(11),
-              color: COLORS.textGhost,
-              letterSpacing: '3.5px',
-              textTransform: 'uppercase',
-            }}
-          >
-            Проекты
-          </div>
-          <span onClick={onCreateProject} style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
-            + Новый
-          </span>
-        </div>
-        {clientProjects.length === 0 ? (
-          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет проектов</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {clientProjects.map((p) => (
-              <div
-                key={p.id}
-                onClick={() => onOpenProject(p)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '9px 11px',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  border: '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: 'rgba(var(--surface-rgb),0.018)',
-                }}
-              >
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-                <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {p.title || 'Без названия'}
-                </span>
-                <span style={{ fontSize: fs(10.5), color: COLORS.textFaint, flexShrink: 0 }}>
-                  {PROJECT_STAGES.find((s) => s.key === p.stage)?.label ?? p.stage}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       <SectionDivider />
 

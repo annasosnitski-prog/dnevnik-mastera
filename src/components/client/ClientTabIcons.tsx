@@ -5,7 +5,7 @@ import type { ReactNode, SVGProps } from 'react';
 // navigation/NavFab.tsx): one shared viewBox, one stroke weight, no fill,
 // currentColor so the caller drives colour (muted vs. the tab's own brand
 // colour, matching the toolbar palette already baked into gem-icons.svg).
-export type ClientTabIconName = 'sessions' | 'consultations' | 'content' | 'notes' | 'info';
+export type ClientTabIconName = 'sessions' | 'consultations' | 'content' | 'notes' | 'info' | 'projects';
 
 const common = {
   fill: 'none' as const,
@@ -56,6 +56,14 @@ function ClientTabGlyph({ name }: { name: ClientTabIconName }): ReactNode {
           <circle cx="0" cy="0" r="7" />
           <line x1="0" y1="-1.5" x2="0" y2="4" />
           <circle cx="0" cy="-4.5" r="0.9" fill="currentColor" stroke="none" />
+        </g>
+      );
+    case 'projects':
+      // A folder — the project's own container for sessions/consultations.
+      return (
+        <g {...common}>
+          <path d="M-7-3v-2.5h3.2l1.6 2.5" />
+          <rect x="-7" y="-3" width="14" height="10" rx="1.4" />
         </g>
       );
   }
