@@ -1573,26 +1573,26 @@ input[type='date'] {
    its own planar swing around the same physical hinge. */
 @keyframes jump-ring-swivel {
   0% {
-    transform: perspective(80px) rotateY(58deg) rotateZ(-7deg);
+    transform: perspective(80px) rotateX(58deg) rotateZ(-7deg);
   }
   20% {
-    transform: perspective(80px) rotateY(88deg) rotateZ(-2deg);
+    transform: perspective(80px) rotateX(88deg) rotateZ(-2deg);
   }
   40% {
-    transform: perspective(80px) rotateY(111deg) rotateZ(5deg);
+    transform: perspective(80px) rotateX(111deg) rotateZ(5deg);
   }
   60% {
-    transform: perspective(80px) rotateY(82deg) rotateZ(-3deg);
+    transform: perspective(80px) rotateX(82deg) rotateZ(-3deg);
   }
   80% {
-    transform: perspective(80px) rotateY(64deg) rotateZ(-6deg);
+    transform: perspective(80px) rotateX(64deg) rotateZ(-6deg);
   }
   100% {
-    transform: perspective(80px) rotateY(58deg) rotateZ(-7deg);
+    transform: perspective(80px) rotateX(58deg) rotateZ(-7deg);
   }
 }
 .client-card-tabbar__jump-ring {
-  transform: perspective(80px) rotateY(58deg) rotateZ(-7deg);
+  transform: perspective(80px) rotateX(58deg) rotateZ(-7deg);
   transform-origin: 50% 48%;
   transform-style: preserve-3d;
 }
