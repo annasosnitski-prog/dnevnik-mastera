@@ -55,70 +55,67 @@ const TAB_BUTTON_STYLE: CSSProperties = {
   position: 'relative',
 };
 
-// One substantial jump-ring wraps the gold tube; a folded bail links that
-// ring to the medallion and disappears behind its top edge. Both pieces move
-// with the medallion, so the selected tab swings from the tube instead of
-// leaving a static connector floating above it.
-function GemLink() {
+// The jump-ring is threaded onto the tube. It swivels around that horizontal
+// axis as the weight below moves, passing through a three-quarter projection
+// and a true edge-on profile instead of behaving like a flat oval glued onto
+// the front of the tube.
+function GemJumpRing({ active }: { active: boolean }) {
   return (
-    <svg
+    <span
       aria-hidden="true"
-      viewBox="0 0 18 24"
       style={{
         position: 'absolute',
         top: -10,
         left: '50%',
         width: 18,
-        height: 24,
+        height: 14,
+        transform: 'translateX(-50%)',
+        pointerEvents: 'none',
+        zIndex: 3,
+      }}
+    >
+      <svg
+        viewBox="0 0 18 14"
+        className={active ? 'client-card-tabbar__jump-ring jump-ring-swivel' : 'client-card-tabbar__jump-ring'}
+        style={{ width: 18, height: 14, display: 'block', overflow: 'visible' }}
+      >
+        {/* Rear wire: the tube occupies y=1…6 in this view. Removing that
+            strip lets the real tube remain visible in front of the rear arc. */}
+        <path d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#4B1A00" strokeWidth="4" strokeLinecap="round" />
+        <path d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#9A4B08" strokeWidth="2.8" strokeLinecap="round" />
+
+        {/* Front wire: this half crosses in front of the tube, making the rod
+            visibly pass through the ring rather than sit behind the drawing. */}
+        <path d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" />
+        <path d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#C77A14" strokeWidth="2.9" strokeLinecap="round" />
+        <path d="M7.1 11.8 C4.7 9.7 4.5 5.8 6.1 2.7" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".92" />
+        <path d="M11.2 11.7 C12.5 10.3 13.1 8.6 13.1 7" fill="none" stroke="#793804" strokeWidth=".9" strokeLinecap="round" opacity=".9" />
+      </svg>
+    </span>
+  );
+}
+
+function GemBail() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 18 14"
+      style={{
+        position: 'absolute',
+        top: 1,
+        left: '50%',
+        width: 18,
+        height: 14,
         transform: 'translateX(-50%)',
         overflow: 'visible',
         pointerEvents: 'none',
         zIndex: 1,
       }}
     >
-      {/* Folded bail first: its lower edge is hidden by the medallion face. */}
-      <path
-        d="M6.2 10.2 C6.2 15.2 6.8 19.6 9 21.6 C11.2 19.6 11.8 15.2 11.8 10.2"
-        fill="none"
-        stroke="#4B1A00"
-        strokeWidth="4.2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M6.2 10.2 C6.2 15.2 6.8 19.6 9 21.6 C11.2 19.6 11.8 15.2 11.8 10.2"
-        fill="none"
-        stroke="#C77A14"
-        strokeWidth="2.9"
-        strokeLinecap="round"
-      />
-      <path
-        d="M7 10.7 C7 14.7 7.3 17.6 8.2 19.1"
-        fill="none"
-        stroke="#FFF0B3"
-        strokeWidth=".75"
-        strokeLinecap="round"
-        opacity=".88"
-      />
-
-      {/* Thick oval jump-ring: large enough to read as hardware at 54px. */}
-      <ellipse cx="9" cy="6.8" rx="5.3" ry="6" fill="none" stroke="#4B1A00" strokeWidth="4" />
-      <ellipse cx="9" cy="6.8" rx="5.3" ry="6" fill="none" stroke="#C77A14" strokeWidth="2.8" />
-      <path
-        d="M5.8 3.2 C7.2 .9 10.8 .6 12.5 2.8"
-        fill="none"
-        stroke="#FFF0B3"
-        strokeWidth=".9"
-        strokeLinecap="round"
-        opacity=".94"
-      />
-      <path
-        d="M12.9 9.5 C12 11.5 10.4 12.7 8.8 12.8"
-        fill="none"
-        stroke="#793804"
-        strokeWidth="1"
-        strokeLinecap="round"
-        opacity=".9"
-      />
+      {/* A folded bail hangs from one hinge and slips behind the medallion. */}
+      <path d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#C77A14" strokeWidth="2.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.6 1.8 C8.1 4.8 7.2 7.4 7 10.3" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".88" />
     </svg>
   );
 }
@@ -166,7 +163,7 @@ function GemTabMarker({
   return (
     <span
       aria-hidden="true"
-      className={active ? 'client-card-tabbar__marker pendant-swing' : 'client-card-tabbar__marker'}
+      className="client-card-tabbar__marker"
       style={{
         position: 'relative',
         display: 'block',
@@ -178,22 +175,35 @@ function GemTabMarker({
         transition: 'opacity 0.25s, filter 0.25s',
       }}
     >
-      <GemLink />
+      <GemJumpRing active={active} />
       <span
         aria-hidden="true"
+        className={active ? 'client-card-tabbar__pendulum pendant-swing' : 'client-card-tabbar__pendulum'}
         style={{
           position: 'absolute',
           inset: 0,
           display: 'block',
           width: GEM_SIZE,
           height: GEM_SIZE,
-          backgroundImage: 'url(/gem-icons.svg)',
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: `${GEM_SIZE * 6}px ${GEM_SIZE}px`,
-          backgroundPosition: `${-GEM_INDEX[kind] * GEM_SIZE}px 0`,
-          zIndex: 2,
         }}
-      />
+      >
+        <GemBail />
+        <span
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'block',
+            width: GEM_SIZE,
+            height: GEM_SIZE,
+            backgroundImage: 'url(/gem-icons.svg)',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: `${GEM_SIZE * 6}px ${GEM_SIZE}px`,
+            backgroundPosition: `${-GEM_INDEX[kind] * GEM_SIZE}px 0`,
+            zIndex: 2,
+          }}
+        />
+      </span>
     </span>
   );
 }

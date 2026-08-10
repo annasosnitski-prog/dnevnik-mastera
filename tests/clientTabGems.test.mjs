@@ -86,13 +86,15 @@ test('client tabs hang from a gold tube carrying the client-colour reflection', 
   assert.match(detailScreen, /color-mix\(in srgb, \$\{client\.color\}[\s\S]*mixBlendMode: 'screen'/);
 });
 
-test('heavy pendant hardware swings with the medallion from the thinner tube', () => {
-  assert.match(tabBarModule, /function GemLink\(\)[\s\S]*<svg[\s\S]*viewBox="0 0 18 24"/);
-  assert.match(tabBarModule, /<ellipse cx="9" cy="6\.8" rx="5\.3" ry="6"[\s\S]*strokeWidth="4"/);
-  assert.match(tabBarModule, /d="M6\.2 10\.2 C6\.2 15\.2 6\.8 19\.6 9 21\.6/);
+test('jump-ring is threaded through the tube and swivels through a true profile', () => {
+  assert.match(tabBarModule, /function GemJumpRing\(\{ active \}: \{ active: boolean \}\)[\s\S]*viewBox="0 0 18 14"/);
+  assert.match(tabBarModule, /Rear wire:[\s\S]*Front wire:/);
+  assert.match(tabBarModule, /function GemBail\(\)[\s\S]*d="M9 1 C8\.8 4\.2 6\.5 7\.2 6\.2 11\.8/);
   assert.doesNotMatch(tabBarModule, /width: 1\.4,[\s\S]*height: 8/);
-  assert.match(tabBarModule, /className=\{active \? 'client-card-tabbar__marker pendant-swing'/);
-  assert.match(indexCss, /\.pendant-swing\s*\{[\s\S]*transform-origin: 50% -6px/);
+  assert.match(tabBarModule, /<GemJumpRing active=\{active\} \/>[\s\S]*className=\{active \? 'client-card-tabbar__pendulum pendant-swing'/);
+  assert.doesNotMatch(tabBarModule, /client-card-tabbar__marker pendant-swing/);
+  assert.match(indexCss, /@keyframes jump-ring-swivel[\s\S]*rotateY\(58deg\)[\s\S]*rotateY\(88deg\)[\s\S]*rotateY\(111deg\)/);
+  assert.match(indexCss, /\.pendant-swing\s*\{[\s\S]*transform-origin: 50% 3px/);
 });
 
 test('the client card wires its six tabs (Проекты included) in gem order via the shared tab bar', () => {

@@ -1568,9 +1568,38 @@ input[type='date'] {
   }
 }
 
-/* Client-tab pendant, swinging on its jump-ring the moment its tab is
-   selected — pivots near the top where the ring attaches, like a hanging
-   charm nudged into motion, then settles back to rest. */
+/* The jump-ring swivels around the tube's axis: three-quarter view → true
+   profile → three-quarter view from the other side. The lower assembly has
+   its own planar swing around the same physical hinge. */
+@keyframes jump-ring-swivel {
+  0% {
+    transform: perspective(80px) rotateY(58deg) rotateZ(-7deg);
+  }
+  20% {
+    transform: perspective(80px) rotateY(88deg) rotateZ(-2deg);
+  }
+  40% {
+    transform: perspective(80px) rotateY(111deg) rotateZ(5deg);
+  }
+  60% {
+    transform: perspective(80px) rotateY(82deg) rotateZ(-3deg);
+  }
+  80% {
+    transform: perspective(80px) rotateY(64deg) rotateZ(-6deg);
+  }
+  100% {
+    transform: perspective(80px) rotateY(58deg) rotateZ(-7deg);
+  }
+}
+.client-card-tabbar__jump-ring {
+  transform: perspective(80px) rotateY(58deg) rotateZ(-7deg);
+  transform-origin: 50% 48%;
+  transform-style: preserve-3d;
+}
+.jump-ring-swivel {
+  animation: jump-ring-swivel 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
 @keyframes pendant-swing {
   0% {
     transform: rotate(0deg);
@@ -1592,7 +1621,7 @@ input[type='date'] {
   }
 }
 .pendant-swing {
-  transform-origin: 50% -6px;
+  transform-origin: 50% 3px;
   animation: pendant-swing 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
