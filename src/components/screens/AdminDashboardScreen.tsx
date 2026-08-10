@@ -221,7 +221,9 @@ function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
     setError(null);
     fetchBotBookings(settings)
       .then((b) => setBookings(b.slice().sort((a, b2) => a.start.localeCompare(b2.start))))
-      .catch(() => setError('не получилось загрузить — проверь секрет/соединение.'))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : 'не получилось загрузить — проверь секрет/соединение.')
+      )
       .finally(() => setLoading(false));
   };
 
