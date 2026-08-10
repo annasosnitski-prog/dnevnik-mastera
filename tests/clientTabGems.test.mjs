@@ -17,6 +17,7 @@ const detailScreen = readFileSync(
 const tattoDiary = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
 const gemSprite = readFileSync(new URL('../public/gem-icons.svg', import.meta.url), 'utf8');
 const navFab = readFileSync(new URL('../src/components/navigation/NavFab.tsx', import.meta.url), 'utf8');
+const pendantIcon = readFileSync(new URL('../src/components/navigation/PendantIcon.tsx', import.meta.url), 'utf8');
 const designTokens = readFileSync(new URL('../src/components/ui/designTokens.ts', import.meta.url), 'utf8');
 const indexCss = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
 
@@ -56,6 +57,16 @@ test('toolbar and client tabs share one semantic colour palette', () => {
   assert.match(tabBarModule, /info: TERRITORY_COLORS\.personal/);
   assert.match(tabBarModule, /projects: TERRITORY_COLORS\.projects/);
   assert.doesNotMatch(tabBarModule, /clientOrnateGemKind|gemKind/);
+});
+
+test('toolbar stones render optical depth below the crown without extra blur filters', () => {
+  assert.match(pendantIcon, /data-optical-layer="pavilion-depth"/);
+  assert.match(pendantIcon, /data-optical-layer="pavilion-facets"/);
+  assert.match(pendantIcon, /data-optical-layer="internal-caustic"/);
+  assert.match(pendantIcon, /data-optical-layer="surface-lens"/);
+  assert.match(pendantIcon, /data-optical-layer="refracted-girdle"/);
+  assert.match(pendantIcon, /const pavilionFocus: \[number, number\] = \[cx \+ 2\.8, cy \+ 3\.4\]/);
+  assert.match(pendantIcon, /id=\{depthCaustic\}[\s\S]*crisp vector caustic|crisp vector caustic[\s\S]*id=\{depthCaustic\}/);
 });
 
 test('ornate tabs use the main-button gold material and a one-sixth centre stone', () => {
