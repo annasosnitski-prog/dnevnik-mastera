@@ -74,23 +74,27 @@
       <circle r=".28" fill="#FFFFFF" opacity=".9"/>
     </g>
 
+    <!-- The 64px tile stays fixed. The visible gold body loses 16px of its
+         diameter (one quarter of the tile): 58px becomes exactly 42px. -->
     <g id="gold-medallion">
-      <circle cx="32" cy="32" r="29" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".7"/>
-      <circle cx="32" cy="32" r="28" fill="none" stroke="url(#gold-edge)" stroke-width=".95"/>
-      <circle cx="32" cy="32" r="24.5" fill="#2C0A00" stroke="#FFCF68" stroke-width=".8"/>
-      <circle cx="32" cy="32" r="23.65" fill="none" stroke="#6A2702" stroke-width=".4"/>
-      <circle cx="32" cy="32" r="23" fill="url(#plate-face)" stroke="#4B1A00" stroke-width=".5"/>
-      <circle cx="32" cy="32" r="20" fill="none" stroke="url(#gold-edge)" stroke-width=".5"/>
-      <path d="M22 20 30 15" stroke="#FFF0B3" stroke-width="1.2" stroke-linecap="round" opacity=".4"/>
+      <g transform="translate(32 32) scale(.724138) translate(-32 -32)">
+        <circle cx="32" cy="32" r="29" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".7"/>
+        <circle cx="32" cy="32" r="28" fill="none" stroke="url(#gold-edge)" stroke-width=".95"/>
+        <circle cx="32" cy="32" r="24.5" fill="#2C0A00" stroke="#FFCF68" stroke-width=".8"/>
+        <circle cx="32" cy="32" r="23.65" fill="none" stroke="#6A2702" stroke-width=".4"/>
+        <circle cx="32" cy="32" r="23" fill="url(#plate-face)" stroke="#4B1A00" stroke-width=".5"/>
+        <circle cx="32" cy="32" r="20" fill="none" stroke="url(#gold-edge)" stroke-width=".5"/>
+        <path d="M22 20 30 15" stroke="#FFF0B3" stroke-width="1.2" stroke-linecap="round" opacity=".4"/>
 
-      <use href="#pave" xlink:href="#pave" transform="translate(32 5.2)"/>
-      <use href="#pave" xlink:href="#pave" transform="translate(50.95 13.05)"/>
-      <use href="#pave" xlink:href="#pave" transform="translate(58.8 32)"/>
-      <use href="#pave" xlink:href="#pave" transform="translate(50.95 50.95)"/>
-      <use href="#pave" xlink:href="#pave" transform="translate(32 58.8)"/>
-      <use href="#pave" xlink:href="#pave" transform="translate(13.05 50.95)"/>
-      <use href="#pave" xlink:href="#pave" transform="translate(5.2 32)"/>
-      <use href="#pave" xlink:href="#pave" transform="translate(13.05 13.05)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(32 5.2)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(50.95 13.05)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(58.8 32)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(50.95 50.95)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(32 58.8)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(13.05 50.95)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(5.2 32)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(13.05 13.05)"/>
+      </g>
     </g>
 
     <!-- The coloured face is exactly 10.666666px across: 64px / 6. -->

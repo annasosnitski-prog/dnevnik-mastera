@@ -59,12 +59,25 @@ test('toolbar and client tabs share one semantic colour palette', () => {
 
 test('ornate tabs use the main-button gold material and a one-sixth centre stone', () => {
   assert.match(gemSprite, /id="gold-face"[\s\S]*stop-color="#FFF8D7"[\s\S]*stop-color="#431A00"/);
-  assert.match(gemSprite, /id="gold-medallion"[\s\S]*r="29" fill="url\(#gold-face\)"/);
+  assert.match(gemSprite, /id="gold-medallion"[\s\S]*scale\(\.724138\)[\s\S]*r="29" fill="url\(#gold-face\)"/);
   assert.equal((gemSprite.match(/r="5\.333333"/g) ?? []).length, 3);
   assert.match(gemSprite, /id="sessions-icon" color="#FF3342"/);
   assert.match(gemSprite, /id="consultations-icon" color="#5CFF24"/);
   assert.match(gemSprite, /id="info-icon" color="#FFE000"/);
   assert.match(gemSprite, /id="projects-icon" color="#0047AB"/);
+});
+
+test('tab medallions shrink inside their fixed slots without an active underline', () => {
+  assert.match(tabBarModule, /const GEM_SIZE = 54/);
+  assert.match(tabBarModule, /width: GEM_SIZE,[\s\S]*height: GEM_SIZE/);
+  assert.doesNotMatch(tabBarModule, /borderBottom:\s*isActive/);
+  assert.doesNotMatch(tabBarModule, /tabButtonStyle\(activeTab === tab\.id\)/);
+});
+
+test('client tabs hang from a gold tube carrying the client-colour reflection', () => {
+  assert.match(detailScreen, /height: 8,[\s\S]*borderRadius: 999/);
+  assert.match(detailScreen, /#FFD777[\s\S]*#FFF8D7[\s\S]*#431A00/);
+  assert.match(detailScreen, /color-mix\(in srgb, \$\{client\.color\}[\s\S]*mixBlendMode: 'screen'/);
 });
 
 test('the client card wires its six tabs (Проекты included) in gem order via the shared tab bar', () => {

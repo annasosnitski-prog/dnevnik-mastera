@@ -41,25 +41,19 @@ const TABLIST_STYLE: CSSProperties = {
   flexShrink: 0,
 };
 
-function tabButtonStyle(isActive: boolean): CSSProperties {
-  return {
-    flex: 1,
-    minWidth: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    appearance: 'none',
-    padding: '4px 1px 3px',
-    background: 'none',
-    borderTop: 'none',
-    borderRight: 'none',
-    borderLeft: 'none',
-    borderBottom: isActive ? `1px solid ${COLORS.gold}` : '1px solid transparent',
-    cursor: 'pointer',
-    transition: 'border-color 0.25s',
-    position: 'relative',
-  };
-}
+const TAB_BUTTON_STYLE: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  appearance: 'none',
+  padding: '4px 1px 3px',
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  position: 'relative',
+};
 
 // Each pendant hangs from a small gold jump-ring that hooks right onto the
 // client-colour rod (overlapping its 4px band, like a bail threaded onto a
@@ -187,7 +181,7 @@ export function ClientCardTabBar<T extends string>({
           aria-label={tab.label}
           title={tab.label}
           onClick={() => onTab(tab.id)}
-          style={tabButtonStyle(activeTab === tab.id)}
+          style={TAB_BUTTON_STYLE}
         >
           <GemTabMarker
             kind={tab.kind}
