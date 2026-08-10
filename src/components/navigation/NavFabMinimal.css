@@ -345,36 +345,34 @@
   transform: rotate(30deg) translateX(32px);
 }
 
-/* Keep the original tab-bar field height while the circles themselves stay 25% smaller. */
-[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента'] {
+/* Every shared ClientCardTabBar gets the exact same minimal treatment: client and master alike. */
+[data-minimalism='true'] .client-card-tabbar {
   min-height: 61px;
   align-items: center;
 }
 
-/* Minimal client tabs use the circle itself as the selected-state indicator. */
-[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента'] [role='tab'] {
+/* The circle itself is the selected-state indicator; no underline below any shared tab. */
+[data-minimalism='true'] .client-card-tabbar__tab {
   border-bottom: 0 !important;
   box-shadow: none !important;
   text-decoration: none !important;
 }
 
-[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
-  [role='tab'][aria-selected='true']::after {
+[data-minimalism='true'] .client-card-tabbar__tab[aria-selected='true']::after {
   content: none !important;
   display: none !important;
 }
 
-/* Client-tab circles are 25% smaller in minimalism; pictograms keep their own fixed SVG size. */
-[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
-  [role='tab'] > span[aria-hidden='true'] {
+/* Shared tab circles are 25% smaller in minimalism; pictograms keep their fixed 26px size. */
+[data-minimalism='true'] .client-card-tabbar__marker {
   width: 40.5px !important;
   height: 40.5px !important;
   box-shadow: none !important;
 }
 
-/* Selected client tab matches the active toolbar destination: gold rim, halo and icon glow. */
-[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
-  [role='tab'][aria-selected='true'] > span[aria-hidden='true'] {
+/* Selected shared tab matches the active toolbar destination: gold rim, halo and icon glow. */
+[data-minimalism='true']
+  .client-card-tabbar__tab[aria-selected='true'] > .client-card-tabbar__marker {
   color: var(--gold) !important;
   border-color: rgba(var(--gold-rgb), 0.92) !important;
   box-shadow:
@@ -384,8 +382,8 @@
     0 9px 20px rgba(0, 0, 0, 0.54) !important;
 }
 
-[data-minimalism='true'] [role='tablist'][aria-label='Разделы клиента']
-  [role='tab'][aria-selected='true'] > span[aria-hidden='true'] > svg {
+[data-minimalism='true']
+  .client-card-tabbar__tab[aria-selected='true'] > .client-card-tabbar__marker > svg {
   filter:
     blur(0.18px)
     drop-shadow(0 0 3px rgba(var(--gold-rgb), 0.58))
@@ -393,8 +391,7 @@
 }
 
 :root[data-theme='light'] [data-minimalism='true']
-  [role='tablist'][aria-label='Разделы клиента']
-  [role='tab'][aria-selected='true'] > span[aria-hidden='true'] {
+  .client-card-tabbar__tab[aria-selected='true'] > .client-card-tabbar__marker {
   box-shadow:
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.54),
     0 0 10px rgba(var(--gold-rgb), 0.26),

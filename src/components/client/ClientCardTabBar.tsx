@@ -97,8 +97,17 @@ function GemLink() {
 // Минимализм swaps the gem sprite + chain for a plain circle carrying a
 // linear icon from ClientTabIcons — same tab logic/order, just a different
 // functional-layer skin (see NavFab's own minimal branch for the same idea
-// applied to the nav hub).
-function GemTabMarker({ kind, active }: { kind: ClientTabIconName; active: boolean }) {
+// applied to the nav hub). gemKind changes only the ornate sprite slot; the
+// semantic icon in Минимализм always comes from kind.
+function GemTabMarker({
+  kind,
+  gemKind = kind,
+  active,
+}: {
+  kind: ClientTabIconName;
+  gemKind?: ClientTabIconName;
+  active: boolean;
+}) {
   const minimalism = useMinimalism();
   const color = GEM_COLOR[kind];
 
@@ -106,6 +115,7 @@ function GemTabMarker({ kind, active }: { kind: ClientTabIconName; active: boole
     return (
       <span
         aria-hidden="true"
+        className="client-card-tabbar__marker"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -131,7 +141,7 @@ function GemTabMarker({ kind, active }: { kind: ClientTabIconName; active: boole
       <GemLink />
       <span
         aria-hidden="true"
-        className={active ? 'pendant-swing' : undefined}
+        className={active ? 'client-card-tabbar__marker pendant-swing' : 'client-card-tabbar__marker'}
         style={{
           display: 'block',
           width: GEM_SIZE,
@@ -140,7 +150,7 @@ function GemTabMarker({ kind, active }: { kind: ClientTabIconName; active: boole
           backgroundImage: 'url(/gem-icons.svg)',
           backgroundRepeat: 'no-repeat',
           backgroundSize: `${GEM_SIZE * 6}px ${GEM_SIZE}px`,
-          backgroundPosition: `${-GEM_INDEX[kind] * GEM_SIZE}px 0`,
+          backgroundPosition: `${-GEM_INDEX[gemKind] * GEM_SIZE}px 0`,
           opacity: active ? 1 : 0.62,
           filter: active ? 'none' : 'saturate(0.72) brightness(0.82)',
           transition: 'opacity 0.25s, filter 0.25s',
@@ -156,6 +166,13 @@ export interface ClientCardTabDef<T extends string> {
   label: string;
 }
 
+function clientOrnateGemKind(kind: ClientTabIconName, clientTabs: boolean): ClientTabIconName {
+  if (!clientTabs) return kind;
+  if (kind === 'projects') return 'info';
+  if (kind === 'info') return 'projects';
+  return kind;
+}
+
 // One large gemstone per tab; labels stay available to assistive technology
 // and hover tooltips without competing for horizontal room.
 export function ClientCardTabBar<T extends string>({
@@ -169,11 +186,14 @@ export function ClientCardTabBar<T extends string>({
   onTab: (tab: T) => void;
   ariaLabel: string;
 }) {
+  const clientTabs = ariaLabel === 'Разделы клиента';
+
   return (
-    <div role="tablist" aria-label={ariaLabel} style={TABLIST_STYLE}>
+    <div className="client-card-tabbar" role="tablist" aria-label={ariaLabel} style={TABLIST_STYLE}>
       {tabs.map((tab) => (
         <button
           key={tab.id}
+          className="client-card-tabbar__tab"
           type="button"
           role="tab"
           aria-selected={activeTab === tab.id}
@@ -182,7 +202,11 @@ export function ClientCardTabBar<T extends string>({
           onClick={() => onTab(tab.id)}
           style={tabButtonStyle(activeTab === tab.id)}
         >
-          <GemTabMarker kind={tab.kind} active={activeTab === tab.id} />
+          <GemTabMarker
+            kind={tab.kind}
+            gemKind={clientOrnateGemKind(tab.kind, clientTabs)}
+            active={activeTab === tab.id}
+          />
         </button>
       ))}
     </div>
