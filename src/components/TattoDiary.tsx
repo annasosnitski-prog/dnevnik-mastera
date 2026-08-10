@@ -2409,10 +2409,10 @@ export default function TattoDiary() {
               : []),
           ]}
           // Contextual create — same action each screen's own «+» used to
-          // trigger, now all reachable from one place. Мастер has none.
-          // Открытый просмотр проекта (viewProject) переопределяет экранную
-          // логику — «Создать» тут же заводит сессию/консультацию именно
-          // для этого проекта, а не то, что обычно делает текущий screen.
+          // trigger, now all reachable from one place. Открытый просмотр
+          // проекта (viewProject) переопределяет экранную логику —
+          // «Создать» тут же заводит сессию/консультацию именно для этого
+          // проекта, а не то, что обычно делает текущий screen.
           onCreate={
             viewProject
               ? () => {
@@ -2440,7 +2440,18 @@ export default function TattoDiary() {
                     ? () => setShowAddChoice(true)
                     : screen === 'workshop'
                       ? () => setShowWorkshopCreateChoice(true)
-                      : undefined
+                      // Личный кабинет создаёт только один вид сущности —
+                      // свой («мастерский») проект, без выбора между
+                      // проектом/сессией, который нужен только Мастерской
+                      // (см. WorkshopCreateChoiceSheet) — там же ещё есть
+                      // отдельные «сессии без клиента».
+                      : screen === 'master'
+                        ? () => {
+                            setEditProject(null);
+                            setNewProjectClientId(null);
+                            setShowNewProjectForm(true);
+                          }
+                        : undefined
           }
         />
       )}
