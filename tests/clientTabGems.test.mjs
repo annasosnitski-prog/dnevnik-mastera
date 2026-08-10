@@ -114,7 +114,7 @@ test('client tabs hang from a gold tube carrying the client-colour reflection', 
   assert.match(detailScreen, /boxSizing: 'border-box',[\s\S]*height: 5,[\s\S]*borderRadius: 999/);
   assert.match(detailScreen, /#FFD777[\s\S]*#FFF8D7[\s\S]*#431A00/);
   assert.match(detailScreen, /color-mix\(in srgb, \$\{client\.color\}[\s\S]*mixBlendMode: 'screen'/);
-  assert.match(detailScreen, /0 0 4px rgba\(255,215,119,\.55\)/);
+  assert.match(detailScreen, /0 0 3px rgba\(255,215,119,\.42\)/);
 });
 
 test('gold tube has five glowing spherical separators centred between six medallions', () => {
@@ -122,9 +122,9 @@ test('gold tube has five glowing spherical separators centred between six medall
   assert.match(detailScreen, /CLIENT_TABS\.slice\(0, -1\)\.map/);
   assert.match(detailScreen, /data-tube-divider=\{index \+ 1\}/);
   assert.match(detailScreen, /\(\(index \+ 1\) \/ CLIENT_TABS\.length\) \* 100/);
-  assert.match(detailScreen, /width: 7,[\s\S]*height: 7,[\s\S]*borderRadius: '50%'/);
-  assert.match(detailScreen, /#FFFDF0[\s\S]*#FFD777[\s\S]*#C77A14[\s\S]*#431A00/);
-  assert.match(detailScreen, /0 0 6px rgba\(255,215,119,\.72\)/);
+  assert.match(detailScreen, /width: 5\.5,[\s\S]*height: 5\.5,[\s\S]*borderRadius: '50%'/);
+  assert.match(detailScreen, /#FFFDF0[\s\S]*#FFD777[\s\S]*#B88B32[\s\S]*#431A00/);
+  assert.match(detailScreen, /0 0 4px rgba\(255,215,119,\.36\)/);
 });
 
 test('tube light falls onto the pendant hardware and upper crown', () => {
@@ -135,12 +135,19 @@ test('tube light falls onto the pendant hardware and upper crown', () => {
   assert.match(gemSprite, /data-tube-reflection="ambient"[\s\S]*data-tube-reflection="highlight"/);
 });
 
+test('every centre stone emits its own colour and the active stone intensifies', () => {
+  assert.match(tabBarModule, /className=\{active[\s\S]*client-card-tabbar__gem-glow--active[\s\S]*--gem-glow-color/);
+  assert.match(indexCss, /\.client-card-tabbar__gem-glow[\s\S]*z-index: 3[\s\S]*var\(--gem-glow-color\) 58%[\s\S]*mix-blend-mode: screen[\s\S]*opacity: 0\.7/);
+  assert.match(indexCss, /\.client-card-tabbar__gem-glow--active[\s\S]*width: 29px[\s\S]*opacity: 1[\s\S]*var\(--gem-glow-color\) 78%/);
+  assert.match(tabBarModule, /client-card-tabbar__pendulum[\s\S]*client-card-tabbar__gem-glow[\s\S]*client-card-tabbar__medallion/);
+});
+
 test('active medallion halo rises into the tube glow without following the pendulum swing', () => {
   assert.match(tabBarModule, /active && \([\s\S]*className="client-card-tabbar__active-halo"[\s\S]*--active-gem-color/);
   assert.match(indexCss, /\.client-card-tabbar__marker[\s\S]*isolation: isolate/);
   assert.match(indexCss, /\.client-card-tabbar__pendulum[\s\S]*z-index: 1/);
-  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*z-index: 0[\s\S]*top: -17px[\s\S]*ellipse 27px 34px at 50% 50%[\s\S]*ellipse 18px 42px at 50% 0%/);
-  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*rgba\(255, 248, 215, 0\.3\)[\s\S]*rgba\(255, 215, 119, 0\.2\)/);
+  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*z-index: 0[\s\S]*top: -17px[\s\S]*ellipse 29px 34px at 50% 50%[\s\S]*ellipse 13px 39px at 50% 0%/);
+  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*var\(--active-gem-color\) 52%[\s\S]*rgba\(255, 248, 215, 0\.22\)[\s\S]*rgba\(255, 215, 119, 0\.14\)/);
   assert.match(tabBarModule, /client-card-tabbar__active-halo[\s\S]*<GemJumpRing active=\{active\} \/>[\s\S]*client-card-tabbar__pendulum/);
 });
 
