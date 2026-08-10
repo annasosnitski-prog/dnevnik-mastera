@@ -490,7 +490,7 @@ export function DetailScreen({
             height: 5,
             width: '100%',
             flexShrink: 0,
-            overflow: 'hidden',
+            overflow: 'visible',
             borderRadius: 999,
             borderTop: '1px solid #FFF0B3',
             borderBottom: '1px solid #431A00',
@@ -539,6 +539,51 @@ export function DetailScreen({
               background: 'linear-gradient(90deg, transparent, rgba(255,248,215,.75) 18%, rgba(255,248,215,.2) 72%, transparent)',
             }}
           />
+          {/* Five raised gold separators sit on the tube at the exact
+              boundaries of the six equal tab slots: each one is therefore
+              centred between two neighbouring medallions at every width. */}
+          <span
+            aria-hidden="true"
+            data-tube-dividers
+            style={{
+              position: 'absolute',
+              left: 8,
+              right: 8,
+              top: '50%',
+              height: 0,
+              pointerEvents: 'none',
+              zIndex: 3,
+            }}
+          >
+            {CLIENT_TABS.slice(0, -1).map((tab, index) => (
+              <span
+                key={tab.id}
+                data-tube-divider={index + 1}
+                style={{
+                  position: 'absolute',
+                  left: `${((index + 1) / CLIENT_TABS.length) * 100}%`,
+                  top: 0,
+                  width: 7,
+                  height: 7,
+                  transform: 'translate(-50%, -50%)',
+                  borderRadius: '50%',
+                  border: '0.5px solid rgba(255,240,179,.82)',
+                  background: `radial-gradient(circle at 34% 28%,
+                    #FFFDF0 0%,
+                    #FFF0B3 16%,
+                    #FFD777 34%,
+                    #C77A14 63%,
+                    #6B2C00 82%,
+                    #431A00 100%)`,
+                  boxShadow: `
+                    0 0 2px rgba(255,240,179,.95),
+                    0 0 6px rgba(255,215,119,.72),
+                    0 0 12px rgba(226,182,85,.35),
+                    0 1px 1px rgba(0,0,0,.45)`,
+                }}
+              />
+            ))}
+          </span>
         </div>
       </div>
 
