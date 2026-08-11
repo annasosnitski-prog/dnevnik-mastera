@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { PendantIcon } from "./PendantIcon";
 import { NaturalStoneIcon, type NaturalStoneKind } from "./NaturalStoneIcon";
-import { ToolbarIcon } from "./ToolbarIcons";
 import { TERRITORY_COLORS } from "../ui/designTokens";
 import { useMinimalism } from "../ui/minimalism";
 import "./NavFabReveal.css";
@@ -86,7 +85,6 @@ const INNER_POLYGON_RADIUS = 92;
 // size keeps roughly the same icon-fills-most-of-the-button ratio as the
 // gem/pendant rendering, just without the gold plate around it.
 const MINIMAL_HUB_SIZE = 54;
-const MINIMAL_HUB_ICON_SIZE = 24;
 const MINIMAL_ITEM_ICON_SIZE = 26;
 
 const NATURAL_STONE_BY_ITEM: Record<NavItemId, NaturalStoneKind> = {
@@ -522,7 +520,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           onClick={() => setOpen((value) => !value)}
         >
           {minimalism ? (
-            <ToolbarIcon name="tasks" size={MINIMAL_HUB_ICON_SIZE} aria-hidden="true" style={{ color: "inherit" }} />
+            <span className="nav-fab__minimal-home-mark" aria-hidden="true">$</span>
           ) : (
             <>
               <span className="theme-dark-jewel" aria-hidden="true">
