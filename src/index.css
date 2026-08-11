@@ -1680,7 +1680,8 @@ input[type='date'] {
 
 /* The light-theme tab bar is a single patinated-copper object: one narrow rod
    behind the threaded rings, plus a small fastening bead exactly between
-   adjacent pendant centres. */
+   adjacent pendant centres. The two-medallion master bar replaces that rod
+   with the approved three-piece ray construction below. */
 :root[data-theme='light'] .client-card-tabbar::before {
   content: '';
   position: absolute;
@@ -1713,6 +1714,44 @@ input[type='date'] {
   pointer-events: none;
   background: radial-gradient(circle at 34% 24%, #CC9D75 0%, #A2775A 22%, #724C39 51%, #506A61 78%, #2F1D13 100%);
   box-shadow: 0 0 2px rgba(84, 51, 35, 0.28);
+}
+
+/* Two ring centres divide the usable width at 25% and 75%. The middle ray
+   tapers at both rings; each side ray tapers only at its ring and leaves the
+   screen with a square, un-narrowed end. */
+.client-card-tabbar__two-pendant-rays {
+  display: none;
+}
+
+:root[data-theme='light'] .client-card-tabbar[data-two-pendant-rays='true']::before,
+:root[data-theme='light'] .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__tab::after {
+  content: none;
+  display: none;
+}
+
+:root[data-theme='light']
+  .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__two-pendant-rays {
+  display: block;
+  position: absolute;
+  z-index: 0;
+  top: -2px;
+  left: 8px;
+  width: calc(100% - 16px);
+  height: 12px;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(84, 51, 35, 0.22));
+}
+
+:root[data-theme='light'] .client-card-tabbar__ray-metal {
+  fill: url(#twoPendantRayMetal);
+}
+
+:root[data-theme='light'] .client-card-tabbar__ray-sheen {
+  fill: url(#twoPendantRaySheen);
+  opacity: 0.72;
 }
 
 :root[data-theme='light'] .client-card-tabbar__jump-ring {

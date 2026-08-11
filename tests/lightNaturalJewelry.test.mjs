@@ -86,3 +86,14 @@ test('light client tabs add a patinated copper rod, fasteners and hardware refle
   assert.match(css, /#CC9D75/);
   assert.match(css, /#657C72/);
 });
+
+test('two-medallion light tab bar uses three thin rays joined at both jump rings', () => {
+  assert.match(tabSource, /function TwoPendantRays\(\)/);
+  assert.match(tabSource, /viewBox="0 0 1000 12"/);
+  assert.match(tabSource, /M0 5 L0 7 L250 6\.3 L250 5\.7 Z/);
+  assert.match(tabSource, /M250 5\.7 Q500 4\.6 750 5\.7/);
+  assert.match(tabSource, /M750 5\.7 L750 6\.3 L1000 7 L1000 5 Z/);
+  assert.match(tabSource, /data-two-pendant-rays=\{hasTwoPendantRays \? 'true' : undefined\}/);
+  assert.match(css, /\.client-card-tabbar\[data-two-pendant-rays='true'\]::before/);
+  assert.match(css, /left: 8px;[\s\S]*width: calc\(100% - 16px\)/);
+});

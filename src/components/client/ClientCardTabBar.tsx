@@ -257,6 +257,47 @@ export interface ClientCardTabDef<T extends string> {
   label: string;
 }
 
+// The two-tab master dashboard uses the three-piece ray construction approved
+// for the light skin: the joins sit on the two jump-ring centres (25% / 75%).
+// Keeping it as SVG, rather than three bordered divs, lets the inner ends taper
+// to a genuinely narrow neck while both outer ends leave the viewport square.
+function TwoPendantRays() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="client-card-tabbar__two-pendant-rays"
+      viewBox="0 0 1000 12"
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <linearGradient id="twoPendantRayMetal" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#CC9D75" />
+          <stop offset="0.28" stopColor="#A2775A" />
+          <stop offset="0.6" stopColor="#875B43" />
+          <stop offset="0.82" stopColor="#506A61" />
+          <stop offset="1" stopColor="#2F1D13" />
+        </linearGradient>
+        <linearGradient id="twoPendantRaySheen" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#CC9D75" stopOpacity="0.3" />
+          <stop offset="0.5" stopColor="#F0C49D" stopOpacity="0.78" />
+          <stop offset="1" stopColor="#CC9D75" stopOpacity="0.3" />
+        </linearGradient>
+      </defs>
+
+      <g className="client-card-tabbar__ray-metal">
+        <path d="M0 5 L0 7 L250 6.3 L250 5.7 Z" />
+        <path d="M250 5.7 Q500 4.6 750 5.7 L750 6.3 Q500 7.4 250 6.3 Z" />
+        <path d="M750 5.7 L750 6.3 L1000 7 L1000 5 Z" />
+      </g>
+      <g className="client-card-tabbar__ray-sheen">
+        <path d="M0 5.35 L0 5.8 L250 5.92 L250 5.78 Z" />
+        <path d="M250 5.78 Q500 5.2 750 5.78 L750 5.92 Q500 5.5 250 5.92 Z" />
+        <path d="M750 5.78 L750 5.92 L1000 5.8 L1000 5.35 Z" />
+      </g>
+    </svg>
+  );
+}
+
 // One large gemstone per tab; labels stay available to assistive technology
 // and hover tooltips without competing for horizontal room.
 export function ClientCardTabBar<T extends string>({
@@ -270,8 +311,17 @@ export function ClientCardTabBar<T extends string>({
   onTab: (tab: T) => void;
   ariaLabel: string;
 }) {
+  const hasTwoPendantRays = tabs.length === 2;
+
   return (
-    <div className="client-card-tabbar" role="tablist" aria-label={ariaLabel} style={TABLIST_STYLE}>
+    <div
+      className="client-card-tabbar"
+      data-two-pendant-rays={hasTwoPendantRays ? 'true' : undefined}
+      role="tablist"
+      aria-label={ariaLabel}
+      style={TABLIST_STYLE}
+    >
+      {hasTwoPendantRays && <TwoPendantRays />}
       {tabs.map((tab) => (
         <button
           key={tab.id}
