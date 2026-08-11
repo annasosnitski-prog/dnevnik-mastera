@@ -1747,7 +1747,9 @@ input[type='date'] {
   display: block;
   position: absolute;
   z-index: 0;
-  top: -2px;
+  /* The ray necks meet at the upper inside edge of each jump-ring opening,
+     rather than cutting across the lower half of the ring. */
+  top: -13px;
   left: 8px;
   width: calc(100% - 16px);
   height: 12px;

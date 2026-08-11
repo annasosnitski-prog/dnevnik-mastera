@@ -41,16 +41,24 @@ test('copper matches the muted background ornaments and avoids the former red-or
 test('five revised stones use irregular mineral structure while malachite keeps its approved drawing', () => {
   assert.match(stoneSource, /<feTurbulence/);
   assert.match(stoneSource, /<feDisplacementMap/);
+  assert.match(stoneSource, /opacity="\.44" style=\{\{ mixBlendMode: 'soft-light' \}\}/);
+  assert.match(stoneSource, /stroke="#C7C5FF"/);
+  assert.match(stoneSource, /stroke="#9CEB9F"/);
+  assert.match(stoneSource, /fill="#6E5117" opacity="\.34"/);
+  assert.match(stoneSource, /fill="#8DF3EC" transform="rotate\(-17 18 19\)"/);
   assert.match(stoneSource, /case 'malachite':[\s\S]*?rx="25" ry="15"[\s\S]*?stroke="#053D2B"/);
   assert.match(stoneSource, /case 'malachite':[\s\S]*?stroke="#3EBD78"/);
   assert.match(stoneSource, /case 'malachite':[\s\S]*?stroke="#7ED39D"/);
 });
 
-test('revised minerals keep narrow surface reflections instead of one texture-covering white oval', () => {
+test('all cabochons use a dome-curved highlight with a soft band, sharp core and lower reflection', () => {
   assert.match(stoneSource, /function StoneSurfaceLight/);
-  assert.match(stoneSource, /M16\.8 27\.2c1\.7-7\.2/);
-  assert.match(stoneSource, /kind === 'malachite'/);
-  assert.doesNotMatch(stoneSource, /rx=\{medallion \? 1\.8 : 10\.8\}[\s\S]{0,180}<\/ellipse>[\s\S]{0,80}<\/g>/);
+  assert.match(stoneSource, /M14\.8 27\.6C17\.5 18\.4 26\.1 12\.4 35\.8 12\.9/);
+  assert.match(stoneSource, /strokeWidth=\{medallion \? '1\.35' : '4\.8'\}/);
+  assert.match(stoneSource, /strokeWidth=\{medallion \? '\.62' : '1\.65'\}/);
+  assert.match(stoneSource, /strokeWidth=\{medallion \? '\.28' : '\.58'\}/);
+  assert.match(stoneSource, /M47\.9 41\.8C44\.9 47\.3 39\.2 51 32\.9 52\.1/);
+  assert.match(stoneSource, /fill=\{`url\(#\$\{depthId\}\)`\}/);
 });
 
 test('the light material layer swaps visually without duplicating navigation logic', () => {
@@ -96,6 +104,7 @@ test('two-medallion tab bar uses three thin theme-aware rays joined at both jump
   assert.match(tabSource, /data-two-pendant-rays=\{hasTwoPendantRays \? 'true' : undefined\}/);
   assert.match(css, /\.client-card-tabbar\[data-two-pendant-rays='true'\]::before/);
   assert.match(css, /left: 8px;[\s\S]*width: calc\(100% - 16px\)/);
+  assert.match(css, /upper inside edge of each jump-ring opening[\s\S]*top: -13px/);
   assert.match(tabSource, /stopColor="var\(--two-pendant-ray-highlight\)"/);
   assert.match(css, /--two-pendant-ray-highlight: #FFF0B3/);
   assert.match(css, /:root\[data-theme='light'\][\s\S]*--two-pendant-ray-highlight: #CC9D75/);
