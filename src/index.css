@@ -70,6 +70,12 @@
   --nav-metal: var(--gold);
   --nav-metal-highlight: var(--gold);
   --nav-metal-point: #f7cf69;
+  --two-pendant-ray-highlight: #FFF0B3;
+  --two-pendant-ray-light: #E2B655;
+  --two-pendant-ray-mid: #A87522;
+  --two-pendant-ray-recess: #5B3B10;
+  --two-pendant-ray-shadow: #211406;
+  --two-pendant-ray-sheen: #FFF6CE;
 }
 
 /* ── Light (warm parchment / "Casa di Vetro") ── */
@@ -118,6 +124,12 @@
   --nav-metal: #94694E;
   --nav-metal-highlight: #CC9D75;
   --nav-metal-point: #657C72;
+  --two-pendant-ray-highlight: #CC9D75;
+  --two-pendant-ray-light: #A2775A;
+  --two-pendant-ray-mid: #875B43;
+  --two-pendant-ray-recess: #506A61;
+  --two-pendant-ray-shadow: #2F1D13;
+  --two-pendant-ray-sheen: #F0C49D;
 }
 
 /* Ornate navigation has two genuinely different material systems. The dark
@@ -1730,8 +1742,7 @@ input[type='date'] {
   display: none;
 }
 
-:root[data-theme='light']
-  .client-card-tabbar[data-two-pendant-rays='true']
+.client-card-tabbar[data-two-pendant-rays='true']
   .client-card-tabbar__two-pendant-rays {
   display: block;
   position: absolute;
@@ -1742,16 +1753,32 @@ input[type='date'] {
   height: 12px;
   overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(84, 51, 35, 0.22));
+  filter:
+    drop-shadow(0 -0.5px 1px rgba(255, 221, 133, 0.28))
+    drop-shadow(0 1px 2px rgba(32, 18, 4, 0.42));
 }
 
-:root[data-theme='light'] .client-card-tabbar__ray-metal {
+.client-card-tabbar__ray-metal {
   fill: url(#twoPendantRayMetal);
 }
 
-:root[data-theme='light'] .client-card-tabbar__ray-sheen {
+.client-card-tabbar__ray-sheen {
   fill: url(#twoPendantRaySheen);
   opacity: 0.72;
+}
+
+:root[data-theme='light']
+  .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__two-pendant-rays {
+  filter: drop-shadow(0 1px 2px rgba(84, 51, 35, 0.22));
+}
+
+/* Minimalism owns a separate flat tab treatment; jewellery hardware must not
+   leak through merely because the master dashboard happens to have two tabs. */
+[data-minimalism='true']
+  .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__two-pendant-rays {
+  display: none;
 }
 
 :root[data-theme='light'] .client-card-tabbar__jump-ring {

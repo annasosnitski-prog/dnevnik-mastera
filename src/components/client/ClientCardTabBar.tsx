@@ -257,8 +257,8 @@ export interface ClientCardTabDef<T extends string> {
   label: string;
 }
 
-// The two-tab master dashboard uses the three-piece ray construction approved
-// for the light skin: the joins sit on the two jump-ring centres (25% / 75%).
+// The two-tab master dashboard uses the approved three-piece ray construction
+// in both ornate themes: the joins sit on the two jump-ring centres (25% / 75%).
 // Keeping it as SVG, rather than three bordered divs, lets the inner ends taper
 // to a genuinely narrow neck while both outer ends leave the viewport square.
 function TwoPendantRays() {
@@ -271,16 +271,16 @@ function TwoPendantRays() {
     >
       <defs>
         <linearGradient id="twoPendantRayMetal" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#CC9D75" />
-          <stop offset="0.28" stopColor="#A2775A" />
-          <stop offset="0.6" stopColor="#875B43" />
-          <stop offset="0.82" stopColor="#506A61" />
-          <stop offset="1" stopColor="#2F1D13" />
+          <stop offset="0" stopColor="var(--two-pendant-ray-highlight)" />
+          <stop offset="0.28" stopColor="var(--two-pendant-ray-light)" />
+          <stop offset="0.6" stopColor="var(--two-pendant-ray-mid)" />
+          <stop offset="0.82" stopColor="var(--two-pendant-ray-recess)" />
+          <stop offset="1" stopColor="var(--two-pendant-ray-shadow)" />
         </linearGradient>
         <linearGradient id="twoPendantRaySheen" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#CC9D75" stopOpacity="0.3" />
-          <stop offset="0.5" stopColor="#F0C49D" stopOpacity="0.78" />
-          <stop offset="1" stopColor="#CC9D75" stopOpacity="0.3" />
+          <stop offset="0" stopColor="var(--two-pendant-ray-highlight)" stopOpacity="0.3" />
+          <stop offset="0.5" stopColor="var(--two-pendant-ray-sheen)" stopOpacity="0.78" />
+          <stop offset="1" stopColor="var(--two-pendant-ray-highlight)" stopOpacity="0.3" />
         </linearGradient>
       </defs>
 
