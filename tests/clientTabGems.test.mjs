@@ -25,19 +25,24 @@ test('each client tab crops exactly one tile from the shared gemstone sprite', (
   assert.doesNotMatch(tabBarModule, /gem-icons\.svg#/);
   assert.match(tabBarModule, /backgroundImage: 'url\(\/gem-icons\.svg\)'/);
   assert.match(tabBarModule, /backgroundSize: `\$\{GEM_SIZE \* 6\}px \$\{GEM_SIZE\}px`/);
-  // gemKind (defaults to kind) — the sprite slot; kind alone still drives
-  // colour/Минимализм icon (see «карточка клиента swaps only its ornate
-  // gem» below).
-  assert.match(tabBarModule, /backgroundPosition: `\$\{-GEM_INDEX\[gemKind\] \* GEM_SIZE\}px 0`/);
+  // Слот спрайта берётся прямо из kind — отдельного gemKind больше нет
+  // (см. следующий тест: подмену камней Инфо/Проекты убрали в #238).
+  assert.match(tabBarModule, /backgroundPosition: `\$\{-GEM_INDEX\[kind\] \* GEM_SIZE\}px 0`/);
 });
 
-test('only the client card swaps its ornate Инфо/Проекты gems — Минимализм colour/icon and Личный кабинет stay unswapped', () => {
-  assert.match(
-    tabBarModule,
-    /function clientOrnateGemKind\(kind: ClientTabIconName, clientTabs: boolean\): ClientTabIconName \{\s*if \(!clientTabs\) return kind;\s*if \(kind === 'projects'\) return 'info';\s*if \(kind === 'info'\) return 'projects';\s*return kind;\s*\}/,
-  );
-  assert.match(tabBarModule, /const clientTabs = ariaLabel === 'Разделы клиента';/);
-  // Минимализм's icon/colour always key off kind, never the swapped gemKind.
+// Раньше карточка клиента (и только она) меняла местами камни Инфо и Проекты
+// — clientOrnateGemKind + признак clientTabs по ariaLabel. Переход на круглые
+// gem-вкладки (#238) эту подмену убрал, и последующая доводка той же визуалки
+// (#243, #244) её не возвращала: теперь каждая вкладка везде показывает
+// собственный камень, а карточка клиента и Личный кабинет ничем не отличаются.
+// Тест до этого продолжал требовать удалённую функцию и висел красным.
+test('every tab keeps its own gem — no client-card-only Инфо/Проекты swap', () => {
+  assert.doesNotMatch(tabBarModule, /clientOrnateGemKind/);
+  assert.doesNotMatch(tabBarModule, /gemKind/);
+  // Никакого спец-кейса по ariaLabel: каркас одинаков для карточки клиента
+  // и Личного кабинета.
+  assert.doesNotMatch(tabBarModule, /ariaLabel === 'Разделы клиента'/);
+  // Цвет и Минимализм-иконка по-прежнему ключуются от kind.
   assert.match(tabBarModule, /const color = GEM_COLOR\[kind\];/);
   assert.match(tabBarModule, /<ClientTabIcon name=\{kind\} size=\{26\} \/>/);
 });
