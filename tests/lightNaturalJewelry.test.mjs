@@ -33,6 +33,22 @@ test('the light material layer swaps visually without duplicating navigation log
   assert.match(tabSource, /<NaturalStoneIcon kind=\{GEM_NATURAL_STONE\[kind\]\}/);
 });
 
+test('light toolbar stones stay vivid and carry no navigation glyphs', () => {
+  assert.match(navSource, /<NaturalStoneIcon kind=\{NATURAL_STONE_BY_ITEM\[item\.id\]\} size=\{ITEM_SIZE\} \/>/);
+  assert.doesNotMatch(
+    navSource,
+    /<NaturalStoneIcon kind=\{NATURAL_STONE_BY_ITEM\[item\.id\]\}[^>]*>[\s\S]*?<GemGlyph/,
+  );
+  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item \.theme-light-jewel \{[\s\S]*?opacity: 1;[\s\S]*?brightness\(1\.08\)/);
+  assert.doesNotMatch(css, /\.nav-fab__item:not\(\.nav-fab__item--current\) \.theme-light-jewel/);
+});
+
+test('current toolbar destination gets a stronger material-coloured halo in both themes', () => {
+  assert.match(navSource, /filter: isCurrentItem[\s\S]*?drop-shadow\(0 0 28px/);
+  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item--current::before/);
+  assert.match(css, /drop-shadow\(0 0 26px color-mix/);
+});
+
 test('light client tabs add a silver rod, fasteners and silver hardware reflections', () => {
   assert.match(css, /\.client-card-tabbar::before/);
   assert.match(css, /\.client-card-tabbar__tab:not\(:last-child\)::after/);

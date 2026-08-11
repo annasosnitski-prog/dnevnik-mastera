@@ -311,18 +311,32 @@
   transition: transform 0.1s ease, filter 0.1s ease;
 }
 
-:root[data-theme='light'] .nav-fab__item:not(.nav-fab__item--current) .theme-light-jewel {
-  opacity: 0.66;
-  filter: saturate(0.78) brightness(0.87) contrast(0.95);
+:root[data-theme='light'] .nav-fab__item .theme-light-jewel {
+  opacity: 1;
+  filter: saturate(1.16) brightness(1.08) contrast(1.05);
   transition: opacity 0.25s ease, filter 0.25s ease;
 }
 
 :root[data-theme='light'] .nav-fab__item--current .theme-light-jewel {
   filter:
-    saturate(1.12)
-    contrast(1.08)
-    drop-shadow(0 0 4px color-mix(in srgb, var(--natural-jewel-color) 42%, transparent))
-    drop-shadow(0 0 11px color-mix(in srgb, var(--natural-jewel-color) 18%, transparent));
+    saturate(1.16)
+    brightness(1.08)
+    contrast(1.05)
+    drop-shadow(0 0 6px color-mix(in srgb, var(--natural-jewel-color) 68%, transparent))
+    drop-shadow(0 0 15px color-mix(in srgb, var(--natural-jewel-color) 38%, transparent))
+    drop-shadow(0 0 26px color-mix(in srgb, var(--natural-jewel-color) 20%, transparent));
+}
+
+:root[data-theme='light'] .nav-fab__item--current::before {
+  width: 142%;
+  height: 142%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--natural-jewel-color) 36%, transparent) 0%,
+    color-mix(in srgb, var(--natural-jewel-color) 16%, transparent) 44%,
+    transparent 74%
+  );
+  filter: blur(9px);
 }
 
 .nav-fab__main {

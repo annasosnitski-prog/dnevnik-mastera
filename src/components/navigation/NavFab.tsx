@@ -454,6 +454,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   ["--dy" as string]: `${dy}px`,
                   ["--travel-duration" as string]: `${durationMs}ms`,
                   ["--travel-delay" as string]: `${120 + index * 65}ms`,
+                  ["--natural-jewel-color" as string]: item.color,
                   ...(minimalism && isCurrentItem ? { ["--item-color" as string]: item.color, color: item.color } : {}),
                 }}
                 aria-label={item.label}
@@ -474,7 +475,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                       className="theme-dark-jewel"
                       aria-hidden="true"
                       style={{
-                        filter: `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
+                        filter: isCurrentItem
+                          ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${item.color}D9) drop-shadow(0 0 16px ${item.color}99) drop-shadow(0 0 28px ${item.color}5C)`
+                          : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
                       }}
                     >
                       <PendantIcon color={item.color} size={ITEM_SIZE}>
@@ -486,9 +489,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                       aria-hidden="true"
                       style={{ ['--natural-jewel-color' as string]: item.color }}
                     >
-                      <NaturalStoneIcon kind={NATURAL_STONE_BY_ITEM[item.id]} size={ITEM_SIZE}>
-                        <GemGlyph id={item.id as NavItemId} />
-                      </NaturalStoneIcon>
+                      <NaturalStoneIcon kind={NATURAL_STONE_BY_ITEM[item.id]} size={ITEM_SIZE} />
                     </span>
                   </>
                 )}
