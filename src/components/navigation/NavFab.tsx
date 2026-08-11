@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { PendantIcon } from "./PendantIcon";
 import { ToolbarIcon } from "./ToolbarIcons";
+import { TERRITORY_COLORS } from "../ui/designTokens";
 import { useMinimalism } from "../ui/minimalism";
 import "./NavFabReveal.css";
 import "./NavFabMinimal.css";
@@ -21,7 +22,7 @@ const NAV_ITEMS = [
     label: "Клиенты",
     screen: "list",
     isActive: (active: AppScreen) => active === "list" || active === "settings" || active === "detail",
-    color: "#5CFF24",
+    color: TERRITORY_COLORS.clients,
     durationMs: 2000,
   },
   {
@@ -29,7 +30,7 @@ const NAV_ITEMS = [
     label: "Личный кабинет",
     screen: "master",
     isActive: (active: AppScreen) => active === "master",
-    color: "#FFE000",
+    color: TERRITORY_COLORS.personal,
     durationMs: 3600,
   },
   {
@@ -37,7 +38,7 @@ const NAV_ITEMS = [
     label: "POSTiNKA",
     screen: "content",
     isActive: (active: AppScreen) => active === "content",
-    color: "#C12FFF",
+    color: TERRITORY_COLORS.content,
     durationMs: 3200,
   },
   {
@@ -45,7 +46,7 @@ const NAV_ITEMS = [
     label: "Проекты",
     screen: "workshop",
     isActive: (active: AppScreen) => active === "workshop",
-    color: "#00CFFF",
+    color: TERRITORY_COLORS.projects,
     durationMs: 2100,
   },
   {
@@ -53,7 +54,7 @@ const NAV_ITEMS = [
     label: "Заметки",
     screen: "summary",
     isActive: (active: AppScreen) => active === "summary",
-    color: "#FF8900",
+    color: TERRITORY_COLORS.notes,
     durationMs: 1800,
   },
   {
@@ -61,7 +62,7 @@ const NAV_ITEMS = [
     label: "Админка",
     screen: "admin",
     isActive: (active: AppScreen) => active === "admin",
-    color: "#FF3342",
+    color: TERRITORY_COLORS.admin,
     durationMs: 3800,
   },
 ] as const;

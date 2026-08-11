@@ -332,15 +332,34 @@ function deriveBotBookingsEndpoint(diarySyncEndpoint: string): string {
   return diarySyncEndpoint.replace(/\/[^/]*$/, '/bot-bookings');
 }
 
+// Раньше любой сбой (сеть, неверный секрет, поломка на сервере бота)
+// прятался за одной и той же фразой «проверь секрет/соединение» — из неё
+// нельзя было понять, точно ли дело в секрете, или бот просто упал (см.
+// сообщение об ошибке в BotBookingsList). Различаем причины здесь, а не
+// в компоненте, чтобы каждый вызывающий (этот экран и открытые слоты в
+// календаре) получал одинаково понятный текст.
 export async function fetchBotBookings(settings: CalendarSyncSettings): Promise<BotBooking[]> {
   if (!settings.secret.trim()) return [];
   const url = deriveBotBookingsEndpoint(settings.endpoint);
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${settings.secret}` },
-  });
-  if (!res.ok) {
-    throw new Error(`bot-bookings fetch failed: ${res.status}`);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${settings.secret}` },
+    });
+  } catch {
+    throw new Error('нет соединения с ботом — проверь адрес сервиса и сеть.');
   }
+
+  if (res.status === 401) {
+    throw new Error('бот отклонил секрет (401) — сверь код в Дневнике с DIARY_SYNC_SECRET на сервере бота.');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const detail = typeof body?.error === 'string' ? `: ${body.error}` : '';
+    throw new Error(`бот ответил ошибкой ${res.status}${detail} — дело не в секрете, проверь сервер бота.`);
+  }
+
   const data = await res.json();
   return Array.isArray(data?.bookings) ? data.bookings : [];
 }

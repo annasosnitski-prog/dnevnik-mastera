@@ -12,6 +12,19 @@ export const COLORS = {
   textTrace: 'var(--text-trace)',
 };
 
+// One colour means one product territory everywhere it appears. The radial
+// toolbar and the related client-card tabs both consume this object so their
+// palettes cannot silently drift apart again.
+export const TERRITORY_COLORS = {
+  // Emerald · citrine · amethyst · dark sapphire · fire opal · ruby.
+  clients: '#008A5A',
+  personal: '#C99516',
+  content: '#7935B2',
+  projects: '#1448A7',
+  notes: '#D45A1F',
+  admin: '#B01236',
+} as const;
+
 // "Размер текста" scales typography only. TattoDiary sets the multiplier at
 // the start of each render pass before child components call fs().
 let textScale = 1;

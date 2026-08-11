@@ -480,24 +480,111 @@ export function DetailScreen({
           </div>
         )}
 
-        {/* Client marker stripe — the "rod" the tab pendants hang from below.
-            Stays the client's own colour; a light-glint band and a shadow
-            terminator band are laid across it so it reads as a lit metal bar
-            rather than a flat rectangle. */}
+        {/* Gold tube carrying the tab medallions. The client's marker colour
+            is present as reflected light along the whole tube, not as a flat
+            painted strip. */}
         <div
           style={{
-            height: 4,
+            position: 'relative',
+            boxSizing: 'border-box',
+            height: 5,
             width: '100%',
             flexShrink: 0,
-            background: `linear-gradient(90deg,
-              color-mix(in srgb, ${client.color} 100%, black 32%) 0%,
-              ${client.color} 18%,
-              ${client.color} 36%,
-              color-mix(in srgb, ${client.color} 55%, white 45%) 50%,
-              ${client.color} 64%,
-              ${client.color} 100%)`,
+            overflow: 'visible',
+            borderRadius: 999,
+            borderTop: '1px solid #FFF0B3',
+            borderBottom: '1px solid #431A00',
+            background: `linear-gradient(180deg,
+              #6B2C00 0%,
+              #FFD777 18%,
+              #FFF8D7 36%,
+              #EFAD3C 52%,
+              #A55408 72%,
+              #431A00 100%)`,
+            boxShadow: `
+              0 1px 0 rgba(255,240,179,.34) inset,
+              0 1px 3px rgba(0,0,0,.38),
+              0 0 3px rgba(255,215,119,.42),
+              0 0 7px color-mix(in srgb, ${client.color} 14%, rgba(226,182,85,.18) 86%)`,
           }}
-        />
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: '36%',
+              height: '32%',
+              background: `linear-gradient(90deg,
+                color-mix(in srgb, ${client.color} 60%, #793804 40%) 0%,
+                ${client.color} 20%,
+                color-mix(in srgb, ${client.color} 54%, white 46%) 50%,
+                ${client.color} 80%,
+                color-mix(in srgb, ${client.color} 60%, #793804 40%) 100%)`,
+              opacity: 0.72,
+              filter: 'blur(.45px)',
+              mixBlendMode: 'screen',
+            }}
+          />
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: '1%',
+              right: '1%',
+              top: 1,
+              height: 1,
+              borderRadius: 999,
+              background: 'linear-gradient(90deg, transparent, rgba(255,248,215,.75) 18%, rgba(255,248,215,.2) 72%, transparent)',
+            }}
+          />
+          {/* Five raised gold separators sit on the tube at the exact
+              boundaries of the six equal tab slots: each one is therefore
+              centred between two neighbouring medallions at every width. */}
+          <span
+            aria-hidden="true"
+            data-tube-dividers
+            style={{
+              position: 'absolute',
+              left: 8,
+              right: 8,
+              top: '50%',
+              height: 0,
+              pointerEvents: 'none',
+              zIndex: 3,
+            }}
+          >
+            {CLIENT_TABS.slice(0, -1).map((tab, index) => (
+              <span
+                key={tab.id}
+                data-tube-divider={index + 1}
+                style={{
+                  position: 'absolute',
+                  left: `${((index + 1) / CLIENT_TABS.length) * 100}%`,
+                  top: 0,
+                  width: 5.5,
+                  height: 5.5,
+                  transform: 'translate(-50%, -50%)',
+                  borderRadius: '50%',
+                  border: '0.5px solid rgba(255,240,179,.82)',
+                  background: `radial-gradient(circle at 34% 28%,
+                    #FFFDF0 0%,
+                    #FFF0B3 16%,
+                    #FFD777 34%,
+                    #B88B32 63%,
+                    #6B2C00 82%,
+                    #431A00 100%)`,
+                  boxShadow: `
+                    0 0 1.5px rgba(255,240,179,.78),
+                    0 0 4px rgba(255,215,119,.36),
+                    0 0 7px rgba(226,182,85,.14),
+                    0 1px 1px rgba(0,0,0,.45)`,
+                }}
+              />
+            ))}
+          </span>
+        </div>
       </div>
 
       <ClientCardTabBar tabs={CLIENT_TABS} activeTab={activeTab} onTab={onTab} ariaLabel="Разделы клиента" />

@@ -9,6 +9,7 @@ import {
   syncActive,
   diffAndSync,
   setConflictHandler,
+  fetchBotBookings,
   DEFAULT_ENDPOINT,
   type CalendarSyncSettings,
 } from '../lib/calendarSync';
@@ -1983,7 +1984,7 @@ export default function TattoDiary() {
     >
       {/* Shared sky — one instance behind every screen instead of a copy per
           screen. Screens used to each mount their own StarfieldBackground/
-          CloudsBackground/AviationBackground (plus this dot-grid), which
+          CloudsBackground/AviationBackground, which
           meant up to two full sets animating at once (List's, which is
           never unmounted, plus whichever other screen was open) — real GPU
           load and battery/heat cost on a phone for a purely decorative
@@ -1991,15 +1992,6 @@ export default function TattoDiary() {
           identical (the content was never screen-specific) at half the
           animation cost. */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 0, background: COLORS.bg }}>
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: 'radial-gradient(circle, rgba(var(--gold-rgb),0.035) 1px, transparent 1px)',
-            backgroundSize: '22px 22px',
-            pointerEvents: 'none',
-          }}
-        />
         <StarfieldBackground />
         <CloudsBackground />
         <AviationBackground />
@@ -2484,6 +2476,11 @@ export default function TattoDiary() {
                   ? () => setCreateChoiceContext('admin')
                   : screen === 'detail' && selectedClient
                     ? () => setCreateChoiceContext('detail')
+                    // «Личный кабинет» и «Мастерская» создают одно и то же —
+                    // client-less сущности, поэтому у них общий контекст
+                    // выбора. Раньше (до единой CreateChoiceSheet) Личный
+                    // кабинет умел заводить только проект мастера; теперь
+                    // проект — просто одна из опций того же выбора.
                     : screen === 'master' || screen === 'workshop'
                       ? () => setCreateChoiceContext('workshop')
                       : undefined
@@ -2861,7 +2858,7 @@ export default function TattoDiary() {
 
       {/* ═══════════ NEW / EDIT SESSION SHEET ═══════════ */}
       {/* The game for a new session already ran when the choice was made in
-          AddChoiceSheet below — so submitting here just saves it. */}
+          CreateChoiceSheet below — so submitting here just saves it. */}
       <NewSessionSheet
         open={showNewSessionForm}
         clientName={
@@ -4011,6 +4008,22 @@ function MasterDashboardScreen({
   const [showSyncSecret, setShowSyncSecret] = useState(false);
   const [showContentSecret, setShowContentSecret] = useState(false);
 
+  // «Проверить соединение» прямо в настройках синхронизации — раньше
+  // единственным способом узнать, работает ли связь с ботом, было зайти
+  // в Админку и открыть «Брони от бота». Дёргаем тот же bot-bookings,
+  // что и тот виджет, но здесь просто нужен статус, а не список.
+  const [syncCheck, setSyncCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'error'; message?: string }>({
+    status: 'idle',
+  });
+  const checkCalendarSync = () => {
+    setSyncCheck({ status: 'checking' });
+    fetchBotBookings(calendarSync)
+      .then((b) => setSyncCheck({ status: 'ok', message: `подключено — записей от бота: ${b.length}.` }))
+      .catch((err) =>
+        setSyncCheck({ status: 'error', message: err instanceof Error ? err.message : 'не получилось проверить соединение.' })
+      );
+  };
+
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
     color: COLORS.textGhost,
@@ -4436,6 +4449,37 @@ function MasterDashboardScreen({
               ? 'нужен секретный код — без него синхронизация не работает.'
               : 'выключена: записи остаются только в дневнике.'}
           </div>
+          {syncActive(calendarSync) && (
+            <div style={{ marginTop: 10 }}>
+              <span
+                onClick={syncCheck.status === 'checking' ? undefined : checkCalendarSync}
+                role="button"
+                aria-label="Проверить соединение с ботом"
+                style={{
+                  fontSize: fs(11),
+                  color: COLORS.gold,
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  cursor: syncCheck.status === 'checking' ? 'default' : 'pointer',
+                  opacity: syncCheck.status === 'checking' ? 0.5 : 1,
+                }}
+              >
+                {syncCheck.status === 'checking' ? 'проверяю…' : 'проверить соединение'}
+              </span>
+              {syncCheck.message && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: fs(11),
+                    fontStyle: 'italic',
+                    color: syncCheck.status === 'error' ? '#C99' : COLORS.textGhost,
+                  }}
+                >
+                  {syncCheck.message}
+                </div>
+              )}
+            </div>
+          )}
         </GoldFrame>
 
         {/* ContentINKA — тот же принцип, что «Инка-календарь» выше, свой
