@@ -11,12 +11,18 @@ const iconSource = readSource('../src/components/navigation/ToolbarIcons.tsx');
 const appSource = readSource('../src/components/TattoDiary.tsx');
 const cssSource = readSource('../src/index.css');
 
-test('NavFab uses equal angular spacing across a half-ellipse, taller than it is wide', () => {
-  assert.match(navSource, /const ARC_SPAN_DEG = 180/);
-  assert.match(navSource, /const FAN_RADIUS_X = 128/);
-  assert.match(navSource, /const FAN_RADIUS_Y = 172/);
-  assert.match(navSource, /ARC_SPAN_DEG - i \* \(ARC_SPAN_DEG \/ \(fanEntries\.length - 1\)\)/);
-  assert.match(navSource, /arcOffset\(angleDeg, FAN_RADIUS_X, FAN_RADIUS_Y\)/);
+// Веер раскрывается полным кругом вокруг хаба (PR #238 «Круглые gem-вкладки»),
+// а не полуэллипсом, как в первой версии: один радиус вместо пары X/Y, шаг —
+// полный оборот, делённый на число пунктов, старт — от «12 часов» (-90°).
+// Раньше тест описывал именно ту, уже заменённую геометрию (ARC_SPAN_DEG 180,
+// FAN_RADIUS_X/Y 128×172, arcOffset) и с #238 висел красным.
+test('NavFab spreads the fan evenly around a full circle at one radius', () => {
+  assert.match(navSource, /const FAN_RADIUS = \d+/);
+  // Равномерный шаг по всему кругу: 2π, делённые на общее число пунктов.
+  assert.match(navSource, /const angle = -Math\.PI \/ 2 \+ \(index \* Math\.PI \* 2\) \/ total/);
+  // Одна и та же величина по обеим осям — круг, а не эллипс.
+  assert.match(navSource, /dx: Math\.round\(Math\.cos\(angle\) \* FAN_RADIUS\)/);
+  assert.match(navSource, /dy: Math\.round\(Math\.sin\(angle\) \* FAN_RADIUS\)/);
 });
 
 test('NavFab exposes the renamed destinations', () => {
