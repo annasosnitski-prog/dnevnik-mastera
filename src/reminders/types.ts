@@ -29,6 +29,10 @@ export type UpcomingSoonItem = { client: Client; kind: 'session' | 'consultation
 // can route straight to the existing project viewer.
 export type ProjectSessionReminderItem = { project: Project; sessionId: string; date: string; time: string };
 
+// A consultation stored directly on a project without a client — same idea
+// as ProjectSessionReminderItem above, for Project.consultations.
+export type ProjectConsultationReminderItem = { project: Project; consultationId: string; date: string; time: string };
+
 // An active, not-completed project with no meaningful movement (see
 // getProjectLastActivityDate in domain/projectSelectors.ts) for at least
 // STALE_PROJECT_THRESHOLD_DAYS — a soft nudge to check in on it, not an

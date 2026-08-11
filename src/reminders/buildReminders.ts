@@ -12,7 +12,15 @@ import type { Client } from '../domain/client';
 import type { Project } from '../domain/project';
 import { getProjectLastActivityDate, hasScheduledWork, hasOverdueWork } from '../domain/projectSelectors.js';
 import { ISO_DATE_RE, isValidISODate } from '../utils/dates.js';
-import type { OverdueItem, HealingItem, HealingStage, UpcomingSoonItem, ProjectSessionReminderItem, StaleProjectItem } from './types';
+import type {
+  OverdueItem,
+  HealingItem,
+  HealingStage,
+  UpcomingSoonItem,
+  ProjectSessionReminderItem,
+  ProjectConsultationReminderItem,
+  StaleProjectItem,
+} from './types';
 
 // Заживление проверяется в четыре захода вместо одной точки на 30-й день —
 // у каждой стадии своё окно (minDays включительно, maxDays исключительно).
@@ -140,6 +148,42 @@ export function upcomingSoonProjectSessions(projects: Project[], now: Date): Pro
   return result.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 }
 
+// Consultations stored directly on projects without a client whose date has
+// passed — mirrors overdueProjectSessions above, for Project.consultations.
+export function overdueProjectConsultations(projects: Project[], now: Date): ProjectConsultationReminderItem[] {
+  const today = localISO(now);
+  const result: ProjectConsultationReminderItem[] = [];
+  for (const project of projects) {
+    if (project.clientId !== null) continue;
+    for (const consultation of project.consultations) {
+      if (consultation.done || consultation.cancelled || consultation.status === 'converted' || !isValidISODate(consultation.date) || consultation.date >= today) continue;
+      result.push({ project, consultationId: consultation.id, date: consultation.date, time: consultation.time });
+    }
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Consultations stored directly on projects without a client that start
+// 36–48 hours from the supplied clock snapshot — mirrors
+// upcomingSoonProjectSessions above, for Project.consultations.
+export function upcomingSoonProjectConsultations(projects: Project[], now: Date): ProjectConsultationReminderItem[] {
+  const nowMs = now.getTime();
+  const result: ProjectConsultationReminderItem[] = [];
+  for (const project of projects) {
+    if (project.clientId !== null) continue;
+    for (const consultation of project.consultations) {
+      if (consultation.done || consultation.cancelled || consultation.status === 'converted' || !isValidISODate(consultation.date) || !TIME_RE.test(consultation.time)) continue;
+      const at = new Date(`${consultation.date}T${consultation.time}`).getTime();
+      if (Number.isNaN(at)) continue;
+      const hoursUntil = (at - nowMs) / 3600000;
+      if (hoursUntil >= SOON_REMINDER_MIN_HOURS && hoursUntil <= SOON_REMINDER_MAX_HOURS) {
+        result.push({ project, consultationId: consultation.id, date: consultation.date, time: consultation.time });
+      }
+    }
+  }
+  return result.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+}
+
 // Активные проекты, у которых «следующий шаг» назначен на сегодня или уже
 // просрочен (Этап 3b). Срабатывает только когда мастер сама поставила дату.
 // nextActionText.trim() !== '' — вторая, независимая от сохранения защита:
@@ -185,7 +229,7 @@ export const STALE_PROJECT_THRESHOLD_DAYS = 30;
 export function staleProjects(projects: Project[], clients: Client[], now: Date): StaleProjectItem[] {
   const today = localISO(now);
   const allSessions = [...clients.flatMap((c) => c.sessions), ...projects.flatMap((p) => p.sessions)];
-  const allConsultations = clients.flatMap((c) => c.consultations);
+  const allConsultations = [...clients.flatMap((c) => c.consultations), ...projects.flatMap((p) => p.consultations)];
   const result: StaleProjectItem[] = [];
   for (const project of projects) {
     if (project.state !== 'active' || project.stage === 'completed') continue;

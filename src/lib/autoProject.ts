@@ -1,0 +1,52 @@
+// Чистая логика для «сессия/консультация не может быть без проекта»: если
+// мастер не выбрала существующий проект при создании, ей молча заводится
+// один переиспользуемый проект-«отстойник» на владельца (клиента или
+// мастера) — тот же id/подход, что уже даёт кнопка «Собрать старые записи в
+// проекты» (bucket-<clientId>), просто без декоративного префикса «Записи ·»
+// в названии для новых записей (см. migrateRecordsIntoProjects в
+// TattoDiary.tsx — существующие бакеты с тем префиксом не переименовываются).
+import type { Project } from '../domain/project';
+
+// Детерминированный id — один и тот же «отстойник» переиспользуется при
+// каждом повторном «не выбрала проект», а не плодится заново.
+export function bucketProjectId(clientId: string | null): string {
+  return clientId ? `bucket-${clientId}` : 'bucket-master';
+}
+
+// «Просто имя» — клиента, если есть, иначе мастера; без префиксов.
+export function bucketProjectTitle(client: { name: string; surname: string } | null, masterName: string): string {
+  if (client) return `${client.name} ${client.surname}`.trim() || 'Клиент';
+  return masterName.trim() || 'Мастер';
+}
+
+// Собирает новый проект-«отстойник» — переиспользуется и миграцией старых
+// данных, и ensureProjectId (TattoDiary.tsx), чтобы не дублировать литерал
+// в двух местах.
+export function makeBucketProject(id: string, title: string, color: string, clientId: string | null): Project {
+  const now = new Date().toISOString();
+  return {
+    id,
+    title,
+    color,
+    category: 'tattoo',
+    clientId,
+    stage: 'in_progress',
+    state: 'active',
+    waitingFor: 'none',
+    nextActionText: '',
+    nextActionDate: null,
+    nextActionType: null,
+    priority: 'normal',
+    area: '',
+    style: '',
+    generalNotes: '',
+    feeling: '',
+    creative: '',
+    inspirationSources: '',
+    photos: [],
+    createdDate: now,
+    lastMeaningfulActivityAt: now,
+    sessions: [],
+    consultations: [],
+  };
+}

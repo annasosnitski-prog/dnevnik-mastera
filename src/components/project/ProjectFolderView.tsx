@@ -51,6 +51,20 @@ export function ProjectFolderView({
           <ProjectCard key={project.id} project={project} clientName={clientNameFor(clients, project.clientId)} onClick={() => onOpenProject(project)} />
         ))}
       </div>
+
+      {folder.projects.length === 0 && (
+        <div
+          style={{
+            textAlign: 'center',
+            fontSize: fs(14),
+            fontStyle: 'italic',
+            color: COLORS.textGhost,
+            padding: '40px 40px 0',
+          }}
+        >
+          Пока нет проектов — нажмите «+» внизу, чтобы добавить первый
+        </div>
+      )}
     </div>
   );
 }

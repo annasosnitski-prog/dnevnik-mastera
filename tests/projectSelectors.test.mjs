@@ -33,6 +33,7 @@ function makeProject(overrides = {}) {
     photos: [],
     createdDate: '2026-01-01',
     sessions: [],
+    consultations: [],
     lastMeaningfulActivityAt: '2026-01-01',
     ...overrides,
   };
@@ -67,9 +68,13 @@ function makeClient(overrides = {}) {
     name: 'Анна',
     surname: 'Соснитски',
     color: '#3E7CA6',
+    sessions: [],
+    consultations: [],
     ...overrides,
   };
 }
+
+const FOLDERS_TODAY = '2026-02-01';
 
 test('client with two projects gives one folder with two projects', () => {
   const client = makeClient();
@@ -78,7 +83,7 @@ test('client with two projects gives one folder with two projects', () => {
     makeProject({ id: 'p2', clientId: client.id }),
   ];
 
-  const folders = buildProjectFolders(projects, [client]);
+  const folders = buildProjectFolders(projects, [client], FOLDERS_TODAY);
 
   assert.equal(folders.length, 1);
   assert.equal(folders[0].id, 'client:client-1');
@@ -90,7 +95,7 @@ test('client with one project still gets a folder', () => {
   const client = makeClient();
   const projects = [makeProject({ id: 'p1', clientId: client.id })];
 
-  const folders = buildProjectFolders(projects, [client]);
+  const folders = buildProjectFolders(projects, [client], FOLDERS_TODAY);
 
   assert.equal(folders.length, 1);
   assert.equal(folders[0].type, 'client');
@@ -105,7 +110,7 @@ test('two different clients give two distinct folders', () => {
     makeProject({ id: 'p2', clientId: clientB.id }),
   ];
 
-  const folders = buildProjectFolders(projects, [clientA, clientB]);
+  const folders = buildProjectFolders(projects, [clientA, clientB], FOLDERS_TODAY);
 
   assert.equal(folders.length, 2);
   assert.deepEqual(folders.map((f) => f.id), ['client:client-a', 'client:client-b']);
@@ -120,7 +125,7 @@ test('client folders follow the order of clients, not projects', () => {
     makeProject({ id: 'p2', clientId: clientA.id }),
   ];
 
-  const folders = buildProjectFolders(projects, [clientA, clientB]);
+  const folders = buildProjectFolders(projects, [clientA, clientB], FOLDERS_TODAY);
 
   assert.deepEqual(folders.map((f) => f.id), ['client:client-a', 'client:client-b']);
 });
@@ -131,7 +136,7 @@ test('projects inside a folder keep the order of the projects array', () => {
   const p2 = makeProject({ id: 'p2', clientId: client.id });
   const p3 = makeProject({ id: 'p3', clientId: client.id });
 
-  const folders = buildProjectFolders([p2, p3, p1], [client]);
+  const folders = buildProjectFolders([p2, p3, p1], [client], FOLDERS_TODAY);
 
   assert.deepEqual(folders[0].projects.map((p) => p.id), ['p2', 'p3', 'p1']);
 });
@@ -144,7 +149,7 @@ test('all clientId === null projects land only in the master folder', () => {
     makeProject({ id: 'p3', clientId: client.id }),
   ];
 
-  const folders = buildProjectFolders(projects, [client]);
+  const folders = buildProjectFolders(projects, [client], FOLDERS_TODAY);
 
   const master = folders.find((f) => f.id === 'master');
   assert.ok(master);
@@ -162,28 +167,93 @@ test('projects are not duplicated across folders', () => {
     makeProject({ id: 'p2', clientId: null }),
   ];
 
-  const folders = buildProjectFolders(projects, [client]);
+  const folders = buildProjectFolders(projects, [client], FOLDERS_TODAY);
   const allProjectIds = folders.flatMap((f) => f.projects.map((p) => p.id));
 
   assert.deepEqual(allProjectIds.sort(), ['p1', 'p2']);
 });
 
-test('empty folders are not shown', () => {
+test('every client gets a folder, even with zero projects (M6)', () => {
   const clientWithProjects = makeClient({ id: 'client-a' });
   const clientWithoutProjects = makeClient({ id: 'client-b' });
   const projects = [makeProject({ id: 'p1', clientId: clientWithProjects.id })];
 
-  const folders = buildProjectFolders(projects, [clientWithProjects, clientWithoutProjects]);
+  const folders = buildProjectFolders(projects, [clientWithProjects, clientWithoutProjects], FOLDERS_TODAY);
 
-  assert.equal(folders.length, 1);
-  assert.equal(folders[0].id, 'client:client-a');
+  assert.equal(folders.length, 2);
+  assert.deepEqual(folders.map((f) => f.id), ['client:client-a', 'client:client-b']);
+  const empty = folders.find((f) => f.id === 'client:client-b');
+  assert.equal(empty.projectCount, 0);
+  assert.deepEqual(empty.projects, []);
+});
+
+test('the master folder ("Проекты мастера") is still absent when there are zero client-less projects', () => {
+  const client = makeClient({ id: 'client-a' });
+  const projects = [makeProject({ id: 'p1', clientId: client.id })];
+
+  const folders = buildProjectFolders(projects, [client], FOLDERS_TODAY);
+
+  assert.ok(!folders.some((f) => f.type === 'master'));
+});
+
+// ── Сортировка папок по активности (M6) ──────────────────────────────────
+
+test('buildProjectFolders sorts overdue-work folders before everything else', () => {
+  const overdueClient = makeClient({ id: 'client-overdue' });
+  const idleClient = makeClient({ id: 'client-idle' });
+  const projects = [
+    makeProject({ id: 'p-idle', clientId: idleClient.id }),
+    makeProject({ id: 'p-overdue', clientId: overdueClient.id, nextActionText: 'Позвонить', nextActionDate: '2026-01-01' }),
+  ];
+
+  const folders = buildProjectFolders(projects, [idleClient, overdueClient], FOLDERS_TODAY);
+
+  assert.deepEqual(folders.map((f) => f.id), ['client:client-overdue', 'client:client-idle']);
+});
+
+test('buildProjectFolders sorts scheduled-work folders before idle folders, but after overdue', () => {
+  const idleClient = makeClient({ id: 'client-idle' });
+  const scheduledClient = makeClient({ id: 'client-scheduled' });
+  const overdueClient = makeClient({ id: 'client-overdue' });
+  const projects = [
+    makeProject({ id: 'p-idle', clientId: idleClient.id }),
+    makeProject({ id: 'p-scheduled', clientId: scheduledClient.id, nextActionText: 'Написать эскиз', nextActionDate: '2026-03-01' }),
+    makeProject({ id: 'p-overdue', clientId: overdueClient.id, nextActionText: 'Позвонить', nextActionDate: '2026-01-01' }),
+  ];
+
+  const folders = buildProjectFolders(projects, [idleClient, scheduledClient, overdueClient], FOLDERS_TODAY);
+
+  assert.deepEqual(folders.map((f) => f.id), ['client:client-overdue', 'client:client-scheduled', 'client:client-idle']);
+});
+
+test('buildProjectFolders puts zero-project clients last, after idle-but-has-projects clients', () => {
+  const idleClient = makeClient({ id: 'client-idle' });
+  const emptyClient = makeClient({ id: 'client-empty' });
+  const projects = [makeProject({ id: 'p-idle', clientId: idleClient.id })];
+
+  const folders = buildProjectFolders(projects, [emptyClient, idleClient], FOLDERS_TODAY);
+
+  assert.deepEqual(folders.map((f) => f.id), ['client:client-idle', 'client:client-empty']);
+});
+
+test('buildProjectFolders keeps stable relative order (clients array order) within the same rank', () => {
+  const clientA = makeClient({ id: 'client-a' });
+  const clientB = makeClient({ id: 'client-b' });
+  const projects = [
+    makeProject({ id: 'p-a', clientId: clientA.id }),
+    makeProject({ id: 'p-b', clientId: clientB.id }),
+  ];
+
+  const folders = buildProjectFolders(projects, [clientA, clientB], FOLDERS_TODAY);
+
+  assert.deepEqual(folders.map((f) => f.id), ['client:client-a', 'client:client-b']);
 });
 
 test('a missing client creates a safe fallback folder without altering the project', () => {
   const projects = [makeProject({ id: 'p1', clientId: 'ghost-client' })];
   const originalProjects = structuredClone(projects);
 
-  const folders = buildProjectFolders(projects, []);
+  const folders = buildProjectFolders(projects, [], FOLDERS_TODAY);
 
   assert.equal(folders.length, 1);
   assert.equal(folders[0].id, 'client:ghost-client');
@@ -202,7 +272,7 @@ test('missing-client fallback folders are ordered by first appearance in project
     makeProject({ id: 'p3', clientId: 'ghost-b' }),
   ];
 
-  const folders = buildProjectFolders(projects, []);
+  const folders = buildProjectFolders(projects, [], FOLDERS_TODAY);
 
   assert.deepEqual(folders.map((f) => f.id), ['client:ghost-b', 'client:ghost-a']);
 });
@@ -214,7 +284,7 @@ test('input arrays and objects are not mutated', () => {
   const projectsSnapshot = structuredClone(projects);
   const clientsSnapshot = structuredClone(clients);
 
-  buildProjectFolders(projects, clients);
+  buildProjectFolders(projects, clients, FOLDERS_TODAY);
 
   assert.deepEqual(projects, projectsSnapshot);
   assert.deepEqual(clients, clientsSnapshot);

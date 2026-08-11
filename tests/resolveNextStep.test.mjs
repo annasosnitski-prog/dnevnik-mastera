@@ -56,6 +56,7 @@ function makeProject(overrides = {}) {
     photos: [],
     createdDate: '2026-01-01T00:00:00.000Z',
     sessions: [],
+    consultations: [],
     lastMeaningfulActivityAt: '2026-01-01',
     ...overrides,
   };

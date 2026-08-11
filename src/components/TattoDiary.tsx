@@ -92,7 +92,8 @@ import {
   type ContentEntryLink,
 } from '../lib/contentLink';
 import { upsertClientSession, upsertProjectSession, applyConsultationConversion, applyConsultationRestoration, type SessionFormData } from '../lib/sessionSave';
-import { upsertConsultation, type ConsultationFormData } from '../lib/consultationSave';
+import { upsertConsultation, upsertProjectConsultation, type ConsultationFormData } from '../lib/consultationSave';
+import { bucketProjectId, bucketProjectTitle, makeBucketProject } from '../lib/autoProject';
 // Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
 // не менялась — только перенос.
 import { isRTL, firstLetter, nameRest } from '../lib/textFormat';
@@ -102,8 +103,6 @@ import { normalizeClientNote, normalizeClient, normalizeProject } from '../lib/n
 // разметка не менялись — только перенос.
 import { TopStripe, RightStripe, GemCorner, GoldFrame } from './ui/Stripes';
 import { StatBlock } from './ui/StatBlocks';
-import { SheetStarDivider } from './ui/TextAtoms';
-import { BottomSheet, SheetCloseButton } from './ui/Sheet';
 import { COLORS, fs, setTextScale } from './ui/designTokens';
 export { COLORS, DONE_EMOJI, fs } from './ui/designTokens';
 // Bottom sheets вынесены в отдельные модули (PR 5 рефакторинга). Логика и
@@ -116,6 +115,8 @@ import {
   ProjectViewSheet,
   NewProjectSheet,
 } from './sheets/SessionAndProjectSheets';
+import { CreateChoiceSheet } from './sheets/CreateChoiceSheet';
+import { NoteComposerSheet } from './sheets/NoteComposerSheet';
 import {
   ContentShareSheet,
   TimelineViewSheet,
@@ -213,6 +214,8 @@ import {
   upcomingSoonReminders,
   overdueProjectSessions,
   upcomingSoonProjectSessions,
+  overdueProjectConsultations,
+  upcomingSoonProjectConsultations,
   overdueProjects,
   staleProjects,
 } from '../reminders/buildReminders';
@@ -224,6 +227,8 @@ import {
   soonReminderKey,
   overdueProjectSessionReminderKey,
   soonProjectSessionReminderKey,
+  overdueProjectConsultationReminderKey,
+  soonProjectConsultationReminderKey,
   projectReminderKey,
   staleProjectReminderKey,
 } from '../reminders/reminderKeys';
@@ -683,9 +688,12 @@ export default function TattoDiary() {
   const [showEditClientForm, setShowEditClientForm] = useState(false);
   // Session being edited (null when adding a new one).
   const [editSession, setEditSession] = useState<Session | null>(null);
-  // Tapping "+" on the sessions tab first asks «Сессия» or «Консультация» —
-  // this holds that choice sheet's open state.
-  const [showAddChoice, setShowAddChoice] = useState(false);
+  // Единая шторка выбора создаваемой сущности (CreateChoiceSheet) — какой
+  // контекст сейчас её открыл, решает набор опций и то, куда ведёт выбор
+  // (см. onCreate у NavFab и рендер CreateChoiceSheet ниже). 'workshop'
+  // обслуживает и «Мастерскую», и «Личный кабинет» мастера — оба места
+  // создают client-less сущности одинаково.
+  const [createChoiceContext, setCreateChoiceContext] = useState<'detail' | 'workshop' | 'viewProject' | 'admin' | null>(null);
   const [showNewConsultationForm, setShowNewConsultationForm] = useState(false);
   const [editConsultation, setEditConsultation] = useState<Consultation | null>(null);
   // Consultation being turned into a session («Перевести в сессию») —
@@ -712,11 +720,18 @@ export default function TattoDiary() {
   // «Творческая мастерская» — standalone projects, not tied to any client.
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
-  // Главная кнопка «Создать» на Мастерской спрашивает «Новый проект» или
-  // «Сессия без клиента» — держит открытость этого выбора и, для второго
-  // варианта, открытость пикера «в какой проект».
-  const [showWorkshopCreateChoice, setShowWorkshopCreateChoice] = useState(false);
+  // Пикер «в какой проект» для сессии/консультации (Мастерская, Личный
+  // кабинет, Админка) — projectPickerKind решает, какая форма откроется
+  // после выбора/создания проекта; projectPickerScope — 'clientless' (как
+  // раньше, Мастерская/Личный кабинет) или 'all' (Админка — все проекты,
+  // сгруппированные по клиенту, см. ProjectSessionPickerSheet scope='all').
   const [showProjectSessionPicker, setShowProjectSessionPicker] = useState(false);
+  const [projectPickerKind, setProjectPickerKind] = useState<'session' | 'consultation'>('session');
+  const [projectPickerScope, setProjectPickerScope] = useState<'clientless' | 'all'>('clientless');
+  // Заметка через CreateChoiceSheet (карточка клиента/мастера, «Мастерская»,
+  // открытый проект) — контекст решает clientId/projectId, с которыми
+  // заметка создаётся.
+  const [noteComposerContext, setNoteComposerContext] = useState<{ clientId: string | null; projectId: string | null } | null>(null);
   // Read-only fullscreen viewer for a consultation or a session, opened by
   // tapping the card body (the pencil still edits). Holds the client id so the
   // viewer always reflects the latest stored copy even after an edit.
@@ -738,6 +753,8 @@ export default function TattoDiary() {
   // Если задан — открытая форма «Новая сессия» сохраняет в Project.sessions
   // этого проекта (сессия без клиента), а не в client.sessions (Этап 3b-доп.).
   const [sessionTargetProjectId, setSessionTargetProjectId] = useState<string | null>(null);
+  // Зеркало sessionTargetProjectId выше, для Project.consultations.
+  const [consultationTargetProjectId, setConsultationTargetProjectId] = useState<string | null>(null);
   // ContentLinkPickerSheet «Сохранить в…» → «Создать проект»/«Создать
   // сессию» запускает уже существующие сценарии (NewProjectSheet, либо
   // ProjectSessionPickerSheet+NewSessionSheet) — этот ref запоминает, какую
@@ -1224,6 +1241,7 @@ export default function TattoDiary() {
     setCalendarCreateDate(null);
     setCalendarEventKind(null);
     setPresetEntryProjectId(null);
+    setConsultationTargetProjectId(null);
   };
   const closeEditClient = () => setShowEditClientForm(false);
   const closeBackdrop = () => {
@@ -1231,7 +1249,7 @@ export default function TattoDiary() {
     setShowNewSessionForm(false);
     setShowEditClientForm(false);
     setShowNewConsultationForm(false);
-    setShowAddChoice(false);
+    setCreateChoiceContext(null);
     setEditSession(null);
     setEditConsultation(null);
     setChainFromConsultation(null);
@@ -1316,6 +1334,24 @@ export default function TattoDiary() {
     saveClient({ ...restored, sessions: restored.sessions.filter((s) => s.id !== sessionId) });
   };
 
+  // «Сессия/консультация не может быть без проекта» — если форма не
+  // предложила конкретный projectId (мастер оставила «— создать новый
+  // проект —»), молча заводим/переиспользуем ОДИН проект-«отстойник» на
+  // владельца (bucket-<clientId> / bucket-master, тот же id, что уже даёт
+  // «Собрать старые записи в проекты» — см. migrateRecordsIntoProjects), а
+  // не плодим новый проект при каждом отдельном «не выбрала». Существующий
+  // бакет (в т.ч. созданный старой миграцией, с названием «Записи · ФИО»)
+  // переиспользуется как есть, не переименовывается.
+  const ensureProjectId = (projectId: string | null, ownerClient: Client | null): string => {
+    if (projectId) return projectId;
+    const id = bucketProjectId(ownerClient?.id ?? null);
+    if (projects.some((p) => p.id === id)) return id;
+    const title = bucketProjectTitle(ownerClient, masterInfo.name);
+    const color = ownerClient?.color || MARKER_COLORS[0];
+    saveProject(makeBucketProject(id, title, color, ownerClient?.id ?? null));
+    return id;
+  };
+
   // Сохранение чистой логики (client.consultations + связь цепочки) вынесено
   // в upsertConsultation (src/lib/consultationSave.ts) — см. upsertClientSession
   // выше для того же паттерна с сессиями. previousConsultationId идёт от
@@ -1325,7 +1361,7 @@ export default function TattoDiary() {
     if (!selectedClient) return;
     const { client: updatedClient } = upsertConsultation(
       selectedClient,
-      data,
+      { ...data, projectId: ensureProjectId(data.projectId, selectedClient) },
       editConsultation?.id ?? null,
       chainFromConsultation?.id ?? null,
     );
@@ -1426,24 +1462,27 @@ export default function TattoDiary() {
   }) => {
     if (editProject) {
       // Клиента только что привязали к проекту, у которого копились «сессии
-      // без клиента» (см. Project.sessions) — переносим их клиенту с той же
-      // связью через projectId и чистим с проекта. Раньше clientId не было —
-      // значит client.sessions этого проекта ещё нет, дублей не возникнет.
-      if (!editProject.clientId && data.clientId && editProject.sessions.length > 0) {
+      // без клиента» и/или «консультации без клиента» (см. Project.sessions/
+      // Project.consultations) — переносим их клиенту с той же связью через
+      // projectId и чистим с проекта. Раньше clientId не было — значит
+      // client.sessions/client.consultations этого проекта ещё нет, дублей
+      // не возникнет.
+      if (!editProject.clientId && data.clientId && (editProject.sessions.length > 0 || editProject.consultations.length > 0)) {
         const client = clients.find((c) => c.id === data.clientId);
         if (client) {
           saveClient({
             ...client,
             sessions: [...client.sessions, ...editProject.sessions.map((s) => ({ ...s, projectId: editProject.id }))],
+            consultations: [...client.consultations, ...editProject.consultations.map((c) => ({ ...c, projectId: editProject.id }))],
           });
         }
-        saveProject({ ...editProject, ...data, sessions: [] });
+        saveProject({ ...editProject, ...data, sessions: [], consultations: [] });
       } else {
         saveProject({ ...editProject, ...data });
       }
     } else {
       const newProjectId = crypto.randomUUID();
-      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], ...data });
+      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], consultations: [], ...data });
       // Проект создан из ContentLinkPickerSheet «Сохранить в…».
       if (pendingContentLinkRef.current) {
         if (pendingContentLinkRef.current.target === 'project') {
@@ -1491,6 +1530,31 @@ export default function TattoDiary() {
       linkContentEntryTo(pendingContentLinkRef.current.entryId, { type: 'session', sessionId });
       pendingContentLinkRef.current = null;
     }
+  };
+
+  // «Консультация без клиента» — зеркало handleAddProjectSession выше, для
+  // Project.consultations. Нет content-link привязки (content-link не
+  // поддерживает консультацию как цель, только проект/сессию) и нет
+  // advanceProjectStage (handleAddConsultation тоже его не вызывает —
+  // этап проекта двигают только сессии).
+  const handleAddProjectConsultation = (projectId: string, data: ConsultationFormData) => {
+    const p = getProjectById(projects, projectId);
+    if (!p) return;
+    const { project: updatedProject } = upsertProjectConsultation(p, { ...data, projectId }, editConsultation?.id ?? null);
+    saveProject(updatedProject);
+  };
+
+  // Единственная точка сохранения для NewConsultationSheet — зеркало
+  // saveSessionFromNewSessionSheet выше, без content-link-ветки (content-link
+  // не поддерживает консультацию как цель, только проект/сессию, см.
+  // lib/contentLink.ts).
+  const saveConsultationFromNewConsultationSheet = (data: ConsultationFormData) => {
+    if (consultationTargetProjectId) {
+      handleAddProjectConsultation(consultationTargetProjectId, data);
+      closeNewConsultation();
+      return;
+    }
+    handleAddConsultation(data);
   };
 
   // Единственная точка сохранения для NewSessionSheet (кроме calendar-walk,
@@ -1569,33 +1633,16 @@ export default function TattoDiary() {
       const orphanSessions = client.sessions.filter((s) => !s.projectId);
       const orphanConsults = client.consultations.filter((c) => !c.projectId);
       if (orphanSessions.length === 0 && orphanConsults.length === 0) continue;
-      const bucketId = `bucket-${client.id}`;
+      // Тот же bucket-<clientId> id, что и у «отстойника» из ensureProjectId
+      // (см. handleAddConsultation выше) — один и тот же проект, откуда бы он
+      // ни завёлся. Название здесь намеренно с префиксом «Записи ·» (легаси
+      // этой миграции, не переименовываем задним числом уже существующие
+      // бакеты); ensureProjectId для новых бакетов использует «просто имя»
+      // (см. lib/autoProject.ts).
+      const bucketId = bucketProjectId(client.id);
       const fullName = `${client.name} ${client.surname}`.trim() || 'Клиент';
       if (!existingProjectIds.has(bucketId)) {
-        saveProject({
-          id: bucketId,
-          title: `Записи · ${fullName}`,
-          color: client.color || MARKER_COLORS[0],
-          category: 'tattoo',
-          clientId: client.id,
-          stage: 'in_progress',
-          state: 'active',
-          waitingFor: 'none',
-          nextActionText: '',
-          nextActionDate: null,
-          nextActionType: null,
-          priority: 'normal',
-          area: '',
-          style: '',
-          generalNotes: '',
-          feeling: '',
-          creative: '',
-          inspirationSources: '',
-          photos: [],
-          createdDate: new Date().toISOString(),
-          lastMeaningfulActivityAt: new Date().toISOString(),
-          sessions: [],
-        });
+        saveProject(makeBucketProject(bucketId, `Записи · ${fullName}`, client.color || MARKER_COLORS[0], client.id));
         existingProjectIds.add(bucketId);
         buckets += 1;
       }
@@ -1818,9 +1865,10 @@ export default function TattoDiary() {
   // же helper со своим явным clientId (см. saveSessionForContentLink ниже).
   const handleAddSession = (data: SessionFormData) => {
     if (!selectedClient) return;
+    const projectId = ensureProjectId(data.projectId, selectedClient);
     const { client: updatedClient, sessionId } = upsertClientSession(
       selectedClient,
-      data,
+      { ...data, projectId },
       editSession?.id ?? null,
       chainFromSession?.id ?? null,
     );
@@ -1834,7 +1882,7 @@ export default function TattoDiary() {
     saveClient(finalClient);
     // Авто-переход этапа проекта (Этап 3b): выполненная сессия → «В работе»,
     // запланированная (ещё не выполнена) → «Записан». Только вперёд.
-    advanceProjectStage(data.projectId, data.done ? 'in_progress' : 'booked');
+    advanceProjectStage(projectId, data.done ? 'in_progress' : 'booked');
     setShowNewSessionForm(false);
     setEditSession(null);
     setConvertingConsultation(null);
@@ -1849,9 +1897,9 @@ export default function TattoDiary() {
     showNewSessionForm ||
     showEditClientForm ||
     showNewConsultationForm ||
-    showAddChoice ||
-    showWorkshopCreateChoice ||
+    createChoiceContext !== null ||
     showProjectSessionPicker ||
+    !!noteComposerContext ||
     showNewProjectForm ||
     !!viewEntry ||
     showCalendar ||
@@ -1886,6 +1934,18 @@ export default function TattoDiary() {
   const visibleSoonProjectSessions = filterVisibleReminders(
     upcomingSoonProjectSessions(projects, remindersNow),
     soonProjectSessionReminderKey,
+    reminderState,
+    remindersNow,
+  );
+  const visibleOverdueProjectConsultations = filterVisibleReminders(
+    overdueProjectConsultations(projects, remindersNow),
+    overdueProjectConsultationReminderKey,
+    reminderState,
+    remindersNow,
+  );
+  const visibleSoonProjectConsultations = filterVisibleReminders(
+    upcomingSoonProjectConsultations(projects, remindersNow),
+    soonProjectConsultationReminderKey,
     reminderState,
     remindersNow,
   );
@@ -2393,69 +2453,50 @@ export default function TattoDiary() {
           adminBadges={[
             // Просроченная задача (task_overdue) — как urgent; задача на
             // сегодня (task_due) — как reminder, рядом с healing/soon/проекты.
-            ...(visibleOverdue.length > 0 || visibleOverdueProjectSessions.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_overdue')
+            ...(visibleOverdue.length > 0 || visibleOverdueProjectSessions.length > 0 || visibleOverdueProjectConsultations.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_overdue')
               ? (['urgent'] as const)
               : []),
-            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleSoonProjectSessions.length > 0 || visibleDueProjects.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_due')
+            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleSoonProjectSessions.length > 0 || visibleSoonProjectConsultations.length > 0 || visibleDueProjects.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_due')
               ? (['reminder'] as const)
               : []),
           ]}
-          // Contextual create — same action each screen's own «+» used to
-          // trigger, now all reachable from one place. Открытый просмотр
-          // проекта (viewProject) переопределяет экранную логику —
-          // «Создать» тут же заводит сессию/консультацию именно для этого
-          // проекта, а не то, что обычно делает текущий screen.
+          // Contextual create — открывает единую CreateChoiceSheet с нужным
+          // контекстом; сам выбор внутри неё см. в её onPick ниже. Открытый
+          // просмотр проекта (viewProject) переопределяет экранную логику —
+          // «Создать» тут же предлагает сессию/консультацию/заметку именно
+          // для этого проекта, а не то, что обычно делает текущий screen.
           onCreate={
             viewProject
-              ? () => {
-                  if (viewProject.clientId) {
-                    const client = clients.find((c) => c.id === viewProject.clientId);
-                    if (!client) return;
-                    setViewProject(null);
-                    setSelectedId(client.id);
-                    setPresetEntryProjectId(viewProject.id);
-                    setShowAddChoice(true);
-                  } else {
-                    setViewProject(null);
-                    setEditSession(null);
-                    setSessionTargetProjectId(viewProject.id);
-                    setShowNewSessionForm(true);
-                  }
-                }
+              ? () => setCreateChoiceContext('viewProject')
               : screen === 'list' || screen === 'settings'
               ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
               : screen === 'summary'
                 ? () => setShowSummaryComposer(true)
                 : screen === 'admin'
-                  ? () => setShowCalendar(true)
+                  ? () => setCreateChoiceContext('admin')
                   : screen === 'detail' && selectedClient
-                    ? () => setShowAddChoice(true)
-                    : screen === 'workshop'
-                      ? () => setShowWorkshopCreateChoice(true)
-                      // Личный кабинет создаёт только один вид сущности —
-                      // свой («мастерский») проект, без выбора между
-                      // проектом/сессией, который нужен только Мастерской
-                      // (см. WorkshopCreateChoiceSheet) — там же ещё есть
-                      // отдельные «сессии без клиента».
-                      : screen === 'master'
-                        ? () => {
-                            setEditProject(null);
-                            setNewProjectClientId(null);
-                            setShowNewProjectForm(true);
-                          }
-                        : undefined
+                    ? () => setCreateChoiceContext('detail')
+                    // «Личный кабинет» и «Мастерская» создают одно и то же —
+                    // client-less сущности, поэтому у них общий контекст
+                    // выбора. Раньше (до единой CreateChoiceSheet) Личный
+                    // кабинет умел заводить только проект мастера; теперь
+                    // проект — просто одна из опций того же выбора.
+                    : screen === 'master' || screen === 'workshop'
+                      ? () => setCreateChoiceContext('workshop')
+                      : undefined
           }
         />
       )}
 
       {/* Today's-date tag — pinned next to the logo (sibling of the screens,
           so it never scrolls away with the client grid underneath). Shown on
-          every main screen except Мастер (the master's own profile has no
-          use for it). Create-client moved to the nav FAB's contextual create
-          action — see NavFab / onCreate below. Сортировка/Фильтры/Поиск, by
-          contrast, now live inside the List header itself and scroll away
-          with it — see the header render below. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'admin') && !sheetOpen && (
+          every screen, no exceptions — the open project viewer (viewProject)
+          doesn't count as a sheet (see sheetOpen above), so the badge stays
+          visible over it too. Create-client moved to the nav FAB's
+          contextual create action — see NavFab / onCreate below.
+          Сортировка/Фильтры/Поиск, by contrast, live inside the List header
+          itself and scroll away with it — see the header render below. */}
+      {!sheetOpen && (
         <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 31px)', right: 20, zIndex: 20 }}>
           <TodayDateBadge onOpen={() => setShowCalendar(true)} />
         </div>
@@ -2633,6 +2674,8 @@ export default function TattoDiary() {
               soon={visibleSoon}
               overdueProjectSessions={visibleOverdueProjectSessions}
               soonProjectSessions={visibleSoonProjectSessions}
+              overdueProjectConsultations={visibleOverdueProjectConsultations}
+              soonProjectConsultations={visibleSoonProjectConsultations}
               dueProjects={visibleDueProjects}
               staleProjects={visibleStaleProjects}
               tasks={visibleTaskReminders}
@@ -2815,7 +2858,7 @@ export default function TattoDiary() {
 
       {/* ═══════════ NEW / EDIT SESSION SHEET ═══════════ */}
       {/* The game for a new session already ran when the choice was made in
-          AddChoiceSheet below — so submitting here just saves it. */}
+          CreateChoiceSheet below — so submitting here just saves it. */}
       <NewSessionSheet
         open={showNewSessionForm}
         clientName={
@@ -2839,44 +2882,89 @@ export default function TattoDiary() {
         onAdd={saveSessionFromNewSessionSheet}
       />
 
-      {/* ═══════════ ADD CHOICE (session vs consultation) ═══════════ */}
-      <AddChoiceSheet
-        open={showAddChoice}
-        onClose={() => setShowAddChoice(false)}
-        onPickSession={() => {
-          setShowAddChoice(false);
-          runGated(false, () => {
-            setEditSession(null);
-            setShowNewSessionForm(true);
-          });
-        }}
-        onPickConsultation={() => {
-          setShowAddChoice(false);
-          runGated(false, () => {
-            setEditConsultation(null);
-            setShowNewConsultationForm(true);
-          });
-        }}
-      />
-
-      {/* ═══════════ МАСТЕРСКАЯ: «СОЗДАТЬ» → проект / сессия без клиента ═══════════ */}
-      <WorkshopCreateChoiceSheet
-        open={showWorkshopCreateChoice}
-        onClose={() => setShowWorkshopCreateChoice(false)}
-        onPickProject={() => {
-          setShowWorkshopCreateChoice(false);
-          setEditProject(null);
-          setNewProjectClientId(null);
-          setShowNewProjectForm(true);
-        }}
-        onPickSession={() => {
-          setShowWorkshopCreateChoice(false);
-          setShowProjectSessionPicker(true);
+      {/* ═══════════ CREATE CHOICE (карточка клиента / мастера, «Мастерская», открытый проект) ═══════════ */}
+      <CreateChoiceSheet
+        open={createChoiceContext !== null}
+        onClose={() => setCreateChoiceContext(null)}
+        options={
+          createChoiceContext === 'viewProject'
+            ? ['session', 'consultation', 'note']
+            : createChoiceContext === 'admin'
+              ? ['project', 'session', 'consultation']
+              : ['project', 'session', 'consultation', 'note']
+        }
+        onPick={(kind) => {
+          const context = createChoiceContext;
+          setCreateChoiceContext(null);
+          if (context === 'viewProject') {
+            if (!viewProject) return;
+            const project = viewProject;
+            setViewProject(null);
+            if (kind === 'session') {
+              setEditSession(null);
+              setSessionTargetProjectId(project.id);
+              setShowNewSessionForm(true);
+            } else if (kind === 'consultation') {
+              setEditConsultation(null);
+              setConsultationTargetProjectId(project.id);
+              setShowNewConsultationForm(true);
+            } else if (kind === 'note') {
+              setNoteComposerContext({ clientId: project.clientId, projectId: project.id });
+            }
+            return;
+          }
+          if (context === 'detail') {
+            if (!selectedClient) return;
+            const client = selectedClient;
+            runGated(false, () => {
+              if (kind === 'project') {
+                setEditProject(null);
+                setNewProjectClientId(client.id);
+                setShowNewProjectForm(true);
+              } else if (kind === 'session') {
+                setEditSession(null);
+                setShowNewSessionForm(true);
+              } else if (kind === 'consultation') {
+                setEditConsultation(null);
+                setShowNewConsultationForm(true);
+              } else if (kind === 'note') {
+                setNoteComposerContext({ clientId: client.id, projectId: null });
+              }
+            });
+            return;
+          }
+          if (context === 'workshop') {
+            if (kind === 'project') {
+              setEditProject(null);
+              setNewProjectClientId(null);
+              setShowNewProjectForm(true);
+            } else if (kind === 'session' || kind === 'consultation') {
+              setProjectPickerKind(kind);
+              setProjectPickerScope('clientless');
+              setShowProjectSessionPicker(true);
+            } else if (kind === 'note') {
+              setNoteComposerContext({ clientId: null, projectId: null });
+            }
+            return;
+          }
+          if (context === 'admin') {
+            if (kind === 'project') {
+              setEditProject(null);
+              setNewProjectClientId(null);
+              setShowNewProjectForm(true);
+            } else if (kind === 'session' || kind === 'consultation') {
+              setProjectPickerKind(kind);
+              setProjectPickerScope('all');
+              setShowProjectSessionPicker(true);
+            }
+          }
         }}
       />
       <ProjectSessionPickerSheet
         open={showProjectSessionPicker}
         projects={projects}
+        clients={projectPickerScope === 'all' ? clients : []}
+        scope={projectPickerScope === 'all' ? 'all' : undefined}
         clientId={pendingContentLinkRef.current?.preferredClientId ?? null}
         onClose={() => {
           setShowProjectSessionPicker(false);
@@ -2884,9 +2972,15 @@ export default function TattoDiary() {
         }}
         onPick={(project) => {
           setShowProjectSessionPicker(false);
-          setEditSession(null);
-          setSessionTargetProjectId(project.id);
-          setShowNewSessionForm(true);
+          if (projectPickerKind === 'consultation') {
+            setEditConsultation(null);
+            setConsultationTargetProjectId(project.id);
+            setShowNewConsultationForm(true);
+          } else {
+            setEditSession(null);
+            setSessionTargetProjectId(project.id);
+            setShowNewSessionForm(true);
+          }
         }}
         onCreateProject={() => {
           setShowProjectSessionPicker(false);
@@ -2897,19 +2991,58 @@ export default function TattoDiary() {
           setShowNewProjectForm(true);
         }}
       />
+      <NoteComposerSheet
+        open={!!noteComposerContext}
+        onClose={() => setNoteComposerContext(null)}
+        presetClientId={noteComposerContext?.clientId ?? null}
+        presetProjectId={noteComposerContext?.projectId ?? null}
+        onAdd={(text, urgency, photos, dueDate, clientId, projectId) => {
+          if (clientId) {
+            upsertNote(clientId, {
+              id: crypto.randomUUID(),
+              text,
+              urgency,
+              done: false,
+              createdDate: new Date().toISOString(),
+              photos,
+              projectId,
+              dueDate,
+            });
+          } else {
+            setMasterInfo({
+              ...masterInfo,
+              notes: [
+                ...masterInfo.notes,
+                { id: crypto.randomUUID(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId, dueDate },
+              ],
+            });
+          }
+          setNoteComposerContext(null);
+        }}
+      />
 
       {/* ═══════════ NEW / EDIT CONSULTATION SHEET ═══════════ */}
       <NewConsultationSheet
         open={showNewConsultationForm}
-        clientName={selectedClient?.name || ''}
-        client={selectedClient}
-        clientProjects={selectedClient ? getProjectsByClientId(projects, selectedClient.id) : []}
-        presetProjectId={presetEntryProjectId}
+        clientName={
+          consultationTargetProjectId
+            ? getProjectById(projects, consultationTargetProjectId)?.title || 'Проект'
+            : selectedClient?.name || ''
+        }
+        client={consultationTargetProjectId ? null : selectedClient}
+        clientProjects={
+          consultationTargetProjectId
+            ? projects.filter((p) => p.id === consultationTargetProjectId)
+            : selectedClient
+            ? getProjectsByClientId(projects, selectedClient.id)
+            : []
+        }
+        presetProjectId={consultationTargetProjectId ?? presetEntryProjectId}
         initial={editConsultation}
         initialDate={calendarCreateDate ?? undefined}
         chainFrom={chainFromConsultation}
         onClose={closeNewConsultation}
-        onAdd={handleAddConsultation}
+        onAdd={saveConsultationFromNewConsultationSheet}
       />
 
       {/* ═══════════ NEW / EDIT PROJECT SHEET (Творческая мастерская) ═══════════ */}
@@ -2951,6 +3084,12 @@ export default function TattoDiary() {
           setEditSession(session);
           setSessionTargetProjectId(projectId);
           setShowNewSessionForm(true);
+        }}
+        onEditProjectConsultation={(projectId, consultation) => {
+          setViewProject(null);
+          setEditConsultation(consultation);
+          setConsultationTargetProjectId(projectId);
+          setShowNewConsultationForm(true);
         }}
         onToggleTaskDone={(clientId, note) => {
           if (clientId) {
@@ -3067,16 +3206,15 @@ export default function TattoDiary() {
           карточка) → сама форма сессии/консультации, с датой из календаря.
           Only one of these four is ever open — `calendarWalkStep` is a
           single value, so the sheets are mutually exclusive by construction. */}
-      <AddChoiceSheet
+      <CreateChoiceSheet
         open={calendarWalkStep === 'kind'}
         onClose={cancelCalendarWalk}
-        onPickSession={() => {
-          setCalendarEventKind('session');
-          setCalendarWalkStep('clientKind');
-        }}
-        onPickConsultation={() => {
-          setCalendarEventKind('consultation');
-          setCalendarWalkStep('clientKind');
+        options={['session', 'consultation']}
+        onPick={(kind) => {
+          if (kind === 'session' || kind === 'consultation') {
+            setCalendarEventKind(kind);
+            setCalendarWalkStep('clientKind');
+          }
         }}
       />
       <ClientKindChoiceSheet
@@ -6196,172 +6334,7 @@ export function ContentPanel({
 }
 
 
-// Tapping "+" on the sessions tab asks which kind of entry to create first —
-// a regular tattoo session, or a consultation (mood board + creative brief,
-// scheduled the same way a session is).
-function AddChoiceSheet({
-  open,
-  onClose,
-  onPickSession,
-  onPickConsultation,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onPickSession: () => void;
-  onPickConsultation: () => void;
-}) {
-  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
-    <div
-      onClick={onClick}
-      role="button"
-      aria-label={title}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        border: '1px solid rgba(var(--gold-rgb),0.25)',
-        borderRadius: 2,
-        padding: '16px',
-        cursor: 'pointer',
-        background: 'rgba(var(--gold-rgb),0.03)',
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          color: 'var(--gold)',
-        }}
-      >
-        {icon}
-      </div>
-      <div>
-        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
-      </div>
-    </div>
-  );
+// Единая шторка выбора создаваемой сущности вынесена в
+// src/components/sheets/CreateChoiceSheet.tsx (см. импорт выше) — заменяет
+// прежние отдельные AddChoiceSheet/WorkshopCreateChoiceSheet.
 
-  return (
-    <BottomSheet open={open} heightPct={34}>
-      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        <SheetCloseButton onClose={onClose} />
-        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Что добавить?</div>
-        <SheetStarDivider />
-      </div>
-      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {choice(
-          'Сессия',
-          'Дата, техника, стиль, зона работы...',
-          onPickSession,
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <rect x="3" y="4.5" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="6.5" y1="2.5" x2="6.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            <line x1="13.5" y1="2.5" x2="13.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>,
-        )}
-        {choice(
-          'Консультация',
-          'Референсы, идея, данные о коже...',
-          onPickConsultation,
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <rect x="3" y="4" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
-            <circle cx="7" cy="8" r="1.3" stroke="currentColor" strokeWidth="1.1" />
-            <path d="M3 14L8 10L11 12.5L14 9.5L17 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>,
-        )}
-      </div>
-    </BottomSheet>
-  );
-}
-
-// Мастерская's own «Создать»: «Новый проект» (бриф-карточка, как раньше) или
-// «Сессия» без клиента (сразу просит выбрать/создать проект — см.
-// ProjectSessionPickerSheet ниже), Этап 3b-доп.
-function WorkshopCreateChoiceSheet({
-  open,
-  onClose,
-  onPickProject,
-  onPickSession,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onPickProject: () => void;
-  onPickSession: () => void;
-}) {
-  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
-    <div
-      onClick={onClick}
-      role="button"
-      aria-label={title}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        border: '1px solid rgba(var(--gold-rgb),0.25)',
-        borderRadius: 2,
-        padding: '16px',
-        cursor: 'pointer',
-        background: 'rgba(var(--gold-rgb),0.03)',
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          color: 'var(--gold)',
-        }}
-      >
-        {icon}
-      </div>
-      <div>
-        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
-      </div>
-    </div>
-  );
-
-  return (
-    <BottomSheet open={open} heightPct={34}>
-      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        <SheetCloseButton onClose={onClose} />
-        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Что добавить?</div>
-        <SheetStarDivider />
-      </div>
-      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {choice(
-          'Новый проект',
-          'Бриф: тип, место, стиль, референсы...',
-          onPickProject,
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>,
-        )}
-        {choice(
-          'Сессия',
-          'Без клиента — привяжете позже',
-          onPickSession,
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <rect x="3" y="4.5" width="14" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="6.5" y1="2.5" x2="6.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            <line x1="13.5" y1="2.5" x2="13.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>,
-        )}
-      </div>
-    </BottomSheet>
-  );
-}

@@ -10,6 +10,7 @@
 // чем сохранить (saveClient).
 import type { Client } from '../domain/client';
 import type { Consultation, ConsultationHistoryEntry } from '../domain/consultation';
+import type { Project } from '../domain/project';
 import type { UrgencyKey } from '../domain/urgency';
 
 export interface ConsultationFormData {
@@ -96,4 +97,41 @@ export function upsertConsultation(
   }
 
   return { client: { ...client, consultations }, consultationId };
+}
+
+// Client-less (Project) вариант — тот же охват, что у upsertProjectSession в
+// sessionSave.ts: без цепочки «Назначить следующую консультацию» (нет
+// варианта без клиента ни для цепочки сессий, ни для цепочки консультаций).
+export function upsertProjectConsultation(
+  project: Project,
+  data: ConsultationFormData,
+  editingConsultationId: string | null,
+): { project: Project; consultationId: string } {
+  const fields = consultationFields(data);
+  let consultations: Consultation[];
+  let consultationId: string;
+
+  if (editingConsultationId) {
+    consultationId = editingConsultationId;
+    consultations = project.consultations.map((c) =>
+      c.id === editingConsultationId ? { ...c, ...fields, history: [...c.history, historyEntry('Изменена')] } : c,
+    );
+  } else {
+    consultationId = crypto.randomUUID();
+    const newConsultation: Consultation = {
+      id: consultationId,
+      createdDate: new Date().toISOString(),
+      done: false,
+      cancelled: false,
+      status: 'active',
+      convertedToSessionId: null,
+      previousConsultationId: null,
+      nextConsultationId: null,
+      history: [historyEntry('Консультация создана')],
+      ...fields,
+    };
+    consultations = [...project.consultations, newConsultation];
+  }
+
+  return { project: { ...project, consultations }, consultationId };
 }

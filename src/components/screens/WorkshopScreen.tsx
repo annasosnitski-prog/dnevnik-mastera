@@ -6,6 +6,7 @@ import { buildProjectFolders } from '../../domain/projectSelectors';
 import { ProjectFolderCard } from '../project/ProjectFolderCard';
 import { ProjectFolderView } from '../project/ProjectFolderView';
 import { StarDivider } from '../icons/StarIcons';
+import { todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../TattoDiary';
 
 // Вынесено из TattoDiary.tsx (PR 8 рефакторинга). Логика и разметка не
@@ -27,7 +28,16 @@ export function WorkshopScreen({
   const [filterOpen, setFilterOpen] = useState(false);
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const filtered = categoryFilter === 'all' ? projects : projects.filter((p) => p.category === categoryFilter);
-  const folders = buildProjectFolders(filtered, clients);
+  // Пустая папка (клиент вообще без проектов) видна всегда — но фильтр по
+  // типу не должен превращать «есть проекты, просто не этого типа» в такую
+  // же пустую карточку: trueEmptyClientIds считается по НЕотфильтрованным
+  // projects, чтобы отличить эти два случая друг от друга.
+  const trueEmptyClientIds = new Set(clients.filter((c) => !projects.some((p) => p.clientId === c.id)).map((c) => c.id));
+  const allFolders = buildProjectFolders(filtered, clients, todayISO());
+  const folders =
+    categoryFilter === 'all'
+      ? allFolders
+      : allFolders.filter((f) => f.projectCount > 0 || (f.type === 'client' && f.clientId !== null && trueEmptyClientIds.has(f.clientId)));
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null;
 
   if (openFolder) {

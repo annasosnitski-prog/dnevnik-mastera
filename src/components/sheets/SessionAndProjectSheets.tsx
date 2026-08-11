@@ -229,19 +229,22 @@ export function NewSessionSheet({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
         </div>
 
-        {clientProjects.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Проект</FieldLabel>
-            <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
-              <option value="">— без проекта —</option>
-              {clientProjects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title || 'Без названия'}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* Поле всегда видно (даже когда у владельца ещё нет ни одного
+            проекта) — сессия больше не может остаться совсем без проекта:
+            если мастер не выбрала существующий, ensureProjectId в
+            TattoDiary.tsx молча заведёт новый под тем же владельцем при
+            сохранении (см. handleAddSession/saveSessionFromNewSessionSheet). */}
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Проект</FieldLabel>
+          <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
+            <option value="">— создать новый проект —</option>
+            {clientProjects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title || 'Без названия'}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Date & time stacked full-width. Side-by-side used to overlap on
             iOS, where the native pickers keep a large intrinsic width and
@@ -384,57 +387,98 @@ export function NewSessionSheet({
 export function ProjectSessionPickerSheet({
   open,
   projects,
+  clients = [],
   clientId = null,
+  scope,
   onClose,
   onPick,
   onCreateProject,
 }: {
   open: boolean;
   projects: Project[];
+  // Только для scope==='all' — имена клиентов для группировки списка.
+  clients?: Client[];
   // null (по умолчанию) — «сессия без клиента» (Мастерская), список
   // проектов БЕЗ клиента, как раньше. Задан — список проектов ЭТОГО
   // клиента (content-link цепочка для клиентской ContentEntry), а не
-  // клиентских по умолчанию.
+  // клиентских по умолчанию. Игнорируется, если scope==='all'.
   clientId?: string | null;
+  // 'all' — все проекты сразу, сгруппированные по клиенту (+ «Мастерская»)
+  // — для контекста без единого явного владельца (Админка). Без этого —
+  // прежнее поведение: только clientId/client-less.
+  scope?: 'all';
   onClose: () => void;
   onPick: (project: Project) => void;
   onCreateProject: () => void;
 }) {
   const eligible = clientId ? projects.filter((p) => p.clientId === clientId) : projects.filter((p) => !p.clientId);
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '11px 13px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    border: '1px solid rgba(var(--gold-rgb),0.2)',
+    background: 'rgba(var(--surface-rgb),0.018)',
+  };
+  const projectRow = (p: Project) => (
+    <div key={p.id} onClick={() => onPick(p)} style={rowStyle}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+      <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {p.title || 'Без названия'}
+      </span>
+    </div>
+  );
+  const groupLabelStyle: React.CSSProperties = {
+    fontSize: fs(10),
+    color: COLORS.textGhost,
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    margin: '6px 0 2px',
+  };
+
   return (
-    <BottomSheet open={open} heightPct={50}>
+    <BottomSheet open={open} heightPct={scope === 'all' ? 62 : 50}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>В какой проект?</div>
         <SheetStarDivider />
       </div>
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {eligible.length === 0 ? (
+        {scope === 'all' ? (
+          <>
+            {projects.length === 0 && (
+              <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет ни одного проекта — создайте первый.</div>
+            )}
+            {clients.map((c) => {
+              const clientProjects = projects.filter((p) => p.clientId === c.id);
+              if (clientProjects.length === 0) return null;
+              return (
+                <div key={c.id}>
+                  <div style={groupLabelStyle}>{`${c.name} ${c.surname}`.trim() || 'Клиент'}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{clientProjects.map(projectRow)}</div>
+                </div>
+              );
+            })}
+            {(() => {
+              const clientless = projects.filter((p) => !p.clientId);
+              if (clientless.length === 0) return null;
+              return (
+                <div>
+                  <div style={groupLabelStyle}>Мастерская</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{clientless.map(projectRow)}</div>
+                </div>
+              );
+            })()}
+          </>
+        ) : eligible.length === 0 ? (
           <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
             {clientId ? 'Пока нет проектов у этого клиента — создайте первый.' : 'Пока нет проектов без клиента — создайте первый.'}
           </div>
         ) : (
-          eligible.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => onPick(p)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '11px 13px',
-                borderRadius: 2,
-                cursor: 'pointer',
-                border: '1px solid rgba(var(--gold-rgb),0.2)',
-                background: 'rgba(var(--surface-rgb),0.018)',
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-              <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.title || 'Без названия'}
-              </span>
-            </div>
-          ))
+          eligible.map(projectRow)
         )}
         <div
           onClick={onCreateProject}
@@ -622,19 +666,21 @@ export function NewConsultationSheet({
             <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
           </div>
 
-          {clientProjects.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <FieldLabel>Проект</FieldLabel>
-              <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
-                <option value="">— без проекта —</option>
-                {clientProjects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title || 'Без названия'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Поле всегда видно — см. тот же комментарий у NewSessionSheet:
+              консультация тоже больше не может остаться без проекта,
+              ensureProjectId заведёт его молча при сохранении, если не
+              выбран существующий. */}
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Проект</FieldLabel>
+            <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
+              <option value="">— создать новый проект —</option>
+              {clientProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title || 'Без названия'}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Общие заметки</FieldLabel>
@@ -775,6 +821,7 @@ export function ProjectViewSheet({
   onEdit,
   onOpenEntry,
   onEditProjectSession,
+  onEditProjectConsultation,
   onToggleTaskDone,
   onOpenContentEntry,
   onSaveNextStep,
@@ -797,6 +844,8 @@ export function ProjectViewSheet({
   // кнопку «Создать» (остаётся видна поверх этого просмотра — см. onCreate
   // у NavFab), отдельных кнопок создания здесь больше нет.
   onEditProjectSession: (projectId: string, session: Session) => void;
+  // Зеркало onEditProjectSession выше, для Project.consultations.
+  onEditProjectConsultation: (projectId: string, consultation: Consultation) => void;
   onToggleTaskDone: (clientId: string | null, note: ClientNote) => void;
   // Тап по карточке контента — открыть её в уже существующем ContentINKA,
   // без нового экрана и без изменения самого редактора.
@@ -818,6 +867,7 @@ export function ProjectViewSheet({
   const ownSessions = project && !linkedClient
     ? project.sessions.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))
     : [];
+  const ownConsults = project && !linkedClient ? getConsultationSequence(project.consultations, project.id) : [];
   const linkedTasks = project
     ? linkedClient
       ? getTasksByProjectId(linkedClient.notes, project.id)
@@ -892,7 +942,7 @@ export function ProjectViewSheet({
             <ViewField label="Креатив" value={project.creative} />
             <ViewField label="Источники вдохновения" value={project.inspirationSources} />
 
-            {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0) && (
+            {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0 || ownConsults.length > 0) && (
               <div>
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Записи проекта</div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -926,10 +976,21 @@ export function ProjectViewSheet({
                       onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'session', s.id)}
                     />
                   ))}
+                  {ownConsults.map((c, i) => (
+                    <ChainEntryRow
+                      key={`oc-${c.id}`}
+                      showArrow={i > 0}
+                      label={`Консультация ${i + 1} · без клиента`}
+                      title={c.area || '—'}
+                      date={c.date}
+                      style={entryRowStyle}
+                      onClick={() => project && onEditProjectConsultation(project.id, c)}
+                    />
+                  ))}
                   {ownSessions.map((s, i) => (
                     <ChainEntryRow
                       key={`os-${s.id}`}
-                      showArrow={i > 0}
+                      showArrow={i > 0 || ownConsults.length > 0}
                       label={`Сессия ${i + 1} · без клиента`}
                       title={s.name || s.area || '—'}
                       date={s.date}

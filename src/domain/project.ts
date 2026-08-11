@@ -2,6 +2,7 @@
 // существующий тип, что и раньше (вынесен из TattoDiary.tsx в PR 2).
 
 import type { Session } from './session';
+import type { Consultation } from './consultation';
 
 // A standalone sketch/portfolio idea for «Творческая мастерская» — not tied
 // to any client (unlike Consultation, which lives inside a Client). Shares
@@ -137,6 +138,11 @@ export interface Project {
   // появится клиент. При привязке клиента к проекту (см. attachClientToProject
   // в App) переезжают в client.sessions с тем же projectId и отсюда чистятся.
   sessions: Session[];
+  // «Консультации без клиента» — тот же принцип, что у sessions выше, только
+  // для Consultation (иначе client-less проект не мог бы вообще держать
+  // консультацию). Переезжают в client.consultations тем же переносом, что
+  // и sessions, при привязке клиента к проекту.
+  consultations: Consultation[];
   // Когда мастер в последний раз реально продвинула проект (M4) — ISO
   // timestamp. Бампается ТОЛЬКО isMeaningfulProjectChange-полями (см. ниже),
   // не любым сохранением формы (правка текста/фото/заметок — не движение).
