@@ -20,15 +20,22 @@ test('natural stones are polished round cabochons in patinated copper, not facet
   assert.match(stoneSource, /className="natural-stone-cabochon"/);
   assert.match(stoneSource, /<circle cx="32" cy="32" r=\{stoneR\}/);
   assert.match(stoneSource, /copper-metal-/);
-  assert.match(stoneSource, /#6EA28C/);
+  assert.match(stoneSource, /#657C72/);
   assert.doesNotMatch(stoneSource, /goldFace|quadrant|facet/);
 });
 
 test('metal-only controls use a flat copper face with verdigris confined to recesses', () => {
   assert.match(stoneSource, /flat-copper-/);
   assert.match(stoneSource, /fill={`url\(#\$\{flatId\}\)`}/);
-  assert.match(stoneSource, /stroke="#5D927F"/);
+  assert.match(stoneSource, /stroke="#657C72"/);
   assert.doesNotMatch(stoneSource, /rx="11" ry="5\.5" fill="#FFFFFF"/);
+});
+
+test('copper matches the muted background ornaments and avoids the former red-orange metal', () => {
+  for (const sampledTone of ['#94694E', '#A2775A', '#724C39', '#543323', '#CC9D75']) {
+    assert.match(stoneSource + css, new RegExp(sampledTone));
+  }
+  assert.doesNotMatch(stoneSource + css, /#E4A66F|#A55C38|#B36B43/);
 });
 
 test('five revised stones use irregular mineral structure while malachite keeps its approved drawing', () => {
@@ -37,6 +44,13 @@ test('five revised stones use irregular mineral structure while malachite keeps 
   assert.match(stoneSource, /case 'malachite':[\s\S]*?rx="25" ry="15"[\s\S]*?stroke="#053D2B"/);
   assert.match(stoneSource, /case 'malachite':[\s\S]*?stroke="#3EBD78"/);
   assert.match(stoneSource, /case 'malachite':[\s\S]*?stroke="#7ED39D"/);
+});
+
+test('revised minerals keep narrow surface reflections instead of one texture-covering white oval', () => {
+  assert.match(stoneSource, /function StoneSurfaceLight/);
+  assert.match(stoneSource, /M16\.8 27\.2c1\.7-7\.2/);
+  assert.match(stoneSource, /kind === 'malachite'/);
+  assert.doesNotMatch(stoneSource, /rx=\{medallion \? 1\.8 : 10\.8\}[\s\S]{0,180}<\/ellipse>[\s\S]{0,80}<\/g>/);
 });
 
 test('the light material layer swaps visually without duplicating navigation logic', () => {
@@ -69,6 +83,6 @@ test('light client tabs add a patinated copper rod, fasteners and hardware refle
   assert.match(css, /\.client-card-tabbar__tab:not\(:last-child\)::after/);
   assert.match(css, /\.jewel-wire-shadow/);
   assert.match(css, /\.jewel-wire-highlight/);
-  assert.match(css, /#E3A66F/);
-  assert.match(css, /#4F8A76/);
+  assert.match(css, /#CC9D75/);
+  assert.match(css, /#657C72/);
 });

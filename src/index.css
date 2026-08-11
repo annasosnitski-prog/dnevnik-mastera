@@ -115,9 +115,9 @@
      background directly (no plate behind them to contrast with instead). */
   --toolbar-icon: rgba(156, 111, 34, 0.75);
   --toolbar-icon-active: #7E5818;
-  --nav-metal: #8B5135;
-  --nav-metal-highlight: #DDA06D;
-  --nav-metal-point: #72A28F;
+  --nav-metal: #94694E;
+  --nav-metal-highlight: #CC9D75;
+  --nav-metal-point: #657C72;
 }
 
 /* Ornate navigation has two genuinely different material systems. The dark
@@ -298,7 +298,7 @@
 
 :root[data-theme='light'] .nav-fab__main::before,
 :root[data-theme='light'] .nav-fab__item::before {
-  background: radial-gradient(circle, rgba(112, 161, 140, 0.28), rgba(102, 61, 42, 0));
+  background: radial-gradient(circle, rgba(101, 124, 114, 0.22), rgba(114, 76, 57, 0));
   filter: blur(5px);
 }
 
@@ -1692,13 +1692,13 @@ input[type='date'] {
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    #E3A66F 0%,
-    #B36B43 22%,
-    #7D4933 48%,
-    #41675B 73%,
-    #2B1B19 100%
+    #CC9D75 0%,
+    #A2775A 22%,
+    #875B43 48%,
+    #506A61 73%,
+    #2F1D13 100%
   );
-  box-shadow: 0 1px 4px rgba(78, 45, 32, 0.24), 0 0 1px rgba(229, 168, 113, 0.82);
+  box-shadow: 0 1px 4px rgba(84, 51, 35, 0.24), 0 0 1px rgba(204, 157, 117, 0.72);
 }
 
 :root[data-theme='light'] .client-card-tabbar__tab:not(:last-child)::after {
@@ -1711,16 +1711,16 @@ input[type='date'] {
   height: 5.5px;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle at 34% 24%, #E8AE78 0%, #AE6845 22%, #704333 51%, #39695C 78%, #241817 100%);
-  box-shadow: 0 0 2px rgba(79, 46, 34, 0.28);
+  background: radial-gradient(circle at 34% 24%, #CC9D75 0%, #A2775A 22%, #724C39 51%, #506A61 78%, #2F1D13 100%);
+  box-shadow: 0 0 2px rgba(84, 51, 35, 0.28);
 }
 
 :root[data-theme='light'] .client-card-tabbar__jump-ring {
-  filter: drop-shadow(0 -1px 0.9px rgba(228, 164, 109, 0.5));
+  filter: drop-shadow(0 -1px 0.9px rgba(204, 157, 117, 0.44));
 }
 
 :root[data-theme='light'] .client-card-tabbar__bail {
-  filter: drop-shadow(0 -1px 0.7px rgba(221, 147, 93, 0.4));
+  filter: drop-shadow(0 -1px 0.7px rgba(170, 134, 106, 0.36));
 }
 
 :root[data-theme='light'] .client-card-tabbar__medallion {
@@ -1728,23 +1728,23 @@ input[type='date'] {
 }
 
 :root[data-theme='light'] .client-card-tabbar .jewel-wire-shadow {
-  stroke: #291A18 !important;
+  stroke: #2F1D13 !important;
 }
 
 :root[data-theme='light'] .client-card-tabbar .jewel-wire-rear {
-  stroke: #68402F !important;
+  stroke: #724C39 !important;
 }
 
 :root[data-theme='light'] .client-card-tabbar .jewel-wire-front {
-  stroke: #A86340 !important;
+  stroke: #94694E !important;
 }
 
 :root[data-theme='light'] .client-card-tabbar .jewel-wire-highlight {
-  stroke: #E6A975 !important;
+  stroke: #CC9D75 !important;
 }
 
 :root[data-theme='light'] .client-card-tabbar .jewel-wire-patina {
-  stroke: #4F8A76 !important;
+  stroke: #657C72 !important;
 }
 .client-card-tabbar__gem-glow {
   position: absolute;
