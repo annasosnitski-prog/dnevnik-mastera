@@ -8,25 +8,46 @@ export type NaturalStoneKind =
   | 'honey-jadeite'
   | 'turquoise';
 
-const STONE_COLORS: Record<NaturalStoneKind, string> = {
-  rhodonite: '#B53D64',
-  malachite: '#087A4B',
-  'star-sapphire': '#5143A6',
-  'fire-opal': '#D7551E',
-  'honey-jadeite': '#C69A2D',
-  turquoise: '#169BB1',
+const STONE_MATERIALS: Record<NaturalStoneKind, { light: string; body: string; deep: string; rim: string }> = {
+  rhodonite: { light: '#F28AAA', body: '#C53F6C', deep: '#671C3B', rim: '#FFB1C5' },
+  malachite: { light: '#69C496', body: '#087A4B', deep: '#03422F', rim: '#70C294' },
+  'star-sapphire': { light: '#8278E0', body: '#3D348F', deep: '#16164C', rim: '#AAA8FF' },
+  'fire-opal': { light: '#FF9C35', body: '#E64B18', deep: '#8E1712', rim: '#FFD36E' },
+  'honey-jadeite': { light: '#FFE782', body: '#D4A42F', deep: '#7B5816', rim: '#FFF0A9' },
+  turquoise: { light: '#3DDBE2', body: '#129CB2', deep: '#086176', rim: '#91F1EA' },
 };
 
-function StoneTexture({ kind, clipId }: { kind: NaturalStoneKind; clipId: string }) {
+function StoneTexture({
+  kind,
+  clipId,
+  veinId,
+  noiseId,
+  glowId,
+}: {
+  kind: NaturalStoneKind;
+  clipId: string;
+  veinId: string;
+  noiseId: string;
+  glowId: string;
+}) {
+  const mineralNoise = (
+    <g clipPath={`url(#${clipId})`} opacity=".32" style={{ mixBlendMode: 'soft-light' }}>
+      <rect x="7" y="7" width="50" height="50" filter={`url(#${noiseId})`} />
+    </g>
+  );
+
   switch (kind) {
     case 'rhodonite':
       return (
-        <g clipPath={`url(#${clipId})`}>
-          <path d="M5 20C16 9 21 13 30 5S47 2 60-5" fill="none" stroke="#321F27" strokeWidth="3.4" opacity=".92" />
-          <path d="M-2 48C11 39 18 43 28 34s19-5 39-18" fill="none" stroke="#21191E" strokeWidth="2.1" opacity=".82" />
-          <path d="M7 58c9-9 15-8 21-14s11-8 21-8" fill="none" stroke="#5C263A" strokeWidth="1.2" opacity=".72" />
-          <path d="M11 7c6 8 12 8 17 15s13 10 25 9" fill="none" stroke="#E78BA6" strokeWidth="2.6" opacity=".34" />
-        </g>
+        <>
+          {mineralNoise}
+          <g clipPath={`url(#${clipId})`} fill="none" strokeLinecap="round" strokeLinejoin="round" filter={`url(#${veinId})`}>
+            <path d="M4 17c9 2 10 9 18 10 7 1 8-8 16-7 9 1 10-8 24-12" stroke="#24171D" strokeWidth="2.4" opacity=".9" />
+            <path d="M-2 49c10-3 14-11 23-10 8 1 9-7 17-8 8-1 15 4 29-6" stroke="#301920" strokeWidth="1.65" opacity=".9" />
+            <path d="M22 27c-3 6 3 8 0 13m16-20c-4 5-1 8-6 12m6-1c4 4 5 8 11 10" stroke="#151115" strokeWidth=".75" opacity=".88" />
+            <path d="M8 9c7 8 14 8 20 13 6 5 13 6 23 4" stroke="#F17F9F" strokeWidth="3.6" opacity=".2" />
+          </g>
+        </>
       );
     case 'malachite':
       return (
@@ -41,41 +62,54 @@ function StoneTexture({ kind, clipId }: { kind: NaturalStoneKind; clipId: string
     case 'star-sapphire':
       return (
         <g clipPath={`url(#${clipId})`}>
-          <ellipse cx="25" cy="22" rx="17" ry="11" fill="#8D85D4" opacity=".2" />
-          <g transform="translate(27 27)" stroke="#F4F0FF" strokeLinecap="round">
-            <path d="M0-29V29" strokeWidth="1.25" opacity=".88" />
-            <path d="M-25-14 25 14" strokeWidth="1.05" opacity=".76" />
-            <path d="M25-14-25 14" strokeWidth="1.05" opacity=".76" />
-            <path d="M0-22V22M-19-11 19 11M19-11-19 11" strokeWidth="3.2" opacity=".15" />
+          {mineralNoise}
+          <ellipse cx="26" cy="25" rx="18" ry="13" fill="#A8A1F2" opacity=".13" filter={`url(#${glowId})`} />
+          <g transform="translate(28 27) rotate(-4)" stroke="#EEEFFF" strokeLinecap="round">
+            <path d="M0-22V20M-18-10 17 10M18-10.5-17 9.5" stroke="#BDBDFF" strokeWidth="5.4" opacity=".13" filter={`url(#${glowId})`} />
+            <path d="M0-20V18" stroke="#DFDEFF" strokeWidth=".82" opacity=".67" />
+            <path d="M-17-9.5 16 9M17-9.8-16 9" stroke="#D6D5FF" strokeWidth=".7" opacity=".57" />
+            <circle r="2" fill="#DAD9FF" stroke="none" opacity=".46" filter={`url(#${glowId})`} />
           </g>
         </g>
       );
     case 'fire-opal':
       return (
         <g clipPath={`url(#${clipId})`}>
-          <path d="M6 13c10-9 17 2 25-7s17-4 27 4c-8 8-11 13-19 13S21 14 6 13Z" fill="#FFD35A" opacity=".58" />
-          <path d="M4 43c8-10 16-5 22-14 7 13 18 10 30 7-6 12-17 19-29 19S9 51 4 43Z" fill="#B71919" opacity=".42" />
-          <path d="M18 11c5 8 8 15 5 24m23-27c-8 10-11 18-9 31" fill="none" stroke="#77C97B" strokeWidth="2.5" opacity=".55" />
-          <circle cx="42" cy="20" r="7" fill="#FFED9B" opacity=".35" />
+          {mineralNoise}
+          <g filter={`url(#${veinId})`} style={{ mixBlendMode: 'screen' }}>
+            <path d="M3 16c10-11 18-3 27-10 8-6 18-2 30 5-10 2-16 11-27 10C20 20 13 12 3 16Z" fill="#FFD85E" opacity=".72" />
+            <path d="M5 47c10-11 18-6 24-17 7 11 18 12 29 7-4 13-16 20-29 20-10 0-18-3-24-10Z" fill="#FF6A28" opacity=".48" />
+            <path d="M9 9c7 0 11 4 14 10-8 0-11 5-17 3 2-5 2-8 3-13Z" fill="#78E58F" opacity=".42" />
+            <path d="M37 25c7-5 12-3 17 1-6 3-8 8-15 9-3-3-3-6-2-10Z" fill="#8AE5A0" opacity=".34" />
+            <path d="M16 49c9-7 18-8 31-6-8 4-15 8-27 10Z" fill="#FFD65B" opacity=".58" />
+          </g>
+          <ellipse cx="42" cy="19" rx="9" ry="6" fill="#FFF4A8" opacity=".28" filter={`url(#${glowId})`} />
         </g>
       );
     case 'honey-jadeite':
       return (
         <g clipPath={`url(#${clipId})`}>
-          <ellipse cx="19" cy="18" rx="18" ry="12" fill="#FFF0A8" opacity=".34" />
-          <ellipse cx="46" cy="39" rx="21" ry="15" fill="#8D6D20" opacity=".23" />
-          <path d="M-1 35c11-7 18-4 27-10s18-5 39 4" fill="none" stroke="#F7D977" strokeWidth="5" opacity=".22" />
-          <path d="M8 54c9-10 18-8 25-16s16-6 27-3" fill="none" stroke="#74591B" strokeWidth="2.2" opacity=".2" />
+          {mineralNoise}
+          <ellipse cx="20" cy="19" rx="19" ry="13" fill="#FFF3B5" opacity=".34" filter={`url(#${glowId})`} />
+          <ellipse cx="46" cy="41" rx="23" ry="17" fill="#755019" opacity=".25" filter={`url(#${glowId})`} />
+          <g fill="none" strokeLinecap="round" filter={`url(#${veinId})`}>
+            <path d="M-4 37c12-9 20-5 30-11s21-5 43 5" stroke="#FFE58A" strokeWidth="7" opacity=".24" />
+            <path d="M4 55c10-11 19-8 27-16s17-6 31-2" stroke="#6B4E18" strokeWidth="2" opacity=".21" />
+            <path d="M3 12c12 7 20 6 29 1s17-3 27 2" stroke="#FFF0A0" strokeWidth="3" opacity=".18" />
+          </g>
         </g>
       );
     case 'turquoise':
       return (
-        <g clipPath={`url(#${clipId})`}>
-          <path d="M-4 17C8 11 13 19 23 15S35 4 48 8s13 0 20-5" fill="none" stroke="#49372F" strokeWidth="2.4" opacity=".85" />
-          <path d="M9-4c1 11 9 14 8 24s-8 15-3 28 0 16-4 22M42-3c-4 12 4 17 2 27s-10 14-8 25 7 14 4 22" fill="none" stroke="#6A4B35" strokeWidth="1.7" opacity=".74" />
-          <path d="M-3 48c12-8 21-3 31-8s18-12 37-6" fill="none" stroke="#2F2927" strokeWidth="2.1" opacity=".72" />
-          <path d="M5 27c7-5 13 1 20-3" fill="none" stroke="#C4F4EF" strokeWidth="1.1" opacity=".55" />
-        </g>
+        <>
+          {mineralNoise}
+          <g clipPath={`url(#${clipId})`} fill="none" strokeLinecap="round" strokeLinejoin="round" filter={`url(#${veinId})`}>
+            <path d="M-5 16c11-7 18 4 28-1S34 3 47 8c10 4 14-2 22-5M-3 49c12-9 20-2 31-9 10-7 18-11 39-5" stroke="#3E302A" strokeWidth="2.45" opacity=".88" />
+            <path d="M10-5c0 11 9 14 7 25-2 9-8 15-3 27 5 11 0 17-4 23M44-4c-5 13 3 18 0 28-3 11-10 14-7 26 3 10 7 13 3 21" stroke="#6B4934" strokeWidth="1.65" opacity=".78" />
+            <path d="M17 20c7 1 10 7 16 7m-20 20c7-5 13-1 18-5m13-18c5 4 10 4 16 1" stroke="#291F1D" strokeWidth=".85" opacity=".82" />
+            <path d="M4 28c8-6 14 1 22-3" stroke="#B9FFF4" strokeWidth="1.1" opacity=".46" />
+          </g>
+        </>
       );
   }
 }
@@ -94,13 +128,18 @@ export function NaturalStoneIcon({
   children?: ReactNode;
 }) {
   const rawId = useId().replace(/:/g, '');
-  const metalId = `silver-metal-${rawId}`;
-  const edgeId = `silver-edge-${rawId}`;
+  const metalId = `copper-metal-${rawId}`;
+  const edgeId = `copper-edge-${rawId}`;
+  const flatId = `flat-copper-${rawId}`;
   const stoneId = `stone-body-${rawId}`;
   const clipId = `stone-clip-${rawId}`;
-  const shadowId = `silver-shadow-${rawId}`;
+  const shadowId = `copper-shadow-${rawId}`;
   const insetId = `stone-inset-${rawId}`;
-  const stoneColor = kind ? STONE_COLORS[kind] : '#8E969B';
+  const veinId = `mineral-vein-${rawId}`;
+  const noiseId = `mineral-noise-${rawId}`;
+  const glowId = `mineral-glow-${rawId}`;
+  const material = kind ? STONE_MATERIALS[kind] : undefined;
+  const stoneColor = material?.body ?? '#A2613C';
   const outerR = medallion ? 25.5 : 29;
   const stoneR = medallion ? 5.25 : 23;
 
@@ -114,29 +153,42 @@ export function NaturalStoneIcon({
       style={{ display: 'block', overflow: 'visible', ['--stone-color' as string]: stoneColor }}
     >
       <defs>
-        <radialGradient id={metalId} cx=".29" cy=".2" r=".9">
-          <stop offset="0" stopColor="#FFFFFF" />
-          <stop offset=".12" stopColor="#DCE2E5" />
-          <stop offset=".29" stopColor="#858E93" />
-          <stop offset=".49" stopColor="#262A2C" />
-          <stop offset=".68" stopColor="#0D0F10" />
-          <stop offset=".83" stopColor="#7C858A" />
-          <stop offset="1" stopColor="#17191A" />
-        </radialGradient>
-        <linearGradient id={edgeId} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#111314" />
-          <stop offset=".18" stopColor="#F8FBFC" />
-          <stop offset=".38" stopColor="#70797E" />
-          <stop offset=".58" stopColor="#DDE3E6" />
-          <stop offset=".78" stopColor="#17191A" />
-          <stop offset="1" stopColor="#9CA5A9" />
+        <linearGradient id={metalId} x1=".08" y1=".06" x2=".92" y2=".96">
+          <stop offset="0" stopColor="#E4A66F" />
+          <stop offset=".16" stopColor="#A55C38" />
+          <stop offset=".39" stopColor="#6D3829" />
+          <stop offset=".59" stopColor="#3B231F" />
+          <stop offset=".8" stopColor="#8B4B32" />
+          <stop offset="1" stopColor="#C47749" />
         </linearGradient>
-        <radialGradient id={stoneId} cx=".3" cy=".22" r=".86">
-          <stop offset="0" stopColor={`color-mix(in srgb, ${stoneColor} 58%, white)`} />
-          <stop offset=".24" stopColor={stoneColor} />
-          <stop offset=".7" stopColor={`color-mix(in srgb, ${stoneColor} 78%, #101314)`} />
-          <stop offset="1" stopColor={`color-mix(in srgb, ${stoneColor} 58%, black)`} />
-        </radialGradient>
+        <linearGradient id={flatId} x1=".1" y1="0" x2=".9" y2="1">
+          <stop offset="0" stopColor="#BC754C" />
+          <stop offset=".46" stopColor="#855039" />
+          <stop offset="1" stopColor="#5B352B" />
+        </linearGradient>
+        <linearGradient id={edgeId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#34201D" />
+          <stop offset=".18" stopColor="#F0B77E" />
+          <stop offset=".38" stopColor="#6D382A" />
+          <stop offset=".56" stopColor="#AF6A45" />
+          <stop offset=".76" stopColor="#365E55" />
+          <stop offset="1" stopColor="#7DB09A" />
+        </linearGradient>
+        {kind === 'malachite' ? (
+          <radialGradient id={stoneId} cx=".3" cy=".22" r=".86">
+              <stop offset="0" stopColor="color-mix(in srgb, #087A4B 58%, white)" />
+              <stop offset=".24" stopColor="#087A4B" />
+              <stop offset=".7" stopColor="color-mix(in srgb, #087A4B 78%, #101314)" />
+              <stop offset="1" stopColor="color-mix(in srgb, #087A4B 58%, black)" />
+          </radialGradient>
+        ) : (
+          <radialGradient id={stoneId} gradientUnits="userSpaceOnUse" cx="24" cy="18" r="47">
+              <stop offset="0" stopColor={material?.light ?? '#C7885D'} />
+              <stop offset=".28" stopColor={material?.body ?? '#A2613C'} />
+              <stop offset=".72" stopColor={material?.deep ?? '#4B2C25'} />
+              <stop offset="1" stopColor="#171518" />
+          </radialGradient>
+        )}
         <clipPath id={clipId}>
           <circle cx="32" cy="32" r={stoneR} />
         </clipPath>
@@ -150,32 +202,57 @@ export function NaturalStoneIcon({
           <feColorMatrix in="inner" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .75 0" />
           <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
+        <filter id={veinId} x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="fractalNoise" baseFrequency=".025 .06" numOctaves="2" seed="8" result="warp" />
+          <feDisplacementMap in="SourceGraphic" in2="warp" scale="3.2" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+        <filter id={noiseId} x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="fractalNoise" baseFrequency=".08" numOctaves="3" seed="13" />
+          <feColorMatrix type="saturate" values="0" />
+          <feComponentTransfer><feFuncA type="table" tableValues="0 .55" /></feComponentTransfer>
+        </filter>
+        <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="1.7" />
+        </filter>
       </defs>
 
       <g filter={`url(#${shadowId})`}>
-        <circle cx="32" cy="32" r={outerR} fill={`url(#${metalId})`} stroke="#080A0B" strokeWidth="1.2" />
-        <circle cx="32" cy="32" r={outerR - 2.1} fill="none" stroke={`url(#${edgeId})`} strokeWidth="1.1" />
-        <circle cx="32" cy="32" r={outerR - 4.1} fill="none" stroke="#080A0B" strokeWidth="1.15" opacity=".92" />
+        <circle cx="32" cy="32" r={outerR} fill={`url(#${metalId})`} stroke="#2A1A18" strokeWidth="1.15" />
+        <circle cx="32" cy="32" r={outerR - 1.8} fill="none" stroke={`url(#${edgeId})`} strokeWidth="1" />
+        <circle cx="32" cy="32" r={outerR - 3.8} fill="none" stroke="#43271F" strokeWidth="1.05" opacity=".9" />
+        <path d="M13 17a25 25 0 0 1 12-8M48 48a24 24 0 0 1-14 8" fill="none" stroke="#6EA28C" strokeWidth="1.4" strokeLinecap="round" strokeDasharray="4 2 1 4" opacity=".62" />
+        <path d="M50 18a24 24 0 0 1 5 13M9 37a24 24 0 0 1 3-12" fill="none" stroke="#294D45" strokeWidth="1.1" strokeLinecap="round" strokeDasharray="3 3 1 4" opacity=".68" />
 
         {plate || !kind ? (
           <>
-            <circle cx="32" cy="32" r={outerR - 6} fill={`url(#${metalId})`} stroke="#B8C0C4" strokeWidth=".55" />
-            <ellipse cx="25" cy="21" rx="11" ry="5.5" fill="#FFFFFF" opacity=".12" transform="rotate(-25 25 21)" />
+            <circle cx="32" cy="32" r={outerR - 5.2} fill={`url(#${flatId})`} stroke="#C8895E" strokeWidth=".55" />
+            <circle cx="32" cy="32" r={outerR - 8.2} fill="none" stroke="#4D2D26" strokeWidth=".65" opacity=".75" />
+            <path d="M16 24c5-7 13-10 21-8M44 46c-7 4-15 4-22 0" fill="none" stroke="#5D927F" strokeWidth="1.3" strokeLinecap="round" strokeDasharray="5 2 1 5" opacity=".48" />
+            <path d="M18 43c-3-5-4-10-2-15M47 22c3 5 3 10 2 15" fill="none" stroke="#2E5349" strokeWidth=".8" strokeLinecap="round" strokeDasharray="3 4" opacity=".56" />
           </>
         ) : (
           <>
-            <circle cx="32" cy="32" r={stoneR + (medallion ? 2.2 : 1.6)} fill="#080A0B" stroke={`url(#${edgeId})`} strokeWidth={medallion ? 1.1 : 1.25} />
+            <circle cx="32" cy="32" r={stoneR + (medallion ? 2.2 : 1.6)} fill="#38221E" stroke={`url(#${edgeId})`} strokeWidth={medallion ? 1.1 : 1.25} />
+            <path d={medallion ? 'M27 30a6 6 0 0 1 4-4M36 37a6 6 0 0 1-4 1' : 'M14 26a21 21 0 0 1 13-13M49 45a21 21 0 0 1-13 6'} fill="none" stroke="#6DA18A" strokeWidth={medallion ? '.55' : '1'} strokeLinecap="round" opacity=".62" />
             <g className="natural-stone-cabochon" filter={`url(#${insetId})`}>
               <circle cx="32" cy="32" r={stoneR} fill={`url(#${stoneId})`} />
-              <StoneTexture kind={kind} clipId={clipId} />
-              <circle cx="32" cy="32" r={stoneR - 0.35} fill="none" stroke={`color-mix(in srgb, ${stoneColor} 42%, white)`} strokeWidth={medallion ? '.45' : '.75'} opacity=".62" />
+              <StoneTexture kind={kind} clipId={clipId} veinId={veinId} noiseId={noiseId} glowId={glowId} />
+              <circle
+                cx="32"
+                cy="32"
+                r={stoneR - 0.35}
+                fill="none"
+                stroke={kind === 'malachite' ? 'color-mix(in srgb, #087A4B 42%, white)' : (material?.rim ?? stoneColor)}
+                strokeWidth={medallion ? '.45' : '.75'}
+                opacity={kind === 'malachite' ? '.62' : '.56'}
+              />
               <ellipse
                 cx={medallion ? 30.4 : 25.5}
                 cy={medallion ? 30.1 : 23.4}
                 rx={medallion ? 1.8 : 10.8}
                 ry={medallion ? .85 : 4.6}
                 fill="#FFFFFF"
-                opacity={medallion ? '.75' : '.48'}
+                opacity={medallion ? '.68' : '.58'}
                 transform={`rotate(-28 ${medallion ? 30.4 : 25.5} ${medallion ? 30.1 : 23.4})`}
               />
               <ellipse cx="39" cy="42" rx={medallion ? 1.2 : 8.5} ry={medallion ? .6 : 3.4} fill={stoneColor} opacity=".2" transform="rotate(-28 39 42)" />

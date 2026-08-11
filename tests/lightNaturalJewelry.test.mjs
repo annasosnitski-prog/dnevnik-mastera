@@ -16,12 +16,27 @@ test('light navigation assigns one natural cabochon to every product territory',
   }
 });
 
-test('natural stones are polished round cabochons in oxidised silver, not faceted gold', () => {
+test('natural stones are polished round cabochons in patinated copper, not faceted gold', () => {
   assert.match(stoneSource, /className="natural-stone-cabochon"/);
   assert.match(stoneSource, /<circle cx="32" cy="32" r=\{stoneR\}/);
-  assert.match(stoneSource, /#080A0B/);
-  assert.match(stoneSource, /#F8FBFC/);
+  assert.match(stoneSource, /copper-metal-/);
+  assert.match(stoneSource, /#6EA28C/);
   assert.doesNotMatch(stoneSource, /goldFace|quadrant|facet/);
+});
+
+test('metal-only controls use a flat copper face with verdigris confined to recesses', () => {
+  assert.match(stoneSource, /flat-copper-/);
+  assert.match(stoneSource, /fill={`url\(#\$\{flatId\}\)`}/);
+  assert.match(stoneSource, /stroke="#5D927F"/);
+  assert.doesNotMatch(stoneSource, /rx="11" ry="5\.5" fill="#FFFFFF"/);
+});
+
+test('five revised stones use irregular mineral structure while malachite keeps its approved drawing', () => {
+  assert.match(stoneSource, /<feTurbulence/);
+  assert.match(stoneSource, /<feDisplacementMap/);
+  assert.match(stoneSource, /case 'malachite':[\s\S]*?rx="25" ry="15"[\s\S]*?stroke="#053D2B"/);
+  assert.match(stoneSource, /case 'malachite':[\s\S]*?stroke="#3EBD78"/);
+  assert.match(stoneSource, /case 'malachite':[\s\S]*?stroke="#7ED39D"/);
 });
 
 test('the light material layer swaps visually without duplicating navigation logic', () => {
@@ -49,10 +64,11 @@ test('current toolbar destination gets a stronger material-coloured halo in both
   assert.match(css, /drop-shadow\(0 0 26px color-mix/);
 });
 
-test('light client tabs add a silver rod, fasteners and silver hardware reflections', () => {
+test('light client tabs add a patinated copper rod, fasteners and hardware reflections', () => {
   assert.match(css, /\.client-card-tabbar::before/);
   assert.match(css, /\.client-card-tabbar__tab:not\(:last-child\)::after/);
   assert.match(css, /\.jewel-wire-shadow/);
   assert.match(css, /\.jewel-wire-highlight/);
-  assert.match(css, /#F7FAFB/);
+  assert.match(css, /#E3A66F/);
+  assert.match(css, /#4F8A76/);
 });
