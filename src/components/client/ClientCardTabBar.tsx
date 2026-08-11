@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { useMinimalism } from '../ui/minimalism';
 import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
+import { NaturalStoneIcon, type NaturalStoneKind } from '../navigation/NaturalStoneIcon';
 
 // Разделяемый каркас вкладок «карточки клиента» (подвеска-самоцвет + строка
 // вкладок) — вынесен из DetailScreen.tsx, т.к. теперь его использует ещё и
@@ -33,8 +34,19 @@ const GEM_COLOR: Record<ClientTabIconName, string> = {
   projects: TERRITORY_COLORS.projects,
 };
 
+const GEM_NATURAL_STONE: Record<ClientTabIconName, NaturalStoneKind> = {
+  sessions: 'rhodonite',
+  consultations: 'malachite',
+  content: 'star-sapphire',
+  notes: 'fire-opal',
+  info: 'honey-jadeite',
+  projects: 'turquoise',
+};
+
 const TABLIST_STYLE: CSSProperties = {
   display: 'flex',
+  position: 'relative',
+  isolation: 'isolate',
   borderBottom: '1px solid rgba(var(--gold-rgb),0.1)',
   padding: '0 8px',
   background: COLORS.bg,
@@ -53,6 +65,7 @@ const TAB_BUTTON_STYLE: CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   position: 'relative',
+  zIndex: 1,
 };
 
 // The jump-ring is threaded onto the tube. It swivels around that horizontal
@@ -81,15 +94,15 @@ function GemJumpRing({ active }: { active: boolean }) {
       >
         {/* Rear wire: the tube occupies y=1…6 in this view. Removing that
             strip lets the real tube remain visible in front of the rear arc. */}
-        <path d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#4B1A00" strokeWidth="4" strokeLinecap="round" />
-        <path d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#9A4B08" strokeWidth="2.8" strokeLinecap="round" />
+        <path className="jewel-wire-shadow" d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#4B1A00" strokeWidth="4" strokeLinecap="round" />
+        <path className="jewel-wire-rear" d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#9A4B08" strokeWidth="2.8" strokeLinecap="round" />
 
         {/* Front wire: this half crosses in front of the tube, making the rod
             visibly pass through the ring rather than sit behind the drawing. */}
-        <path d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" />
-        <path d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#D8B46A" strokeWidth="2.9" strokeLinecap="round" />
-        <path d="M7.1 11.8 C4.7 9.7 4.5 5.8 6.1 2.7" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".92" />
-        <path d="M11.2 11.7 C12.5 10.3 13.1 8.6 13.1 7" fill="none" stroke="#793804" strokeWidth=".9" strokeLinecap="round" opacity=".9" />
+        <path className="jewel-wire-shadow" d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" />
+        <path className="jewel-wire-front" d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#D8B46A" strokeWidth="2.9" strokeLinecap="round" />
+        <path className="jewel-wire-highlight" d="M7.1 11.8 C4.7 9.7 4.5 5.8 6.1 2.7" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".92" />
+        <path className="jewel-wire-patina" d="M11.2 11.7 C12.5 10.3 13.1 8.6 13.1 7" fill="none" stroke="#793804" strokeWidth=".9" strokeLinecap="round" opacity=".9" />
       </svg>
     </span>
   );
@@ -114,9 +127,9 @@ function GemBail() {
       }}
     >
       {/* A folded bail hangs from one hinge and slips behind the medallion. */}
-      <path d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#D8B46A" strokeWidth="2.9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M8.6 1.8 C8.1 4.8 7.2 7.4 7 10.3" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".88" />
+      <path className="jewel-wire-shadow" d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path className="jewel-wire-front" d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#D8B46A" strokeWidth="2.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path className="jewel-wire-highlight" d="M8.6 1.8 C8.1 4.8 7.2 7.4 7 10.3" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".88" />
     </svg>
   );
 }
@@ -205,7 +218,7 @@ function GemTabMarker({
         <GemBail />
         <span
           aria-hidden="true"
-          className="client-card-tabbar__medallion"
+          className="client-card-tabbar__medallion theme-dark-jewel"
           style={{
             position: 'absolute',
             inset: 0,
@@ -219,6 +232,20 @@ function GemTabMarker({
             zIndex: 2,
           }}
         />
+        <span
+          aria-hidden="true"
+          className="client-card-tabbar__medallion theme-light-jewel"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'block',
+            width: GEM_SIZE,
+            height: GEM_SIZE,
+            zIndex: 2,
+          }}
+        >
+          <NaturalStoneIcon kind={GEM_NATURAL_STONE[kind]} size={GEM_SIZE} medallion />
+        </span>
       </span>
     </span>
   );

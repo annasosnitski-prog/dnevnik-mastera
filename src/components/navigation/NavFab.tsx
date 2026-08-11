@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { PendantIcon } from "./PendantIcon";
+import { NaturalStoneIcon, type NaturalStoneKind } from "./NaturalStoneIcon";
 import { ToolbarIcon } from "./ToolbarIcons";
 import { TERRITORY_COLORS } from "../ui/designTokens";
 import { useMinimalism } from "../ui/minimalism";
@@ -87,6 +88,15 @@ const INNER_POLYGON_RADIUS = 92;
 const MINIMAL_HUB_SIZE = 54;
 const MINIMAL_HUB_ICON_SIZE = 24;
 const MINIMAL_ITEM_ICON_SIZE = 26;
+
+const NATURAL_STONE_BY_ITEM: Record<NavItemId, NaturalStoneKind> = {
+  clients: 'malachite',
+  gear: 'honey-jadeite',
+  content: 'star-sapphire',
+  brush: 'turquoise',
+  sketchbook: 'fire-opal',
+  profile: 'rhodonite',
+};
 
 type FanEntry =
   | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
@@ -276,9 +286,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             <defs>
               {positions.map(({ dx, dy }, index) => (
                 <linearGradient key={index} id={`navFabRayGrad-${index}`} gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={dx} y2={dy}>
-                  <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.05} />
-                  <stop offset="52%" stopColor="var(--gold)" stopOpacity={0.34} />
-                  <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.86} />
+                  <stop offset="0%" stopColor="var(--nav-metal)" stopOpacity={0.05} />
+                  <stop offset="52%" stopColor="var(--nav-metal)" stopOpacity={0.34} />
+                  <stop offset="100%" stopColor="var(--nav-metal-highlight)" stopOpacity={0.86} />
                 </linearGradient>
               ))}
               {innerPolygonEdges.map(({ start, end }, index) => (
@@ -291,9 +301,9 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   x2={end.x}
                   y2={end.y}
                 >
-                  <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.05} />
-                  <stop offset="52%" stopColor="var(--gold)" stopOpacity={0.34} />
-                  <stop offset="100%" stopColor="var(--gold)" stopOpacity={0.86} />
+                  <stop offset="0%" stopColor="var(--nav-metal)" stopOpacity={0.05} />
+                  <stop offset="52%" stopColor="var(--nav-metal)" stopOpacity={0.34} />
+                  <stop offset="100%" stopColor="var(--nav-metal-highlight)" stopOpacity={0.86} />
                 </linearGradient>
               ))}
             </defs>
@@ -339,7 +349,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                       fill={`url(#navFabPolygonGrad-${index})`}
                       d={rayLens(start.x, start.y, end.x, end.y, 0.8)}
                     />
-                    <circle cx={start.x} cy={start.y} r="1.35" fill="#f7cf69" opacity="0.78" />
+                    <circle cx={start.x} cy={start.y} r="1.35" fill="var(--nav-metal-point)" opacity="0.78" />
                   </g>
                 );
               })}
@@ -411,10 +421,20 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                       <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                     </svg>
                   ) : (
-                    <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
-                      <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
-                      <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
-                    </PendantIcon>
+                    <>
+                      <span className="theme-dark-jewel" aria-hidden="true">
+                        <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
+                          <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
+                          <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
+                        </PendantIcon>
+                      </span>
+                      <span className="theme-light-jewel" aria-hidden="true">
+                        <NaturalStoneIcon size={ITEM_SIZE} plate>
+                          <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.8" strokeLinecap="round" />
+                          <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.8" strokeLinecap="round" />
+                        </NaturalStoneIcon>
+                      </span>
+                    </>
                   )}
                 </button>
               );
@@ -423,6 +443,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             const { item } = entry;
             const isCurrentItem = item === current;
             if (minimalism && !isCurrentItem) classes.push("nav-fab__item--dim");
+            if (!minimalism && isCurrentItem) classes.push("nav-fab__item--current");
             return (
               <button
                 key={item.id}
@@ -448,17 +469,28 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                 {minimalism ? (
                   <MinimalGlyph id={item.id as NavItemId} size={MINIMAL_ITEM_ICON_SIZE} />
                 ) : (
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      display: "block",
-                      filter: `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
-                    }}
-                  >
-                    <PendantIcon color={item.color} size={ITEM_SIZE}>
-                      <GemGlyph id={item.id as NavItemId} />
-                    </PendantIcon>
-                  </span>
+                  <>
+                    <span
+                      className="theme-dark-jewel"
+                      aria-hidden="true"
+                      style={{
+                        filter: `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
+                      }}
+                    >
+                      <PendantIcon color={item.color} size={ITEM_SIZE}>
+                        <GemGlyph id={item.id as NavItemId} />
+                      </PendantIcon>
+                    </span>
+                    <span
+                      className="theme-light-jewel"
+                      aria-hidden="true"
+                      style={{ ['--natural-jewel-color' as string]: item.color }}
+                    >
+                      <NaturalStoneIcon kind={NATURAL_STONE_BY_ITEM[item.id]} size={ITEM_SIZE}>
+                        <GemGlyph id={item.id as NavItemId} />
+                      </NaturalStoneIcon>
+                    </span>
+                  </>
                 )}
                 {item.screen === "admin" &&
                   adminBadges?.map((kind, badgeIndex) => (
@@ -491,7 +523,14 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
           {minimalism ? (
             <ToolbarIcon name="tasks" size={MINIMAL_HUB_ICON_SIZE} aria-hidden="true" style={{ color: "inherit" }} />
           ) : (
-            <PendantIcon color="#C9922E" size={HUB_SIZE} plate />
+            <>
+              <span className="theme-dark-jewel" aria-hidden="true">
+                <PendantIcon color="#C9922E" size={HUB_SIZE} plate />
+              </span>
+              <span className="theme-light-jewel" aria-hidden="true">
+                <NaturalStoneIcon size={HUB_SIZE} plate />
+              </span>
+            </>
           )}
           {mainBadgeKind && (
             <span
