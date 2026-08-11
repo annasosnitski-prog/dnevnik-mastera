@@ -94,6 +94,7 @@ import {
 import { upsertClientSession, upsertProjectSession, applyConsultationConversion, applyConsultationRestoration, type SessionFormData } from '../lib/sessionSave';
 import { upsertConsultation, upsertProjectConsultation, type ConsultationFormData } from '../lib/consultationSave';
 import { bucketProjectId, bucketProjectTitle, makeBucketProject } from '../lib/autoProject';
+import { migrateClientRecordsIntoProjects } from '../lib/clientRecordsMigration';
 // Чистые хелперы вынесены в отдельные модули (PR 3 рефакторинга). Логика
 // не менялась — только перенос.
 import { isRTL, firstLetter, nameRest } from '../lib/textFormat';
@@ -991,6 +992,41 @@ export default function TattoDiary() {
     };
     tx.onerror = () => setDbError('Не удалось удалить проект.');
   };
+
+  // ── Перенос записей клиента на проекты (Этап 2) ──
+  // Однократно после того, как загрузились И клиенты, И проекты: пока
+  // загрузился только один из сторов, судить о том, что переносить, нельзя
+  // (пустой список проектов выглядел бы как «все записи осиротели» и увёл бы
+  // их в «Неразобранный»). Сама раскладка — чистая и идемпотентная, см.
+  // lib/clientRecordsMigration.ts; здесь только запись результата.
+  //
+  // Все затронутые проекты пишутся ОДНОЙ транзакцией: перенос либо
+  // применяется целиком, либо не применяется вовсе — половинчатого
+  // состояния, где часть записей уже уехала, а часть нет, не возникает.
+  // Легаси-массивы Client.sessions/consultations намеренно не чистятся —
+  // остаются в базе как страховка (и как источник для повторного прогона,
+  // если перенос не удался).
+  const recordsMigrationRanRef = useRef(false);
+  useEffect(() => {
+    if (!db || !clientsLoaded || !projectsLoaded || recordsMigrationRanRef.current) return;
+    const result = migrateClientRecordsIntoProjects(clients, projects);
+    if (result.changedProjectIds.length === 0) {
+      recordsMigrationRanRef.current = true;
+      return;
+    }
+    const changed = new Set(result.changedProjectIds);
+    const tx = openWriteTx('projects', db, 'Не удалось перенести записи клиентов в проекты.');
+    if (!tx) return;
+    const store = tx.objectStore('projects');
+    for (const project of result.projects) {
+      if (changed.has(project.id)) store.put(project);
+    }
+    tx.oncomplete = () => {
+      recordsMigrationRanRef.current = true;
+      loadProjects(db);
+    };
+    tx.onerror = () => setDbError('Не удалось перенести записи клиентов в проекты.');
+  }, [db, clientsLoaded, projectsLoaded, clients, projects]);
 
   const loadContentEntries = (database: IDBDatabase) => {
     const tx = openTx('contentEntries', database, 'readonly', 'Не удалось загрузить черновики контента.');
