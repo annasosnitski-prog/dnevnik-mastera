@@ -34,29 +34,67 @@ function StoneSurfaceLight({
   glossId,
   softGlossId,
   rimColor,
+  deepColor,
+  stoneR,
 }: {
   medallion: boolean;
   clipId: string;
   glossId: string;
   softGlossId: string;
   rimColor: string;
+  deepColor: string;
+  stoneR: number;
 }) {
   const upperArc = medallion
-    ? 'M28.4 31.2C29.1 28.5 31.8 26.7 34.5 27.2'
-    : 'M14.8 27.6C17.5 18.4 26.1 12.4 35.8 12.9C38.1 13 40.2 13.6 42 14.5';
+    ? 'M27.9 31.3C28.8 28.4 31.4 26.8 34.5 27.2'
+    : 'M13.9 28.6C16.5 18.8 25.6 11.9 36.1 12.8C38.6 13 40.8 13.6 42.7 14.7';
   const upperCore = medallion
-    ? 'M29.1 30C30 28.3 31.8 27.5 33.6 27.6'
-    : 'M17.6 24.2C21.4 16.9 29.8 13.5 37.5 14.4';
+    ? 'M28.8 30.2C29.8 28.4 31.8 27.5 33.8 27.8'
+    : 'M16.7 25.3C20.8 17.2 29.5 13.1 37.8 14.2';
   const lowerArc = medallion
-    ? 'M35.8 35.3C34.7 36.5 33.2 37.1 31.7 37.2'
-    : 'M47.9 41.8C44.9 47.3 39.2 51 32.9 52.1';
+    ? 'M36.4 34.9C35.2 36.6 33.5 37.5 31.4 37.5'
+    : 'M49 40.7C46.6 47.4 40.2 51.9 32.8 52.7';
+
+  const bevelStroke = medallion ? 1.55 : 5.4;
+  const bevelBlur = medallion ? 0.22 : 0.72;
+  const bevelShift = medallion ? 0.48 : 1.35;
 
   return (
     <g clipPath={`url(#${clipId})`} fill="none" strokeLinecap="round">
-      <path d={upperArc} stroke={`url(#${glossId})`} strokeWidth={medallion ? '1.35' : '4.8'} opacity={medallion ? '.5' : '.38'} filter={`url(#${softGlossId})`} />
-      <path d={upperArc} stroke={`url(#${glossId})`} strokeWidth={medallion ? '.62' : '1.65'} opacity={medallion ? '.76' : '.68'} />
-      <path d={upperCore} stroke="#FFFFFF" strokeWidth={medallion ? '.28' : '.58'} opacity=".82" />
-      <path d={lowerArc} stroke={rimColor} strokeWidth={medallion ? '.42' : '1.25'} opacity=".28" />
+      {/* The stone is a shallow inward dish. Only the inner half of these
+          oversized rim strokes survives the clip, which turns them into a
+          physical inner bevel rather than an outer cabochon highlight. */}
+      <circle
+        cx="32"
+        cy="32"
+        r={stoneR}
+        stroke="#FFFFFF"
+        strokeWidth={bevelStroke}
+        opacity={medallion ? '.34' : '.29'}
+        transform={`translate(${-bevelShift} ${-bevelShift})`}
+        filter={`url(#${softGlossId})`}
+      />
+      <circle
+        cx="32"
+        cy="32"
+        r={stoneR}
+        stroke={deepColor}
+        strokeWidth={bevelStroke}
+        opacity={medallion ? '.52' : '.5'}
+        transform={`translate(${bevelShift} ${bevelShift})`}
+        style={{ filter: `blur(${bevelBlur}px)` }}
+      />
+
+      {/* A narrow reflected line rides the upper inner wall; the broader
+          glossy cabochon stripe is deliberately gone. */}
+      <path d={upperArc} stroke={`url(#${glossId})`} strokeWidth={medallion ? '1.05' : '3.2'} opacity={medallion ? '.42' : '.32'} filter={`url(#${softGlossId})`} />
+      <path d={upperArc} stroke={`url(#${glossId})`} strokeWidth={medallion ? '.48' : '1.08'} opacity={medallion ? '.72' : '.64'} />
+      <path d={upperCore} stroke="#FFFFFF" strokeWidth={medallion ? '.22' : '.46'} opacity=".74" />
+
+      {/* The lower wall catches a weak coloured reflection while staying
+          darker than the raised upper rim, reinforcing the concavity. */}
+      <path d={lowerArc} stroke={rimColor} strokeWidth={medallion ? '.5' : '1.45'} opacity=".25" />
+      <path d={lowerArc} stroke={deepColor} strokeWidth={medallion ? '1.15' : '3.4'} opacity=".18" filter={`url(#${softGlossId})`} />
     </g>
   );
 }
@@ -82,6 +120,8 @@ export function NaturalStoneIcon({
   const shadowId = `copper-shadow-${rawId}`;
   const insetId = `stone-inset-${rawId}`;
   const depthId = `stone-depth-${rawId}`;
+  const wallShadeId = `stone-wall-shade-${rawId}`;
+  const floorLightId = `stone-floor-light-${rawId}`;
   const glossId = `stone-gloss-${rawId}`;
   const softGlossId = `stone-soft-gloss-${rawId}`;
   const material = kind ? STONE_MATERIALS[kind] : undefined;
@@ -129,26 +169,40 @@ export function NaturalStoneIcon({
           <feDropShadow dx="0" dy="1.4" stdDeviation="1.25" floodColor="#050606" floodOpacity=".58" />
         </filter>
         <filter id={insetId} x="-35%" y="-35%" width="170%" height="170%">
-          <feGaussianBlur in="SourceAlpha" stdDeviation={medallion ? '.45' : '1.1'} result="blur" />
-          <feOffset dx={medallion ? '.35' : '.8'} dy={medallion ? '.45' : '1.1'} result="offset" />
+          <feGaussianBlur in="SourceAlpha" stdDeviation={medallion ? '.35' : '.9'} result="blur" />
+          <feOffset dx={medallion ? '.28' : '.65'} dy={medallion ? '.38' : '.9'} result="offset" />
           <feComposite in="offset" in2="SourceAlpha" operator="out" result="inner" />
-          <feColorMatrix in="inner" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .75 0" />
+          <feColorMatrix in="inner" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .62 0" />
           <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
-        <radialGradient id={depthId} gradientUnits="userSpaceOnUse" cx="20" cy="17" r="43">
-          <stop offset="0" stopColor="#FFFFFF" stopOpacity=".12" />
-          <stop offset=".34" stopColor="#FFFFFF" stopOpacity="0" />
+
+        {/* The bowl floor is darker around the optical centre, then opens back
+            toward the walls. The stone texture remains visible underneath. */}
+        <radialGradient id={depthId} gradientUnits="userSpaceOnUse" cx="33.5" cy="34" r={stoneR * 1.08}>
+          <stop offset="0" stopColor={material?.deep ?? '#4B2C25'} stopOpacity={medallion ? '.31' : '.28'} />
+          <stop offset=".37" stopColor={material?.deep ?? '#4B2C25'} stopOpacity={medallion ? '.18' : '.14'} />
+          <stop offset=".68" stopColor={stoneColor} stopOpacity="0" />
+          <stop offset="1" stopColor={material?.deep ?? '#4B2C25'} stopOpacity={medallion ? '.16' : '.11'} />
+        </radialGradient>
+        <linearGradient id={wallShadeId} gradientUnits="userSpaceOnUse" x1="18" y1="16" x2="47" y2="49">
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity={medallion ? '.11' : '.09'} />
+          <stop offset=".4" stopColor="#FFFFFF" stopOpacity="0" />
           <stop offset=".72" stopColor={material?.deep ?? '#4B2C25'} stopOpacity=".08" />
-          <stop offset="1" stopColor={material?.deep ?? '#4B2C25'} stopOpacity=".42" />
+          <stop offset="1" stopColor={material?.deep ?? '#4B2C25'} stopOpacity={medallion ? '.24' : '.2'} />
+        </linearGradient>
+        <radialGradient id={floorLightId} gradientUnits="userSpaceOnUse" cx="28" cy="39" r={stoneR * .86}>
+          <stop offset="0" stopColor={material?.rim ?? stoneColor} stopOpacity={medallion ? '.09' : '.08'} />
+          <stop offset=".48" stopColor={material?.rim ?? stoneColor} stopOpacity=".035" />
+          <stop offset="1" stopColor={material?.rim ?? stoneColor} stopOpacity="0" />
         </radialGradient>
         <linearGradient id={glossId} gradientUnits="userSpaceOnUse" x1="14" y1="18" x2="43" y2="24">
-          <stop offset="0" stopColor="#FFFFFF" stopOpacity=".12" />
-          <stop offset=".26" stopColor="#FFFFFF" stopOpacity=".78" />
-          <stop offset=".68" stopColor="#FFFFFF" stopOpacity=".42" />
-          <stop offset="1" stopColor="#FFFFFF" stopOpacity=".06" />
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity=".08" />
+          <stop offset=".26" stopColor="#FFFFFF" stopOpacity=".72" />
+          <stop offset=".68" stopColor="#FFFFFF" stopOpacity=".36" />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity=".04" />
         </linearGradient>
         <filter id={softGlossId} x="-30%" y="-40%" width="160%" height="180%">
-          <feGaussianBlur stdDeviation={medallion ? '.32' : '1.05'} />
+          <feGaussianBlur stdDeviation={medallion ? '.28' : '.92'} />
         </filter>
       </defs>
 
@@ -170,7 +224,7 @@ export function NaturalStoneIcon({
           <>
             <circle cx="32" cy="32" r={stoneR + (medallion ? 2.2 : 1.6)} fill="#584335" stroke={`url(#${edgeId})`} strokeWidth={medallion ? 1.1 : 1.25} />
             <path d={medallion ? 'M27 30a6 6 0 0 1 4-4M36 37a6 6 0 0 1-4 1' : 'M14 26a21 21 0 0 1 13-13M49 45a21 21 0 0 1-13 6'} fill="none" stroke="#657C72" strokeWidth={medallion ? '.55' : '.9'} strokeLinecap="round" opacity=".48" />
-            <g className="natural-stone-cabochon" filter={`url(#${insetId})`}>
+            <g className="natural-stone-cabochon natural-stone-cabochon--concave" filter={`url(#${insetId})`}>
               <circle cx="32" cy="32" r={stoneR} fill={stoneColor} />
               <image
                 href="/mineral-cabochons.webp"
@@ -181,9 +235,27 @@ export function NaturalStoneIcon({
                 preserveAspectRatio="none"
                 clipPath={`url(#${clipId})`}
               />
-              <circle cx="32" cy="32" r={stoneR} fill={`url(#${depthId})`} opacity=".78" />
-              <circle cx="32" cy="32" r={stoneR - 0.35} fill="none" stroke={material?.rim ?? stoneColor} strokeWidth={medallion ? '.45' : '.75'} opacity=".56" />
-              <StoneSurfaceLight medallion={medallion} clipId={clipId} glossId={glossId} softGlossId={softGlossId} rimColor={material?.rim ?? stoneColor} />
+              <circle cx="32" cy="32" r={stoneR} fill={`url(#${wallShadeId})`} opacity=".9" />
+              <circle cx="32" cy="32" r={stoneR} fill={`url(#${depthId})`} opacity=".94" />
+              <circle cx="32" cy="32" r={stoneR} fill={`url(#${floorLightId})`} opacity=".85" />
+              <StoneSurfaceLight
+                medallion={medallion}
+                clipId={clipId}
+                glossId={glossId}
+                softGlossId={softGlossId}
+                rimColor={material?.rim ?? stoneColor}
+                deepColor={material?.deep ?? '#4B2C25'}
+                stoneR={stoneR}
+              />
+              <circle
+                cx="32"
+                cy="32"
+                r={stoneR - (medallion ? .25 : .5)}
+                fill="none"
+                stroke={material?.rim ?? stoneColor}
+                strokeWidth={medallion ? '.36' : '.62'}
+                opacity=".42"
+              />
             </g>
           </>
         )}
