@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [stoneSource, navSource, tabSource, css] = await Promise.all([
+const [stoneSource, navSource, tabSource, css, stoneSprite] = await Promise.all([
   readFile(new URL('../src/components/navigation/NaturalStoneIcon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/navigation/NavFab.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/client/ClientCardTabBar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/index.css', import.meta.url), 'utf8'),
+  readFile(new URL('../public/mineral-cabochons.webp', import.meta.url)),
 ]);
 
 test('light navigation assigns one natural cabochon to every product territory', () => {
@@ -38,17 +39,17 @@ test('copper matches the muted background ornaments and avoids the former red-or
   assert.doesNotMatch(stoneSource + css, /#E4A66F|#A55C38|#B36B43/);
 });
 
-test('five revised stones use irregular mineral structure while malachite keeps its approved drawing', () => {
-  assert.match(stoneSource, /<feTurbulence/);
-  assert.match(stoneSource, /<feDisplacementMap/);
-  assert.match(stoneSource, /opacity="\.44" style=\{\{ mixBlendMode: 'soft-light' \}\}/);
-  assert.match(stoneSource, /stroke="#C7C5FF"/);
-  assert.match(stoneSource, /stroke="#9CEB9F"/);
-  assert.match(stoneSource, /fill="#6E5117" opacity="\.34"/);
-  assert.match(stoneSource, /fill="#8DF3EC" transform="rotate\(-17 18 19\)"/);
-  assert.match(stoneSource, /case 'malachite':[\s\S]*?rx="25" ry="15"[\s\S]*?stroke="#053D2B"/);
-  assert.match(stoneSource, /case 'malachite':[\s\S]*?stroke="#3EBD78"/);
-  assert.match(stoneSource, /case 'malachite':[\s\S]*?stroke="#7ED39D"/);
+test('cabochons use six supplied mineral samples instead of synthetic line textures', () => {
+  assert.match(stoneSource, /href="\/mineral-cabochons\.webp"/);
+  assert.match(stoneSource, /rhodonite: 0, \/\/ rose quartz/);
+  assert.match(stoneSource, /malachite: 1/);
+  assert.match(stoneSource, /'star-sapphire': 2, \/\/ amethyst/);
+  assert.match(stoneSource, /'fire-opal': 3, \/\/ amber/);
+  assert.match(stoneSource, /'honey-jadeite': 4, \/\/ tiger's eye/);
+  assert.match(stoneSource, /turquoise: 5, \/\/ blue agate/);
+  assert.equal(stoneSprite.subarray(0, 4).toString(), 'RIFF');
+  assert.ok(stoneSprite.length < 100_000, 'toolbar texture sprite should stay lightweight');
+  assert.doesNotMatch(stoneSource, /<feTurbulence|<feDisplacementMap/);
 });
 
 test('all cabochons use a dome-curved highlight with a soft band, sharp core and lower reflection', () => {
@@ -104,7 +105,9 @@ test('two-medallion tab bar uses three thin theme-aware rays joined at both jump
   assert.match(tabSource, /data-two-pendant-rays=\{hasTwoPendantRays \? 'true' : undefined\}/);
   assert.match(css, /\.client-card-tabbar\[data-two-pendant-rays='true'\]::before/);
   assert.match(css, /left: 8px;[\s\S]*width: calc\(100% - 16px\)/);
-  assert.match(css, /upper inside edge of each jump-ring opening[\s\S]*top: -13px/);
+  assert.match(css, /\.client-card-tabbar__two-pendant-rays[\s\S]*top: -2px/);
+  assert.match(css, /complete pendant assembly moves instead[\s\S]*\.client-card-tabbar__marker--ornate[\s\S]*translateY\(11px\)/);
+  assert.match(tabSource, /paddingBottom: hasTwoPendantRays && !minimalism \? 11 : undefined/);
   assert.match(tabSource, /stopColor="var\(--two-pendant-ray-highlight\)"/);
   assert.match(css, /--two-pendant-ray-highlight: #FFF0B3/);
   assert.match(css, /:root\[data-theme='light'\][\s\S]*--two-pendant-ray-highlight: #CC9D75/);

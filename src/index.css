@@ -1747,9 +1747,7 @@ input[type='date'] {
   display: block;
   position: absolute;
   z-index: 0;
-  /* The ray necks meet at the upper inside edge of each jump-ring opening,
-     rather than cutting across the lower half of the ring. */
-  top: -13px;
+  top: -2px;
   left: 8px;
   width: calc(100% - 16px);
   height: 12px;
@@ -1758,6 +1756,13 @@ input[type='date'] {
   filter:
     drop-shadow(0 -0.5px 1px rgba(255, 221, 133, 0.28))
     drop-shadow(0 1px 2px rgba(32, 18, 4, 0.42));
+}
+
+/* Keep the approved rays fixed. The complete pendant assembly moves instead,
+   placing the upper inside edge of each jump ring on the ray join. */
+.client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__marker--ornate {
+  transform: translateY(11px);
 }
 
 .client-card-tabbar__ray-metal {

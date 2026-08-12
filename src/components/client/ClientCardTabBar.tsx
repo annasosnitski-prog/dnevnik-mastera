@@ -177,7 +177,7 @@ function GemTabMarker({
   return (
     <span
       aria-hidden="true"
-      className="client-card-tabbar__marker"
+      className="client-card-tabbar__marker client-card-tabbar__marker--ornate"
       style={{
         position: 'relative',
         display: 'block',
@@ -311,6 +311,7 @@ export function ClientCardTabBar<T extends string>({
   onTab: (tab: T) => void;
   ariaLabel: string;
 }) {
+  const minimalism = useMinimalism();
   const hasTwoPendantRays = tabs.length === 2;
 
   return (
@@ -319,7 +320,7 @@ export function ClientCardTabBar<T extends string>({
       data-two-pendant-rays={hasTwoPendantRays ? 'true' : undefined}
       role="tablist"
       aria-label={ariaLabel}
-      style={TABLIST_STYLE}
+      style={{ ...TABLIST_STYLE, paddingBottom: hasTwoPendantRays && !minimalism ? 11 : undefined }}
     >
       {hasTwoPendantRays && <TwoPendantRays />}
       {tabs.map((tab) => (
