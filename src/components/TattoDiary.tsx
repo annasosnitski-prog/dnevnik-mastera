@@ -2548,16 +2548,16 @@ export default function TattoDiary() {
                 setViewEntry({ kind: 'consultation', clientId, id: consultationId });
               }}
               onOpenSession={(clientId, sessionId) => setViewEntry({ kind: 'session', clientId, id: sessionId })}
-              onAddMasterNote={(text, urgency, photos, dueDate) =>
+              onAddMasterNote={(text, urgency, photos, dueDate, projectId) =>
                 setMasterInfo({
                   ...masterInfo,
                   notes: [
                     ...masterInfo.notes,
-                    { id: crypto.randomUUID(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId: null, dueDate },
+                    { id: crypto.randomUUID(), text, urgency, done: false, createdDate: new Date().toISOString(), photos, projectId, dueDate },
                   ],
                 })
               }
-              onAddNote={(clientId, text, urgency, photos, dueDate) =>
+              onAddNote={(clientId, text, urgency, photos, dueDate, projectId) =>
                 upsertNote(clientId, {
                   id: crypto.randomUUID(),
                   text,
@@ -2565,7 +2565,7 @@ export default function TattoDiary() {
                   done: false,
                   createdDate: new Date().toISOString(),
                   photos,
-                  projectId: null,
+                  projectId,
                   dueDate,
                 })
               }
@@ -2806,7 +2806,7 @@ export default function TattoDiary() {
               // before anything is typed) could eat a task the master already
               // wrote if they dismissed the game — leaving some clients missing
               // tasks they thought they'd saved. Notes always save immediately.
-              onAddNote={(text, urgency, photos, dueDate) =>
+              onAddNote={(text, urgency, photos, dueDate, projectId) =>
                 upsertNote(selectedClient.id, {
                   id: crypto.randomUUID(),
                   text,
@@ -2814,7 +2814,7 @@ export default function TattoDiary() {
                   done: false,
                   createdDate: new Date().toISOString(),
                   photos,
-                  projectId: null,
+                  projectId,
                   dueDate,
                 })
               }
@@ -2994,6 +2994,8 @@ export default function TattoDiary() {
       <NoteComposerSheet
         open={!!noteComposerContext}
         onClose={() => setNoteComposerContext(null)}
+        clients={clients}
+        projects={projects}
         presetClientId={noteComposerContext?.clientId ?? null}
         presetProjectId={noteComposerContext?.projectId ?? null}
         onAdd={(text, urgency, photos, dueDate, clientId, projectId) => {

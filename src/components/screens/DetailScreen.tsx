@@ -224,7 +224,7 @@ export function DetailScreen({
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
+  onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, projectId: string | null) => void;
   onDeleteNote: (noteId: string) => void;
   contentEntries: ContentEntry[];
   onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
@@ -2125,17 +2125,25 @@ export function NoteItem({
 export function NoteComposer({
   onAdd,
   clients,
+  projects,
   presetClientId = null,
   presetProjectId = null,
 }: {
   onAdd: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, clientId: string | null, projectId: string | null) => void;
   clients?: Client[];
+  // Проекты, к которым можно привязать заметку прямо при создании. Раньше
+  // выбор проекта был только в NoteItem (правка уже созданной заметки), и
+  // из Личного кабинета/Мастерской привязать заметку к проекту было нельзя
+  // вообще — приходилось создавать, а потом открывать и править.
+  // Список сужается по выбранному клиенту (см. availableProjects ниже),
+  // чтобы не предлагать чужие проекты.
+  projects?: Project[];
   // Предзаполняет клиента (например, из открытой карточки клиента) — но
   // поле остаётся редактируемым через тот же select, если clients передан.
   presetClientId?: string | null;
   // Заметка создаётся уже привязанной к проекту (например, из открытого
-  // просмотра проекта) — в отличие от клиента, здесь нет своего picker'а в
-  // форме, значение просто передаётся насквозь в onAdd.
+  // просмотра проекта) — тогда picker'а не показываем, значение просто
+  // уходит в onAdd как есть.
   presetProjectId?: string | null;
 }) {
   const [text, setText] = useState('');
@@ -2143,15 +2151,30 @@ export function NoteComposer({
   const [photos, setPhotos] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [clientId, setClientId] = useState<string | null>(presetClientId);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  // Проекты выбранного клиента; без клиента — проекты «Мастерской».
+  // Меняется вслед за клиентом, поэтому выбранный ранее проект сбрасывается,
+  // если он не принадлежит новому владельцу (иначе заметка уехала бы в
+  // проект чужого клиента).
+  const availableProjects = (projects ?? []).filter((p) => (clientId ? p.clientId === clientId : p.clientId === null));
   const submit = () => {
     const t = text.trim();
     if (!t) return;
-    onAdd(t, urgency, photos, dueDate || null, clientId, presetProjectId);
+    // presetProjectId (создание из открытого проекта) всегда сильнее выбора
+    // в форме — там picker'а и нет.
+    onAdd(t, urgency, photos, dueDate || null, clientId, presetProjectId ?? projectId);
     setText('');
     setUrgency('important');
     setPhotos([]);
     setDueDate('');
     setClientId(presetClientId);
+    setProjectId(null);
+  };
+  // Сменили клиента — прежде выбранный проект мог принадлежать другому
+  // владельцу; сбрасываем, чтобы заметка не уехала не туда.
+  const changeClient = (nextClientId: string | null) => {
+    setClientId(nextClientId);
+    setProjectId(null);
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2182,11 +2205,29 @@ export function NoteComposer({
           <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
             Клиент (необязательно)
           </div>
-          <select value={clientId ?? ''} onChange={(e) => setClientId(e.target.value || null)} style={INPUT_STYLE}>
+          <select value={clientId ?? ''} onChange={(e) => changeClient(e.target.value || null)} style={INPUT_STYLE}>
             <option value="">— без клиента —</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {`${c.name} ${c.surname}`.trim()}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {/* Привязка к проекту прямо при создании. Скрыта, когда проект уже
+          задан контекстом (заметка создаётся из открытого проекта) или когда
+          у выбранного владельца проектов ещё нет — выбирать не из чего. */}
+      {!presetProjectId && availableProjects.length > 0 && (
+        <div>
+          <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+            Проект (необязательно)
+          </div>
+          <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
+            <option value="">— без проекта —</option>
+            {availableProjects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title || 'Проект'}
               </option>
             ))}
           </select>
@@ -2237,7 +2278,7 @@ function AdditionalTab({
   // This client's own projects — candidates a note/task can be tied to.
   projects: Project[];
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
+  onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, projectId: string | null) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
   const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
@@ -2268,7 +2309,13 @@ function AdditionalTab({
           ))}
         </div>
       )}
-      <NoteComposer onAdd={onAddNote} />
+      {/* Клиент уже задан контекстом вкладки — picker клиента не нужен, а
+          выбор проекта нужен: заметку можно сразу привязать к проекту. */}
+      <NoteComposer
+        projects={projects}
+        presetClientId={client.id}
+        onAdd={(text, urgency, photos, dueDate, _clientId, projectId) => onAddNote(text, urgency, photos, dueDate, projectId)}
+      />
     </div>
   );
 }
