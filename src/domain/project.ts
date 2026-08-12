@@ -108,6 +108,25 @@ export function resolveNextStep(
   return { nextActionText: trimmed, nextActionDate: date, nextActionType: type };
 }
 
+// Авто-переход этапа проекта — ТОЛЬКО ВПЕРЁД: создана будущая запись →
+// «Записан», выполненная сессия → «В работе». Никогда не откатывает назад
+// (не трогает, если этап уже на целевом или дальше), «Заживление»/«Завершён»
+// мастер ставит сама.
+//
+// Возвращает НОВЫЙ объект проекта, а не пишет в стор: продвижение этапа
+// должно уехать в базу тем же самым сохранением, что и сама запись. Раньше
+// это были два отдельных saveProject подряд, и второй читал projects из
+// ещё не обновившегося React-состояния — то есть перезаписывал проект
+// снимком БЕЗ только что добавленной сессии и стирал её. Для клиентских
+// сессий это не проявлялось (они лежали в другом сторе), а сессия в проекте
+// без клиента молча пропадала после сохранения.
+export function withAdvancedStage(project: Project, target: ProjectStage): Project {
+  const current = PROJECT_STAGES.findIndex((s) => s.key === project.stage);
+  const next = PROJECT_STAGES.findIndex((s) => s.key === target);
+  if (next < 0 || next <= current) return project;
+  return { ...project, stage: target };
+}
+
 export interface Project {
   id: string;
   title: string; // project name, e.g. "Дракон в стиле джапан"

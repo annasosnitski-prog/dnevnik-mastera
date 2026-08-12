@@ -253,6 +253,7 @@ import {
   type NextActionType,
   type Project,
   isMeaningfulProjectChange,
+  withAdvancedStage,
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
@@ -1519,8 +1520,11 @@ export default function TattoDiary() {
     const p = getProjectById(projects, projectId);
     if (!p) return;
     const { project: updatedProject, sessionId } = upsertProjectSession(p, { ...data, projectId }, editSession?.id ?? null);
-    saveProject(updatedProject);
-    advanceProjectStage(projectId, data.done ? 'in_progress' : 'booked');
+    // Этап продвигается ТЕМ ЖЕ сохранением, что записывает сессию. Раньше это
+    // был отдельный advanceProjectStage → второй saveProject, который читал
+    // ещё не обновившееся состояние projects и затирал только что добавленную
+    // сессию (см. withAdvancedStage в domain/project.ts).
+    saveProject(withAdvancedStage(updatedProject, data.done ? 'in_progress' : 'booked'));
 
     // Сессия создана из ContentLinkPickerSheet «Сохранить в…» для
     // Мастерской (studio-запись, без клиента) — привязываем её. !editSession
