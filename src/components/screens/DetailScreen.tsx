@@ -13,8 +13,24 @@ import { type Session } from '../../domain/session';
 import { type Consultation, isConsultationDeletable } from '../../domain/consultation';
 import { type ClientNote } from '../../domain/task';
 import { type UrgencyKey } from '../../domain/urgency';
-import { type Project } from '../../domain/project';
-import { getProjectsByClientId, getConsultationNumber } from '../../domain/projectSelectors';
+import {
+  type Project,
+  type ProjectCategory,
+  type ProjectState,
+  PROJECT_CATEGORIES,
+  PROJECT_STATES,
+} from '../../domain/project';
+import {
+  getProjectsByClientId,
+  getConsultationNumber,
+  sortProjects,
+  filterProjects,
+  projectFiltersActive,
+  EMPTY_PROJECT_FILTERS,
+  PROJECT_SORT_MODES,
+  type ProjectSortMode,
+  type ProjectFilters,
+} from '../../domain/projectSelectors';
 import { urgencyMeta, urgencyRank } from '../../domain/taskSelectors';
 import { lastSessionDate } from '../../domain/plannerSelectors';
 import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
@@ -22,7 +38,7 @@ import { buildChatLink } from '../../lib/chatLink';
 import { normalizeClient } from '../../lib/normalize';
 import { downsizeForStorage } from '../../lib/imagePreview';
 import { type ContentWorkspaceNavigation } from '../../lib/contentWorkspace';
-import { ISO_DATE_RE, formatDate } from '../../utils/dates';
+import { ISO_DATE_RE, formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs, DONE_EMOJI } from '../ui/designTokens';
 import { type ContentEntry } from '../../domain/content';
 import {
@@ -155,13 +171,20 @@ function CoverNoteEditor({ client, onSave }: { client: Client; onSave: (c: Clien
 // ===================== DETAIL SCREEN =====================
 // Каркас вкладок (подвеска-самоцвет + строка вкладок) — в client/ClientCardTabBar.tsx,
 // общий с Личным кабинетом мастера (см. его собственный комментарий).
-const CLIENT_TABS: ClientCardTabDef<'sessions' | 'consultations' | 'content' | 'extra' | 'info' | 'projects'>[] = [
-  { id: 'sessions', kind: 'sessions', label: 'Сессии' },
-  { id: 'consultations', kind: 'consultations', label: 'Консультации' },
+// Сессии и консультации собственных вкладок больше не имеют: они живут
+// внутри проекта (Клиент → Проект → консультации/сессии), поэтому смотреть их
+// плоским списком «все сессии клиента вперемешку» больше незачем — вкладка
+// «Проекты» стала входом в работу и стоит первой. Записи, которые почему-то
+// не привязаны ни к одному проекту этого клиента (старые данные), не
+// прячутся: ProjectsTab показывает их отдельным блоком «Записи без проекта»,
+// откуда открывается тот же список, что был на прежних вкладках.
+export type ClientCardTab = 'projects' | 'content' | 'extra' | 'info';
+
+const CLIENT_TABS: ClientCardTabDef<ClientCardTab>[] = [
+  { id: 'projects', kind: 'projects', label: 'Проекты' },
   { id: 'content', kind: 'content', label: 'Контент' },
   { id: 'extra', kind: 'notes', label: 'Заметки' },
   { id: 'info', kind: 'info', label: 'Инфо' },
-  { id: 'projects', kind: 'projects', label: 'Проекты' },
 ];
 
 export function DetailScreen({
@@ -195,8 +218,8 @@ export function DetailScreen({
   onCreateProject,
 }: {
   client: Client;
-  activeTab: 'info' | 'sessions' | 'consultations' | 'content' | 'extra' | 'projects';
-  onTab: (t: 'info' | 'sessions' | 'consultations' | 'content' | 'extra' | 'projects') => void;
+  activeTab: ClientCardTab;
+  onTab: (t: ClientCardTab) => void;
   onBack: () => void;
   onSave: (client: Client) => void;
   onEditClient: () => void;
@@ -251,6 +274,21 @@ export function DetailScreen({
   useEffect(() => {
     setHeaderCollapsed(true);
   }, [client.id]);
+
+  // «Записи без проекта» — страховка от того, что убранные вкладки Сессии/
+  // Консультации спрятали бы старые записи, оставшиеся без projectId (или с
+  // ссылкой на удалённый/чужой проект). Правило «сессия/консультация не без
+  // проекта» действует только на новые записи, поэтому у уже накопленных
+  // данных такие сироты возможны — они видны отдельным блоком во вкладке
+  // «Проекты» и открываются тем же самым списком, что был на прежней вкладке.
+  const clientProjectIds = new Set(getProjectsByClientId(projects, client.id).map((p) => p.id));
+  const isOrphan = (projectId: string | null) => !projectId || !clientProjectIds.has(projectId);
+  const orphanSessions = client.sessions.filter((s) => isOrphan(s.projectId));
+  const orphanConsultations = client.consultations.filter((c) => isOrphan(c.projectId));
+  const [orphanView, setOrphanView] = useState<'sessions' | 'consultations' | null>(null);
+  useEffect(() => {
+    setOrphanView(null);
+  }, [client.id, activeTab]);
 
   // Same file shape as the full backup (see handleExport in
   // AdminDashboardScreen), just with a single-client array — so it imports
@@ -589,51 +627,45 @@ export function DetailScreen({
 
       <ClientCardTabBar tabs={CLIENT_TABS} activeTab={activeTab} onTab={onTab} ariaLabel="Разделы клиента" />
 
-      {/* Sub-header — pinned below the tab bar (never scrolls), shown on
-          both the Сессии and Консультации tabs, labelled per tab now that
-          they're split. Adding an entry is only reachable from the nav
-          FAB's contextual «Создать» (shown on this screen too) — no local
-          add button duplicating it here. */}
-      {(activeTab === 'sessions' || activeTab === 'consultations') && (
-        <div
-          style={{
-            padding: '14px 24px',
-            background: COLORS.bg,
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "'Kelly Slab', 'Playfair Display', serif",
-              fontSize: fs(11),
-              color: COLORS.textGhost,
-              letterSpacing: '3.5px',
-              textTransform: 'uppercase',
-            }}
-          >
-            {activeTab === 'sessions' ? 'История сессий' : 'История консультаций'}
-          </div>
-        </div>
-      )}
-
       {/* Tab content */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px' }}>
-        {(activeTab === 'sessions' || activeTab === 'consultations') && (
-          <SessionsTab
-            kind={activeTab}
-            client={client}
-            onEditSession={onEditSession}
-            onDeleteSession={onDeleteSession}
-            onUpdateSessionPhotos={onUpdateSessionPhotos}
-            onToggleSessionDone={onToggleSessionDone}
-            onChainSession={onChainSession}
-            onEditConsultation={onEditConsultation}
-            onDeleteConsultation={onDeleteConsultation}
-            onConvertConsultation={onConvertConsultation}
-            onChainConsultation={onChainConsultation}
-            onViewSession={onViewSession}
-            onViewConsultation={onViewConsultation}
-          />
+        {activeTab === 'projects' && orphanView !== null && (
+          <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div
+                style={{
+                  fontFamily: "'Kelly Slab', 'Playfair Display', serif",
+                  fontSize: fs(11),
+                  color: COLORS.textGhost,
+                  letterSpacing: '3.5px',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {orphanView === 'sessions' ? 'Сессии без проекта' : 'Консультации без проекта'}
+              </div>
+              <span onClick={() => setOrphanView(null)} role="button" style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
+                ← к проектам
+              </span>
+            </div>
+            {/* Тот же список, что был на убранных вкладках — просто клиент
+                подменён его «сиротской» частью, без второй реализации
+                строк/свайпов/действий. */}
+            <SessionsTab
+              kind={orphanView}
+              client={{ ...client, sessions: orphanSessions, consultations: orphanConsultations }}
+              onEditSession={onEditSession}
+              onDeleteSession={onDeleteSession}
+              onUpdateSessionPhotos={onUpdateSessionPhotos}
+              onToggleSessionDone={onToggleSessionDone}
+              onChainSession={onChainSession}
+              onEditConsultation={onEditConsultation}
+              onDeleteConsultation={onDeleteConsultation}
+              onConvertConsultation={onConvertConsultation}
+              onChainConsultation={onChainConsultation}
+              onViewSession={onViewSession}
+              onViewConsultation={onViewConsultation}
+            />
+          </div>
         )}
         {activeTab === 'info' && (
           <InfoTab
@@ -655,8 +687,16 @@ export function DetailScreen({
         {activeTab === 'content' && (
           <ClientContentTab client={client} entries={contentEntries} onOpenContent={onOpenContent} />
         )}
-        {activeTab === 'projects' && (
-          <ProjectsTab client={client} projects={projects} onOpenProject={onOpenProject} onCreateProject={onCreateProject} />
+        {activeTab === 'projects' && orphanView === null && (
+          <ProjectsTab
+            client={client}
+            projects={projects}
+            onOpenProject={onOpenProject}
+            onCreateProject={onCreateProject}
+            orphanSessionCount={orphanSessions.length}
+            orphanConsultationCount={orphanConsultations.length}
+            onOpenOrphans={setOrphanView}
+          />
         )}
       </div>
     </>
@@ -719,17 +759,96 @@ function ProjectsTab({
   projects,
   onOpenProject,
   onCreateProject,
+  orphanSessionCount,
+  orphanConsultationCount,
+  onOpenOrphans,
 }: {
   client: Client;
   projects: Project[];
   onOpenProject: (project: Project) => void;
   onCreateProject: () => void;
+  orphanSessionCount: number;
+  orphanConsultationCount: number;
+  onOpenOrphans: (kind: 'sessions' | 'consultations') => void;
 }) {
+  // Фильтр и сортировка — та же пара «воронка + список», что на экране
+  // клиентов, только по полям проекта. «Последний активный» стоит по
+  // умолчанию: первым в карточке должен оказаться проект, который двигался
+  // последним (см. sortProjects — та же производная активность, что у
+  // напоминаний о застое).
+  const [filters, setFilters] = useState<ProjectFilters>(EMPTY_PROJECT_FILTERS);
+  const [sortMode, setSortMode] = useState<ProjectSortMode>('lastActive');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+
   const clientProjects = getProjectsByClientId(projects, client.id);
+  const visibleProjects = sortProjects(filterProjects(clientProjects, filters), sortMode, {
+    sessions: client.sessions,
+    consultations: client.consultations,
+    today: todayISO(),
+  });
+  const filtersActive = projectFiltersActive(filters);
+
+  const circleStyle = (active: boolean): React.CSSProperties => ({
+    width: 30,
+    height: 30,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    flexShrink: 0,
+    border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+    background: active ? 'rgba(var(--gold-rgb),0.08)' : 'rgba(var(--surface-rgb),0.022)',
+  });
+  const panelStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: 'calc(100% + 6px)',
+    right: 0,
+    background: COLORS.sheet,
+    border: '1px solid rgba(var(--gold-rgb),0.2)',
+    borderRadius: 4,
+    boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+    zIndex: 17,
+  };
+  const chipStyle = (active: boolean): React.CSSProperties => ({
+    fontSize: fs(11),
+    padding: '4px 9px',
+    borderRadius: 2,
+    cursor: 'pointer',
+    border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
+    background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+    color: active ? COLORS.gold : COLORS.textFaint,
+    letterSpacing: '0.4px',
+    textTransform: 'uppercase',
+  });
+  const groupLabelStyle: React.CSSProperties = {
+    fontSize: fs(10),
+    color: COLORS.textGhost,
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  };
 
   return (
     <div style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      {/* Закрывает открытую панель тапом мимо неё — тот же приём, что общий
+          backdrop у Поиск/Фильтры/Сортировка на экране клиентов. Стоит ПЕРЕД
+          строкой заголовка и перекрывает сетку: карточка проекта поднимает
+          своё содержимое на zIndex 2 (см. ProjectCard), поэтому и подложка, и
+          сама строка с панелью должны быть выше — иначе карточки рисуются
+          поверх раскрытого фильтра (та же ловушка, что описана в
+          WorkshopScreen). */}
+      {(filtersOpen || sortOpen) && (
+        <div
+          onClick={() => {
+            setFiltersOpen(false);
+            setSortOpen(false);
+          }}
+          style={{ position: 'fixed', inset: 0, zIndex: 3 }}
+        />
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, position: 'relative', zIndex: 4 }}>
         <div
           style={{
             fontFamily: "'Kelly Slab', 'Playfair Display', serif",
@@ -741,19 +860,168 @@ function ProjectsTab({
         >
           Проекты
         </div>
-        <span onClick={onCreateProject} style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
-          + Новый
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* ── Фильтры (тип + статус) ── */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => {
+                setFiltersOpen((v) => !v);
+                setSortOpen(false);
+              }}
+              role="button"
+              aria-label={filtersOpen ? 'Скрыть фильтры' : 'Фильтры'}
+              title="Фильтры"
+              style={circleStyle(filtersActive || filtersOpen)}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ color: filtersActive || filtersOpen ? COLORS.gold : COLORS.textFaint }}>
+                <path d="M2 3.5h12l-4.7 5.3V13l-2.6-1.5V8.8L2 3.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </div>
+            {filtersOpen && (
+              <div style={{ ...panelStyle, width: 230, maxWidth: 'calc(100vw - 60px)', padding: 12 }}>
+                <div style={groupLabelStyle}>Тип</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                  {([null, ...PROJECT_CATEGORIES.map((c) => c.key)] as (ProjectCategory | null)[]).map((v) => (
+                    <div
+                      key={v ?? 'all'}
+                      onClick={() => setFilters((f) => ({ ...f, category: v }))}
+                      style={chipStyle(filters.category === v)}
+                    >
+                      {v === null ? 'Все' : PROJECT_CATEGORIES.find((c) => c.key === v)?.label}
+                    </div>
+                  ))}
+                </div>
+                <div style={groupLabelStyle}>Статус</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {([null, ...PROJECT_STATES.map((s) => s.key)] as (ProjectState | null)[]).map((v) => (
+                    <div
+                      key={v ?? 'all'}
+                      onClick={() => setFilters((f) => ({ ...f, state: v }))}
+                      style={chipStyle(filters.state === v)}
+                    >
+                      {v === null ? 'Все' : PROJECT_STATES.find((s) => s.key === v)?.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Сортировка ── */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => {
+                setSortOpen((v) => !v);
+                setFiltersOpen(false);
+              }}
+              role="button"
+              aria-label={sortOpen ? 'Скрыть сортировку' : 'Сортировка'}
+              title="Сортировка"
+              style={circleStyle(sortOpen)}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ color: sortOpen ? COLORS.gold : COLORS.textFaint }}>
+                <line x1="2.5" y1="4" x2="11" y2="4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <line x1="2.5" y1="8" x2="8.5" y2="8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <line x1="2.5" y1="12" x2="6" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            </div>
+            {sortOpen && (
+              <div style={{ ...panelStyle, minWidth: 170, padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {PROJECT_SORT_MODES.map((m) => {
+                  const active = sortMode === m.key;
+                  return (
+                    <div
+                      key={m.key}
+                      onClick={() => {
+                        setSortMode(m.key);
+                        setSortOpen(false);
+                      }}
+                      style={{
+                        fontSize: fs(12),
+                        padding: '8px 10px',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        background: active ? 'rgba(var(--gold-rgb),0.1)' : 'transparent',
+                        color: active ? COLORS.gold : COLORS.textFaint,
+                        letterSpacing: '0.5px',
+                        textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {active ? '• ' : ''}
+                      {m.label}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <span onClick={onCreateProject} role="button" style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
+            + Новый
+          </span>
+        </div>
       </div>
+
       {clientProjects.length === 0 ? (
         <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
           Пока нет проектов — нажмите «+ Новый», чтобы добавить первый
         </div>
+      ) : visibleProjects.length === 0 ? (
+        <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
+          Под фильтр не подошёл ни один проект
+        </div>
       ) : (
         <div className="inka-client-grid" style={{ display: 'grid', gap: 10 }}>
-          {clientProjects.map((p) => (
+          {visibleProjects.map((p) => (
             <ProjectCard key={p.id} project={p} clientName={null} onClick={() => onOpenProject(p)} />
           ))}
+        </div>
+      )}
+
+      {(orphanSessionCount > 0 || orphanConsultationCount > 0) && (
+        <div style={{ marginTop: 22 }}>
+          <div style={{ ...groupLabelStyle, marginBottom: 8 }}>Записи без проекта</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {orphanSessionCount > 0 && (
+              <div
+                onClick={() => onOpenOrphans('sessions')}
+                role="button"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '9px 11px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: 'rgba(var(--surface-rgb),0.018)',
+                }}
+              >
+                <span style={{ fontSize: fs(13), color: COLORS.textPrimary }}>Сессии</span>
+                <span style={{ fontSize: fs(12), color: COLORS.textGhost }}>{orphanSessionCount}</span>
+              </div>
+            )}
+            {orphanConsultationCount > 0 && (
+              <div
+                onClick={() => onOpenOrphans('consultations')}
+                role="button"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '9px 11px',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  background: 'rgba(var(--surface-rgb),0.018)',
+                }}
+              >
+                <span style={{ fontSize: fs(13), color: COLORS.textPrimary }}>Консультации</span>
+                <span style={{ fontSize: fs(12), color: COLORS.textGhost }}>{orphanConsultationCount}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

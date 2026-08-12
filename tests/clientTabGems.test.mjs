@@ -122,7 +122,7 @@ test('client tabs hang from a gold tube carrying the client-colour reflection', 
   assert.match(detailScreen, /0 0 3px rgba\(255,215,119,\.42\)/);
 });
 
-test('gold tube has five glowing spherical separators centred between six medallions', () => {
+test('gold tube separators stay centred between neighbouring medallions at any tab count', () => {
   assert.match(detailScreen, /data-tube-dividers[\s\S]*left: 8,[\s\S]*right: 8,[\s\S]*top: '50%'/);
   assert.match(detailScreen, /CLIENT_TABS\.slice\(0, -1\)\.map/);
   assert.match(detailScreen, /data-tube-divider=\{index \+ 1\}/);
@@ -173,19 +173,23 @@ test('jump-ring is threaded through the tube and swivels through a true profile'
   assert.match(indexCss, /\.pendant-swing\s*\{[\s\S]*transform-origin: 50% 3px/);
 });
 
-test('the client card wires its six tabs (Проекты included) in gem order via the shared tab bar', () => {
+// Вкладки Сессии/Консультации убраны: сессия и консультация живут внутри
+// проекта, поэтому вход в работу — «Проекты», и она же стоит первой. Камни в
+// спрайте при этом остались все шесть (см. GEM_INDEX выше) — просто карточка
+// клиента показывает четыре из них.
+test('the client card wires its four tabs, Проекты first, via the shared tab bar', () => {
   assert.match(detailScreen, /<ClientCardTabBar tabs=\{CLIENT_TABS\} activeTab=\{activeTab\} onTab=\{onTab\}/);
   const listMatch = detailScreen.match(/const CLIENT_TABS: ClientCardTabDef<[^>]+>\[\] = \[([\s\S]*?)\];/);
   assert.ok(listMatch, 'CLIENT_TABS array not found');
   const ids = [...listMatch[1].matchAll(/\{ id: '([^']+)', kind: '([^']+)'/g)].map(([, id, kind]) => [id, kind]);
   assert.deepEqual(ids, [
-    ['sessions', 'sessions'],
-    ['consultations', 'consultations'],
+    ['projects', 'projects'],
     ['content', 'content'],
     ['extra', 'notes'],
     ['info', 'info'],
-    ['projects', 'projects'],
   ]);
+  // Никакой вкладки-сессии/консультации в карточке не осталось.
+  assert.doesNotMatch(listMatch[1], /kind: 'sessions'|kind: 'consultations'/);
 });
 
 test('Личный кабинет мастера reuses the same shared tab bar (Инфо/Проекты)', () => {

@@ -6,7 +6,7 @@
 // (filter/find возвращают новые массивы/ссылки), нет обращений к React,
 // IndexedDB и localStorage.
 
-import type { Project } from './project';
+import type { Project, ProjectCategory, ProjectState } from './project';
 import type { Session } from './session';
 import type { Consultation } from './consultation';
 import type { Client } from './client';
@@ -188,6 +188,98 @@ export function hasOverdueWork(project: Project, sessions: Session[], consultati
   return consultations.some(
     (c) => c.projectId === project.id && isOpenConsultation(c) && ISO_DATE_RE.test(c.date) && c.date < today,
   );
+}
+
+// ===================== ФИЛЬТРЫ И СОРТИРОВКА ПРОЕКТОВ =====================
+// То же, что «Сортировка/Фильтры» на экране клиентов, но для списка проектов
+// (вкладка «Проекты» в карточке клиента). Чистые функции — состояние
+// (что выбрано) живёт в компоненте.
+
+export type ProjectSortMode = 'lastActive' | 'added' | 'name';
+
+export const PROJECT_SORT_MODES: { key: ProjectSortMode; label: string }[] = [
+  { key: 'lastActive', label: 'Последний активный' },
+  { key: 'added', label: 'Новые' },
+  { key: 'name', label: 'А–Я' },
+];
+
+// Записи, по которым считается «последний активный» — те же аргументы, что
+// уже принимает getProjectLastActivityDate: для клиентского проекта это
+// client.sessions/client.consultations, для проекта Мастерской —
+// project.sessions/project.consultations.
+export interface ProjectActivityContext {
+  sessions: Session[];
+  consultations: Consultation[];
+  today: string; // yyyy-mm-dd
+}
+
+// «Последний активный» — по getProjectLastActivityDate выше, то есть по той
+// самой производной «последней активности», которой уже пользуется застой
+// (staleProjects): движение этапа/статуса/следующего шага
+// (lastMeaningfulActivityAt), плюс проведённые сессии и записи истории
+// консультаций. Отдельного второго определения «активности» специально не
+// заводим — иначе сортировка и напоминания начали бы расходиться в том, что
+// считать движением.
+//
+// activity === null (вызов без списка записей) — деградация до одного
+// lastMeaningfulActivityAt: порядок останется осмысленным, просто без учёта
+// проведённых встреч.
+//
+// Проекты, о которых не известно ни одного достоверного сигнала (легаси —
+// lastMeaningfulActivityAt появился позже, см. normalizeProject), уходят в
+// конец: ставить их наверх значило бы выдумать за них дату.
+export function sortProjects(
+  projects: Project[],
+  mode: ProjectSortMode,
+  activity: ProjectActivityContext | null = null,
+): Project[] {
+  const list = projects.slice();
+  if (mode === 'name') {
+    return list.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ru'));
+  }
+  if (mode === 'added') {
+    return list.sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+  }
+  const lastActive = (p: Project): string | null =>
+    activity
+      ? getProjectLastActivityDate(p, activity.sessions, activity.consultations, activity.today)
+      : p.lastMeaningfulActivityAt
+        ? toDateOnly(p.lastMeaningfulActivityAt)
+        : null;
+  const keys = new Map(list.map((p) => [p.id, lastActive(p)] as const));
+  return list.sort((a, b) => {
+    const aKey = keys.get(a.id) ?? null;
+    const bKey = keys.get(b.id) ?? null;
+    if (aKey !== bKey) {
+      if (aKey === null) return 1;
+      if (bKey === null) return -1;
+      return bKey.localeCompare(aKey);
+    }
+    // Внутри одного дня — по точному timestamp движения (у даты записи его
+    // нет, только день), и лишь потом по дате создания.
+    const byMoment = (b.lastMeaningfulActivityAt || '').localeCompare(a.lastMeaningfulActivityAt || '');
+    return byMoment !== 0 ? byMoment : (b.createdDate || '').localeCompare(a.createdDate || '');
+  });
+}
+
+export interface ProjectFilters {
+  // null — «Все».
+  category: ProjectCategory | null;
+  state: ProjectState | null;
+}
+
+export const EMPTY_PROJECT_FILTERS: ProjectFilters = { category: null, state: null };
+
+export function projectFiltersActive(filters: ProjectFilters): boolean {
+  return filters.category !== null || filters.state !== null;
+}
+
+export function filterProjects(projects: Project[], filters: ProjectFilters): Project[] {
+  return projects.filter((p) => {
+    if (filters.category && p.category !== filters.category) return false;
+    if (filters.state && p.state !== filters.state) return false;
+    return true;
+  });
 }
 
 // ===================== ПАПКИ ПРОЕКТОВ (view-model) =====================

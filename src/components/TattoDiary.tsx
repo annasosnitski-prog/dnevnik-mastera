@@ -156,6 +156,9 @@ import { ClientCardTabBar, type ClientCardTabDef } from './client/ClientCardTabB
 // остальные экраны). AddChatLinkForm/AddMasterLinkForm выше — не отсюда, см.
 // комментарий у их импорта.
 const DetailScreen = lazy(() => import('./screens/DetailScreen').then((m) => ({ default: m.DetailScreen })));
+// Только тип (стирается при сборке) — ленивый чанк карточки клиента от этого
+// в основной бандл не возвращается.
+import type { ClientCardTab } from './screens/DetailScreen';
 import { ArchetypeToolbar } from './content/ArchetypeToolbar';
 import { ActionButton, ContentEntryActions } from './content/ContentEntryActions';
 // Иконки и мини-игры вынесены в отдельные модули (PR 2 рефакторинга).
@@ -674,7 +677,10 @@ export default function TattoDiary() {
   // Так же транзиентно и не persisted, как contentNavigation.
   const [contentFocusEntryId, setContentFocusEntryId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'consultations' | 'content' | 'extra' | 'projects'>('sessions');
+  // Карточка клиента открывается на «Проектах» — сессии и консультации
+  // собственных вкладок больше не имеют, работа идёт через проект (см.
+  // CLIENT_TABS в DetailScreen.tsx).
+  const [activeTab, setActiveTab] = useState<ClientCardTab>('projects');
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorFilter, setColorFilter] = useState<string>('all');
@@ -1207,7 +1213,7 @@ export default function TattoDiary() {
 
   const openClient = (client: Client) => {
     setSelectedId(client.id);
-    setActiveTab('sessions');
+    setActiveTab('projects');
     setScreen('detail');
   };
 
@@ -1259,17 +1265,17 @@ export default function TattoDiary() {
   };
 
   // Reached once a client (existing or freshly created) is in place for the
-  // event the master started from the calendar — lands on that client's
-  // sessions or consultations tab (matching the kind being created) with
-  // the form open, date prefilled.
+  // event the master started from the calendar — opens that client's card
+  // with the form already up and the date prefilled. Behind the form the
+  // card sits on «Проекты» (its only entry point into work now that the
+  // Сессии/Консультации tabs are gone).
   const openPendingCalendarEvent = () => {
     setScreen('detail');
+    setActiveTab('projects');
     if (calendarEventKind === 'consultation') {
-      setActiveTab('consultations');
       setEditConsultation(null);
       setShowNewConsultationForm(true);
     } else {
-      setActiveTab('sessions');
       setEditSession(null);
       setShowNewSessionForm(true);
     }
@@ -1397,7 +1403,7 @@ export default function TattoDiary() {
   // client.consultations mutation happens together in handleAddSession once
   // the form is saved (see convertingConsultation below).
   const startConvertConsultationToSession = (consultation: Consultation) => {
-    setActiveTab('sessions');
+    setActiveTab('projects');
     setEditSession(null);
     setConvertingConsultation(consultation);
     // NewSessionSheet's prefill source must be unambiguous — clear any
@@ -1416,7 +1422,7 @@ export default function TattoDiary() {
   // итогом/next step, это отдельная запись. Связь проставляется в
   // handleAddConsultation через chainFromConsultation.
   const startChainNextConsultation = (consultation: Consultation) => {
-    setActiveTab('consultations');
+    setActiveTab('projects');
     setEditConsultation(null);
     setChainFromConsultation(consultation);
     setShowNewConsultationForm(true);
@@ -1431,7 +1437,7 @@ export default function TattoDiary() {
   // проставляется в handleAddSession через chainFromSession. Не пересекается
   // с «Перевести в сессию» — тот же взаимный сброс, что там.
   const startChainNextSession = (session: Session) => {
-    setActiveTab('sessions');
+    setActiveTab('projects');
     setEditSession(null);
     setConvertingConsultation(null);
     setChainFromSession(session);
@@ -1757,14 +1763,14 @@ export default function TattoDiary() {
     if (kind === 'consultation') {
       const consultation = client.consultations.find((c) => c.id === itemId);
       if (!consultation) return;
-      setActiveTab('consultations');
+      setActiveTab('projects');
       setEditConsultation(consultation);
       setShowNewConsultationForm(true);
       return;
     }
     const session = client.sessions.find((s) => s.id === itemId);
     if (!session) return;
-    setActiveTab('sessions');
+    setActiveTab('projects');
     setEditSession(session);
     setShowNewSessionForm(true);
   };
