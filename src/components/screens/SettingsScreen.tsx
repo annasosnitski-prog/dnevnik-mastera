@@ -65,10 +65,8 @@ export function SettingsScreen({
   prefs,
   onChange,
   onBack,
-  clients,
   masterNotes,
-  projects,
-  contentEntries,
+  onReadBackupData,
   onImport,
 }: {
   theme: Theme;
@@ -80,11 +78,12 @@ export function SettingsScreen({
   prefs: Prefs;
   onChange: (p: Prefs) => void;
   onBack: () => void;
-  clients: Client[];
   masterNotes: ClientNote[];
-  // Нужны только для полного экспорта в backup.
-  projects: Project[];
-  contentEntries: ContentEntry[];
+  // Читает данные для копии прямо из IndexedDB. Отдельно от props выше именно
+  // потому, что копия обязана отражать хранилище, а не экран: props могут быть
+  // пустыми из-за сбоя загрузки, и тогда экспорт обязан отказать, а не отдать
+  // пустой файл.
+  onReadBackupData: () => Promise<{ clients: unknown[]; projects: unknown[]; contentEntries: unknown[] }>;
   // Импорт полного бэкапа: clients + опционально projects/contentEntries/masterNotes.
   onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[]; masterNotes?: ClientNote[] }) => void;
   // Собирает старые сессии/консультации (без projectId) в проекты-корзины
@@ -93,6 +92,9 @@ export function SettingsScreen({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  // Исход экспорта показывается всегда — «ничего не произошло» больше не
+  // выглядит как успех.
+  const [exportState, setExportState] = useState<{ kind: 'idle' } | { kind: 'busy' } | { kind: 'ok'; text: string } | { kind: 'error'; text: string }>({ kind: 'idle' });
   // Parsed and normalized, waiting on the inline «Да/Нет» confirm below —
   // replaces window.confirm() so the prompt matches the app's own dialogs.
   // Опциональные поля отсутствуют в старых backup и тогда текущие данные
@@ -104,16 +106,48 @@ export function SettingsScreen({
     masterNotes?: ClientNote[];
   } | null>(null);
 
+  // Резервная копия — единственное, что стоит между мастером и потерей всей
+  // истории работы, поэтому здесь нет ни одного тихого исхода: либо файл
+  // отдан, либо на экране написано, что именно не получилось.
   const handleExport = async () => {
+    setExportState({ kind: 'busy' });
+    let data: { clients: unknown[]; projects: unknown[]; contentEntries: unknown[] };
+    try {
+      // Читаем ИЗ БАЗЫ, а не из этого экрана: если хранилище отвалилось,
+      // состояние осталось бы пустым и в файл уехал бы пустой, но с виду
+      // нормальный бэкап (см. onReadBackupData в TattoDiary.tsx).
+      data = await onReadBackupData();
+    } catch {
+      setExportState({ kind: 'error', text: 'Копия не сделана: хранилище сейчас недоступно. Нажмите «Повторить» на плашке вверху и попробуйте снова.' });
+      return;
+    }
+    if (data.clients.length === 0 && data.projects.length === 0) {
+      setExportState({ kind: 'error', text: 'Копия не сделана: база вернулась пустой. Это похоже на сбой хранилища — перезагрузите приложение и попробуйте снова.' });
+      return;
+    }
     // Версия 4 добавляет Consultation.status/convertedToSessionId и
     // Session.sourceConsultationId (см. domain/consultation.ts,
     // domain/session.ts) — сам номер версии нигде на импорте не читается,
     // normalize.ts дефолтит отсутствующие поля независимо от него; это чисто
     // информационная метка. Backup version 1/2/3 продолжают читаться.
-    const payload = { version: 4, exportedAt: new Date().toISOString(), clients, projects, contentEntries, masterNotes };
+    // masterNotes живут в localStorage, а не в IndexedDB, поэтому берутся
+    // из props — на них сбой хранилища не влияет.
+    const payload = { version: 4, exportedAt: new Date().toISOString(), ...data, masterNotes };
     const json = JSON.stringify(payload, null, 2);
     const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');
+    const result = await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');
+    if (result === 'cancelled') {
+      setExportState({ kind: 'error', text: 'Копия не сохранена — окно «Поделиться» закрыли. Данные целы, попробуйте ещё раз.' });
+      return;
+    }
+    if (result === 'failed') {
+      setExportState({ kind: 'error', text: 'Не удалось отдать файл. Откройте дневник в обычной вкладке браузера и повторите экспорт оттуда.' });
+      return;
+    }
+    setExportState({
+      kind: 'ok',
+      text: `Копия готова: ${data.clients.length} клиент(ов), ${data.projects.length} проект(ов). Сохраните файл туда, где он переживёт телефон.`,
+    });
   };
 
   const handleImportFile = (file: File) => {
@@ -381,12 +415,24 @@ export function SettingsScreen({
             </div>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
-              <div onClick={handleExport} style={actionButtonStyle}>
-                Экспортировать
+              <div onClick={exportState.kind === 'busy' ? undefined : handleExport} style={{ ...actionButtonStyle, opacity: exportState.kind === 'busy' ? 0.5 : 1 }}>
+                {exportState.kind === 'busy' ? 'Готовим…' : 'Экспортировать'}
               </div>
               <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
                 Импортировать
               </div>
+            </div>
+          )}
+          {(exportState.kind === 'ok' || exportState.kind === 'error') && (
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: fs(12),
+                fontStyle: 'italic',
+                color: exportState.kind === 'ok' ? COLORS.gold : 'var(--urgent)',
+              }}
+            >
+              {exportState.text}
             </div>
           )}
           <input

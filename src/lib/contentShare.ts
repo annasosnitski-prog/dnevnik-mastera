@@ -123,26 +123,57 @@ export function isShareAbortError(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'name' in error && error.name === 'AbortError';
 }
 
+// Чем закончилась попытка отдать файл мастеру. Раньше функция возвращала
+// void, и «ничего не произошло» выглядело так же, как успех: копия не
+// сохранялась, а экран молчал — мастер была уверена, что бэкап есть.
+// Для резервной копии это худший из возможных исходов, поэтому исход теперь
+// возвращается и показывается.
+export type ShareJSONResult = 'shared' | 'downloaded' | 'cancelled' | 'failed';
+
 // Shares a JSON payload via the native share sheet if the device has one
 // (files, not just text, so it can be AirDropped/sent as an attachment),
 // falling back to a plain browser download otherwise — shared by the full
-// backup export (Админка) and the single-client export (Инфо tab).
-export async function shareOrDownloadJSON(json: string, filename: string, shareTitle: string): Promise<void> {
+// backup export (Настройки) and the single-client export (Инфо tab).
+export async function shareOrDownloadJSON(
+  json: string,
+  filename: string,
+  shareTitle: string,
+): Promise<ShareJSONResult> {
   const file = new File([json], filename, { type: 'application/json' });
   const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
   if (nav.canShare && nav.canShare({ files: [file] })) {
     try {
       await nav.share({ files: [file], title: shareTitle });
-      return;
+      return 'shared';
     } catch (err) {
-      if ((err as DOMException)?.name === 'AbortError') return;
+      // Мастер сама закрыла окно «Поделиться» — это не ошибка, но и не
+      // сохранённая копия: молча рапортовать успех нельзя.
+      if (isShareAbortError(err)) return 'cancelled';
+      // Любой другой сбой share — не тупик: пробуем обычное скачивание ниже.
     }
   }
+
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    // Ссылка обязана побывать в документе: часть браузеров игнорирует click()
+    // по элементу, которого нет в дереве, — скачивание просто не начиналось.
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return 'downloaded';
+  } catch {
+    return 'failed';
+  } finally {
+    // Раньше ссылку отзывали сразу после click(), в том же тике: браузер к
+    // этому моменту мог ещё не начать читать blob, и скачивание срывалось —
+    // опять же тихо. Отпускаем на следующем «тике», когда загрузка уже
+    // подхвачена; утечки нет, страница живёт дальше.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 }
