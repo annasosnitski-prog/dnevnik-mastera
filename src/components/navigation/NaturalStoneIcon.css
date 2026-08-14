@@ -62,6 +62,13 @@
     0 1px 1.5px rgba(59, 28, 12, 0.28);
 }
 
+/* This was the persistent “arrow”: not an animation, but the fourth static
+   decorative path in the bronze plate (the curved dark engraving visible on
+   the lower-left of the closed hub). Remove it from the main hub only. */
+:root[data-theme='light'] .nav-fab__main .natural-stone-icon > g > path:nth-of-type(4) {
+  display: none;
+}
+
 /* The diagonal shine has one animation source only: the SVG/SMIL sweep in
    NaturalStoneIcon.tsx. Do not add a second CSS opacity/shape animation here. */
 .natural-stone-home-shine {
