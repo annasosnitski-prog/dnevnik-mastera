@@ -5,8 +5,8 @@ import test from 'node:test';
 import { normalizeContentEntry } from '../.test-dist/src/lib/contentApproval.js';
 
 test('composer defaults to Inka choice and persists the selected primary text archetype via the shared top toolbar', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
-  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+  const screenSource = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
+  const screen = screenSource.slice(screenSource.indexOf('export function ContentINKAScreen({'));
   const topToolbar = screen.slice(screen.indexOf('{/* ── Верхний toolbar'), screen.indexOf('{/* ── Composer ── */}'));
   const composer = screen.slice(screen.indexOf('{/* ── Composer ── */}'), screen.indexOf('{/* ── Filter ── */}'));
   const generation = screen.slice(screen.indexOf('const handleGenerate ='), screen.indexOf('const regenerate ='));
@@ -49,8 +49,8 @@ test('the shared ArchetypeToolbar renders all seven chips, toggles selection off
 });
 
 test('the top composer toolbar and the card regeneration toolbar reuse the same ARCHETYPE_CHIPS list and icon set', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
-  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+  const screenSource = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
+  const screen = screenSource.slice(screenSource.indexOf('export function ContentINKAScreen({'));
   const matches = [...screen.matchAll(/chips=\{ARCHETYPE_CHIPS\}/g)];
   // Composer + card regeneration toolbar — ровно два использования, оба
   // общего ARCHETYPE_CHIPS, второй набор данных не заведён.
@@ -64,9 +64,9 @@ test('the top composer toolbar and the card regeneration toolbar reuse the same 
 });
 
 test('the saved archetype reuses the existing ingest instruction and survives normalization', () => {
-  const componentSource = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const componentSource = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
   const syncSource = readFileSync(new URL('../src/lib/contentSync.ts', import.meta.url), 'utf8');
-  const screen = componentSource.slice(componentSource.indexOf('function ContentINKAScreen({'), componentSource.indexOf('function ContentPanel({'));
+  const screen = componentSource.slice(componentSource.indexOf('export function ContentINKAScreen({'));
   const refresh = screen.slice(screen.indexOf('const regenerate ='), screen.indexOf('const copyContentDraft ='));
 
   assert.match(refresh, /preset\.label === currentEntry\.textArchetype/);

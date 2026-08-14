@@ -7,7 +7,7 @@ import {
   buildInitialContentInstruction,
 } from '../.test-dist/src/lib/contentPrompt.js';
 
-const diary = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+const diary = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
 
 test('initial content prompt chooses one dominant visual story instead of describing every photo', () => {
   const prompt = buildInitialContentInstruction();

@@ -98,8 +98,9 @@ test('root coordinator is mounted outside the conditional POSTiNKA screen', () =
 });
 
 test('create and refresh jobs are persisted instead of waiting for the long sendToContent promise', () => {
-  const generate = diary.slice(diary.indexOf('const handleGenerate = async'), diary.indexOf('const regenerate = async'));
-  const regenerate = diary.slice(diary.indexOf('const regenerate = async'), diary.indexOf('const copyContentDraft = async'));
+  const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
+  const generate = screen.slice(screen.indexOf('const handleGenerate = async'), screen.indexOf('const regenerate = async'));
+  const regenerate = screen.slice(screen.indexOf('const regenerate = async'), screen.indexOf('const copyContentDraft = async'));
   assert.match(generate, /createContentIngestJob\(/);
   assert.match(generate, /await onSaveContentIngestJob\(/);
   assert.doesNotMatch(generate, /await sendToContent\(/);

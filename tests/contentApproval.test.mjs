@@ -100,20 +100,21 @@ test('a new generation for the same source creates a separate draft', () => {
 
 test('approval UI persists through the existing contentEntries store and locks regeneration controls', () => {
   const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
 
   assert.match(source, /request\.result \|\| \[\]\)\.map\(\(entry\) => normalizeContentEntry\(entry\)\)/);
-  assert.match(source, /saveEntryInWorkspace\(confirmContentEntry\(currentEntry\)\)/);
-  assert.match(source, /saveEntryInWorkspace\(setContentEntryExemplar\(currentEntry, isExemplar\)\)/);
+  assert.match(screen, /saveEntryInWorkspace\(confirmContentEntry\(currentEntry\)\)/);
+  assert.match(screen, /saveEntryInWorkspace\(setContentEntryExemplar\(currentEntry, isExemplar\)\)/);
   assert.match(source, /setContentEntries\(\(current\) => \[entry, \.\.\.current\.filter/);
   assert.match(source, /tx\.objectStore\('contentEntries'\)\.put\(entry\)/);
-  assert.match(source, /Одобрить текст/);
-  assert.match(source, /Одобрено/);
-  assert.match(source, /Эталон/);
-  assert.match(source, /entry\.status === 'confirmed'/);
-  assert.match(source, /entry\.status === 'draft' && \(/);
+  assert.match(screen, /Одобрить текст/);
+  assert.match(screen, /Одобрено/);
+  assert.match(screen, /Эталон/);
+  assert.match(screen, /entry\.status === 'confirmed'/);
+  assert.match(screen, /entry\.status === 'draft' && \(/);
   // Confirmed-записи не перегенерируются — общий ArchetypeToolbar получает
   // disabled=true вместо отдельной статичной разметки чипов.
-  assert.match(source, /disabled=\{entry\.status === 'confirmed' \|\| refreshingEntryIds\.has\(entry\.id\) \|\| hasUnsavedTextEdit\(entry\)\}/);
+  assert.match(screen, /disabled=\{entry\.status === 'confirmed' \|\| refreshingEntryIds\.has\(entry\.id\) \|\| hasUnsavedTextEdit\(entry\)\}/);
   assert.match(source, /Перевести/);
-  assert.match(source, /Копировать текст/);
+  assert.match(screen, /Копировать текст/);
 });

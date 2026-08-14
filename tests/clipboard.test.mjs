@@ -239,7 +239,7 @@ test('clears entry timers on deletion and all timers on dispose', () => {
 });
 
 test('renders an accessible disabled copy button and keeps copy errors local', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   const copyImplementation = source.slice(source.indexOf('const copyContentDraft ='), source.indexOf('const visibleEntries'));
 

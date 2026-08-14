@@ -105,8 +105,7 @@ test('standard share preserves all valid photos together with saved text', () =>
 });
 
 test('share integration reads persisted textDraft and never textarea editor state', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
-  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+  const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
   const instagramHandler = screen.slice(
     screen.indexOf('const shareContentToInstagram ='),
     screen.indexOf('const shareContentToOtherApps ='),

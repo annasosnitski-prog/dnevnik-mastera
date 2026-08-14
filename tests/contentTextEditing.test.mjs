@@ -142,9 +142,8 @@ test('an existing translation becomes stale after editing and only the new sourc
 });
 
 test('editor UI saves through the existing entry, blocks unsafe actions and never translates textarea state', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
-  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+  const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
   const saveHandler = screen.slice(screen.indexOf('const saveTextEdit ='), screen.indexOf('const approveEntry ='));
   const cancelHandler = screen.slice(screen.indexOf('const cancelTextEdit ='), screen.indexOf('const saveTextEdit ='));
   const copyHandler = screen.slice(screen.indexOf('const copyContentDraft ='), screen.indexOf('const toggleTranslationMenu ='));
@@ -181,8 +180,7 @@ test('editor UI saves through the existing entry, blocks unsafe actions and neve
 });
 
 test('the visible "N / 650" counter is removed from the editor while the 650 limit stays enforced', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
-  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+  const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
 
   assert.doesNotMatch(screen, /\{contentTextLength\([^)]*\)\}\s*\/\s*\{MAX_CONTENT_TEXT_CHARACTERS\}/);
   assert.doesNotMatch(screen, /is-over-limit/);

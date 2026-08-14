@@ -238,7 +238,7 @@ test('keeps the previous text and unlocks refresh after a real error', async () 
 });
 
 test('refresh UI keeps loading and feedback local to each entry', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
   const refreshImplementation = source.slice(source.indexOf('const regenerate ='), source.indexOf('const visibleEntries'));
   const refreshCatch = refreshImplementation.slice(refreshImplementation.indexOf('} catch (refreshError)'), refreshImplementation.indexOf('const retryContentJob'));
 
@@ -260,7 +260,7 @@ test('refresh UI keeps loading and feedback local to each entry', () => {
 });
 
 test('archetype controls use the existing labels through the shared icon toolbar without emoji', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
   const toolbarSource = readFileSync(new URL('../src/components/content/ArchetypeToolbar.tsx', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   const presets = source.slice(source.indexOf('const ARCHETYPE_CHIPS'), source.indexOf('function ContentINKAScreen'));

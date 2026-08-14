@@ -16,7 +16,7 @@ const sheetsSource = readSource('../src/components/sheets/SessionAndProjectSheet
 // рефакторинга) — их definitions читаются из него же.
 const contentCalendarSource = readSource('../src/components/sheets/ContentAndCalendarSheets.tsx');
 const sheet = contentCalendarSource.slice(contentCalendarSource.indexOf('export function ContentLinkPickerSheet('), contentCalendarSource.indexOf('// ===================== CALENDAR SHEET ====================='));
-const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+const screen = readSource('../src/components/screens/ContentINKAScreen.tsx');
 const handleAddProject = source.slice(source.indexOf('const handleAddProject = (data'), source.indexOf('const handleAddProjectSession ='));
 const handleAddProjectSession = source.slice(source.indexOf('const handleAddProjectSession ='), source.indexOf('const saveSessionFromNewSessionSheet ='));
 const saveSessionFromNewSessionSheet = source.slice(source.indexOf('const saveSessionFromNewSessionSheet ='), source.indexOf('const openCreateProjectForContentLink ='));
