@@ -1,0 +1,53 @@
+/* Light ornate tab-bar hardware. The bronze palette itself lives in
+   ui/LightJewelryTheme.css; this file only describes this component. */
+:root[data-theme='light'] .client-card-tabbar__medallion {
+  filter: drop-shadow(0 1px 1.2px rgba(52, 25, 11, 0.38));
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-shadow {
+  stroke: var(--bronze-shadow) !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-rear {
+  stroke: var(--bronze-deep) !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-front {
+  stroke: var(--bronze-front) !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-highlight {
+  stroke: var(--bronze-highlight) !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-patina {
+  stroke: var(--bronze-patina) !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar::before {
+  background: linear-gradient(
+    180deg,
+    var(--bronze-specular) 0%,
+    var(--bronze-light) 18%,
+    var(--bronze-mid) 48%,
+    var(--bronze-recess) 72%,
+    var(--bronze-front) 100%
+  ) !important;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 240, 211, 0.68),
+    inset 0 -0.5px 0 rgba(55, 24, 9, 0.5),
+    0 1px 1px rgba(54, 25, 10, 0.2);
+}
+
+:root[data-theme='light'] .client-card-tabbar__tab:not(:last-child)::after {
+  background: radial-gradient(
+    circle at 35% 28%,
+    var(--bronze-specular) 0%,
+    var(--bronze-light) 28%,
+    var(--bronze-mid) 58%,
+    var(--bronze-shadow) 100%
+  ) !important;
+  box-shadow:
+    inset 0.5px 0.5px 0 rgba(255, 237, 204, 0.48),
+    0 1px 1.5px rgba(59, 28, 12, 0.28);
+}
