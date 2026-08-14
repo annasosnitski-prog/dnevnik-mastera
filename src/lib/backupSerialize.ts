@@ -14,6 +14,25 @@
 // отдельными элементами BlobPart[]. Конструктор Blob/File принимает
 // несколько частей и не обязан склеивать их в одну JS-строку, поэтому
 // пиковая память не умножается на каждом шаге, как раньше.
+//
+// Строка безопасна для JSON без экранирования, если в ней нет кавычки,
+// обратного слэша и управляющих символов — а data URL (data:image/...;
+// base64,<...>) устроен ровно так: алфавит base64 в принципе не содержит
+// таких символов. Для этого — подавляющего большинства — случая photo
+// кладётся в parts как есть, без JSON.stringify: тот создаёт ПОЛНУЮ вторую
+// копию строки (экранирование не бывает «на месте», строки в JS неизменны),
+// то есть удваивает именно самую тяжёлую часть бэкапа — на библиотеке в
+// сотни мегабайт фото это удвоение и обваливало вкладку в памяти. Если
+// когда-нибудь встретится не чистый data URL (повреждённая запись, старый
+// формат) — safeJsonStringParts тратит память на JSON.stringify только для
+// ЭТОЙ ОДНОЙ записи, а не для всех фото разом.
+const UNSAFE_JSON_STRING_CHARS = /["\\\x00-\x1f]/;
+
+function safeJsonStringParts(value: string): BlobPart[] {
+  if (UNSAFE_JSON_STRING_CHARS.test(value)) return [JSON.stringify(value)];
+  return ['"', value, '"'];
+}
+
 export function buildBackupBlobParts(payload: unknown): BlobPart[] {
   // Свежий на каждый вызов — исключает случайное совпадение с текстом,
   // который мог ввести сам мастер (заметка, реквизиты и т.п.).
@@ -47,9 +66,7 @@ export function buildBackupBlobParts(payload: unknown): BlobPart[] {
   let match: RegExpExecArray | null;
   while ((match = tokenRe.exec(shellJson))) {
     parts.push(shellJson.slice(lastIndex, match.index));
-    // JSON.stringify на одной строке — корректное экранирование кавычек и
-    // спецсимволов, если в photo когда-нибудь окажется не чистый data URL.
-    parts.push(JSON.stringify(photos[Number(match[1])]));
+    parts.push(...safeJsonStringParts(photos[Number(match[1])]));
     lastIndex = tokenRe.lastIndex;
   }
   parts.push(shellJson.slice(lastIndex));
