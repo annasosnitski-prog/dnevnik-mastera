@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useId, type CSSProperties } from 'react';
 import { useMinimalism } from '../ui/minimalism';
 import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
@@ -257,11 +257,22 @@ export interface ClientCardTabDef<T extends string> {
   label: string;
 }
 
-// The two-tab master dashboard uses the approved three-piece ray construction
-// in both ornate themes: the joins sit on the two jump-ring centres (25% / 75%).
-// Keeping it as SVG, rather than three bordered divs, lets the inner ends taper
-// to a genuinely narrow neck while both outer ends leave the viewport square.
+// The master dashboard is the only two-pendant composition. Match its semantic
+// pair explicitly instead of decorating every future tab bar that happens to
+// contain two tabs.
+function isMasterDashboardPair<T extends string>(tabs: ClientCardTabDef<T>[]) {
+  return tabs.length === 2 && tabs[0]?.kind === 'info' && tabs[1]?.kind === 'projects';
+}
+
+// Keeping the approved rays as SVG, rather than three bordered divs, lets the
+// inner ends taper to a genuinely narrow neck while both outer ends leave the
+// viewport square. IDs are per-instance so two tab bars cannot cross-reference
+// each other's gradients in the DOM.
 function TwoPendantRays() {
+  const rawId = useId().replace(/:/g, '');
+  const metalId = `two-pendant-ray-metal-${rawId}`;
+  const sheenId = `two-pendant-ray-sheen-${rawId}`;
+
   return (
     <svg
       aria-hidden="true"
@@ -270,26 +281,26 @@ function TwoPendantRays() {
       preserveAspectRatio="none"
     >
       <defs>
-        <linearGradient id="twoPendantRayMetal" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={metalId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="var(--two-pendant-ray-highlight)" />
           <stop offset="0.28" stopColor="var(--two-pendant-ray-light)" />
           <stop offset="0.6" stopColor="var(--two-pendant-ray-mid)" />
           <stop offset="0.82" stopColor="var(--two-pendant-ray-recess)" />
           <stop offset="1" stopColor="var(--two-pendant-ray-shadow)" />
         </linearGradient>
-        <linearGradient id="twoPendantRaySheen" x1="0" y1="0" x2="1" y2="0">
+        <linearGradient id={sheenId} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="var(--two-pendant-ray-highlight)" stopOpacity="0.3" />
           <stop offset="0.5" stopColor="var(--two-pendant-ray-sheen)" stopOpacity="0.78" />
           <stop offset="1" stopColor="var(--two-pendant-ray-highlight)" stopOpacity="0.3" />
         </linearGradient>
       </defs>
 
-      <g className="client-card-tabbar__ray-metal">
+      <g className="client-card-tabbar__ray-metal" fill={`url(#${metalId})`}>
         <path d="M0 5 L0 7 L250 6.3 L250 5.7 Z" />
         <path d="M250 5.7 Q500 4.6 750 5.7 L750 6.3 Q500 7.4 250 6.3 Z" />
         <path d="M750 5.7 L750 6.3 L1000 7 L1000 5 Z" />
       </g>
-      <g className="client-card-tabbar__ray-sheen">
+      <g className="client-card-tabbar__ray-sheen" fill={`url(#${sheenId})`}>
         <path d="M0 5.35 L0 5.8 L250 5.92 L250 5.78 Z" />
         <path d="M250 5.78 Q500 5.2 750 5.78 L750 5.92 Q500 5.5 250 5.92 Z" />
         <path d="M750 5.78 L750 5.92 L1000 5.8 L1000 5.35 Z" />
@@ -312,7 +323,7 @@ export function ClientCardTabBar<T extends string>({
   ariaLabel: string;
 }) {
   const minimalism = useMinimalism();
-  const hasTwoPendantRays = tabs.length === 2;
+  const hasTwoPendantRays = isMasterDashboardPair(tabs);
 
   return (
     <div
