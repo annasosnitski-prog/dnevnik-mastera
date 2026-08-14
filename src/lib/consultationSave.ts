@@ -1,16 +1,11 @@
-// Чистая логика сохранения Consultation, вынесенная из handleAddConsultation
-// (TattoDiary.tsx) — по образцу upsertClientSession/applyConsultationConversion
-// в sessionSave.ts. Добавляет поддержку цепочки повторных консультаций
-// («Назначить следующую консультацию»): консультация никогда не заменяется
-// другой — каждая следующая встреча получает свою собственную запись,
-// связанную с предыдущей только через previousConsultationId/
-// nextConsultationId (тот же двусторонний link-паттерн, что
-// convertedToSessionId/sourceConsultationId у сессии). Ничего не пишет в
-// IndexedDB само — возвращает обновлённый Client, вызывающий код сам решает,
-// чем сохранить (saveClient).
-import type { Client } from '../domain/client';
-import type { Consultation, ConsultationHistoryEntry } from '../domain/consultation';
-import type { Project } from '../domain/project';
+// Форма консультации: её поля, приведение к записи и запись в историю.
+//
+// Сами мутации — в lib/projectRecordSave.ts (см. там же про удалённые
+// client-формы): после Этапа 2 консультация хранится только в своём проекте.
+// Цепочка повторных консультаций никуда не делась — консультация никогда не
+// заменяется другой, каждая следующая встреча получает свою запись, связанную
+// с предыдущей через previousConsultationId/nextConsultationId.
+import type { ConsultationHistoryEntry } from '../domain/consultation';
 import type { UrgencyKey } from '../domain/urgency';
 
 export interface ConsultationFormData {
@@ -28,7 +23,7 @@ export interface ConsultationFormData {
   projectId: string | null;
 }
 
-function consultationFields(data: ConsultationFormData) {
+export function consultationFields(data: ConsultationFormData) {
   return {
     date: data.date,
     time: data.time,
@@ -45,93 +40,6 @@ function consultationFields(data: ConsultationFormData) {
   };
 }
 
-function historyEntry(note: string): ConsultationHistoryEntry {
+export function historyEntry(note: string): ConsultationHistoryEntry {
   return { id: crypto.randomUUID(), date: new Date().toISOString(), note };
-}
-
-// editingConsultationId — редактирование существующей записи (previousConsultationId
-// не трогается, чужая цепочка не переписывается). previousConsultationId —
-// только для НОВОЙ записи, назначенной как продолжение другой («Назначить
-// следующую консультацию», см. TattoDiary's startChainNextConsultation);
-// null/не передан — обычная «Новая консультация», не часть цепочки.
-export function upsertConsultation(
-  client: Client,
-  data: ConsultationFormData,
-  editingConsultationId: string | null,
-  previousConsultationId: string | null = null,
-): { client: Client; consultationId: string } {
-  const fields = consultationFields(data);
-  let consultations: Consultation[];
-  let consultationId: string;
-
-  if (editingConsultationId) {
-    consultationId = editingConsultationId;
-    consultations = client.consultations.map((c) =>
-      c.id === editingConsultationId ? { ...c, ...fields, history: [...c.history, historyEntry('Изменена')] } : c,
-    );
-  } else {
-    consultationId = crypto.randomUUID();
-    const newConsultation: Consultation = {
-      id: consultationId,
-      createdDate: new Date().toISOString(),
-      done: false,
-      cancelled: false,
-      status: 'active',
-      convertedToSessionId: null,
-      previousConsultationId,
-      nextConsultationId: null,
-      history: [historyEntry(previousConsultationId ? 'Назначена как следующая консультация' : 'Консультация создана')],
-      ...fields,
-    };
-    // Обратная ссылка на источник цепочки проставляется той же мутацией —
-    // previous и new меняются одним атомарным изменением client.consultations,
-    // как applyConsultationConversion делает для consultation+session.
-    const base = previousConsultationId
-      ? client.consultations.map((c) =>
-          c.id === previousConsultationId
-            ? { ...c, nextConsultationId: consultationId, history: [...c.history, historyEntry('Назначена следующая консультация')] }
-            : c,
-        )
-      : client.consultations;
-    consultations = [...base, newConsultation];
-  }
-
-  return { client: { ...client, consultations }, consultationId };
-}
-
-// Client-less (Project) вариант — тот же охват, что у upsertProjectSession в
-// sessionSave.ts: без цепочки «Назначить следующую консультацию» (нет
-// варианта без клиента ни для цепочки сессий, ни для цепочки консультаций).
-export function upsertProjectConsultation(
-  project: Project,
-  data: ConsultationFormData,
-  editingConsultationId: string | null,
-): { project: Project; consultationId: string } {
-  const fields = consultationFields(data);
-  let consultations: Consultation[];
-  let consultationId: string;
-
-  if (editingConsultationId) {
-    consultationId = editingConsultationId;
-    consultations = project.consultations.map((c) =>
-      c.id === editingConsultationId ? { ...c, ...fields, history: [...c.history, historyEntry('Изменена')] } : c,
-    );
-  } else {
-    consultationId = crypto.randomUUID();
-    const newConsultation: Consultation = {
-      id: consultationId,
-      createdDate: new Date().toISOString(),
-      done: false,
-      cancelled: false,
-      status: 'active',
-      convertedToSessionId: null,
-      previousConsultationId: null,
-      nextConsultationId: null,
-      history: [historyEntry('Консультация создана')],
-      ...fields,
-    };
-    consultations = [...project.consultations, newConsultation];
-  }
-
-  return { project: { ...project, consultations }, consultationId };
 }
