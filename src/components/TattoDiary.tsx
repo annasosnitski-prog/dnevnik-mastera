@@ -95,6 +95,17 @@ import { type SessionFormData } from '../lib/sessionSave';
 import { type ConsultationFormData } from '../lib/consultationSave';
 import { ensureBucketProject } from '../lib/autoProject';
 import {
+  MASTER_INFO_STORE,
+  MASTER_INFO_RECORD_ID,
+  MASTER_INFO_LOCAL_KEY,
+  DEFAULT_MASTER_INFO,
+  type MasterLink,
+  normalizeMasterInfo,
+  resolveMasterInfoSource,
+  isMasterInfoEmpty,
+  type MasterInfo,
+} from '../lib/masterInfoStore';
+import {
   LAST_BACKUP_STORAGE_KEY,
   backupStatus,
   type PersistenceState,
@@ -117,7 +128,7 @@ import { migrateClientRecordsIntoProjects } from '../lib/clientRecordsMigration'
 // не менялась — только перенос.
 import { isRTL, firstLetter, nameRest } from '../lib/textFormat';
 import { buildChatLink } from '../lib/chatLink';
-import { normalizeClientNote, normalizeClient, normalizeProject } from '../lib/normalize';
+import { normalizeClient, normalizeProject } from '../lib/normalize';
 // UI-примитивы вынесены в отдельные модули (PR 4 рефакторинга). Логика и
 // разметка не менялись — только перенос.
 import { TopStripe, RightStripe, GemCorner, GoldFrame } from './ui/Stripes';
@@ -424,6 +435,9 @@ const initDB = (): Promise<IDBDatabase> =>
       if (!db.objectStoreNames.contains('contentEntries')) {
         db.createObjectStore('contentEntries', { keyPath: 'id' });
       }
+      if (!db.objectStoreNames.contains(MASTER_INFO_STORE)) {
+        db.createObjectStore(MASTER_INFO_STORE, { keyPath: 'id' });
+      }
       ensureContentIngestJobStore(db);
     };
   });
@@ -522,66 +536,17 @@ function readInitialPrefs(): Prefs {
 // payment details and a personal legend for what each card marker colour
 // means — kept flexible (free label + value pairs) rather than a fixed
 // schema, since masters' needs here vary a lot.
-interface MasterLink {
-  id: string;
-  label: string; // e.g. "Instagram", "СБП Тинькофф", "Карта Сбербанк"
-  value: string; // free text — link, phone, card number...
-}
-interface MasterInfo {
-  name: string; // the master's own name, shown on the dashboard
-  links: MasterLink[];
-  bankDetails: string;
-  phone: string; // the master's own phone — its own tap-to-copy block, separate from `links`
-  telegramBotLink: string; // link to the booking bot in Telegram — its own block, kept apart from `chatLinks`
-  chatLinks: ChatLink[]; // master's own site/WhatsApp/Telegram/Instagram/etc — same picker as a client's contacts
-  colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
-  notes: ClientNote[]; // the master's own notes (not tied to any client), shown in «Задачи»
-}
-const DEFAULT_MASTER_INFO: MasterInfo = {
-  name: '',
-  links: [],
-  bankDetails: '',
-  phone: '',
-  telegramBotLink: '',
-  chatLinks: [],
-  colorLabels: {},
-  notes: [],
-};
-
-function readInitialMasterInfo(): MasterInfo {
+// Тип карточки мастера, её умолчания и нормализация переехали в
+// lib/masterInfoStore.ts вместе с самим хранилищем: карточка живёт в
+// IndexedDB, а не в localStorage, где ей не хватало квоты под фото в задачах.
+// Старая копия в localStorage остаётся нетронутой как страховка.
+function readLocalMasterInfo(): MasterInfo {
   try {
-    const raw = localStorage.getItem('inka-master-info');
-    if (raw) {
-      const p = JSON.parse(raw);
-      const chatLinks = Array.isArray(p.chatLinks)
-        ? p.chatLinks.map((l: any, i: number) => ({
-            id: String(l?.id ?? i),
-            platform: (PLATFORM_LABELS as Record<string, string>)[l?.platform] ? l.platform : 'other',
-            url: l?.url ?? '',
-          }))
-        : [];
-      // Legacy standalone `website` field (briefly its own block) folds into
-      // chatLinks as a «Сайт» entry, so an already-filled-in value isn't lost.
-      if (typeof p.website === 'string' && p.website.trim()) {
-        chatLinks.push({ id: `legacy-website-${Date.now()}`, platform: 'website', url: buildChatLink('website', p.website) });
-      }
-      return {
-        name: typeof p.name === 'string' ? p.name : '',
-        links: Array.isArray(p.links)
-          ? p.links.map((l: any, i: number) => ({ id: String(l?.id ?? i), label: l?.label ?? '', value: l?.value ?? '' }))
-          : [],
-        bankDetails: typeof p.bankDetails === 'string' ? p.bankDetails : '',
-        phone: typeof p.phone === 'string' ? p.phone : '',
-        telegramBotLink: typeof p.telegramBotLink === 'string' ? p.telegramBotLink : '',
-        chatLinks,
-        colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
-        notes: Array.isArray(p.notes) ? p.notes.map((n: any, i: number) => normalizeClientNote(n, i, 'm')) : [],
-      };
-    }
+    const raw = localStorage.getItem(MASTER_INFO_LOCAL_KEY);
+    return raw ? normalizeMasterInfo(JSON.parse(raw)) : { ...DEFAULT_MASTER_INFO };
   } catch {
-    /* ignore */
+    return { ...DEFAULT_MASTER_INFO };
   }
-  return { ...DEFAULT_MASTER_INFO };
 }
 
 // ===================== MAIN APP =====================
@@ -651,21 +616,63 @@ export default function TattoDiary() {
   }, [prefs]);
 
   // The master's own contacts/payment/colour-legend card (single record).
-  // Хранится в localStorage, а не IndexedDB — у него гораздо меньше квота
-  // (обычно 5-10 МБ на весь ориджин) и запись синхронная. masterInfo.notes
-  // может нести фото (тот же SessionPhotos, что и у заметок клиента) —
-  // если после сжатия несколько таких заметок всё равно не влезли в квоту,
-  // раньше это молча проглатывалось: заметка выглядела сохранённой в UI, но
-  // пропадала после перезапуска без единого предупреждения.
-  const [masterInfo, setMasterInfo] = useState<MasterInfo>(readInitialMasterInfo);
+  // Карточка мастера живёт в IndexedDB — там, где квоты хватает под фото в
+  // задачах. Раньше она лежала в localStorage (~5 МБ на весь дневник), и
+  // очередная заметка с фото просто переставала помещаться: запись падала,
+  // заметка терялась. Клиенты, проекты и контент были в базе давно —
+  // личное мастера оставалось защищено хуже всего остального.
+  //
+  // Стартовое значение читается из СТАРОЙ localStorage-копии синхронно:
+  // карточка рисуется сразу, без пустого мига, даже пока база открывается
+  // (и даже если она вообще не откроется). Как только база ответит, её
+  // запись заменит это значение — см. эффект загрузки ниже.
+  const [masterInfo, setMasterInfo] = useState<MasterInfo>(readLocalMasterInfo);
+
+  // САМОЕ ОПАСНОЕ МЕСТО ПЕРЕЕЗДА. Запись асинхронная, а состояние уже есть,
+  // поэтому без этого флага порядок был бы такой: смонтировались со
+  // стартовым значением → эффект записи тут же уложил его в базу → и только
+  // потом пришёл ответ базы. То есть настоящая карточка затиралась бы
+  // стартовой на каждом запуске, молча. Пока флаг не поднят, в базу не
+  // пишется НИЧЕГО.
+  const [masterInfoLoaded, setMasterInfoLoaded] = useState(false);
+
   useEffect(() => {
-    try {
-      localStorage.setItem('inka-master-info', JSON.stringify(masterInfo));
-    } catch (err) {
-      console.error('Failed to persist master info:', err);
-      setDbError('Не удалось сохранить личные заметки — слишком много данных (обычно из-за фото). Удалите часть фото в заметках «Задачи».');
-    }
-  }, [masterInfo]);
+    if (!db || masterInfoLoaded) return;
+    const tx = openTx(MASTER_INFO_STORE, db, 'readonly', 'Не удалось загрузить личный кабинет.');
+    if (!tx) return;
+    const request = tx.objectStore(MASTER_INFO_STORE).get(MASTER_INFO_RECORD_ID);
+    request.onsuccess = () => {
+      const stored = request.result ? normalizeMasterInfo(request.result) : null;
+      const { value, needsMigration } = resolveMasterInfoSource(stored, readLocalMasterInfo());
+      setMasterInfo(value);
+      // Флаг поднимаем ДО переезда: дальше карточку пишет обычный эффект
+      // ниже, и переезд — это просто первая такая запись.
+      setMasterInfoLoaded(true);
+      if (needsMigration && isMasterInfoEmpty(value)) {
+        // Переносить нечего: записи в базе нет и старая копия пуста. Запись
+        // появится сама, с первой правкой.
+        return;
+      }
+      if (needsMigration) {
+        const writeTx = openWriteTx(MASTER_INFO_STORE, db, 'Не удалось перенести личный кабинет в хранилище.');
+        if (!writeTx) return;
+        writeTx.objectStore(MASTER_INFO_STORE).put({ ...value, id: MASTER_INFO_RECORD_ID });
+        writeTx.onerror = () => setDbError('Не удалось перенести личный кабинет в хранилище.');
+      }
+    };
+    request.onerror = () => setDbError('Не удалось загрузить личный кабинет.');
+  }, [db, masterInfoLoaded]);
+
+  useEffect(() => {
+    if (!db || !masterInfoLoaded) return;
+    const tx = openWriteTx(MASTER_INFO_STORE, db, 'Хранилище недоступно — личный кабинет не сохранён.');
+    if (!tx) return;
+    tx.objectStore(MASTER_INFO_STORE).put({ ...masterInfo, id: MASTER_INFO_RECORD_ID });
+    tx.onerror = () => setDbError('Не удалось сохранить личный кабинет.');
+  }, [db, masterInfoLoaded, masterInfo]);
+  // Старая копия в localStorage НЕ обновляется и не удаляется: она остаётся
+  // страховкой на случай, если переезд куда-то положил данные неверно —
+  // ровно тот же приём, что с легаси-массивами клиента в Этапе 2.
 
   // Синхронизация с Инка-календарём. Секрет хранится в отдельном ключе
   // localStorage (не в бэкапе!) и остаётся только на этом устройстве.

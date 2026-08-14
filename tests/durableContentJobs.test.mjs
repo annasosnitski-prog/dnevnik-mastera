@@ -53,8 +53,10 @@ const result = {
   text_draft: 'Готовый текст',
 };
 
-test('database version 3 and technical content job store are wired', () => {
-  assert.equal(TATTO_DIARY_DB_VERSION, 3);
+// Версия 4: добавился стор masterInfo — Личный кабинет переехал из
+// localStorage, где ему не хватало квоты под фото в задачах.
+test('database version 4 and technical content job store are wired', () => {
+  assert.equal(TATTO_DIARY_DB_VERSION, 4);
   assert.equal(CONTENT_INGEST_JOB_STORE, 'contentIngestJobs');
   assert.match(diary, /indexedDB\.open\('TattoDiaryDB', TATTO_DIARY_DB_VERSION\)/);
   assert.match(diary, /ensureContentIngestJobStore\(db\)/);
