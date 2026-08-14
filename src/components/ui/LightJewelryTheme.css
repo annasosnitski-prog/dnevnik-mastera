@@ -1,0 +1,26 @@
+/* Canonical material tokens for the light ornate jewelry skin.
+   Components consume these variables; component styles do not redefine the
+   bronze palette independently. */
+:root[data-theme='light'] {
+  --nav-metal: #A86531;
+  --nav-metal-highlight: #F2C486;
+  --nav-metal-point: #D99650;
+
+  --bronze-shadow: #281308;
+  --bronze-recess: #653319;
+  --bronze-deep: #74401F;
+  --bronze-mid: #A8612F;
+  --bronze-front: #B66D35;
+  --bronze-light: #DCA064;
+  --bronze-highlight: #F3C98F;
+  --bronze-specular: #F7D39F;
+  --bronze-sheen: #FFE1B5;
+  --bronze-patina: #63361D;
+
+  --two-pendant-ray-highlight: var(--bronze-specular);
+  --two-pendant-ray-light: var(--bronze-light);
+  --two-pendant-ray-mid: var(--bronze-mid);
+  --two-pendant-ray-recess: var(--bronze-recess);
+  --two-pendant-ray-shadow: var(--bronze-shadow);
+  --two-pendant-ray-sheen: var(--bronze-sheen);
+}
