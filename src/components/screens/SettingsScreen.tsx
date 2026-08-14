@@ -5,6 +5,13 @@ import type { Project } from '../../domain/project';
 import type { ClientNote } from '../../domain/task';
 import { normalizeClient, normalizeClientNote, normalizeProject } from '../../lib/normalize';
 import { shareOrDownloadJSON } from '../../lib/contentShare';
+import {
+  backupStatus,
+  backupStatusText,
+  persistenceText,
+  formatMegabytes,
+  type PersistenceState,
+} from '../../lib/storageHealth';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { COLORS, fs, type Theme, type Prefs, DEFAULT_PREFS } from '../TattoDiary';
@@ -67,6 +74,10 @@ export function SettingsScreen({
   onBack,
   masterNotes,
   onReadBackupData,
+  persistence,
+  storageEstimate,
+  lastBackupAt,
+  onBackupDone,
   onImport,
 }: {
   theme: Theme;
@@ -84,6 +95,14 @@ export function SettingsScreen({
   // пустыми из-за сбоя загрузки, и тогда экспорт обязан отказать, а не отдать
   // пустой файл.
   onReadBackupData: () => Promise<{ clients: unknown[]; projects: unknown[]; contentEntries: unknown[] }>;
+  // Состояние хранилища — см. lib/storageHealth.ts. Показывается честно, в
+  // том числе когда браузер вообще не умеет отвечать на этот вопрос.
+  persistence: PersistenceState;
+  storageEstimate: { usage?: number; quota?: number } | null;
+  lastBackupAt: string | null;
+  // Вызывается ТОЛЬКО когда копия реально уехала из телефона: отмена и сбой
+  // копией не считаются, иначе напоминание замолчало бы, ничего не защитив.
+  onBackupDone: () => void;
   // Импорт полного бэкапа: clients + опционально projects/contentEntries/masterNotes.
   onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[]; masterNotes?: ClientNote[] }) => void;
   // Собирает старые сессии/консультации (без projectId) в проекты-корзины
@@ -105,6 +124,9 @@ export function SettingsScreen({
     contentEntries?: ContentEntry[];
     masterNotes?: ClientNote[];
   } | null>(null);
+
+  const backup = backupStatus(lastBackupAt, new Date());
+  const storageUsedText = formatMegabytes(storageEstimate?.usage);
 
   // Резервная копия — единственное, что стоит между мастером и потерей всей
   // истории работы, поэтому здесь нет ни одного тихого исхода: либо файл
@@ -144,6 +166,7 @@ export function SettingsScreen({
       setExportState({ kind: 'error', text: 'Не удалось отдать файл. Откройте дневник в обычной вкладке браузера и повторите экспорт оттуда.' });
       return;
     }
+    onBackupDone();
     setExportState({
       kind: 'ok',
       text: `Копия готова: ${data.clients.length} клиент(ов), ${data.projects.length} проект(ов). Сохраните файл туда, где он переживёт телефон.`,
@@ -394,10 +417,41 @@ export function SettingsScreen({
           </div>
         </div>
 
+        {/* Сохранность — состояние самого хранилища. Стоит ПЕРЕД резервной
+            копией, потому что отвечает на первый вопрос: могут ли данные
+            исчезнуть сами. Копия — ответ на второй: что будет, если исчезнет
+            телефон. */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Сохранность данных</div>
+          <div style={{ fontSize: fs(12), color: 'var(--text-soft)', fontStyle: 'italic', lineHeight: 1.5 }}>
+            {persistenceText(persistence)}
+            {storageUsedText && ` · занято ${storageUsedText}`}
+          </div>
+          {persistence === 'not-persisted' && (
+            <div style={{ marginTop: 8, fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', lineHeight: 1.5 }}>
+              Держите копию вне телефона — это единственная защита, если браузер всё-таки почистит данные.
+            </div>
+          )}
+        </div>
+
         {/* Backup — export the whole client list to a JSON file, or restore
             from one (replaces everything currently stored). */}
         <div style={rowStyle}>
           <div style={labelStyle}>Резервная копия</div>
+          {/* Возраст копии — прямо над кнопкой. Пока копии нет или она
+              старая, это самая важная строчка на экране. */}
+          <div
+            style={{
+              fontSize: fs(12),
+              fontStyle: 'italic',
+              lineHeight: 1.5,
+              marginBottom: 10,
+              color: backup.kind === 'fresh' ? 'var(--text-soft)' : 'var(--urgent)',
+            }}
+          >
+            {backupStatusText(backup)}
+            {backup.kind !== 'fresh' && ' — данные есть только в этом телефоне'}
+          </div>
           {pendingImport ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', flex: 1, minWidth: 160 }}>

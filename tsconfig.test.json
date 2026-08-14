@@ -26,6 +26,7 @@
     "src/lib/consultationSave.ts",
     "src/lib/autoProject.ts",
     "src/lib/projectRecordSave.ts",
+    "src/lib/storageHealth.ts",
     "src/lib/clientRecordsMigration.ts",
     "src/lib/calendarSync.ts",
     "src/lib/normalize.ts",
