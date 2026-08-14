@@ -130,6 +130,23 @@ export function isShareAbortError(error: unknown): boolean {
 // возвращается и показывается.
 export type ShareJSONResult = 'shared' | 'downloaded' | 'cancelled' | 'failed';
 
+// Приложение, установленное «на экран Домой» (standalone), — не то же самое,
+// что обычная вкладка Safari, хотя выглядит и открывается так же. WebKit там
+// не умеет скачивать blob-ссылку синтетическим кликом по <a download>: окно
+// «Поделиться» до этого пути вообще не доходит (сработал бы nav.share выше),
+// а сам клик по ссылке иногда перезапускает страницу целиком — короткая
+// белая вспышка, и приложение снова на первом экране, а копия не сохранена
+// (подтверждено на телефоне: тот же код в обычной вкладке Safari работает).
+//
+// navigator.standalone — старый, но именно этот флаг Apple всегда держала
+// достоверным для ровно этого режима; matchMedia дублирует его для
+// остальных браузеров, где этого поля нет.
+function isStandaloneDisplayMode(): boolean {
+  const legacy = (navigator as Navigator & { standalone?: boolean }).standalone;
+  if (legacy === true) return true;
+  return typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches;
+}
+
 // Shares a JSON payload via the native share sheet if the device has one
 // (files, not just text, so it can be AirDropped/sent as an attachment),
 // falling back to a plain browser download otherwise — shared by the full
@@ -162,6 +179,15 @@ export async function shareOrDownloadJSON(
 
   const url = URL.createObjectURL(file);
   try {
+    if (isStandaloneDisplayMode()) {
+      // window.open уводит blob в отдельную вкладку системного браузера —
+      // это НЕ навигация самой страницы приложения, поэтому она не
+      // перезапускается (см. isStandaloneDisplayMode выше). Файл откроется
+      // там как текст; сохранить в Файлы — через «Поделиться» уже этой
+      // вкладки, на шаг длиннее, но не теряет копию молча, как было раньше.
+      const opened = window.open(url, '_blank');
+      return opened ? 'downloaded' : 'failed';
+    }
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
