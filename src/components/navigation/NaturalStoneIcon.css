@@ -1,5 +1,3 @@
-@import '../ui/LightJewelryTheme.css';
-
 /* The diagonal shine has one animation source only: the SVG/SMIL sweep in
    NaturalStoneIcon.tsx. Entry and exit visibility are controlled on that same
    SVG rect, so no second CSS animation can create an arrow-shaped fragment. */
