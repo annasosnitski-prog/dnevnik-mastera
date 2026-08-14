@@ -171,13 +171,13 @@ export function NaturalStoneIcon({
           <stop offset="1" stopColor="#D08A49" />
         </linearGradient>
         <linearGradient id={plateShineId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#FFF6DF" stopOpacity="0" />
-          <stop offset=".24" stopColor="#FFF6DF" stopOpacity=".1" />
-          <stop offset=".46" stopColor="#FFF2D0" stopOpacity=".62" />
-          <stop offset=".52" stopColor="#FFFFFF" stopOpacity=".96" />
-          <stop offset=".59" stopColor="#FFE5B0" stopOpacity=".55" />
-          <stop offset=".78" stopColor="#FFF2D0" stopOpacity=".08" />
-          <stop offset="1" stopColor="#FFF6DF" stopOpacity="0" />
+          <stop offset="0" stopColor="#FFF8E8" stopOpacity="0" />
+          <stop offset=".2" stopColor="#FFF8E8" stopOpacity=".18" />
+          <stop offset=".43" stopColor="#FFF4D8" stopOpacity=".86" />
+          <stop offset=".5" stopColor="#FFFFFF" stopOpacity="1" />
+          <stop offset=".58" stopColor="#FFE9BC" stopOpacity=".8" />
+          <stop offset=".8" stopColor="#FFF4D8" stopOpacity=".15" />
+          <stop offset="1" stopColor="#FFF8E8" stopOpacity="0" />
         </linearGradient>
         <clipPath id={plateClipId}>
           <circle cx="32" cy="32" r={outerR - 0.8} />
@@ -253,22 +253,22 @@ export function NaturalStoneIcon({
 
             {isHomePlate && (
               <g className="natural-stone-home-shine" clipPath={`url(#${plateClipId})`} pointerEvents="none">
-                <g transform="rotate(-45 32 32)">
-                  <rect x="78" y="-18" width="15" height="100" fill={`url(#${plateShineId})`} opacity="0">
+                <g transform="rotate(45 32 32)">
+                  <rect x="-34" y="-18" width="15" height="100" fill={`url(#${plateShineId})`} opacity="0">
                     <animate
                       attributeName="x"
-                      values="78;78;-34;-34"
+                      values="-34;-34;78;78"
                       keyTimes="0;0.55;0.8;1"
-                      dur="7.6s"
+                      dur="15.2s"
                       calcMode="spline"
                       keySplines="0 0 1 1;0.18 0.82 0.2 1;0 0 1 1"
                       repeatCount="indefinite"
                     />
                     <animate
                       attributeName="opacity"
-                      values="0;0;.92;.92;0;0"
+                      values="0;0;1;1;0;0"
                       keyTimes="0;.59;.63;.75;.79;1"
-                      dur="7.6s"
+                      dur="15.2s"
                       calcMode="linear"
                       repeatCount="indefinite"
                     />
