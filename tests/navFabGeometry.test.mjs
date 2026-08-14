@@ -9,6 +9,7 @@ function readSource(path) {
 const navSource = readSource('../src/components/navigation/NavFab.tsx');
 const iconSource = readSource('../src/components/navigation/ToolbarIcons.tsx');
 const appSource = readSource('../src/components/TattoDiary.tsx');
+const masterDashboardSource = readSource('../src/components/screens/MasterDashboardScreen.tsx');
 const cssSource = readSource('../src/index.css');
 
 // Веер раскрывается полным кругом вокруг хаба (PR #238 «Круглые gem-вкладки»),
@@ -30,7 +31,7 @@ test('NavFab exposes the renamed destinations', () => {
   assert.match(navSource, /label: "Проекты"/);
   assert.match(navSource, /label: "Клиенты"/);
   assert.match(navSource, /label: "Админка"/);
-  assert.match(appSource, />\s*Личный кабинет\s*<\/div>/);
+  assert.match(masterDashboardSource, />\s*Личный кабинет\s*<\/div>/);
 });
 
 test('the four navigation buttons use the requested SVG pictograms', () => {
