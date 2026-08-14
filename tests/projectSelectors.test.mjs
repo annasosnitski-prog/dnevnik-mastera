@@ -8,6 +8,10 @@ import {
   getProjectLastActivityDate,
   hasScheduledWork,
   hasOverdueWork,
+  sortProjects,
+  filterProjects,
+  projectFiltersActive,
+  EMPTY_PROJECT_FILTERS,
 } from '../.test-dist/src/domain/projectSelectors.js';
 
 function makeProject(overrides = {}) {
@@ -737,4 +741,73 @@ test('hasOverdueWork ignores an overdue session/consultation belonging to a diff
 test('hasOverdueWork is false when the project has no next step, sessions or consultations', () => {
   const p = makeProject({ id: 'p1' });
   assert.equal(hasOverdueWork(p, [], [], TODAY), false);
+});
+
+// ── Фильтры и сортировка списка проектов (вкладка «Проекты» карточки) ──
+
+const SORT_TODAY = '2026-08-01';
+
+test('«Последний активный» ставит первым проект, который двигался позже', () => {
+  const stale = makeProject({ id: 'p-stale', lastMeaningfulActivityAt: '2026-01-05' });
+  const fresh = makeProject({ id: 'p-fresh', lastMeaningfulActivityAt: '2026-07-20' });
+  const order = sortProjects([stale, fresh], 'lastActive').map((p) => p.id);
+  assert.deepEqual(order, ['p-fresh', 'p-stale']);
+});
+
+test('«Последний активный» учитывает проведённую сессию, а не только смену этапа', () => {
+  // Проект, у которого этап не двигали с января, но сессия прошла в июле,
+  // активнее того, у кого движение было в марте и больше ничего.
+  const withSession = makeProject({ id: 'p-session', lastMeaningfulActivityAt: '2026-01-05' });
+  const withMove = makeProject({ id: 'p-move', lastMeaningfulActivityAt: '2026-03-01' });
+  const session = makeSession({ projectId: 'p-session', date: '2026-07-10', done: true });
+  const order = sortProjects([withMove, withSession], 'lastActive', {
+    sessions: [session],
+    consultations: [],
+    today: SORT_TODAY,
+  }).map((p) => p.id);
+  assert.deepEqual(order, ['p-session', 'p-move']);
+});
+
+test('«Последний активный»: проекты без единого достоверного сигнала уходят в конец', () => {
+  const legacy = makeProject({ id: 'p-legacy', lastMeaningfulActivityAt: null, createdDate: '2026-07-30' });
+  const known = makeProject({ id: 'p-known', lastMeaningfulActivityAt: '2026-02-01' });
+  const order = sortProjects([legacy, known], 'lastActive').map((p) => p.id);
+  assert.deepEqual(order, ['p-known', 'p-legacy']);
+});
+
+test('«Последний активный»: одинаковый день — тай-брейк по точному моменту движения', () => {
+  const morning = makeProject({ id: 'p-morning', lastMeaningfulActivityAt: '2026-07-10T09:00:00.000Z' });
+  const evening = makeProject({ id: 'p-evening', lastMeaningfulActivityAt: '2026-07-10T21:00:00.000Z' });
+  const order = sortProjects([morning, evening], 'lastActive').map((p) => p.id);
+  assert.deepEqual(order, ['p-evening', 'p-morning']);
+});
+
+test('«Новые» — по дате создания, «А–Я» — по названию', () => {
+  const old = makeProject({ id: 'p-old', title: 'Ящерица', createdDate: '2026-01-01' });
+  const recent = makeProject({ id: 'p-new', title: 'Астра', createdDate: '2026-06-01' });
+  assert.deepEqual(sortProjects([old, recent], 'added').map((p) => p.id), ['p-new', 'p-old']);
+  assert.deepEqual(sortProjects([old, recent], 'name').map((p) => p.id), ['p-new', 'p-old']);
+});
+
+test('sortProjects не мутирует входной массив', () => {
+  const a = makeProject({ id: 'a', lastMeaningfulActivityAt: '2026-01-01' });
+  const b = makeProject({ id: 'b', lastMeaningfulActivityAt: '2026-05-01' });
+  const input = [a, b];
+  sortProjects(input, 'lastActive');
+  assert.deepEqual(input.map((p) => p.id), ['a', 'b']);
+});
+
+test('filterProjects: пустой фильтр отдаёт всё, каждый выбор сужает', () => {
+  const tattoo = makeProject({ id: 'p-tattoo', category: 'tattoo', state: 'active' });
+  const drawing = makeProject({ id: 'p-drawing', category: 'drawing', state: 'archived' });
+  assert.deepEqual(filterProjects([tattoo, drawing], EMPTY_PROJECT_FILTERS).map((p) => p.id), ['p-tattoo', 'p-drawing']);
+  assert.deepEqual(filterProjects([tattoo, drawing], { category: 'drawing', state: null }).map((p) => p.id), ['p-drawing']);
+  assert.deepEqual(filterProjects([tattoo, drawing], { category: null, state: 'archived' }).map((p) => p.id), ['p-drawing']);
+  assert.deepEqual(filterProjects([tattoo, drawing], { category: 'tattoo', state: 'archived' }), []);
+});
+
+test('projectFiltersActive отличает «ничего не выбрано» от выбранного фильтра', () => {
+  assert.equal(projectFiltersActive(EMPTY_PROJECT_FILTERS), false);
+  assert.equal(projectFiltersActive({ category: 'tattoo', state: null }), true);
+  assert.equal(projectFiltersActive({ category: null, state: 'paused' }), true);
 });

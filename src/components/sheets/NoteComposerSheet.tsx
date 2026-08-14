@@ -5,6 +5,7 @@
 // (карточка клиента/мастера, «Мастерская», открытый проект), не только с
 // экрана «Сводка».
 import { type Client } from '../../domain/client';
+import { type Project } from '../../domain/project';
 import { type UrgencyKey } from '../../domain/urgency';
 import { NoteComposer } from '../screens/DetailScreen';
 import { BottomSheet, SheetCloseButton } from '../ui/Sheet';
@@ -15,6 +16,7 @@ export function NoteComposerSheet({
   open,
   onClose,
   clients,
+  projects,
   presetClientId = null,
   presetProjectId = null,
   onAdd,
@@ -22,6 +24,7 @@ export function NoteComposerSheet({
   open: boolean;
   onClose: () => void;
   clients?: Client[];
+  projects?: Project[];
   presetClientId?: string | null;
   presetProjectId?: string | null;
   onAdd: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, clientId: string | null, projectId: string | null) => void;
@@ -36,6 +39,7 @@ export function NoteComposerSheet({
       <div style={{ padding: '4px 24px 40px' }}>
         <NoteComposer
           clients={clients}
+          projects={projects}
           presetClientId={presetClientId}
           presetProjectId={presetProjectId}
           onAdd={(text, urgency, photos, dueDate, clientId, projectId) => {

@@ -67,12 +67,12 @@ export function SummaryScreen({
   onOpenClient: (id: string) => void;
   onOpenConsultation: (clientId: string, consultationId: string) => void;
   onOpenSession: (clientId: string, sessionId: string) => void;
-  onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
+  onAddMasterNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, projectId: string | null) => void;
   // Lets the composer attach the new note straight to a client (picked from
   // the dropdown it shows) instead of always creating a client-less one —
   // same shape as AdditionalTab's onAddNote, just clientId-parameterized
   // since «Сводка» isn't scoped to a single client.
-  onAddNote: (clientId: string, text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null) => void;
+  onAddNote: (clientId: string, text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, projectId: string | null) => void;
   onToggleMasterDone: (note: ClientNote) => void;
   onEditMasterNote: (note: ClientNote) => void;
   onDeleteMasterNote: (noteId: string) => void;
@@ -358,9 +358,10 @@ export function SummaryScreen({
               </div>
               <NoteComposer
                 clients={clients}
-                onAdd={(text, urgency, photos, dueDate, clientId) => {
-                  if (clientId) onAddNote(clientId, text, urgency, photos, dueDate);
-                  else onAddMasterNote(text, urgency, photos, dueDate);
+                projects={projects}
+                onAdd={(text, urgency, photos, dueDate, clientId, projectId) => {
+                  if (clientId) onAddNote(clientId, text, urgency, photos, dueDate, projectId);
+                  else onAddMasterNote(text, urgency, photos, dueDate, projectId);
                   onShowComposerChange(false);
                 }}
               />
