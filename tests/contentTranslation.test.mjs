@@ -364,14 +364,13 @@ test('disposing the runner prevents a completed request from updating saved stat
 });
 
 test('translation UI has correct direction, language, paragraphs and local controls', () => {
-  const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+  const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
-  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
   const translateHandler = screen.slice(screen.indexOf('const translateEntry ='), screen.indexOf('const copyContentTranslation ='));
   const translationCopy = screen.slice(screen.indexOf('const copyContentTranslation ='), screen.indexOf('const deleteContentEntry ='));
 
-  assert.match(source, /\{ language: 'he', actionLabel: 'На иврит'.*dir: 'rtl' \}/);
-  assert.match(source, /\{ language: 'en', actionLabel: 'На английский'.*dir: 'ltr' \}/);
+  assert.match(screen, /\{ language: 'he', actionLabel: 'На иврит'.*dir: 'rtl' \}/);
+  assert.match(screen, /\{ language: 'en', actionLabel: 'На английский'.*dir: 'ltr' \}/);
   assert.match(screen, /dir=\{option\.dir\}/);
   assert.match(screen, /lang=\{option\.language\}/);
   assert.match(styles, /\.content-translation-block__text\s*\{[^}]*white-space:\s*pre-wrap/s);

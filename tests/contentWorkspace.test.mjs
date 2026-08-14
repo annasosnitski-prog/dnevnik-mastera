@@ -69,7 +69,7 @@ test('source previews expose only the compact ContentINKA hand-off block', () =>
 
 test('compose and open-linked transitions are transient and applied by ContentINKAScreen', () => {
   const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
-  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+  const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
 
   assert.match(source, /useState<ContentWorkspaceNavigation \| null>\(null\)/);
   assert.match(source, /setContentNavigation\(navigation\)/);
@@ -105,7 +105,7 @@ test('resolveContentFocusEntry does not mutate the entries array', () => {
 
 test('a click on a project-content card passes the entry.id as a focus target, and ContentINKAScreen applies it', () => {
   const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
-  const screen = source.slice(source.indexOf('function ContentINKAScreen({'), source.indexOf('function ContentPanel({'));
+  const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
 
   // ProjectViewSheet passes the clicked entry's own id, not just a generic
   // "open the content screen" call.

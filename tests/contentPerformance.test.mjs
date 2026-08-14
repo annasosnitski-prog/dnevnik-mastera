@@ -5,7 +5,7 @@ import test from 'node:test';
 import { createContentEntryCardRevision } from '../.test-dist/src/lib/contentCardMemo.js';
 import { downsizePhotosSequentially } from '../.test-dist/src/lib/imagePreview.js';
 
-const diary = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+const diary = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
 
 test('photo archive grid is absent until the explicit archive toggle is open', () => {
   const gallery = diary.slice(diary.indexOf('function ContentPhotoGallery'), diary.indexOf('type ContentEntryCardProps'));
