@@ -60,3 +60,40 @@ test('empty photos array round-trips with no tokens inserted', async () => {
   const parts = buildBackupBlobParts(payload);
   assert.deepEqual(await partsToJSON(parts), payload);
 });
+
+// ===== ПАМЯТЬ: чистый data URL не копируется через JSON.stringify =====
+// Мастер поймала крах на телефоне: экспорт одного клиента проходит, а
+// полного бэкапа — нет, даже после перезагрузки (значит дело не в
+// состоянии вкладки, а в объёме данных). JSON.stringify(photo) создаёт
+// ПОЛНУЮ вторую копию строки (экранирование не бывает «на месте»), и на
+// библиотеке в сотни мегабайт фото это удвоение и обваливало вкладку в
+// памяти. Тест ловит именно это: строка кладётся в parts ТЕМ ЖЕ объектом,
+// без копии.
+
+test('чистый data URL идёт в parts той же строкой — без второй копии в памяти', () => {
+  const photo = 'data:image/jpeg;base64,' + 'A'.repeat(5000);
+  const payload = { sessions: [{ id: 's1', photos: [photo] }] };
+  const parts = buildBackupBlobParts(payload);
+  // Строгое === (не просто равенство значений): подтверждает, что это тот
+  // же самый объект строки, а не JSON.stringify(photo) — свежая копия.
+  assert.ok(parts.some((p) => p === photo), 'фото должно быть той же строкой, не копией');
+});
+
+test('битый data URL (кавычка/слэш внутри) всё равно даёт валидный JSON — экранируется', async () => {
+  // Редкий случай (повреждённая запись, чужеродные данные) платит
+  // JSON.stringify только сам за себя — не за все фото разом.
+  const weirdPhoto = 'data:image/jpeg;base64,AAA"BBB\\CCC';
+  const payload = { sessions: [{ id: 's1', photos: [weirdPhoto] }] };
+  const parts = buildBackupBlobParts(payload);
+  assert.deepEqual(await partsToJSON(parts), payload);
+  // И в этом случае — не той же строкой: JSON.stringify обязан был её
+  // переписать, чтобы кавычка/слэш внутри не сломали структуру файла.
+  assert.ok(!parts.some((p) => p === weirdPhoto));
+});
+
+test('управляющий символ внутри фото тоже уходит через безопасное экранирование', async () => {
+  const weirdPhoto = 'data:image/jpeg;base64,AAA\nBBB';
+  const payload = { sessions: [{ id: 's1', photos: [weirdPhoto] }] };
+  const parts = buildBackupBlobParts(payload);
+  assert.deepEqual(await partsToJSON(parts), payload);
+});

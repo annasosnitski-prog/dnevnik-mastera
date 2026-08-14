@@ -15,6 +15,10 @@ const detailScreen = readFileSync(
   'utf8',
 );
 const tattoDiary = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+const masterDashboardScreen = readFileSync(
+  new URL('../src/components/screens/MasterDashboardScreen.tsx', import.meta.url),
+  'utf8',
+);
 const gemSprite = readFileSync(new URL('../public/gem-icons.svg', import.meta.url), 'utf8');
 const navFab = readFileSync(new URL('../src/components/navigation/NavFab.tsx', import.meta.url), 'utf8');
 const pendantIcon = readFileSync(new URL('../src/components/navigation/PendantIcon.tsx', import.meta.url), 'utf8');
@@ -193,8 +197,8 @@ test('the client card wires its four tabs, Проекты first, via the shared 
 });
 
 test('Личный кабинет мастера reuses the same shared tab bar (Инфо/Проекты)', () => {
-  assert.match(tattoDiary, /<ClientCardTabBar tabs=\{MASTER_TABS\} activeTab=\{tab\} onTab=\{setTab\}/);
-  const listMatch = tattoDiary.match(/const MASTER_TABS: ClientCardTabDef<[^>]+>\[\] = \[([\s\S]*?)\];/);
+  assert.match(masterDashboardScreen, /<ClientCardTabBar tabs=\{MASTER_TABS\} activeTab=\{tab\} onTab=\{setTab\}/);
+  const listMatch = masterDashboardScreen.match(/const MASTER_TABS: ClientCardTabDef<[^>]+>\[\] = \[([\s\S]*?)\];/);
   assert.ok(listMatch, 'MASTER_TABS array not found');
   const ids = [...listMatch[1].matchAll(/\{ id: '([^']+)', kind: '([^']+)'/g)].map(([, id, kind]) => [id, kind]);
   assert.deepEqual(ids, [
