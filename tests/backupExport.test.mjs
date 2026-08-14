@@ -41,7 +41,7 @@ test('сбой share (кроме отмены) не тупик — пробуе�
   assert.match(shareJSON, /if \(isShareAbortError\(err\)\) return 'cancelled';/);
   // После catch управление уходит вниз, к скачиванию, а не возвращается.
   const afterCatch = shareJSON.slice(shareJSON.indexOf("return 'cancelled';"));
-  assert.match(afterCatch, /const blob = new Blob/);
+  assert.match(afterCatch, /const url = URL\.createObjectURL\(file\);/);
 });
 
 test('копия собирается из базы, а не из состояния экрана', () => {

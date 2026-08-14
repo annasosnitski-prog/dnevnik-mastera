@@ -298,7 +298,7 @@ export function DetailScreen({
     const json = JSON.stringify(payload, null, 2);
     const safeName = `${client.name} ${client.surname}`.trim().replace(/[^\p{L}\p{N}]+/gu, '_') || 'client';
     const filename = `inka-${safeName}-${new Date().toISOString().slice(0, 10)}.json`;
-    await shareOrDownloadJSON(json, filename, `INKA — ${client.name}`);
+    await shareOrDownloadJSON([json], filename, `INKA — ${client.name}`);
   };
 
   // Export and import share one button — a small menu picks which, since
