@@ -102,3 +102,35 @@ test('у экспорта нет молчаливых исходов — каж�
 test('успех называет, сколько всего сохранено — пустую копию видно сразу', () => {
   assert.match(handleExport, /data\.clients\.length\} клиент\(ов\), \$\{data\.projects\.length\} проект\(ов\)/);
 });
+
+// ===== СКАЧИВАНИЕ В STANDALONE-РЕЖИМЕ (iOS, «с экрана Домой») =====
+// Мастер это поймала на телефоне: жмёт «Экспортировать», окно «Поделиться»
+// не появляется вовсе (значит nav.share выше даже не пробовался/не смог), и
+// вместо файла — белая вспышка и приложение снова на первом экране. Тот же
+// код в обычной вкладке Safari сработал штатно. Причина — WebKit не умеет
+// скачивать blob через синтетический клик по <a download> именно в
+// standalone-режиме и вместо этого перезапускает страницу.
+
+test('standalone-режим определяется до попытки скачивания', () => {
+  assert.match(share, /function isStandaloneDisplayMode\(\): boolean \{/);
+  assert.match(share, /navigator\.standalone/);
+  assert.match(share, /window\.matchMedia\('\(display-mode: standalone\)'\)\.matches/);
+});
+
+test('в standalone файл уходит через window.open, а не через клик по ссылке', () => {
+  // window.open открывает blob в отдельной вкладке системного браузера — это
+  // не навигация самой страницы приложения, поэтому её не перезапускает.
+  const fallback = shareJSON.slice(shareJSON.indexOf('const url = URL.createObjectURL(file);'));
+  assert.match(fallback, /if \(isStandaloneDisplayMode\(\)\) \{[\s\S]*?window\.open\(url, '_blank'\)/);
+});
+
+test('обычная вкладка браузера по-прежнему скачивает через <a download> — рабочий путь не тронут', () => {
+  const fallback = shareJSON.slice(shareJSON.indexOf('const url = URL.createObjectURL(file);'));
+  assert.match(fallback, /a\.download = filename;/);
+  assert.match(fallback, /document\.body\.appendChild\(a\);\s*a\.click\(\);/);
+});
+
+test('заблокированный window.open — явный отказ, а не молчаливая «удача»', () => {
+  const fallback = shareJSON.slice(shareJSON.indexOf('const url = URL.createObjectURL(file);'));
+  assert.match(fallback, /return opened \? 'downloaded' : 'failed';/);
+});
