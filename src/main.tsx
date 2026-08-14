@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import TattoDiary from './components/TattoDiary';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
+import './components/ui/LightJewelryTheme.css';
 
 // ─────────────── Обновление до свежего деплоя ───────────────
 // Приложение, установленное на домашний экран iPhone, может неделями жить в
