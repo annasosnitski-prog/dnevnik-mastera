@@ -62,16 +62,9 @@
     0 1px 1.5px rgba(59, 28, 12, 0.28);
 }
 
-/* The two static decorative strokes on the flat bronze plate become a
-   crescent/arrow at hub size. Remove both from the main hub only; the create
-   plate keeps them. The travelling diagonal shine is a separate SVG group. */
-:root[data-theme='light'] .nav-fab__main .natural-stone-icon path[stroke='#F0C181'],
-:root[data-theme='light'] .nav-fab__main .natural-stone-icon path[stroke='#4A2816'] {
-  display: none;
-}
-
 /* The diagonal shine has one animation source only: the SVG/SMIL sweep in
-   NaturalStoneIcon.tsx. Do not add a second CSS opacity/shape animation here. */
+   NaturalStoneIcon.tsx. Entry and exit visibility are controlled on that same
+   SVG rect, so no second CSS animation can create an arrow-shaped fragment. */
 .natural-stone-home-shine {
   pointer-events: none;
 }
