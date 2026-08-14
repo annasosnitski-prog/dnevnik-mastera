@@ -993,6 +993,48 @@ export default function TattoDiary() {
     request.onerror = () => setDbError('Не удалось загрузить проекты.');
   };
 
+  // Резервная копия читается ПРЯМО ИЗ БАЗЫ, а не из состояния экрана.
+  // Раньше экспорт складывал в файл то, что успело попасть в React: если
+  // хранилище не открылось или отдало ошибку, состояние оставалось пустым, и
+  // на выходе получался валидный с виду, но ПУСТОЙ бэкап — худшее, что может
+  // случиться с резервной копией, потому что мастер уверена, что копия есть.
+  // Отказ теперь честный: не смогли прочитать — не отдаём файл, а говорим об
+  // этом (см. handleExport в SettingsScreen).
+  //
+  // Клиенты выгружаются в «сыром» виде, как лежат в базе, вместе с легаси-
+  // массивами sessions/consultations: копия обязана повторять хранилище, а не
+  // то, как приложение его показывает (записи после Этапа 2 живут в проектах,
+  // см. lib/clientRecordsMigration.ts).
+  const readBackupPayload = (): Promise<{ clients: unknown[]; projects: unknown[]; contentEntries: unknown[] }> =>
+    new Promise((resolve, reject) => {
+      if (!db) {
+        reject(new Error('Хранилище недоступно'));
+        return;
+      }
+      const tx = openTx(['clients', 'projects', 'contentEntries'], db, 'readonly', 'Не удалось прочитать данные для копии.');
+      if (!tx) {
+        reject(new Error('Хранилище недоступно'));
+        return;
+      }
+      const out: { clients: unknown[]; projects: unknown[]; contentEntries: unknown[] } = {
+        clients: [],
+        projects: [],
+        contentEntries: [],
+      };
+      tx.objectStore('clients').getAll().onsuccess = (e) => {
+        out.clients = (e.target as IDBRequest).result || [];
+      };
+      tx.objectStore('projects').getAll().onsuccess = (e) => {
+        out.projects = (e.target as IDBRequest).result || [];
+      };
+      tx.objectStore('contentEntries').getAll().onsuccess = (e) => {
+        out.contentEntries = (e.target as IDBRequest).result || [];
+      };
+      tx.oncomplete = () => resolve(out);
+      tx.onerror = () => reject(tx.error ?? new Error('Не удалось прочитать данные'));
+      tx.onabort = () => reject(tx.error ?? new Error('Чтение прервано'));
+    });
+
   // Единственная точка записи в стор проектов — поэтому и единственное место,
   // где бампается lastMeaningfulActivityAt (M4): ищем предыдущую сохранённую
   // версию этого проекта и, если isMeaningfulProjectChange находит реальное
@@ -2865,10 +2907,8 @@ export default function TattoDiary() {
               prefs={prefs}
               onChange={setPrefs}
               onBack={() => setScreen('master')}
-              clients={clients}
               masterNotes={masterInfo.notes}
-              projects={projects}
-              contentEntries={contentEntries}
+              onReadBackupData={readBackupPayload}
               onImport={replaceAllData}
             />
           </Suspense>
