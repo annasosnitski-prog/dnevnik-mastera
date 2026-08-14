@@ -94,6 +94,11 @@ import {
 import { type SessionFormData } from '../lib/sessionSave';
 import { type ConsultationFormData } from '../lib/consultationSave';
 import { ensureBucketProject } from '../lib/autoProject';
+import {
+  LAST_BACKUP_STORAGE_KEY,
+  backupStatus,
+  type PersistenceState,
+} from '../lib/storageHealth';
 // Все мутации сессий/консультаций после Этапа 2 — записи живут на проектах,
 // вся чистая логика (цепочки, перевод в сессию, переезд между проектами) там.
 import {
@@ -919,6 +924,67 @@ export default function TattoDiary() {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
+
+  // ── Сохранность хранилища ────────────────────────────────────────────────
+  // Данные мастера живут только в этом браузере, поэтому один раз при
+  // запуске просим перевести хранилище в «постоянное»: браузер вправе
+  // вычистить данные сайта под нехватку места, при чистке «данных сайтов», а
+  // на iOS — просто потому, что приложение неделю не открывали. Никакого
+  // предупреждения при этом не будет, поэтому просим заранее.
+  //
+  // Запрос идемпотентный и дешёвый; отказ — не ошибка, просто показываем
+  // честный статус в Настройках (см. persistenceText в lib/storageHealth.ts).
+  const [persistence, setPersistence] = useState<PersistenceState>('unsupported');
+  const [storageEstimate, setStorageEstimate] = useState<{ usage?: number; quota?: number } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      const storage = navigator.storage as StorageManager | undefined;
+      if (!storage?.persist || !storage.persisted) return;
+      try {
+        const already = await storage.persisted();
+        const granted = already || (await storage.persist());
+        if (!cancelled) setPersistence(granted ? 'persisted' : 'not-persisted');
+      } catch {
+        // Браузер отказался отвечать — состояние остаётся «не знаем».
+      }
+      try {
+        if (storage.estimate) {
+          const estimate = await storage.estimate();
+          if (!cancelled) setStorageEstimate({ usage: estimate.usage, quota: estimate.quota });
+        }
+      } catch {
+        /* оценка объёма необязательна */
+      }
+    };
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Когда в последний раз мастер реально унесла копию из телефона. Пишется
+  // только на успешный экспорт (см. handleExport в SettingsScreen) — попытка
+  // и отмена копией не считаются.
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(LAST_BACKUP_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  // Плашку можно закрыть — но только до перезапуска: копия от этого не
+  // появляется, поэтому насовсем прятать напоминание нечем.
+  const [backupNoticeHidden, setBackupNoticeHidden] = useState(false);
+  const markBackupDone = () => {
+    const now = new Date().toISOString();
+    try {
+      localStorage.setItem(LAST_BACKUP_STORAGE_KEY, now);
+    } catch {
+      // Отметку не сохранили — не беда: копия сделана, напомним лишний раз.
+    }
+    setLastBackupAt(now);
+  };
 
   const connectDb = () => {
     initDBWithRetry()
@@ -2085,6 +2151,8 @@ export default function TattoDiary() {
   // Один снимок времени на все четыре ленты — раньше каждая читала часы сама
   // (todayISO()/Date.now()); поведение то же, но теперь оно детерминировано.
   const remindersNow = new Date();
+  // Возраст резервной копии — то же «состояние дневника», что и dbError выше.
+  const backupState = backupStatus(lastBackupAt, remindersNow);
   const visibleOverdue = filterVisibleReminders(overdueEntries(clients, remindersNow), overdueReminderKey, reminderState, remindersNow);
   const visibleHealing = filterVisibleReminders(healingReminders(clients, remindersNow), healingReminderKey, reminderState, remindersNow);
   const visibleSoon = filterVisibleReminders(upcomingSoonReminders(clients, remindersNow), soonReminderKey, reminderState, remindersNow);
@@ -2204,6 +2272,66 @@ export default function TattoDiary() {
           <button
             onClick={() => setDbError(null)}
             style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Копии давно не было. Намеренно НЕ карточка в «Напоминаниях»: те про
+          работу с клиентами, а это про состояние самого дневника — как и
+          плашка хранилища выше, и по той же причине видна на всех экранах.
+          Прячется, пока открыта шторка, чтобы не спорить с формой, и пока
+          показывается ошибка хранилища — там сообщение важнее.
+          Закрывается на сессию: настойчивость здесь уместнее вежливости,
+          но не до степени, когда её нечем убрать. */}
+      {!dbError && !sheetOpen && !backupNoticeHidden && backupState.kind !== 'fresh' && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top) + 12px)',
+            left: 16,
+            right: 16,
+            padding: '10px 14px',
+            borderRadius: 3,
+            border: '1px solid rgba(var(--gold-rgb),0.45)',
+            // Непрозрачная подложка, а не золотая плёнка: плашка ложится
+            // поверх логотипа и бейджа календаря, и сквозь полупрозрачный фон
+            // её собственный текст было не прочитать.
+            background: COLORS.sheet,
+            boxShadow: '0 10px 28px rgba(0,0,0,0.45)',
+            display: 'flex',
+            gap: 10,
+            alignItems: 'center',
+            zIndex: 49,
+          }}
+        >
+          <span style={{ flex: 1, fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic' }}>
+            {backupState.kind === 'never'
+              ? 'Копии дневника ещё нет — данные есть только в этом телефоне'
+              : `Копии нет ${backupState.days} дн. — данные есть только в этом телефоне`}
+          </span>
+          <button
+            onClick={() => {
+              setBackupNoticeHidden(true);
+              setScreen('settings');
+            }}
+            style={{
+              background: 'none',
+              border: '1px solid rgba(var(--gold-rgb),0.5)',
+              borderRadius: 2,
+              padding: '2px 8px',
+              color: COLORS.gold,
+              fontSize: fs(13),
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            Сделать
+          </button>
+          <button
+            onClick={() => setBackupNoticeHidden(true)}
+            style={{ background: 'none', border: 'none', color: COLORS.gold, cursor: 'pointer', flexShrink: 0 }}
           >
             ✕
           </button>
@@ -2909,6 +3037,10 @@ export default function TattoDiary() {
               onBack={() => setScreen('master')}
               masterNotes={masterInfo.notes}
               onReadBackupData={readBackupPayload}
+              persistence={persistence}
+              storageEstimate={storageEstimate}
+              lastBackupAt={lastBackupAt}
+              onBackupDone={markBackupDone}
               onImport={replaceAllData}
             />
           </Suspense>
