@@ -112,6 +112,10 @@ test('home plate shine is one clipped diagonal timeline with hidden edge phases'
 });
 
 test('light closed hub removes the legacy rotating conic arrow layer', () => {
+  // NavFabReveal intentionally still contains this old brushed-gold overlay
+  // for the dark jewellery skin. The light material layer must kill the whole
+  // pseudo-element, not merely pause its rotation, because the asymmetric
+  // conic-gradient is arrow-shaped even while static.
   assert.match(navRevealCss, /\.nav-fab:not\(\.nav-fab--open\) \.nav-fab__main--gold::after/);
   assert.match(navRevealCss, /conic-gradient/);
   assert.match(navRevealCss, /nav-fab-brushed-gold/);
