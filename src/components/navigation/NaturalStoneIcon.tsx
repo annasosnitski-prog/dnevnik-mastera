@@ -255,7 +255,7 @@ export function NaturalStoneIcon({
                       attributeName="x"
                       values="78;78;-34;-34"
                       keyTimes="0;0.55;0.8;1"
-                      dur="3.8s"
+                      dur="7.6s"
                       calcMode="spline"
                       keySplines="0 0 1 1;0.18 0.82 0.2 1;0 0 1 1"
                       repeatCount="indefinite"
