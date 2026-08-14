@@ -31,6 +31,7 @@
     "src/lib/errorLog.ts",
     "src/lib/storageMessages.ts",
     "src/lib/chatLink.ts",
+    "src/lib/backupSerialize.ts",
     "src/lib/clientRecordsMigration.ts",
     "src/lib/calendarSync.ts",
     "src/lib/normalize.ts",

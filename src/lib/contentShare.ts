@@ -134,12 +134,19 @@ export type ShareJSONResult = 'shared' | 'downloaded' | 'cancelled' | 'failed';
 // (files, not just text, so it can be AirDropped/sent as an attachment),
 // falling back to a plain browser download otherwise — shared by the full
 // backup export (Настройки) and the single-client export (Инфо tab).
+//
+// Принимает части, а не готовую строку: полный бэкап собирает их через
+// buildBackupBlobParts (backupSerialize.ts), чтобы фото не склеивались в
+// одну гигантскую JS-строку при stringify (см. комментарий там). File
+// строится один раз и переиспользуется под скачивание — раньше вторым шагом
+// собирался ещё один Blob из той же строки, что на большом бэкапе удваивало
+// пиковую память без всякой пользы (File уже и есть Blob).
 export async function shareOrDownloadJSON(
-  json: string,
+  parts: BlobPart[],
   filename: string,
   shareTitle: string,
 ): Promise<ShareJSONResult> {
-  const file = new File([json], filename, { type: 'application/json' });
+  const file = new File(parts, filename, { type: 'application/json' });
   const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
   if (nav.canShare && nav.canShare({ files: [file] })) {
     try {
@@ -153,8 +160,7 @@ export async function shareOrDownloadJSON(
     }
   }
 
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(file);
   try {
     const a = document.createElement('a');
     a.href = url;

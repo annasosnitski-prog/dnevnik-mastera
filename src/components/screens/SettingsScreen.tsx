@@ -11,6 +11,7 @@ import {
   type MasterInfoRestore,
 } from '../../lib/masterInfoStore';
 import { shareOrDownloadJSON } from '../../lib/contentShare';
+import { buildBackupBlobParts } from '../../lib/backupSerialize';
 import { copyTextToClipboard } from '../../lib/clipboard';
 import { formatErrorLog, errorSourceLabel, type DiaryErrorEntry } from '../../lib/errorLog';
 import {
@@ -189,9 +190,14 @@ export function SettingsScreen({
     // мастеру достаточно прислать файл. На импорте он игнорируется — это
     // диагностика, а не данные дневника.
     const payload = { version: 5, exportedAt: new Date().toISOString(), ...data, masterInfo: masterCard, errorLog };
-    const json = JSON.stringify(payload, null, 2);
+    // Фото (session.photos/contentEntry.photos/задачи кабинета) вынесены из
+    // payload отдельными частями Blob — иначе JSON.stringify целиком и
+    // следующий File/Blob над той же строкой удваивали пиковую память и
+    // роняли вкладку на телефонах с большой библиотекой фото (см.
+    // buildBackupBlobParts).
+    const parts = buildBackupBlobParts(payload);
     const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    const result = await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');
+    const result = await shareOrDownloadJSON(parts, filename, 'INKA — резервная копия');
     if (result === 'cancelled') {
       setExportState({ kind: 'error', text: 'Копия не сохранена — окно «Поделиться» закрыли. Данные целы, попробуйте ещё раз.' });
       return;
