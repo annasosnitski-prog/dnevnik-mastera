@@ -5,6 +5,8 @@ import type { Project } from '../../domain/project';
 import type { ClientNote } from '../../domain/task';
 import { normalizeClient, normalizeClientNote, normalizeProject } from '../../lib/normalize';
 import { shareOrDownloadJSON } from '../../lib/contentShare';
+import { copyTextToClipboard } from '../../lib/clipboard';
+import { formatErrorLog, errorSourceLabel, type DiaryErrorEntry } from '../../lib/errorLog';
 import {
   backupStatus,
   backupStatusText,
@@ -78,6 +80,8 @@ export function SettingsScreen({
   storageEstimate,
   lastBackupAt,
   onBackupDone,
+  errorLog,
+  onClearErrorLog,
   onImport,
 }: {
   theme: Theme;
@@ -103,6 +107,10 @@ export function SettingsScreen({
   // Вызывается ТОЛЬКО когда копия реально уехала из телефона: отмена и сбой
   // копией не считаются, иначе напоминание замолчало бы, ничего не защитив.
   onBackupDone: () => void;
+  // Журнал сбоев — см. lib/errorLog.ts. Нужен затем, что консоль браузера на
+  // телефоне не открыть: без него любой сбой не оставлял следа вообще.
+  errorLog: DiaryErrorEntry[];
+  onClearErrorLog: () => void;
   // Импорт полного бэкапа: clients + опционально projects/contentEntries/masterNotes.
   onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[]; masterNotes?: ClientNote[] }) => void;
   // Собирает старые сессии/консультации (без projectId) в проекты-корзины
@@ -125,6 +133,7 @@ export function SettingsScreen({
     masterNotes?: ClientNote[];
   } | null>(null);
 
+  const [logCopied, setLogCopied] = useState<string | null>(null);
   const backup = backupStatus(lastBackupAt, new Date());
   const storageUsedText = formatMegabytes(storageEstimate?.usage);
 
@@ -154,7 +163,10 @@ export function SettingsScreen({
     // информационная метка. Backup version 1/2/3 продолжают читаться.
     // masterNotes живут в localStorage, а не в IndexedDB, поэтому берутся
     // из props — на них сбой хранилища не влияет.
-    const payload = { version: 4, exportedAt: new Date().toISOString(), ...data, masterNotes };
+    // Журнал сбоев уезжает вместе с копией: чтобы разобрать «у меня упало»,
+    // мастеру достаточно прислать файл. На импорте он игнорируется — это
+    // диагностика, а не данные дневника.
+    const payload = { version: 4, exportedAt: new Date().toISOString(), ...data, masterNotes, errorLog };
     const json = JSON.stringify(payload, null, 2);
     const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
     const result = await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');
@@ -416,6 +428,47 @@ export function SettingsScreen({
             ))}
           </div>
         </div>
+
+        {/* Журнал сбоев. Показывается, только когда есть что показывать —
+            пустой раздел на экране настроек лишь пугал бы. */}
+        {errorLog.length > 0 && (
+          <div style={rowStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={labelStyle}>Последние сбои · {errorLog.length}</div>
+              <span onClick={onClearErrorLog} role="button" style={{ fontSize: fs(12), color: COLORS.textFaint, cursor: 'pointer' }}>
+                Очистить
+              </span>
+            </div>
+            <div style={{ fontSize: fs(12), color: 'var(--text-soft)', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 10 }}>
+              Это записи для разбора: они уезжают в резервную копию, так что файл можно просто переслать.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+              {errorLog.slice(0, 5).map((e, i) => (
+                <div key={`${e.at}-${i}`} style={{ fontSize: fs(11), color: COLORS.textFaint, lineHeight: 1.45 }}>
+                  <span style={{ color: COLORS.textGhost }}>
+                    {new Date(e.at).toLocaleString('ru-RU')} · {errorSourceLabel(e.source)}
+                    {e.action ? ` · ${e.action}` : ''}
+                  </span>
+                  <br />
+                  {e.message}
+                </div>
+              ))}
+            </div>
+            <div
+              onClick={async () => {
+                const ok = await copyTextToClipboard(formatErrorLog(errorLog));
+                setLogCopied(ok ? 'Журнал скопирован' : 'Не удалось скопировать');
+                setTimeout(() => setLogCopied(null), 2400);
+              }}
+              style={actionButtonStyle}
+            >
+              Скопировать журнал
+            </div>
+            {logCopied && (
+              <div style={{ marginTop: 8, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>{logCopied}</div>
+            )}
+          </div>
+        )}
 
         {/* Сохранность — состояние самого хранилища. Стоит ПЕРЕД резервной
             копией, потому что отвечает на первый вопрос: могут ли данные

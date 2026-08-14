@@ -68,7 +68,10 @@ test('прежнего сообщения про переполнение localS
   assert.doesNotMatch(app, /слишком много данных \(обычно из-за фото\)/);
 });
 
-test('сбой записи виден мастеру, а не только в консоли', () => {
-  assert.match(persistEffect, /setDbError\('Не удалось сохранить личный кабинет\.'\)/);
-  assert.match(loadEffect, /setDbError\('Не удалось загрузить личный кабинет\.'\)/);
+test('сбой записи виден мастеру и попадает в журнал', () => {
+  // Тексты больше не пишутся на месте: они собираются из состояния и
+  // названия операции (см. lib/storageMessages.ts), а та же пара уходит в
+  // журнал сбоев.
+  assert.match(persistEffect, /reportStorageFailure\('write', STORAGE_ACTIONS\.saveMasterInfo\)/);
+  assert.match(loadEffect, /reportStorageFailure\('read', STORAGE_ACTIONS\.loadMasterInfo\)/);
 });

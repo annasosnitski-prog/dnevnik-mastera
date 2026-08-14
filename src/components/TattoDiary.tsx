@@ -95,6 +95,20 @@ import { type SessionFormData } from '../lib/sessionSave';
 import { type ConsultationFormData } from '../lib/consultationSave';
 import { ensureBucketProject } from '../lib/autoProject';
 import {
+  ERROR_LOG_KEY,
+  appendErrorEntry,
+  describeError,
+  parseErrorLog,
+  type DiaryErrorEntry,
+  type DiaryErrorSource,
+} from '../lib/errorLog';
+import {
+  STORAGE_ACTIONS,
+  storageFailureMessage,
+  storageFailureNeedsReconnect,
+  type StorageFailureKind,
+} from '../lib/storageMessages';
+import {
   MASTER_INFO_STORE,
   MASTER_INFO_RECORD_ID,
   MASTER_INFO_LOCAL_KEY,
@@ -587,6 +601,77 @@ export default function TattoDiary() {
   const [contentIngestJobs, setContentIngestJobs] = useState<ContentIngestJobRecord[]>([]);
   const [db, setDb] = useState<IDBDatabase | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
+  // Какого рода сбой показан — от этого зависит, предлагать ли «Повторить»
+  // (см. storageFailureNeedsReconnect в lib/storageMessages.ts).
+  const [dbErrorKind, setDbErrorKind] = useState<StorageFailureKind | null>(null);
+
+  // ── Журнал сбоев ─────────────────────────────────────────────────────────
+  // Консоль браузера на телефоне не открыть, поэтому раньше сбой не оставлял
+  // следа вообще и разобрать «у меня что-то упало» было нечем. Журнал живёт
+  // в localStorage осознанно: он обязан работать именно тогда, когда база
+  // недоступна. Только текст, без данных клиентов и без фото.
+  const [errorLog, setErrorLog] = useState<DiaryErrorEntry[]>(() => {
+    try {
+      return parseErrorLog(localStorage.getItem(ERROR_LOG_KEY));
+    } catch {
+      return [];
+    }
+  });
+  const logError = (source: DiaryErrorSource, action: string, error: unknown) => {
+    setErrorLog((prev) => {
+      const next = appendErrorEntry(prev, {
+        at: new Date().toISOString(),
+        source,
+        action,
+        message: describeError(error),
+      });
+      try {
+        localStorage.setItem(ERROR_LOG_KEY, JSON.stringify(next));
+      } catch {
+        // Журнал — вспомогательный: не смогли записать, показ всё равно идёт.
+      }
+      return next;
+    });
+  };
+  const clearErrorLog = () => {
+    setErrorLog([]);
+    try {
+      localStorage.removeItem(ERROR_LOG_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Единственная точка, где появляется сообщение о сбое хранилища. Раньше
+  // здесь было двадцать разных формулировок про одно и то же — теперь текст
+  // собирается из состояния и названия операции, и та же пара уходит в
+  // журнал.
+  const reportStorageFailure = (kind: StorageFailureKind, action: string, error?: unknown) => {
+    setDbErrorKind(kind);
+    setDbError(storageFailureMessage(kind, action));
+    logError('storage', action, error ?? kind);
+  };
+  const clearStorageFailure = () => {
+    setDbError(null);
+    setDbErrorKind(null);
+  };
+
+  // Падения, до которых не дотягивается ни один try/catch: ошибка в рендере,
+  // сорвавшийся промис. Мастеру они видны как «приложение странно себя ведёт»,
+  // а в журнале останутся словами.
+  useEffect(() => {
+    // Без названия операции: у этих двух источников подпись уже всё говорит
+    // («сбой приложения», «фоновая задача»), и повторять её значит писать
+    // «фоновая задача · фоновая задача».
+    const onError = (event: ErrorEvent) => logError('crash', '', event.error ?? event.message);
+    const onRejection = (event: PromiseRejectionEvent) => logError('promise', '', event.reason);
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+  }, []);
   const [theme, setTheme] = useState<Theme>(readInitialTheme);
 
   useEffect(() => {
@@ -638,7 +723,7 @@ export default function TattoDiary() {
 
   useEffect(() => {
     if (!db || masterInfoLoaded) return;
-    const tx = openTx(MASTER_INFO_STORE, db, 'readonly', 'Не удалось загрузить личный кабинет.');
+    const tx = openTx(MASTER_INFO_STORE, db, 'readonly', STORAGE_ACTIONS.loadMasterInfo);
     if (!tx) return;
     const request = tx.objectStore(MASTER_INFO_STORE).get(MASTER_INFO_RECORD_ID);
     request.onsuccess = () => {
@@ -654,21 +739,21 @@ export default function TattoDiary() {
         return;
       }
       if (needsMigration) {
-        const writeTx = openWriteTx(MASTER_INFO_STORE, db, 'Не удалось перенести личный кабинет в хранилище.');
+        const writeTx = openWriteTx(MASTER_INFO_STORE, db, STORAGE_ACTIONS.migrateMasterInfo);
         if (!writeTx) return;
         writeTx.objectStore(MASTER_INFO_STORE).put({ ...value, id: MASTER_INFO_RECORD_ID });
-        writeTx.onerror = () => setDbError('Не удалось перенести личный кабинет в хранилище.');
+        writeTx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.migrateMasterInfo);
       }
     };
-    request.onerror = () => setDbError('Не удалось загрузить личный кабинет.');
+    request.onerror = () => reportStorageFailure('read', STORAGE_ACTIONS.loadMasterInfo);
   }, [db, masterInfoLoaded]);
 
   useEffect(() => {
     if (!db || !masterInfoLoaded) return;
-    const tx = openWriteTx(MASTER_INFO_STORE, db, 'Хранилище недоступно — личный кабинет не сохранён.');
+    const tx = openWriteTx(MASTER_INFO_STORE, db, STORAGE_ACTIONS.saveMasterInfo);
     if (!tx) return;
     tx.objectStore(MASTER_INFO_STORE).put({ ...masterInfo, id: MASTER_INFO_RECORD_ID });
-    tx.onerror = () => setDbError('Не удалось сохранить личный кабинет.');
+    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.saveMasterInfo);
   }, [db, masterInfoLoaded, masterInfo]);
   // Старая копия в localStorage НЕ обновляется и не удаляется: она остаётся
   // страховкой на случай, если переезд куда-то положил данные неверно —
@@ -996,7 +1081,7 @@ export default function TattoDiary() {
   const connectDb = () => {
     initDBWithRetry()
       .then((database) => {
-        setDbError(null);
+        clearStorageFailure();
         setDb(database);
         // Браузер может закрыть соединение сам (нехватка памяти — вероятнее
         // всего на больших фото), а другая вкладка — начать обновление схемы.
@@ -1005,12 +1090,12 @@ export default function TattoDiary() {
         // сразу, как только соединение исчезло.
         database.onclose = () => {
           setDb(null);
-          setDbError('Хранилище закрылось. Нажмите «Повторить», чтобы переподключиться.');
+          reportStorageFailure('lost', STORAGE_ACTIONS.open);
         };
         database.onversionchange = () => {
           database.close();
           setDb(null);
-          setDbError('Хранилище обновилось в другой вкладке. Нажмите «Повторить».');
+          reportStorageFailure('conflicting', STORAGE_ACTIONS.open);
         };
         loadClients(database);
         loadProjects(database);
@@ -1019,7 +1104,7 @@ export default function TattoDiary() {
       })
       .catch((err) => {
         console.error('IndexedDB init failed:', err);
-        setDbError('Хранилище недоступно. Если открыт режим приватного просмотра — переключитесь на обычную вкладку, иначе попробуйте ещё раз.');
+        reportStorageFailure('lost', STORAGE_ACTIONS.open);
       });
   };
 
@@ -1031,39 +1116,41 @@ export default function TattoDiary() {
   // закрылось (браузер может закрыть его сам под давлением памяти — вероятнее
   // при больших фото, см. downsizeForStorage). Раньше это исключение никем не
   // ловилось и роняло всё приложение вместо понятной ошибки с «Повторить».
-  const openTx = (storeNames: string | string[], database: IDBDatabase, mode: IDBTransactionMode, failMessage: string): IDBTransaction | null => {
+  // Соединение уже закрыто — это всегда «хранилище отключилось», независимо
+  // от того, какую операцию пытались начать; операция нужна только чтобы
+  // назвать её в журнале.
+  const openTx = (storeNames: string | string[], database: IDBDatabase, mode: IDBTransactionMode, action: string): IDBTransaction | null => {
     try {
       return database.transaction(storeNames, mode);
     } catch (err) {
-      console.error('IndexedDB transaction failed to start:', err);
       setDb(null);
-      setDbError(failMessage);
+      reportStorageFailure('lost', action, err);
       return null;
     }
   };
-  const openWriteTx = (storeNames: string | string[], database: IDBDatabase, failMessage: string): IDBTransaction | null =>
-    openTx(storeNames, database, 'readwrite', failMessage);
+  const openWriteTx = (storeNames: string | string[], database: IDBDatabase, action: string): IDBTransaction | null =>
+    openTx(storeNames, database, 'readwrite', action);
 
   const loadClients = (database: IDBDatabase) => {
-    const tx = openTx('clients', database, 'readonly', 'Не удалось загрузить клиентов.');
+    const tx = openTx('clients', database, 'readonly', STORAGE_ACTIONS.loadClients);
     if (!tx) return;
     const request = tx.objectStore('clients').getAll();
     request.onsuccess = () => {
       setStoredClients((request.result || []).map(normalizeClient));
       setClientsLoaded(true);
     };
-    request.onerror = () => setDbError('Не удалось загрузить клиентов.');
+    request.onerror = () => reportStorageFailure('read', STORAGE_ACTIONS.loadClients);
   };
 
   const loadProjects = (database: IDBDatabase) => {
-    const tx = openTx('projects', database, 'readonly', 'Не удалось загрузить проекты.');
+    const tx = openTx('projects', database, 'readonly', STORAGE_ACTIONS.loadProjects);
     if (!tx) return;
     const request = tx.objectStore('projects').getAll();
     request.onsuccess = () => {
       setProjects((request.result || []).map(normalizeProject));
       setProjectsLoaded(true);
     };
-    request.onerror = () => setDbError('Не удалось загрузить проекты.');
+    request.onerror = () => reportStorageFailure('read', STORAGE_ACTIONS.loadProjects);
   };
 
   // Резервная копия читается ПРЯМО ИЗ БАЗЫ, а не из состояния экрана.
@@ -1084,7 +1171,7 @@ export default function TattoDiary() {
         reject(new Error('Хранилище недоступно'));
         return;
       }
-      const tx = openTx(['clients', 'projects', 'contentEntries'], db, 'readonly', 'Не удалось прочитать данные для копии.');
+      const tx = openTx(['clients', 'projects', 'contentEntries'], db, 'readonly', STORAGE_ACTIONS.readBackup);
       if (!tx) {
         reject(new Error('Хранилище недоступно'));
         return;
@@ -1163,13 +1250,13 @@ export default function TattoDiary() {
   // связанную пару (запись + обратная ссылка цепочки, запись + автопроект).
   const saveProjects = (nextProjects: Project[]) => {
     if (!db) {
-      setDbError('Хранилище недоступно — изменения не сохранены.');
+      reportStorageFailure('lost', STORAGE_ACTIONS.saveClient);
       return;
     }
     const beforeById = new Map(projects.map((p) => [p.id, p]));
     const changed = nextProjects.filter((p) => beforeById.get(p.id) !== p);
     if (changed.length === 0) return;
-    const tx = openWriteTx('projects', db, 'Хранилище недоступно — изменения не сохранены.');
+    const tx = openWriteTx('projects', db, STORAGE_ACTIONS.saveProject);
     if (!tx) return;
     const store = tx.objectStore('projects');
     // Бамп «последнего движения» — то же правило, что было в saveProject:
@@ -1189,7 +1276,7 @@ export default function TattoDiary() {
       const writtenById = new Map(written.map((p) => [p.id, p]));
       syncCalendarAfterProjectsSave(projects, nextProjects.map((p) => writtenById.get(p.id) ?? p));
     };
-    tx.onerror = () => setDbError('Не удалось сохранить изменения.');
+    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.saveClient);
   };
 
   // Записать один проект — та же запись, просто вход поудобнее для мест, где
@@ -1201,10 +1288,10 @@ export default function TattoDiary() {
 
   const deleteProject = (id: string) => {
     if (!db) {
-      setDbError('Хранилище недоступно — проект не удалён.');
+      reportStorageFailure('lost', STORAGE_ACTIONS.deleteProject);
       return;
     }
-    const tx = openWriteTx('projects', db, 'Хранилище недоступно — проект не удалён.');
+    const tx = openWriteTx('projects', db, STORAGE_ACTIONS.deleteProject);
     if (!tx) return;
     tx.objectStore('projects').delete(id);
     tx.oncomplete = () => {
@@ -1212,7 +1299,7 @@ export default function TattoDiary() {
       setEditProject(null);
       setShowNewProjectForm(false);
     };
-    tx.onerror = () => setDbError('Не удалось удалить проект.');
+    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.deleteProject);
   };
 
   // ── Перенос записей клиента на проекты (Этап 2) ──
@@ -1244,7 +1331,7 @@ export default function TattoDiary() {
       return;
     }
     const changed = new Set(result.changedProjectIds);
-    const tx = openWriteTx('projects', db, 'Не удалось перенести записи клиентов в проекты.');
+    const tx = openWriteTx('projects', db, STORAGE_ACTIONS.migrateRecords);
     if (!tx) return;
     const store = tx.objectStore('projects');
     for (const project of result.projects) {
@@ -1254,16 +1341,16 @@ export default function TattoDiary() {
       recordsMigrationRanRef.current = true;
       loadProjects(db);
     };
-    tx.onerror = () => setDbError('Не удалось перенести записи клиентов в проекты.');
+    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.migrateRecords);
   }, [db, clientsLoaded, projectsLoaded, storedClients, projects]);
 
   const loadContentEntries = (database: IDBDatabase) => {
-    const tx = openTx('contentEntries', database, 'readonly', 'Не удалось загрузить черновики контента.');
+    const tx = openTx('contentEntries', database, 'readonly', STORAGE_ACTIONS.loadContent);
     if (!tx) return;
     const request = tx.objectStore('contentEntries').getAll();
     request.onsuccess = () =>
       setContentEntries((request.result || []).map((entry) => normalizeContentEntry(entry)).map((entry) => normalizeContentEntryLink(entry)));
-    request.onerror = () => setDbError('Не удалось загрузить черновики контента.');
+    request.onerror = () => reportStorageFailure('read', STORAGE_ACTIONS.loadContent);
   };
 
   // contentJobQueue's reads/writes throw ContentJobDbUnavailableError when
@@ -1271,10 +1358,10 @@ export default function TattoDiary() {
   // openTx does for every other store: drop `db` so the (now shell-wide)
   // banner's «Повторить» shows up, instead of a dead-end message that leaves
   // `db` looking fine while every next attempt fails the same way.
-  const handleContentJobDbError = (err: unknown, failMessage: string): boolean => {
+  const handleContentJobDbError = (err: unknown, action: string): boolean => {
     if (!(err instanceof ContentJobDbUnavailableError)) return false;
     setDb(null);
-    setDbError(failMessage);
+    reportStorageFailure('lost', action, err);
     return true;
   };
 
@@ -1282,8 +1369,8 @@ export default function TattoDiary() {
     loadContentIngestJobs(database)
       .then(setContentIngestJobs)
       .catch((err) => {
-        if (!handleContentJobDbError(err, 'Хранилище недоступно — фоновые задачи не обновлены.')) {
-          setDbError('Не удалось загрузить фоновые задачи POSTiNKA.');
+        if (!handleContentJobDbError(err, STORAGE_ACTIONS.loadJobs)) {
+          reportStorageFailure('read', STORAGE_ACTIONS.loadJobs);
         }
       });
   };
@@ -1293,7 +1380,7 @@ export default function TattoDiary() {
     try {
       await putContentIngestJob(db, record);
     } catch (err) {
-      if (handleContentJobDbError(err, 'Хранилище недоступно — задача не сохранена.')) {
+      if (handleContentJobDbError(err, STORAGE_ACTIONS.saveContent)) {
         throw new ContentSyncError('Хранилище недоступно — задача не сохранена.');
       }
       throw err;
@@ -1312,8 +1399,8 @@ export default function TattoDiary() {
       reloadContentIngestJobs(db);
     } catch (err) {
       console.error('Failed to delete content ingest job:', err);
-      if (!handleContentJobDbError(err, 'Хранилище недоступно — задача не удалена.')) {
-        setDbError('Не удалось удалить задачу POSTiNKA.');
+      if (!handleContentJobDbError(err, STORAGE_ACTIONS.deleteJob)) {
+        reportStorageFailure('write', STORAGE_ACTIONS.deleteJob);
       }
     }
   };
@@ -1323,16 +1410,16 @@ export default function TattoDiary() {
   // (перегенерация текста), иначе создаётся новая.
   const saveContentEntry = (entry: ContentEntry) => {
     if (!db) {
-      setDbError('Хранилище недоступно — изменения не сохранены.');
+      reportStorageFailure('lost', STORAGE_ACTIONS.saveClient);
       return;
     }
     setContentEntries((current) => [entry, ...current.filter((candidate) => candidate.id !== entry.id)]);
-    const tx = openWriteTx('contentEntries', db, 'Хранилище недоступно — изменения не сохранены.');
+    const tx = openWriteTx('contentEntries', db, STORAGE_ACTIONS.saveContent);
     if (!tx) return;
     tx.objectStore('contentEntries').put(entry);
     tx.oncomplete = () => loadContentEntries(db);
     tx.onerror = () => {
-      setDbError('Не удалось сохранить черновик контента.');
+      reportStorageFailure('write', STORAGE_ACTIONS.saveContent);
       loadContentEntries(db);
     };
   };
@@ -1344,7 +1431,7 @@ export default function TattoDiary() {
         loadContentEntries(db);
         reloadContentIngestJobs(db);
       })
-      .catch(() => setDbError('Не удалось удалить запись контента.'));
+      .catch(() => reportStorageFailure('write', STORAGE_ACTIONS.deleteContent));
   };
 
   useEffect(() => {
@@ -1371,7 +1458,7 @@ export default function TattoDiary() {
   // ниже), а здесь остаётся дифф остальной карточки.
   const saveClient = (client: Client) => {
     if (!db) {
-      setDbError('Хранилище недоступно — изменения не сохранены.');
+      reportStorageFailure('lost', STORAGE_ACTIONS.saveClient);
       return;
     }
     const stored = storedClients.find((c) => c.id === client.id);
@@ -1381,7 +1468,7 @@ export default function TattoDiary() {
       consultations: stored?.consultations ?? [],
     };
     const prevClient = clients.find((c) => c.id === client.id) ?? null;
-    const tx = openWriteTx('clients', db, 'Хранилище недоступно — изменения не сохранены.');
+    const tx = openWriteTx('clients', db, STORAGE_ACTIONS.saveClient);
     if (!tx) return;
     tx.objectStore('clients').put(record);
     tx.oncomplete = () => {
@@ -1390,18 +1477,18 @@ export default function TattoDiary() {
       // сравнивал одинаковые по природе снимки.
       diffAndSync(prevClient, client, calendarSync);
     };
-    tx.onerror = () => setDbError('Не удалось сохранить изменения.');
+    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.saveClient);
   };
 
   const deleteClient = (id: string) => {
     if (!db) {
-      setDbError('Хранилище недоступно — клиент не удалён.');
+      reportStorageFailure('lost', STORAGE_ACTIONS.deleteClient);
       return;
     }
     // Удаление клиента убирает из календаря и все его синхронизированные
     // записи (diffAndSync со "старое есть, нового нет" шлёт delete).
     const prevClient = clients.find((c) => c.id === id) ?? null;
-    const tx = openWriteTx('clients', db, 'Хранилище недоступно — клиент не удалён.');
+    const tx = openWriteTx('clients', db, STORAGE_ACTIONS.deleteClient);
     if (!tx) return;
     tx.objectStore('clients').delete(id);
     tx.oncomplete = () => {
@@ -1411,7 +1498,7 @@ export default function TattoDiary() {
       setSelectedId(null);
       setShowEditClientForm(false);
     };
-    tx.onerror = () => setDbError('Не удалось удалить клиента.');
+    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.deleteClient);
   };
 
   // Импорт полного бэкапа: clients + опционально projects/contentEntries и
@@ -1424,14 +1511,14 @@ export default function TattoDiary() {
     masterNotes?: ClientNote[];
   }) => {
     if (!db) {
-      setDbError('Хранилище недоступно — импорт не выполнен.');
+      reportStorageFailure('lost', STORAGE_ACTIONS.importData);
       return;
     }
     const importedMasterNotes = bundle.masterNotes;
     const stores = ['clients'];
     if (bundle.projects) stores.push('projects');
     if (bundle.contentEntries) stores.push('contentEntries', CONTENT_INGEST_JOB_STORE);
-    const tx = openWriteTx(stores, db, 'Хранилище недоступно — импорт не выполнен.');
+    const tx = openWriteTx(stores, db, STORAGE_ACTIONS.importData);
     if (!tx) return;
     const cs = tx.objectStore('clients');
     cs.clear();
@@ -1458,7 +1545,7 @@ export default function TattoDiary() {
         setMasterInfo((prev) => ({ ...prev, notes: importedMasterNotes }));
       }
     };
-    tx.onerror = () => setDbError('Не удалось импортировать данные.');
+    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.importData);
   };
 
   // Adds/updates just the given clients (put, no clear) — the counterpart to
@@ -1466,15 +1553,15 @@ export default function TattoDiary() {
   // already stored instead of replacing the whole list.
   const importClients = (newClients: Client[]) => {
     if (!db) {
-      setDbError('Хранилище недоступно — импорт не выполнен.');
+      reportStorageFailure('lost', STORAGE_ACTIONS.importData);
       return;
     }
-    const tx = openWriteTx('clients', db, 'Хранилище недоступно — импорт не выполнен.');
+    const tx = openWriteTx('clients', db, STORAGE_ACTIONS.importData);
     if (!tx) return;
     const store = tx.objectStore('clients');
     newClients.forEach((c) => store.put(c));
     tx.oncomplete = () => loadClients(db);
-    tx.onerror = () => setDbError('Не удалось импортировать данные.');
+    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.importData);
   };
 
   const selectedClient = clients.find((c) => c.id === selectedId) || null;
@@ -2259,7 +2346,10 @@ export default function TattoDiary() {
           }}
         >
           <span style={{ flex: 1, fontSize: fs(15), color: '#C99', fontStyle: 'italic' }}>{dbError}</span>
-          {!db && (
+          {/* «Повторить» чинит только потерю связи. При отказе записи
+              переподключаться не к чему — там мастер повторяет само
+              действие, и лишняя кнопка сбивала бы с толку. */}
+          {!db && dbErrorKind !== null && storageFailureNeedsReconnect(dbErrorKind) && (
             <button
               onClick={connectDb}
               style={{
@@ -2277,7 +2367,7 @@ export default function TattoDiary() {
             </button>
           )}
           <button
-            onClick={() => setDbError(null)}
+            onClick={clearStorageFailure}
             style={{ background: 'none', border: 'none', color: '#C99', cursor: 'pointer', flexShrink: 0 }}
           >
             ✕
@@ -3048,6 +3138,8 @@ export default function TattoDiary() {
               storageEstimate={storageEstimate}
               lastBackupAt={lastBackupAt}
               onBackupDone={markBackupDone}
+              errorLog={errorLog}
+              onClearErrorLog={clearErrorLog}
               onImport={replaceAllData}
             />
           </Suspense>
