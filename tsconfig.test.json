@@ -27,6 +27,8 @@
     "src/lib/autoProject.ts",
     "src/lib/projectRecordSave.ts",
     "src/lib/storageHealth.ts",
+    "src/lib/masterInfoStore.ts",
+    "src/lib/chatLink.ts",
     "src/lib/clientRecordsMigration.ts",
     "src/lib/calendarSync.ts",
     "src/lib/normalize.ts",

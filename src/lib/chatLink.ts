@@ -1,6 +1,8 @@
 // Вынесено из TattoDiary.tsx (PR 3 рефакторинга). Логика не менялась —
 // только перенос.
-import { type ChatPlatform, CHAT_PLATFORM_DOMAINS } from '../domain/client';
+// Явное .js — модуль попадает в тестовую сборку (tsconfig.test.json), а
+// скомпилированный ESM требует расширение в value-импортах.
+import { type ChatPlatform, CHAT_PLATFORM_DOMAINS } from '../domain/client.js';
 
 // Turns a raw input (phone, @handle, domain or full URL) into an openable link.
 export function buildChatLink(platform: ChatPlatform, raw: string): string {

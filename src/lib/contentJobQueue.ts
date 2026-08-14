@@ -6,7 +6,10 @@ import {
   type IngestResult,
 } from './contentSync.js';
 
-export const TATTO_DIARY_DB_VERSION = 3;
+// 4: добавился стор masterInfo — Личный кабинет переехал из localStorage,
+// где ему не хватало квоты под фото в задачах (см. lib/masterInfoStore.ts).
+// onupgradeneeded трогает только отсутствующие сторы, данные не пересоздаются.
+export const TATTO_DIARY_DB_VERSION = 4;
 export const CONTENT_INGEST_JOB_STORE = 'contentIngestJobs';
 export const CONTENT_ENTRY_STORE = 'contentEntries';
 
