@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [stoneSource, stoneCss, jewelryThemeCss, tabCss, navSource, tabSource, mainSource, css, stoneSprite] = await Promise.all([
+const [stoneSource, stoneCss, jewelryThemeCss, tabCss, navSource, navRevealCss, tabSource, mainSource, css, stoneSprite] = await Promise.all([
   readFile(new URL('../src/components/navigation/NaturalStoneIcon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/navigation/NaturalStoneIcon.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ui/LightJewelryTheme.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/client/ClientCardTabBar.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/navigation/NavFab.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/navigation/NavFabReveal.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/client/ClientCardTabBar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/index.css', import.meta.url), 'utf8'),
@@ -108,6 +109,16 @@ test('home plate shine is one clipped diagonal timeline with hidden edge phases'
   assert.doesNotMatch(stoneCss, /path\[stroke=/);
   assert.doesNotMatch(stoneCss, /@keyframes[^}]*home-shine|animation:\s*polished-bronze-home-shine/);
   assert.match(stoneCss, /prefers-reduced-motion[\s\S]*natural-stone-home-shine/);
+});
+
+test('light closed hub removes the legacy rotating conic arrow layer', () => {
+  assert.match(navRevealCss, /\.nav-fab:not\(\.nav-fab--open\) \.nav-fab__main--gold::after/);
+  assert.match(navRevealCss, /conic-gradient/);
+  assert.match(navRevealCss, /nav-fab-brushed-gold/);
+  assert.match(
+    jewelryThemeCss,
+    /:root\[data-theme='light'\][\s\S]*\.nav-fab:not\(\.nav-fab--open\)[\s\S]*\.nav-fab__main--gold::after[\s\S]*content: none !important;[\s\S]*display: none !important;[\s\S]*background: none !important;[\s\S]*animation: none !important;/,
+  );
 });
 
 test('light client tabs use polished bronze rods, fasteners, wire and hardware reflections', () => {
