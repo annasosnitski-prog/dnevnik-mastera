@@ -2,8 +2,14 @@ import { useRef, useState } from 'react';
 import type { Client } from '../../domain/client';
 import type { ContentEntry } from '../../domain/content';
 import type { Project } from '../../domain/project';
-import type { ClientNote } from '../../domain/task';
-import { normalizeClient, normalizeClientNote, normalizeProject } from '../../lib/normalize';
+import { normalizeClient, normalizeProject } from '../../lib/normalize';
+import {
+  masterInfoFromBackup,
+  normalizeMasterInfo,
+  isMasterInfoEmpty,
+  type MasterInfo,
+  type MasterInfoRestore,
+} from '../../lib/masterInfoStore';
 import { shareOrDownloadJSON } from '../../lib/contentShare';
 import { copyTextToClipboard } from '../../lib/clipboard';
 import { formatErrorLog, errorSourceLabel, type DiaryErrorEntry } from '../../lib/errorLog';
@@ -74,7 +80,7 @@ export function SettingsScreen({
   prefs,
   onChange,
   onBack,
-  masterNotes,
+  masterInfo,
   onReadBackupData,
   persistence,
   storageEstimate,
@@ -93,12 +99,17 @@ export function SettingsScreen({
   prefs: Prefs;
   onChange: (p: Prefs) => void;
   onBack: () => void;
-  masterNotes: ClientNote[];
+  // Текущий кабинет — ЗАПАСНОЙ вариант для копии. Основной источник тот же,
+  // что у остальных данных: база (см. onReadBackupData). Пригождается, если
+  // записи в базе ещё нет — переезд карточки из localStorage мог не
+  // случиться, — тогда в файл уедет то, что мастер видит на экране, а не
+  // пустая карточка.
+  masterInfo: MasterInfo;
   // Читает данные для копии прямо из IndexedDB. Отдельно от props выше именно
   // потому, что копия обязана отражать хранилище, а не экран: props могут быть
   // пустыми из-за сбоя загрузки, и тогда экспорт обязан отказать, а не отдать
   // пустой файл.
-  onReadBackupData: () => Promise<{ clients: unknown[]; projects: unknown[]; contentEntries: unknown[] }>;
+  onReadBackupData: () => Promise<{ clients: unknown[]; projects: unknown[]; contentEntries: unknown[]; masterInfo: unknown }>;
   // Состояние хранилища — см. lib/storageHealth.ts. Показывается честно, в
   // том числе когда браузер вообще не умеет отвечать на этот вопрос.
   persistence: PersistenceState;
@@ -111,8 +122,10 @@ export function SettingsScreen({
   // телефоне не открыть: без него любой сбой не оставлял следа вообще.
   errorLog: DiaryErrorEntry[];
   onClearErrorLog: () => void;
-  // Импорт полного бэкапа: clients + опционально projects/contentEntries/masterNotes.
-  onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[]; masterNotes?: ClientNote[] }) => void;
+  // Импорт полного бэкапа: clients + опционально projects/contentEntries и
+  // личный кабинет (целиком из новой копии либо одни задачи из старой,
+  // см. masterInfoFromBackup).
+  onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[]; master?: MasterInfoRestore }) => void;
   // Собирает старые сессии/консультации (без projectId) в проекты-корзины
   // по клиенту. Возвращает сводку для показа результата.
 }) {
@@ -130,7 +143,7 @@ export function SettingsScreen({
     clients: Client[];
     projects?: Project[];
     contentEntries?: ContentEntry[];
-    masterNotes?: ClientNote[];
+    master?: MasterInfoRestore;
   } | null>(null);
 
   const [logCopied, setLogCopied] = useState<string | null>(null);
@@ -142,7 +155,7 @@ export function SettingsScreen({
   // отдан, либо на экране написано, что именно не получилось.
   const handleExport = async () => {
     setExportState({ kind: 'busy' });
-    let data: { clients: unknown[]; projects: unknown[]; contentEntries: unknown[] };
+    let data: { clients: unknown[]; projects: unknown[]; contentEntries: unknown[]; masterInfo: unknown };
     try {
       // Читаем ИЗ БАЗЫ, а не из этого экрана: если хранилище отвалилось,
       // состояние осталось бы пустым и в файл уехал бы пустой, но с виду
@@ -152,21 +165,30 @@ export function SettingsScreen({
       setExportState({ kind: 'error', text: 'Копия не сделана: хранилище сейчас недоступно. Нажмите «Повторить» на плашке вверху и попробуйте снова.' });
       return;
     }
-    if (data.clients.length === 0 && data.projects.length === 0) {
+    // Карточка из базы; если записи там ещё нет (переезд из localStorage не
+    // случился), в копию идёт текущая — иначе копия окажется без кабинета
+    // ровно у тех, у кого он ещё не переехал.
+    const masterCard = data.masterInfo ?? masterInfo;
+    if (data.clients.length === 0 && data.projects.length === 0 && isMasterInfoEmpty(normalizeMasterInfo(masterCard))) {
       setExportState({ kind: 'error', text: 'Копия не сделана: база вернулась пустой. Это похоже на сбой хранилища — перезагрузите приложение и попробуйте снова.' });
       return;
     }
-    // Версия 4 добавляет Consultation.status/convertedToSessionId и
-    // Session.sourceConsultationId (см. domain/consultation.ts,
-    // domain/session.ts) — сам номер версии нигде на импорте не читается,
-    // normalize.ts дефолтит отсутствующие поля независимо от него; это чисто
-    // информационная метка. Backup version 1/2/3 продолжают читаться.
-    // masterNotes живут в localStorage, а не в IndexedDB, поэтому берутся
-    // из props — на них сбой хранилища не влияет.
+    // Версия 5 добавляет личный кабинет целиком (ключ masterInfo): имя,
+    // телефон, реквизиты, ссылку на бота, чат-ссылки и подписи цветов —
+    // раньше из него сохранялись только задачи, и всё остальное терялось при
+    // восстановлении на новом телефоне. Задачи теперь лежат ВНУТРИ него, а не
+    // отдельным ключом masterNotes: они несут фото, и дублировать их в файле
+    // значило бы удваивать самую тяжёлую его часть. Старые копии с masterNotes
+    // читаются по-прежнему (см. masterInfoFromBackup).
+    //
+    // Сам номер версии нигде на импорте не читается, normalize.ts дефолтит
+    // отсутствующие поля независимо от него; это чисто информационная метка.
+    // Backup version 1/2/3/4 продолжают читаться.
+    //
     // Журнал сбоев уезжает вместе с копией: чтобы разобрать «у меня упало»,
     // мастеру достаточно прислать файл. На импорте он игнорируется — это
     // диагностика, а не данные дневника.
-    const payload = { version: 4, exportedAt: new Date().toISOString(), ...data, masterNotes, errorLog };
+    const payload = { version: 5, exportedAt: new Date().toISOString(), ...data, masterInfo: masterCard, errorLog };
     const json = JSON.stringify(payload, null, 2);
     const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
     const result = await shareOrDownloadJSON(json, filename, 'INKA — резервная копия');
@@ -179,9 +201,12 @@ export function SettingsScreen({
       return;
     }
     onBackupDone();
+    // Кабинет назван отдельно: он невидим в счёте клиентов и проектов, а
+    // мастеру важно знать, что имя, реквизиты и подписи цветов тоже в файле.
+    const cardPart = isMasterInfoEmpty(normalizeMasterInfo(masterCard)) ? '' : ', личный кабинет';
     setExportState({
       kind: 'ok',
-      text: `Копия готова: ${data.clients.length} клиент(ов), ${data.projects.length} проект(ов). Сохраните файл туда, где он переживёт телефон.`,
+      text: `Копия готова: ${data.clients.length} клиент(ов), ${data.projects.length} проект(ов)${cardPart}. Сохраните файл туда, где он переживёт телефон.`,
     });
   };
 
@@ -197,11 +222,13 @@ export function SettingsScreen({
         setPendingImport({
           clients: rawClients.map((c: any, i: number) => normalizeClient(c, i)),
           // Только если ключ реально есть в файле — иначе оставляем undefined,
-          // чтобы импорт старого бэкапа не стёр текущие данные. Повреждённое
-          // masterNotes тоже считается отсутствующим; [] остаётся валидным.
+          // чтобы импорт старого бэкапа не стёр текущие данные.
           projects: Array.isArray(parsed?.projects) ? parsed.projects.map((p: any, i: number) => normalizeProject(p, i)) : undefined,
           contentEntries: Array.isArray(parsed?.contentEntries) ? (parsed.contentEntries as ContentEntry[]) : undefined,
-          masterNotes: Array.isArray(parsed?.masterNotes) ? parsed.masterNotes.map((n: any, i: number) => normalizeClientNote(n, i, 'm')) : undefined,
+          // Тот же принцип для кабинета, но с двумя видами файлов: новая
+          // копия несёт карточку целиком, старая — только задачи, и тогда
+          // имя, реквизиты и подписи цветов остаются текущими.
+          master: masterInfoFromBackup(parsed) ?? undefined,
         });
       } catch {
         setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
@@ -508,7 +535,8 @@ export function SettingsScreen({
           {pendingImport ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', flex: 1, minWidth: 160 }}>
-                Импортировать {pendingImport.clients.length} клиент(ов)? Текущие данные будут заменены.
+                Импортировать {pendingImport.clients.length} клиент(ов)? Текущие данные будут заменены
+                {pendingImport.master?.kind === 'full' && ', включая личный кабинет'}.
               </span>
               <span onClick={confirmImport} style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
                 Да
