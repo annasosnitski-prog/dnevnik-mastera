@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [stoneSource, stoneCss, jewelryThemeCss, tabCss, navSource, tabSource, css, stoneSprite] = await Promise.all([
+const [stoneSource, stoneCss, jewelryThemeCss, tabCss, navSource, tabSource, mainSource, css, stoneSprite] = await Promise.all([
   readFile(new URL('../src/components/navigation/NaturalStoneIcon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/navigation/NaturalStoneIcon.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ui/LightJewelryTheme.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/client/ClientCardTabBar.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/navigation/NavFab.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/client/ClientCardTabBar.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/index.css', import.meta.url), 'utf8'),
   readFile(new URL('../public/mineral-cabochons.webp', import.meta.url)),
 ]);
@@ -31,11 +32,14 @@ test('natural stones are round concave inserts in polished bronze, not faceted g
   assert.doesNotMatch(stoneSource, /goldFace|quadrant|facet/);
 });
 
-test('polished bronze has one canonical light-theme token file', () => {
+test('polished bronze has one canonical light-theme token file loaded after base css', () => {
   for (const sampledTone of ['#A86531', '#F2C486', '#D99650', '#F3C98F', '#63361D']) {
     assert.match(jewelryThemeCss, new RegExp(sampledTone));
   }
-  assert.match(stoneCss, /@import '\.\.\/ui\/LightJewelryTheme\.css'/);
+  const baseImport = mainSource.indexOf("import './index.css';");
+  const jewelryImport = mainSource.indexOf("import './components/ui/LightJewelryTheme.css';");
+  assert.ok(baseImport >= 0 && jewelryImport > baseImport, 'canonical light jewelry tokens must load after the base theme');
+  assert.doesNotMatch(stoneCss, /--nav-metal|--bronze-/);
   assert.match(tabCss, /var\(--bronze-highlight\)/);
   assert.match(tabCss, /var\(--bronze-patina\)/);
   assert.doesNotMatch(jewelryThemeCss + tabCss, /#657C72/);
