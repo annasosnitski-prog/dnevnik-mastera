@@ -24,3 +24,17 @@
   --two-pendant-ray-shadow: var(--bronze-shadow);
   --two-pendant-ray-sheen: var(--bronze-sheen);
 }
+
+/* NavFabReveal's legacy closed-hub ::after is an asymmetric rotating
+   conic-gradient intended as brushed gold. On the polished-bronze light hub
+   it reads as the persistent crescent/arrow above the approved SVG shine.
+   Keep that legacy effect available to the dark jewellery skin, but remove
+   the entire overlay layer from the light theme. */
+:root[data-theme='light']
+  .nav-fab:not(.nav-fab--open)
+  .nav-fab__main--gold::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  animation: none !important;
+}
