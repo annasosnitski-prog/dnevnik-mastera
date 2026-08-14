@@ -108,6 +108,54 @@ export function resolveMasterInfoSource(
   return { value: fromLocal, needsMigration: true };
 }
 
+// ============================================================
+// КАБИНЕТ В РЕЗЕРВНОЙ КОПИИ
+//
+// Пока карточка лежала в localStorage, в копию уезжали только задачи мастера
+// (ключ masterNotes) — их брали из состояния экрана, потому что сбой базы на
+// них не влиял. После переезда карточки в базу это рассуждение перестало
+// быть верным, а копия так и осталась с одними задачами: имя, телефон,
+// реквизиты, ссылка на бота, чат-ссылки и подписи цветов-маркеров не
+// сохранялись НИКУДА. Восстановление на новом телефоне возвращало историю
+// работы и теряло всё личное. Обиднее всего colorLabels: это собственная
+// система маркировки клиентов, по памяти её не восстановить.
+//
+// Новые копии несут карточку целиком (ключ masterInfo), старые — только
+// задачи. Различать эти два случая ОБЯЗАТЕЛЬНО: старый файл ничего не знает
+// про имя и реквизиты, и применить его как «карточку целиком» значило бы
+// стереть их за компанию — тем самым восстановлением, которое их спасает.
+//
+// Задачи не дублируются в файле отдельным ключом: они несут фото, а лишняя
+// их копия — это ровно тот вес, из-за которого карточка и уехала из
+// localStorage.
+// ============================================================
+export type MasterInfoRestore =
+  // Новая копия: заменяет карточку целиком.
+  | { kind: 'full'; info: MasterInfo }
+  // Старая копия: заменяет ТОЛЬКО задачи, остальное в карточке не трогает.
+  | { kind: 'notes'; notes: ClientNote[] };
+
+// null — в файле нет ни того, ни другого (совсем старая копия или голый
+// массив клиентов). Тогда кабинет не трогается вовсе.
+export function masterInfoFromBackup(raw: unknown): MasterInfoRestore | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const p = raw as Record<string, unknown>;
+  if (p.masterInfo && typeof p.masterInfo === 'object') {
+    return { kind: 'full', info: normalizeMasterInfo(p.masterInfo) };
+  }
+  if (Array.isArray(p.masterNotes)) {
+    return { kind: 'notes', notes: p.masterNotes.map((n, i) => normalizeClientNote(n, i, 'm')) };
+  }
+  return null;
+}
+
+// Что именно записать в базу по результату разбора файла. current нужен для
+// старых копий: там есть только задачи, а остальную карточку надо сохранить
+// такой, какая она сейчас.
+export function applyMasterInfoRestore(current: MasterInfo, restore: MasterInfoRestore): MasterInfo {
+  return restore.kind === 'full' ? restore.info : { ...current, notes: restore.notes };
+}
+
 // Есть ли в карточке хоть что-то, кроме умолчаний. Нужно на переезде: пустую
 // карточку переносить незачем, запись в базе появится с первой же правкой.
 export function isMasterInfoEmpty(info: MasterInfo): boolean {

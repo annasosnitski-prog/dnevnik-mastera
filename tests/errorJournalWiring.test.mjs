@@ -64,7 +64,7 @@ test('журнал виден в Настройках и уезжает в ре�
   assert.match(settings, /Последние сбои · \{errorLog\.length\}/);
   assert.match(settings, /copyTextToClipboard\(formatErrorLog\(errorLog\)\)/);
   // Чтобы прислать журнал, достаточно прислать файл копии.
-  assert.match(settings, /masterNotes, errorLog \}/);
+  assert.match(settings, /masterInfo: masterCard, errorLog \}/);
 });
 
 test('пустой журнал не показывается', () => {

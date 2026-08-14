@@ -117,7 +117,9 @@ import {
   normalizeMasterInfo,
   resolveMasterInfoSource,
   isMasterInfoEmpty,
+  applyMasterInfoRestore,
   type MasterInfo,
+  type MasterInfoRestore,
 } from '../lib/masterInfoStore';
 import {
   LAST_BACKUP_STORAGE_KEY,
@@ -1165,21 +1167,29 @@ export default function TattoDiary() {
   // массивами sessions/consultations: копия обязана повторять хранилище, а не
   // то, как приложение его показывает (записи после Этапа 2 живут в проектах,
   // см. lib/clientRecordsMigration.ts).
-  const readBackupPayload = (): Promise<{ clients: unknown[]; projects: unknown[]; contentEntries: unknown[] }> =>
+  //
+  // Личный кабинет читается отсюда же, а не из состояния экрана: он теперь
+  // такая же запись базы, как всё остальное (см. lib/masterInfoStore.ts).
+  // Раньше в копию уезжали только его задачи, и имя, телефон, реквизиты,
+  // ссылка на бота и подписи цветов-маркеров не сохранялись никуда.
+  // null — записи в базе нет; на экспорте это заменяется текущей карточкой,
+  // см. handleExport.
+  const readBackupPayload = (): Promise<{ clients: unknown[]; projects: unknown[]; contentEntries: unknown[]; masterInfo: unknown }> =>
     new Promise((resolve, reject) => {
       if (!db) {
         reject(new Error('Хранилище недоступно'));
         return;
       }
-      const tx = openTx(['clients', 'projects', 'contentEntries'], db, 'readonly', STORAGE_ACTIONS.readBackup);
+      const tx = openTx(['clients', 'projects', 'contentEntries', MASTER_INFO_STORE], db, 'readonly', STORAGE_ACTIONS.readBackup);
       if (!tx) {
         reject(new Error('Хранилище недоступно'));
         return;
       }
-      const out: { clients: unknown[]; projects: unknown[]; contentEntries: unknown[] } = {
+      const out: { clients: unknown[]; projects: unknown[]; contentEntries: unknown[]; masterInfo: unknown } = {
         clients: [],
         projects: [],
         contentEntries: [],
+        masterInfo: null,
       };
       tx.objectStore('clients').getAll().onsuccess = (e) => {
         out.clients = (e.target as IDBRequest).result || [];
@@ -1189,6 +1199,9 @@ export default function TattoDiary() {
       };
       tx.objectStore('contentEntries').getAll().onsuccess = (e) => {
         out.contentEntries = (e.target as IDBRequest).result || [];
+      };
+      tx.objectStore(MASTER_INFO_STORE).get(MASTER_INFO_RECORD_ID).onsuccess = (e) => {
+        out.masterInfo = (e.target as IDBRequest).result ?? null;
       };
       tx.oncomplete = () => resolve(out);
       tx.onerror = () => reject(tx.error ?? new Error('Не удалось прочитать данные'));
@@ -1502,22 +1515,29 @@ export default function TattoDiary() {
   };
 
   // Импорт полного бэкапа: clients + опционально projects/contentEntries и
-  // masterNotes. Старые бэкапы без опциональных массивов не стирают текущие
-  // данные. masterNotes применяются только после успешной IDB-транзакции.
+  // личный кабинет. Старые бэкапы без опциональных массивов не стирают
+  // текущие данные.
+  //
+  // Кабинет приходит одним из двух видов (см. masterInfoFromBackup): новая
+  // копия несёт карточку целиком, старая — только задачи, и тогда имя,
+  // реквизиты и подписи цветов остаются текущими. Он пишется той же
+  // транзакцией, что и всё остальное: восстановление либо случилось
+  // целиком, либо не случилось вовсе.
   const replaceAllData = (bundle: {
     clients: Client[];
     projects?: Project[];
     contentEntries?: ContentEntry[];
-    masterNotes?: ClientNote[];
+    master?: MasterInfoRestore;
   }) => {
     if (!db) {
       reportStorageFailure('lost', STORAGE_ACTIONS.importData);
       return;
     }
-    const importedMasterNotes = bundle.masterNotes;
+    const restoredMaster = bundle.master ? applyMasterInfoRestore(masterInfo, bundle.master) : null;
     const stores = ['clients'];
     if (bundle.projects) stores.push('projects');
     if (bundle.contentEntries) stores.push('contentEntries', CONTENT_INGEST_JOB_STORE);
+    if (restoredMaster) stores.push(MASTER_INFO_STORE);
     const tx = openWriteTx(stores, db, STORAGE_ACTIONS.importData);
     if (!tx) return;
     const cs = tx.objectStore('clients');
@@ -1534,6 +1554,9 @@ export default function TattoDiary() {
       bundle.contentEntries.forEach((e) => es.put(e));
       tx.objectStore(CONTENT_INGEST_JOB_STORE).clear();
     }
+    if (restoredMaster) {
+      tx.objectStore(MASTER_INFO_STORE).put({ ...restoredMaster, id: MASTER_INFO_RECORD_ID });
+    }
     tx.oncomplete = () => {
       loadClients(db);
       if (bundle.projects) loadProjects(db);
@@ -1541,9 +1564,9 @@ export default function TattoDiary() {
         loadContentEntries(db);
         reloadContentIngestJobs(db);
       }
-      if (importedMasterNotes !== undefined) {
-        setMasterInfo((prev) => ({ ...prev, notes: importedMasterNotes }));
-      }
+      // Состояние приводится к тому, что уже лежит в базе. Обычный эффект
+      // сохранения кабинета повторит эту же запись — она идентична, вреда нет.
+      if (restoredMaster) setMasterInfo(restoredMaster);
     };
     tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.importData);
   };
@@ -3132,7 +3155,7 @@ export default function TattoDiary() {
               prefs={prefs}
               onChange={setPrefs}
               onBack={() => setScreen('master')}
-              masterNotes={masterInfo.notes}
+              masterInfo={masterInfo}
               onReadBackupData={readBackupPayload}
               persistence={persistence}
               storageEstimate={storageEstimate}

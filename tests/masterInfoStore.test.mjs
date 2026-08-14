@@ -6,6 +6,8 @@ import {
   normalizeMasterInfo,
   resolveMasterInfoSource,
   isMasterInfoEmpty,
+  masterInfoFromBackup,
+  applyMasterInfoRestore,
 } from '../.test-dist/src/lib/masterInfoStore.js';
 
 test('битая или пустая запись не роняет карточку', () => {
@@ -106,4 +108,86 @@ test('пустую карточку переносить незачем', () => 
   assert.equal(isMasterInfoEmpty({ ...DEFAULT_MASTER_INFO, name: '   ' }), true, 'пробелы — не содержимое');
   assert.equal(isMasterInfoEmpty({ ...DEFAULT_MASTER_INFO, notes: [{ id: 'n1' }] }), false);
   assert.equal(isMasterInfoEmpty({ ...DEFAULT_MASTER_INFO, colorLabels: { '#fff': 'свои' } }), false);
+});
+
+// ===== КАБИНЕТ В РЕЗЕРВНОЙ КОПИИ =====
+// До этого в копию уезжали только задачи мастера: имя, телефон, реквизиты,
+// ссылка на бота, чат-ссылки и подписи цветов не сохранялись никуда, и
+// восстановление на новом телефоне возвращало историю работы без всего
+// личного.
+
+const filledCard = {
+  ...DEFAULT_MASTER_INFO,
+  name: 'Анна',
+  phone: '+7 900 000-00-00',
+  bankDetails: 'Сбер 1234',
+  telegramBotLink: 'https://t.me/inka_bot',
+  colorLabels: { '#c0392b': 'сложные' },
+};
+
+test('новая копия несёт карточку целиком', () => {
+  const restore = masterInfoFromBackup({ clients: [], masterInfo: filledCard });
+
+  assert.equal(restore.kind, 'full');
+  assert.equal(restore.info.name, 'Анна');
+  assert.equal(restore.info.bankDetails, 'Сбер 1234');
+  // Ради этого поля всё и затевалось: свою систему маркировки клиентов
+  // мастер по памяти не восстановит.
+  assert.deepEqual(restore.info.colorLabels, { '#c0392b': 'сложные' });
+});
+
+test('старая копия несёт только задачи — и не выдаёт себя за карточку целиком', () => {
+  // Иначе восстановление старого файла СТЁРЛО бы имя и реквизиты — тем
+  // самым действием, которое их спасает.
+  const restore = masterInfoFromBackup({ clients: [], masterNotes: [{ id: 'n1', text: 'позвонить' }] });
+
+  assert.equal(restore.kind, 'notes');
+  assert.equal(restore.notes.length, 1);
+  assert.equal(restore.notes[0].text, 'позвонить');
+});
+
+test('восстановление старой копии сохраняет всё, кроме задач', () => {
+  const restore = masterInfoFromBackup({ masterNotes: [{ id: 'n1', text: 'новая' }] });
+  const applied = applyMasterInfoRestore(filledCard, restore);
+
+  assert.equal(applied.name, 'Анна', 'имя не тронуто');
+  assert.equal(applied.bankDetails, 'Сбер 1234', 'реквизиты не тронуты');
+  assert.deepEqual(applied.colorLabels, { '#c0392b': 'сложные' }, 'подписи цветов не тронуты');
+  assert.equal(applied.notes.length, 1);
+});
+
+test('восстановление новой копии заменяет карточку целиком', () => {
+  const restore = masterInfoFromBackup({ masterInfo: { ...DEFAULT_MASTER_INFO, name: 'из копии' } });
+  const applied = applyMasterInfoRestore(filledCard, restore);
+
+  assert.equal(applied.name, 'из копии');
+  assert.equal(applied.bankDetails, '', 'копия — источник истины целиком, а не поверх текущего');
+});
+
+test('в копии нового вида задачи лежат внутри карточки, а не отдельным ключом', () => {
+  // Задачи несут фото; отдельный masterNotes в том же файле удваивал бы
+  // самую тяжёлую его часть. Поэтому masterInfo и читается первым.
+  const restore = masterInfoFromBackup({
+    masterInfo: { ...filledCard, notes: [{ id: 'n1', text: 'из карточки' }] },
+    masterNotes: [{ id: 'n2', text: 'из старого ключа' }],
+  });
+
+  assert.equal(restore.kind, 'full');
+  assert.equal(restore.info.notes[0].text, 'из карточки');
+});
+
+test('файл без кабинета не трогает текущий', () => {
+  // Совсем старая копия или голый массив клиентов.
+  assert.equal(masterInfoFromBackup({ clients: [] }), null);
+  assert.equal(masterInfoFromBackup([]), null);
+  assert.equal(masterInfoFromBackup(null), null);
+  assert.equal(masterInfoFromBackup('не объект'), null);
+});
+
+test('битый кабинет в файле не роняет импорт', () => {
+  const restore = masterInfoFromBackup({ masterInfo: { name: 42, links: 'мусор', colorLabels: 'мусор' } });
+
+  assert.equal(restore.kind, 'full');
+  assert.equal(restore.info.name, '');
+  assert.deepEqual(restore.info.links, []);
 });

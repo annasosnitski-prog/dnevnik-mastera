@@ -75,3 +75,38 @@ test('сбой записи виден мастеру и попадает в ж�
   assert.match(persistEffect, /reportStorageFailure\('write', STORAGE_ACTIONS\.saveMasterInfo\)/);
   assert.match(loadEffect, /reportStorageFailure\('read', STORAGE_ACTIONS\.loadMasterInfo\)/);
 });
+
+// ===== КАБИНЕТ В РЕЗЕРВНОЙ КОПИИ =====
+// Карточка переехала в базу, а в копию за ней не поехала: уезжали одни
+// задачи. Всё остальное — имя, телефон, реквизиты, ссылка на бота,
+// чат-ссылки, подписи цветов-маркеров — не сохранялось никуда.
+
+const replaceAllData = app.slice(
+  app.indexOf('  const replaceAllData = (bundle: {'),
+  app.indexOf('  // Adds/updates just the given clients'),
+);
+
+test('кабинет восстанавливается той же транзакцией, что и всё остальное', () => {
+  // Иначе восстановление могло пройти наполовину: клиенты новые, кабинет
+  // старый, и понять это по экрану невозможно.
+  assert.match(replaceAllData, /if \(restoredMaster\) stores\.push\(MASTER_INFO_STORE\);/);
+  assert.match(replaceAllData, /tx\.objectStore\(MASTER_INFO_STORE\)\.put\(\{ \.\.\.restoredMaster, id: MASTER_INFO_RECORD_ID \}\)/);
+});
+
+test('старый файл с одними задачами не стирает имя и реквизиты', () => {
+  // Решение о том, что именно заменять, принимает applyMasterInfoRestore
+  // (см. lib/masterInfoStore.ts) — здесь проверяем, что оно вообще
+  // спрашивается, а не подменяется «положить как есть».
+  assert.match(replaceAllData, /applyMasterInfoRestore\(masterInfo, bundle\.master\)/);
+});
+
+test('состояние экрана приводится к тому, что легло в базу', () => {
+  assert.match(replaceAllData, /if \(restoredMaster\) setMasterInfo\(restoredMaster\);/);
+  // Прежнего слияния «поверх текущего» больше нет: оно применяло старый
+  // файл как полную карточку.
+  assert.doesNotMatch(replaceAllData, /setMasterInfo\(\(prev\) => \(\{ \.\.\.prev, notes:/);
+});
+
+test('файл без кабинета не трогает текущий', () => {
+  assert.match(replaceAllData, /bundle\.master \? applyMasterInfoRestore\(masterInfo, bundle\.master\) : null/);
+});
