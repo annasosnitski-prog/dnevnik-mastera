@@ -91,7 +91,7 @@ import {
   setContentEntryLink,
   type ContentEntryLink,
 } from '../lib/contentLink';
-import { upsertClientSession, upsertProjectSession, applyConsultationConversion, applyConsultationRestoration, type SessionFormData } from '../lib/sessionSave';
+import { upsertClientSession, upsertProjectSession, applyConsultationConversion, type SessionFormData } from '../lib/sessionSave';
 import { upsertConsultation, upsertProjectConsultation, type ConsultationFormData } from '../lib/consultationSave';
 import { bucketProjectId, bucketProjectTitle, makeBucketProject } from '../lib/autoProject';
 import { migrateClientRecordsIntoProjects } from '../lib/clientRecordsMigration';
@@ -199,6 +199,10 @@ import {
   getProjectsByClientId,
   getWorkshopProjects,
   getConsultationNumber,
+  getClientSessions,
+  getClientConsultations,
+  findProjectOfSession,
+  findProjectOfConsultation,
 } from '../domain/projectSelectors';
 export { clientNameFor } from '../domain/projectSelectors';
 import {
@@ -565,13 +569,34 @@ function readInitialMasterInfo(): MasterInfo {
 
 // ===================== MAIN APP =====================
 export default function TattoDiary() {
-  const [clients, setClients] = useState<Client[]>([]);
+  // Клиенты ровно как они лежат в базе. Их собственные sessions/consultations
+  // (легаси-массивы) больше НЕ читаются: после Этапа 2 записи живут только на
+  // проектах, а «записи клиента» собираются из них — см. clients ниже.
+  // Массивы остаются в записи клиента как страховка после переноса (см.
+  // lib/clientRecordsMigration.ts), поэтому их нельзя просто взять и
+  // отобразить — они устаревают, как только запись правят через проект.
+  const [storedClients, setStoredClients] = useState<Client[]>([]);
   // Distinguishes "still loading from IndexedDB" from "genuinely no clients
   // yet" — without it, the first-run empty state flashes on every load before
   // the (real) client list comes in.
   const [clientsLoaded, setClientsLoaded] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
+  // Клиент с записями — проекция, а не хранилище (Этап 2). Иерархия
+  // Клиент → Проект → консультации/сессии: единственный источник истины —
+  // Project.sessions/consultations, отсюда же собирается и «срез клиента».
+  // Благодаря этому весь код ниже (карточка клиента, напоминания, планнер,
+  // контент, календарь) продолжает работать с привычной формой Client, но
+  // видит уже проектные данные — переписывать каждое чтение не пришлось.
+  const clients = useMemo(
+    () =>
+      storedClients.map((c) => ({
+        ...c,
+        sessions: getClientSessions(projects, c.id),
+        consultations: getClientConsultations(projects, c.id),
+      })),
+    [storedClients, projects],
+  );
   // Единая сущность для всего, что проходит через ContentINKA — см.
   // ContentEntry ниже. Отдельный store ('contentEntries'), не часть
   // клиента — доступна и без выбранного клиента (страница ContentINKA,
@@ -939,7 +964,7 @@ export default function TattoDiary() {
     if (!tx) return;
     const request = tx.objectStore('clients').getAll();
     request.onsuccess = () => {
-      setClients((request.result || []).map(normalizeClient));
+      setStoredClients((request.result || []).map(normalizeClient));
       setClientsLoaded(true);
     };
     request.onerror = () => setDbError('Не удалось загрузить клиентов.');
@@ -963,6 +988,26 @@ export default function TattoDiary() {
   // Иначе (правка текстовых полей/фото/заметок) значение остаётся как в
   // переданном project — обычно унаследованным от prev через спред на
   // вызывающей стороне.
+  // Синхронизация записей клиента с Инка-календарём после записи проекта
+  // (Этап 2). Сессии/консультации переехали на проект, поэтому их изменения
+  // больше не проходят через saveClient — без этого синк молча перестал бы
+  // работать. Дифф считается на клиентском СРЕЗЕ: собираем, как он выглядел
+  // до и после этой записи, и отдаём привычному diffAndSync.
+  // Проекты без клиента («Мастерская») в календарь не ходили и не ходят.
+  const syncClientRecordsAfterProjectSave = (nextProjects: Project[], clientId: string | null) => {
+    if (!clientId) return;
+    const client = storedClients.find((c) => c.id === clientId);
+    if (!client) return;
+    const asSyncClient = (source: Project[]) => ({
+      id: client.id,
+      name: client.name,
+      surname: client.surname,
+      sessions: getClientSessions(source, client.id),
+      consultations: getClientConsultations(source, client.id),
+    });
+    diffAndSync(asSyncClient(projects), asSyncClient(nextProjects), calendarSync);
+  };
+
   const saveProject = (project: Project) => {
     if (!db) {
       setDbError('Хранилище недоступно — изменения не сохранены.');
@@ -973,7 +1018,11 @@ export default function TattoDiary() {
     const prev = projects.find((p) => p.id === project.id);
     const next = prev && !isMeaningfulProjectChange(prev, project) ? project : { ...project, lastMeaningfulActivityAt: new Date().toISOString() };
     tx.objectStore('projects').put(next);
-    tx.oncomplete = () => loadProjects(db);
+    tx.oncomplete = () => {
+      loadProjects(db);
+      const nextProjects = prev ? projects.map((p) => (p.id === next.id ? next : p)) : [...projects, next];
+      syncClientRecordsAfterProjectSave(nextProjects, next.clientId);
+    };
     tx.onerror = () => setDbError('Не удалось сохранить изменения.');
   };
 
@@ -1129,22 +1178,36 @@ export default function TattoDiary() {
     });
   }, [db]);
 
+  // Записывает карточку клиента. Сессии и консультации сюда больше не входят
+  // — они живут на проектах (Этап 2), а в объекте client лежит их ПРОЕКЦИЯ
+  // (см. clients выше). Записать проекцию обратно значило бы воскресить
+  // дублирующее хранилище, поэтому легаси-массивы берём из storedClients и
+  // оставляем ровно такими, какие они есть: они — страховка после переноса,
+  // приложение их не читает и не меняет.
+  //
+  // Календарь: раньше saveClient был единственной воронкой всех изменений, и
+  // дифф здесь ловил в том числе сессии/консультации. Теперь их изменения
+  // идут через saveProject — синк по ним переехал туда (см. syncClientRecords
+  // ниже), а здесь остаётся дифф остальной карточки.
   const saveClient = (client: Client) => {
     if (!db) {
       setDbError('Хранилище недоступно — изменения не сохранены.');
       return;
     }
-    // Синхронизация с Инка-календарём: saveClient — единственная воронка
-    // всех изменений (сессии, консультации, заметки...), поэтому дифф
-    // старой и новой карточки здесь ловит любое изменение записей.
-    // Снимок старой версии берём ДО записи; сам sync — fire-and-forget
-    // после успешного сохранения, он не блокирует и не ломает UI.
+    const stored = storedClients.find((c) => c.id === client.id);
+    const record: Client = {
+      ...client,
+      sessions: stored?.sessions ?? [],
+      consultations: stored?.consultations ?? [],
+    };
     const prevClient = clients.find((c) => c.id === client.id) ?? null;
     const tx = openWriteTx('clients', db, 'Хранилище недоступно — изменения не сохранены.');
     if (!tx) return;
-    tx.objectStore('clients').put(client);
+    tx.objectStore('clients').put(record);
     tx.oncomplete = () => {
       loadClients(db);
+      // client (а не record) — с актуальной проекцией записей, чтобы дифф
+      // сравнивал одинаковые по природе снимки.
       diffAndSync(prevClient, client, calendarSync);
     };
     tx.onerror = () => setDbError('Не удалось сохранить изменения.');
@@ -1366,15 +1429,51 @@ export default function TattoDiary() {
     setShowEditClientForm(false);
   };
 
+  // ── Мутации записей: всегда в том проекте, где запись физически лежит ──
+  // Единственная форма записи после Этапа 2. Раньше каждый обработчик
+  // пересобирал client.sessions/consultations и звал saveClient; теперь
+  // владелец записи — проект, и все они сводятся к этим четырём helper'ам.
+  const updateSessionInProject = (sessionId: string, update: (session: Session) => Session) => {
+    const project = findProjectOfSession(projects, sessionId);
+    if (!project) return;
+    saveProject({ ...project, sessions: project.sessions.map((s) => (s.id === sessionId ? update(s) : s)) });
+  };
+
+  const updateConsultationInProject = (consultationId: string, update: (consultation: Consultation) => Consultation) => {
+    const project = findProjectOfConsultation(projects, consultationId);
+    if (!project) return;
+    saveProject({
+      ...project,
+      consultations: project.consultations.map((c) => (c.id === consultationId ? update(c) : c)),
+    });
+  };
+
   // Session created via «Перевести в сессию» — restore the consultation it
-  // came from first (see applyConsultationRestoration), so deleting the
-  // session doesn't leave the consultation pointing at a session that no
-  // longer exists. No-op for a session with no sourceConsultationId link —
+  // came from first, so deleting the session doesn't leave the consultation
+  // pointing at a session that no longer exists. No-op for a session with no
+  // sourceConsultationId link —
   // an ordinary session deletes exactly as before.
+  //
+  // Консультация-источник может лежать в другом проекте, чем сессия (мастер
+  // могла перекинуть одну из них), поэтому восстановление идёт отдельной
+  // мутацией по своему проекту, а не сборкой одного объекта, как раньше.
   const deleteSession = (sessionId: string) => {
-    if (!selectedClient) return;
-    const restored = applyConsultationRestoration(selectedClient, sessionId);
-    saveClient({ ...restored, sessions: restored.sessions.filter((s) => s.id !== sessionId) });
+    const project = findProjectOfSession(projects, sessionId);
+    if (!project) return;
+    const session = project.sessions.find((s) => s.id === sessionId);
+    if (session?.sourceConsultationId) {
+      updateConsultationInProject(session.sourceConsultationId, (c) =>
+        c.convertedToSessionId === sessionId
+          ? {
+              ...c,
+              status: 'completed',
+              convertedToSessionId: null,
+              history: [...c.history, { id: crypto.randomUUID(), date: new Date().toISOString(), note: 'Связанная сессия удалена' }],
+            }
+          : c,
+      );
+    }
+    saveProject({ ...project, sessions: project.sessions.filter((s) => s.id !== sessionId) });
   };
 
   // «Сессия/консультация не может быть без проекта» — если форма не
@@ -1424,8 +1523,8 @@ export default function TattoDiary() {
   // isConsultationDeletable in domain/consultation.ts); this guards the
   // funnel itself too, so the protection doesn't rely on a hidden button
   // alone. Delete the linked session first (which restores the consultation
-  // via deleteSession/applyConsultationRestoration above), then the
-  // now-unconverted consultation can be deleted normally.
+  // via deleteSession above), then the now-unconverted consultation can be
+  // deleted normally.
   const deleteConsultation = (consultationId: string) => {
     if (!selectedClient) return;
     const consultation = selectedClient.consultations.find((c) => c.id === consultationId);
