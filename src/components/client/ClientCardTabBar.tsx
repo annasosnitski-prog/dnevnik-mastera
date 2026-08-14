@@ -3,6 +3,7 @@ import { useMinimalism } from '../ui/minimalism';
 import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
 import { NaturalStoneIcon, type NaturalStoneKind } from '../navigation/NaturalStoneIcon';
+import './ClientCardTabBar.css';
 
 // Разделяемый каркас вкладок «карточки клиента» (подвеска-самоцвет + строка
 // вкладок) — вынесен из DetailScreen.tsx, т.к. теперь его использует ещё и
