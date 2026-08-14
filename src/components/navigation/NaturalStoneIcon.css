@@ -62,8 +62,10 @@
     0 1px 1.5px rgba(59, 28, 12, 0.28);
 }
 
-/* Persistent lower-left engraving on the bronze plate. Target the actual
-   SVG stroke instead of relying on nth-of-type, which was too brittle here. */
+/* The two static decorative strokes on the flat bronze plate become a
+   crescent/arrow at hub size. Remove both from the main hub only; the create
+   plate keeps them. The travelling diagonal shine is a separate SVG group. */
+:root[data-theme='light'] .nav-fab__main .natural-stone-icon path[stroke='#F0C181'],
 :root[data-theme='light'] .nav-fab__main .natural-stone-icon path[stroke='#4A2816'] {
   display: none;
 }
@@ -72,13 +74,6 @@
    NaturalStoneIcon.tsx. Do not add a second CSS opacity/shape animation here. */
 .natural-stone-home-shine {
   pointer-events: none;
-}
-
-/* The closed hub must be a clean polished-bronze disc. Hiding the complete
-   shine group here guarantees that no clipped edge fragment can read as the
-   old arrow while the fan is closed. */
-.nav-fab:not(.nav-fab--open) .natural-stone-home-shine {
-  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
