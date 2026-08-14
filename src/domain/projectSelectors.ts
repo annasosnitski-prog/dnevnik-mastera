@@ -35,6 +35,55 @@ export function clientNameFor(clients: Client[], clientId: string | null): strin
   return c ? `${c.name} ${c.surname}`.trim() : null;
 }
 
+// ===================== КЛИЕНТСКИЙ СРЕЗ (Этап 2) =====================
+// Иерархия — Клиент → Проект → консультации/сессии: записи физически лежат
+// ТОЛЬКО на проекте (Project.sessions/Project.consultations), а «сессии
+// клиента» — вычисляемое объединение по всем проектам этого клиента, тем же
+// приёмом, что buildProjectFolders ниже (папка — не сущность, а проекция).
+// Раньше записи дублировались между Client.sessions/consultations и
+// Project.* — отсюда и брались расхождения между карточкой клиента и
+// проектом. Client.sessions/consultations больше не читаются (легаси-массивы
+// остаются в базе нетронутыми как страховка, см. миграцию в lib/
+// clientRecordsMigration.ts).
+//
+// Порядок результата — по дате (пустая дата в конец), чтобы вызывающий код
+// не пересортировывал каждый раз; там, где нужен другой порядок, он и так
+// сортирует сам (см. getConsultationSequence).
+function byDateThenCreated<T extends { date: string; createdDate?: string }>(a: T, b: T): number {
+  const aHas = !!a.date;
+  const bHas = !!b.date;
+  if (aHas !== bHas) return aHas ? -1 : 1;
+  if (a.date !== b.date) return a.date.localeCompare(b.date);
+  return (a.createdDate || '').localeCompare(b.createdDate || '');
+}
+
+// Все сессии клиента — по всем его проектам. Единственный способ получить
+// «сессии клиента» после Этапа 2.
+export function getClientSessions(projects: Project[], clientId: string): Session[] {
+  return projects
+    .filter((p) => p.clientId === clientId)
+    .flatMap((p) => p.sessions)
+    .sort(byDateThenCreated);
+}
+
+// Все консультации клиента — см. getClientSessions.
+export function getClientConsultations(projects: Project[], clientId: string): Consultation[] {
+  return projects
+    .filter((p) => p.clientId === clientId)
+    .flatMap((p) => p.consultations)
+    .sort(byDateThenCreated);
+}
+
+// Проект, в котором физически лежит запись — нужен всем мутациям (правка,
+// удаление, отмена, «перевести в сессию»): менять надо именно его.
+export function findProjectOfSession(projects: Project[], sessionId: string): Project | null {
+  return projects.find((p) => p.sessions.some((s) => s.id === sessionId)) ?? null;
+}
+
+export function findProjectOfConsultation(projects: Project[], consultationId: string): Project | null {
+  return projects.find((p) => p.consultations.some((c) => c.id === consultationId)) ?? null;
+}
+
 // Сессии, привязанные к проекту (link-подход: сессия физически лежит у
 // клиента, связь — через projectId).
 export function getSessionsByProjectId(sessions: Session[], projectId: string): Session[] {

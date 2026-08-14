@@ -70,7 +70,6 @@ export function SettingsScreen({
   projects,
   contentEntries,
   onImport,
-  onMigrateRecords,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -90,7 +89,6 @@ export function SettingsScreen({
   onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[]; masterNotes?: ClientNote[] }) => void;
   // Собирает старые сессии/консультации (без projectId) в проекты-корзины
   // по клиенту. Возвращает сводку для показа результата.
-  onMigrateRecords: () => { buckets: number; records: number };
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -105,13 +103,6 @@ export function SettingsScreen({
     contentEntries?: ContentEntry[];
     masterNotes?: ClientNote[];
   } | null>(null);
-  // Миграция «Собрать старые записи в проекты» — двухшаговое подтверждение
-  // (сначала напоминаем про бэкап) + сообщение о результате.
-  const [migrateConfirm, setMigrateConfirm] = useState(false);
-  const [migrateResult, setMigrateResult] = useState<string | null>(null);
-  const hasUnorganizedRecords = clients.some(
-    (c) => c.sessions.some((s) => !s.projectId) || c.consultations.some((cs) => !cs.projectId),
-  );
 
   const handleExport = async () => {
     // Версия 4 добавляет Consultation.status/convertedToSessionId и
@@ -416,51 +407,6 @@ export function SettingsScreen({
             <div style={{ marginTop: 10, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>{importSuccess}</div>
           )}
         </div>
-
-        {/* Организация записей — собирает старые сессии/консультации (ещё не
-            привязанные к проекту) в проект-«корзину» по каждому клиенту.
-            Аддитивно: сами записи не меняются и не удаляются. Показывается,
-            только пока есть что собирать. */}
-        {(hasUnorganizedRecords || migrateResult) && (
-          <div style={rowStyle}>
-            <div style={labelStyle}>Организация записей</div>
-            {migrateResult ? (
-              <div style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>{migrateResult}</div>
-            ) : migrateConfirm ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ fontSize: fs(12), color: 'var(--text-soft)', fontStyle: 'italic' }}>
-                  Старые сессии и консультации без проекта соберутся в проект-«корзину» по каждому клиенту (сами записи не меняются). Сначала сделайте резервную копию.
-                </span>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <div onClick={handleExport} style={actionButtonStyle}>
-                    Сделать бэкап
-                  </div>
-                  <div
-                    onClick={() => {
-                      const { buckets, records } = onMigrateRecords();
-                      setMigrateConfirm(false);
-                      setMigrateResult(
-                        records === 0
-                          ? 'Нечего собирать — все записи уже в проектах.'
-                          : `Собрано ${records} запис(ей) в ${buckets} проект(ов).`,
-                      );
-                    }}
-                    style={{ ...actionButtonStyle, color: 'var(--urgent)', borderColor: 'rgba(200,90,90,0.4)' }}
-                  >
-                    Собрать
-                  </div>
-                  <div onClick={() => setMigrateConfirm(false)} style={actionButtonStyle}>
-                    Отмена
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div onClick={() => setMigrateConfirm(true)} style={actionButtonStyle}>
-                Собрать старые записи в проекты
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Reset */}
         <div

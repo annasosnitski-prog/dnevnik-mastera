@@ -12,6 +12,10 @@ import {
   filterProjects,
   projectFiltersActive,
   EMPTY_PROJECT_FILTERS,
+  getClientSessions,
+  getClientConsultations,
+  findProjectOfSession,
+  findProjectOfConsultation,
 } from '../.test-dist/src/domain/projectSelectors.js';
 
 function makeProject(overrides = {}) {
@@ -810,4 +814,66 @@ test('projectFiltersActive отличает «ничего не выбрано»
   assert.equal(projectFiltersActive(EMPTY_PROJECT_FILTERS), false);
   assert.equal(projectFiltersActive({ category: 'tattoo', state: null }), true);
   assert.equal(projectFiltersActive({ category: null, state: 'paused' }), true);
+});
+
+// ── Клиентский срез поверх проектов (Этап 2) ──────────────────────────────
+// Записи лежат только на проектах; «сессии клиента» — вычисляемое
+// объединение по его проектам, а не отдельное хранилище.
+
+test('getClientSessions collects sessions across all of that client\'s projects', () => {
+  const a = makeProject({ id: 'p-a', clientId: 'c1', sessions: [makeSession({ id: 's1', date: '2026-01-02' })] });
+  const b = makeProject({ id: 'p-b', clientId: 'c1', sessions: [makeSession({ id: 's2', date: '2026-01-01' })] });
+
+  const result = getClientSessions([a, b], 'c1');
+
+  assert.deepEqual(result.map((s) => s.id), ['s2', 's1'], 'отсортировано по дате');
+});
+
+test('getClientSessions ignores other clients and client-less projects', () => {
+  const mine = makeProject({ id: 'p1', clientId: 'c1', sessions: [makeSession({ id: 'mine' })] });
+  const stranger = makeProject({ id: 'p2', clientId: 'c2', sessions: [makeSession({ id: 'stranger' })] });
+  const workshop = makeProject({ id: 'p3', clientId: null, sessions: [makeSession({ id: 'workshop' })] });
+
+  assert.deepEqual(getClientSessions([mine, stranger, workshop], 'c1').map((s) => s.id), ['mine']);
+});
+
+test('getClientConsultations collects consultations across that client\'s projects', () => {
+  const a = makeProject({ id: 'p-a', clientId: 'c1', consultations: [makeConsultation({ id: 'c-late', date: '2026-03-01' })] });
+  const b = makeProject({ id: 'p-b', clientId: 'c1', consultations: [makeConsultation({ id: 'c-early', date: '2026-01-01' })] });
+
+  assert.deepEqual(getClientConsultations([a, b], 'c1').map((c) => c.id), ['c-early', 'c-late']);
+});
+
+test('client-slice selectors return empty for a client with no projects', () => {
+  assert.deepEqual(getClientSessions([], 'c1'), []);
+  assert.deepEqual(getClientConsultations([], 'c1'), []);
+});
+
+test('undated records sort after dated ones instead of jumping to the top', () => {
+  const p = makeProject({
+    id: 'p1',
+    clientId: 'c1',
+    sessions: [makeSession({ id: 'undated', date: '' }), makeSession({ id: 'dated', date: '2026-01-01' })],
+  });
+
+  assert.deepEqual(getClientSessions([p], 'c1').map((s) => s.id), ['dated', 'undated']);
+});
+
+test('findProjectOfSession/Consultation locate the project a record physically lives in', () => {
+  const a = makeProject({ id: 'p-a', clientId: 'c1', sessions: [makeSession({ id: 's1' })] });
+  const b = makeProject({ id: 'p-b', clientId: 'c1', consultations: [makeConsultation({ id: 'c1' })] });
+
+  assert.equal(findProjectOfSession([a, b], 's1').id, 'p-a');
+  assert.equal(findProjectOfConsultation([a, b], 'c1').id, 'p-b');
+  assert.equal(findProjectOfSession([a, b], 'nope'), null);
+  assert.equal(findProjectOfConsultation([a, b], 'nope'), null);
+});
+
+test('getClientSessions does not mutate the projects it reads', () => {
+  const p = makeProject({ id: 'p1', clientId: 'c1', sessions: [makeSession({ id: 'b', date: '2026-02-01' }), makeSession({ id: 'a', date: '2026-01-01' })] });
+  const snapshot = structuredClone([p]);
+
+  getClientSessions([p], 'c1');
+
+  assert.deepEqual([p], snapshot);
 });

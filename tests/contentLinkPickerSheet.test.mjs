@@ -20,7 +20,7 @@ const screen = source.slice(source.indexOf('function ContentINKAScreen({'), sour
 const handleAddProject = source.slice(source.indexOf('const handleAddProject = (data'), source.indexOf('const handleAddProjectSession ='));
 const handleAddProjectSession = source.slice(source.indexOf('const handleAddProjectSession ='), source.indexOf('const saveSessionFromNewSessionSheet ='));
 const saveSessionFromNewSessionSheet = source.slice(source.indexOf('const saveSessionFromNewSessionSheet ='), source.indexOf('const openCreateProjectForContentLink ='));
-const openCallbacks = source.slice(source.indexOf('const openCreateProjectForContentLink ='), source.indexOf('const migrateRecordsIntoProjects ='));
+const openCallbacks = source.slice(source.indexOf('const openCreateProjectForContentLink ='), source.indexOf('const reassignEntryProject ='));
 const projectSessionPickerSheetFn = sheetsSource.slice(sheetsSource.indexOf('export function ProjectSessionPickerSheet('), sheetsSource.indexOf('export function NewConsultationSheet('));
 const projectSessionPickerSheetUsage = source.slice(source.indexOf('<ProjectSessionPickerSheet'), source.indexOf('<NewConsultationSheet'));
 
@@ -163,16 +163,18 @@ test('creating a project from the empty Session tab preserves the entry\'s prefe
   assert.match(onCreateProjectWiring, /setNewProjectClientId\(pendingContentLinkRef\.current\?\.preferredClientId \?\? null\)/);
 });
 
-test('saveSessionFromNewSessionSheet routes a CLIENT content-link session into client.sessions via upsertClientSession, not Project.sessions', () => {
-  assert.match(saveSessionFromNewSessionSheet, /const contentLinkClientId = pendingContentLinkRef\.current\?\.preferredClientId/);
-  const clientBranch = saveSessionFromNewSessionSheet.slice(
-    saveSessionFromNewSessionSheet.indexOf('if (sessionTargetProjectId && contentLinkClientId)'),
-    saveSessionFromNewSessionSheet.indexOf('if (sessionTargetProjectId) {'),
-  );
-  assert.match(clientBranch, /upsertClientSession\(\s*client,\s*\{ \.\.\.data, projectId: sessionTargetProjectId \},\s*editSession\?\.id \?\? null,\s*\)/);
-  assert.match(clientBranch, /saveClient\(updatedClient\)/);
-  assert.match(clientBranch, /linkContentEntryTo\(pendingContentLinkRef\.current\.entryId, \{ type: 'session', sessionId \}\)/);
-  assert.doesNotMatch(clientBranch, /upsertProjectSession|saveProject\(/);
+// Раньше здесь было отдельное ветвление: клиентская content-link сессия
+// сохранялась через upsertClientSession в client.sessions, чтобы не стать
+// «анонимной сессией без клиента». После Этапа 2 запись всегда ложится в
+// проект, а владельца знает сам проект — гарантия «сессия достаётся тому
+// клиенту, чей проект выбран» стала структурной, и отдельная ветка исчезла.
+// Проверяем именно её отсутствие: клиентского пути сохранения больше нет.
+test('a content-link session goes into the picked project — no separate client-owned branch left', () => {
+  assert.doesNotMatch(saveSessionFromNewSessionSheet, /upsertClientSession|contentLinkClientId|saveClient\(/);
+  assert.match(saveSessionFromNewSessionSheet, /handleAddProjectSession\(sessionTargetProjectId, data\)/);
+  // Владелец берётся из самого проекта, а не из «текущего открытого клиента».
+  assert.match(handleAddProjectSession, /const owner = project\.clientId \? clients\.find\(\(c\) => c\.id === project\.clientId\) \?\? null : null;/);
+  assert.match(handleAddProjectSession, /commitSession\(data, owner, projectId\)/);
 });
 
 test('saveSessionFromNewSessionSheet falls back to Project.sessions (handleAddProjectSession) for a STUDIO content-link session', () => {
@@ -212,16 +214,16 @@ test('switching the project to a NEW client mid-creation updates the chain\'s ow
     sessionChainBranch,
     /pendingContentLinkRef\.current = \{ \.\.\.pendingContentLinkRef\.current, preferredClientId: data\.clientId \}/,
   );
-  // This must happen before the session form opens, so
-  // saveSessionFromNewSessionSheet reads the updated owner, not the stale one.
+  // This must happen before the session form opens, so the picker offers that
+  // client's projects rather than the stale owner's.
   assert.ok(
     sessionChainBranch.indexOf('preferredClientId: data.clientId') <
       sessionChainBranch.indexOf('setShowNewSessionForm(true)'),
   );
-  // saveSessionFromNewSessionSheet always re-reads preferredClientId from the
-  // ref at save time (not a value captured earlier) — so the updated owner
-  // set above is exactly what routes the session into client B's sessions.
-  assert.match(saveSessionFromNewSessionSheet, /const contentLinkClientId = pendingContentLinkRef\.current\?\.preferredClientId/);
+  // Владельца результата теперь задаёт не preferredClientId, а сам проект:
+  // сессия уходит в только что созданный newProjectId, у которого clientId
+  // равен выбранному в форме. Промахнуться мимо клиента больше нечем.
+  assert.match(sessionChainBranch, /setSessionTargetProjectId\(newProjectId\)/);
 });
 
 test('switching the project to "Мастерская" (clientId: null) mid-creation routes the session into Project.sessions, not client.sessions', () => {
@@ -241,13 +243,12 @@ test('switching the project to "Мастерская" (clientId: null) mid-creat
 
 test('the session\'s projectId is always the actually-created project\'s id (newProjectId), passed through as sessionTargetProjectId', () => {
   assert.match(sessionChainBranch, /setSessionTargetProjectId\(newProjectId\)/);
-  // Both save branches use sessionTargetProjectId as the session's projectId —
-  // client.sessions via upsertClientSession's { ...data, projectId: sessionTargetProjectId },
-  // and Project.sessions via handleAddProjectSession(sessionTargetProjectId, data)
-  // (which itself passes projectId through to upsertProjectSession).
-  assert.match(saveSessionFromNewSessionSheet, /\{ \.\.\.data, projectId: sessionTargetProjectId \}/);
+  // Веток сохранения больше не две: sessionTargetProjectId идёт в
+  // handleAddProjectSession, а тот кладёт запись именно в этот проект — и
+  // проставляет ей тот же projectId (см. upsertSessionInProjects, где
+  // projectId записи принудительно равен проекту-владельцу).
   assert.match(saveSessionFromNewSessionSheet, /handleAddProjectSession\(sessionTargetProjectId, data\)/);
-  assert.match(handleAddProjectSession, /upsertProjectSession\(p, \{ \.\.\.data, projectId \}, editSession\?\.id \?\? null\)/);
+  assert.match(handleAddProjectSession, /commitSession\(data, owner, projectId\)/);
 });
 
 test('the existing pick-an-existing-project scenario is untouched by this fix', () => {
