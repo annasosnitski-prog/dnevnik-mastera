@@ -62,35 +62,21 @@
     0 1px 1.5px rgba(59, 28, 12, 0.28);
 }
 
-/* Keep the approved diagonal SVG shine, but hide the short entry/exit phases
-   where the clipped band only touches the circular rim and reads as an arrow.
-   The visible part is now only the clean full-width diagonal sweep. */
+/* The diagonal shine has one animation source only: the SVG/SMIL sweep in
+   NaturalStoneIcon.tsx. Do not add a second CSS opacity/shape animation here. */
 .natural-stone-home-shine {
   pointer-events: none;
-  opacity: 0;
-  animation: natural-stone-home-shine-visibility 7.6s linear infinite;
 }
 
-@keyframes natural-stone-home-shine-visibility {
-  0%,
-  59% {
-    opacity: 0;
-  }
-  63% {
-    opacity: 1;
-  }
-  74% {
-    opacity: 1;
-  }
-  79%,
-  100% {
-    opacity: 0;
-  }
+/* The closed hub must be a clean polished-bronze disc. Hiding the complete
+   shine group here guarantees that no clipped edge fragment can read as the
+   old arrow while the fan is closed. */
+.nav-fab:not(.nav-fab--open) .natural-stone-home-shine {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .natural-stone-home-shine {
     display: none;
-    animation: none;
   }
 }
