@@ -295,12 +295,12 @@ function TwoPendantRays() {
         </linearGradient>
       </defs>
 
-      <g className="client-card-tabbar__ray-metal" fill={`url(#${metalId})`}>
+      <g className="client-card-tabbar__ray-metal" style={{ fill: `url(#${metalId})` }}>
         <path d="M0 5 L0 7 L250 6.3 L250 5.7 Z" />
         <path d="M250 5.7 Q500 4.6 750 5.7 L750 6.3 Q500 7.4 250 6.3 Z" />
         <path d="M750 5.7 L750 6.3 L1000 7 L1000 5 Z" />
       </g>
-      <g className="client-card-tabbar__ray-sheen" fill={`url(#${sheenId})`}>
+      <g className="client-card-tabbar__ray-sheen" style={{ fill: `url(#${sheenId})` }}>
         <path d="M0 5.35 L0 5.8 L250 5.92 L250 5.78 Z" />
         <path d="M250 5.78 Q500 5.2 750 5.78 L750 5.92 Q500 5.5 250 5.92 Z" />
         <path d="M750 5.78 L750 5.92 L1000 5.8 L1000 5.35 Z" />
