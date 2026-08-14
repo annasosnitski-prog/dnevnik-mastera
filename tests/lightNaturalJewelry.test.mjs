@@ -95,15 +95,18 @@ test('light toolbar stones carry no navigation glyphs', () => {
   );
 });
 
-test('home plate shine is one clipped diagonal timeline with hidden edge phases', () => {
+test('home plate shine is mirrored to follow bronze lighting, brighter and twice as slow', () => {
   assert.match(stoneSource, /const isHomePlate = plate && !children/);
   assert.match(stoneSource, /className="natural-stone-home-shine"/);
-  assert.match(stoneSource, /transform="rotate\(-45 32 32\)"/);
-  assert.match(stoneSource, /values="78;78;-34;-34"/);
+  assert.match(stoneSource, /<linearGradient id=\{flatId\} x1="\.08" y1="0" x2="\.92" y2="1">/);
+  assert.match(stoneSource, /transform="rotate\(45 32 32\)"/);
+  assert.match(stoneSource, /<rect x="-34" y="-18" width="15" height="100"/);
+  assert.match(stoneSource, /values="-34;-34;78;78"/);
   assert.match(stoneSource, /keyTimes="0;0\.55;0\.8;1"/);
-  assert.match(stoneSource, /attributeName="opacity"[\s\S]*values="0;0;\.92;\.92;0;0"/);
+  assert.match(stoneSource, /attributeName="opacity"[\s\S]*values="0;0;1;1;0;0"/);
   assert.match(stoneSource, /keyTimes="0;\.59;\.63;\.75;\.79;1"/);
-  assert.match(stoneSource, /dur="7\.6s"/);
+  assert.match(stoneSource, /dur="15\.2s"/);
+  assert.match(stoneSource, /stopColor="#FFFFFF" stopOpacity="1"/);
   assert.match(stoneSource, /clipPath=\{`url\(#\$\{plateClipId\}\)`\}/);
   assert.match(stoneSource, /!isHomePlate && \(/);
   assert.doesNotMatch(stoneCss, /path\[stroke=/);
