@@ -244,13 +244,17 @@ export function NaturalStoneIcon({
           <>
             <circle cx="32" cy="32" r={outerR - 5.2} fill={`url(#${flatId})`} stroke="#DCA363" strokeWidth=".62" />
             <circle cx="32" cy="32" r={outerR - 8.2} fill="none" stroke="#6F3D20" strokeWidth=".68" opacity=".82" />
-            <path d="M16 24c5-7 13-10 21-8M44 46c-7 4-15 4-22 0" fill="none" stroke="#F0C181" strokeWidth=".72" strokeLinecap="round" opacity=".28" />
-            <path d="M18 43c-3-5-4-10-2-15M47 22c3 5 3 10 2 15" fill="none" stroke="#4A2816" strokeWidth=".68" strokeLinecap="round" opacity=".38" />
+            {!isHomePlate && (
+              <>
+                <path d="M16 24c5-7 13-10 21-8M44 46c-7 4-15 4-22 0" fill="none" stroke="#F0C181" strokeWidth=".72" strokeLinecap="round" opacity=".28" />
+                <path d="M18 43c-3-5-4-10-2-15M47 22c3 5 3 10 2 15" fill="none" stroke="#4A2816" strokeWidth=".68" strokeLinecap="round" opacity=".38" />
+              </>
+            )}
 
             {isHomePlate && (
               <g className="natural-stone-home-shine" clipPath={`url(#${plateClipId})`} pointerEvents="none">
                 <g transform="rotate(-45 32 32)">
-                  <rect x="78" y="-18" width="15" height="100" fill={`url(#${plateShineId})`} opacity=".92">
+                  <rect x="78" y="-18" width="15" height="100" fill={`url(#${plateShineId})`} opacity="0">
                     <animate
                       attributeName="x"
                       values="78;78;-34;-34"
@@ -258,6 +262,14 @@ export function NaturalStoneIcon({
                       dur="7.6s"
                       calcMode="spline"
                       keySplines="0 0 1 1;0.18 0.82 0.2 1;0 0 1 1"
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      values="0;0;.92;.92;0;0"
+                      keyTimes="0;.59;.63;.75;.79;1"
+                      dur="7.6s"
+                      calcMode="linear"
                       repeatCount="indefinite"
                     />
                   </rect>
