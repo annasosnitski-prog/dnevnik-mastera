@@ -1,0 +1,73 @@
+:root[data-theme='light'] {
+  --nav-metal: #A86531;
+  --nav-metal-highlight: #F2C486;
+  --nav-metal-point: #D99650;
+  --two-pendant-ray-highlight: #F7D39F;
+  --two-pendant-ray-light: #DCA064;
+  --two-pendant-ray-mid: #A8612F;
+  --two-pendant-ray-recess: #653319;
+  --two-pendant-ray-shadow: #281308;
+  --two-pendant-ray-sheen: #FFE1B5;
+}
+
+:root[data-theme='light'] .client-card-tabbar__medallion {
+  filter: drop-shadow(0 1px 1.2px rgba(52, 25, 11, 0.38));
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-shadow {
+  stroke: #281308 !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-rear {
+  stroke: #74401F !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-front {
+  stroke: #B66D35 !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-highlight {
+  stroke: #F3C98F !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-patina {
+  stroke: #63361D !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar::before {
+  background: linear-gradient(
+    180deg,
+    #F4CD95 0%,
+    #D79551 18%,
+    #A55D2B 48%,
+    #6C3519 72%,
+    #C47B3D 100%
+  ) !important;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 240, 211, 0.68),
+    inset 0 -0.5px 0 rgba(55, 24, 9, 0.5),
+    0 1px 1px rgba(54, 25, 10, 0.2);
+}
+
+:root[data-theme='light'] .client-card-tabbar__tab:not(:last-child)::after {
+  background: radial-gradient(
+    circle at 35% 28%,
+    #F9D8A5 0%,
+    #D79651 28%,
+    #A25B2B 58%,
+    #52270F 100%
+  ) !important;
+  box-shadow:
+    inset 0.5px 0.5px 0 rgba(255, 237, 204, 0.48),
+    0 1px 1.5px rgba(59, 28, 12, 0.28);
+}
+
+.natural-stone-home-shine {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .natural-stone-home-shine {
+    display: none;
+  }
+}
