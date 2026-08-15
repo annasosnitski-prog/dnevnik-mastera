@@ -95,8 +95,9 @@ test('light toolbar stones carry no navigation glyphs', () => {
   );
 });
 
-test('home plate shine enters from the edge, stays mirrored, wider, brighter and slow', () => {
+test('home plate shine follows relief, stays mirrored, bronze-tinted and slower', () => {
   assert.match(stoneSource, /const isHomePlate = plate && !children/);
+  assert.match(stoneSource, /const plateShineMaskId = `bronze-plate-shine-mask-\$\{rawId\}`/);
   assert.match(stoneSource, /className="natural-stone-home-shine"/);
   assert.match(stoneSource, /<linearGradient id=\{flatId\} x1="\.08" y1="0" x2="\.92" y2="1">/);
   assert.match(stoneSource, /transform="rotate\(45 32 32\)"/);
@@ -105,10 +106,13 @@ test('home plate shine enters from the edge, stays mirrored, wider, brighter and
   assert.match(stoneSource, /keyTimes="0;0\.52;0\.8;1"/);
   assert.match(stoneSource, /attributeName="opacity"[\s\S]*values="0;0;1;1;0;0"/);
   assert.match(stoneSource, /keyTimes="0;\.53;\.57;\.77;\.81;1"/);
-  assert.match(stoneSource, /dur="15\.2s"/);
-  assert.match(stoneSource, /offset="\.47" stopColor="#FFF8EA" stopOpacity="\.92"/);
-  assert.match(stoneSource, /offset="\.54" stopColor="#FFFFFF" stopOpacity="1"/);
-  assert.match(stoneSource, /offset="\.63" stopColor="#FFEFC8" stopOpacity="\.88"/);
+  assert.match(stoneSource, /dur="18s"/);
+  assert.match(stoneSource, /offset="\.47" stopColor="#F5CA88" stopOpacity="\.92"/);
+  assert.match(stoneSource, /offset="\.54" stopColor="#FFE2AA" stopOpacity="1"/);
+  assert.match(stoneSource, /offset="\.63" stopColor="#F3C078" stopOpacity="\.88"/);
+  assert.match(stoneSource, /<mask id=\{plateShineMaskId\}[\s\S]*r=\{outerR - 3\.8\}[\s\S]*stroke="black" strokeWidth="1\.55"/);
+  assert.match(stoneSource, /<mask id=\{plateShineMaskId\}[\s\S]*r=\{outerR - 8\.2\}[\s\S]*stroke="black" strokeWidth="1\.3"/);
+  assert.match(stoneSource, /mask=\{`url\(#\$\{plateShineMaskId\}\)`\}/);
   assert.match(stoneSource, /clipPath=\{`url\(#\$\{plateClipId\}\)`\}/);
   assert.match(stoneSource, /!isHomePlate && \(/);
   assert.doesNotMatch(stoneCss, /path\[stroke=/);
