@@ -119,8 +119,11 @@ export function NaturalStoneIcon({
   const flatId = `flat-bronze-${rawId}`;
   const plateClipId = `bronze-plate-clip-${rawId}`;
   const plateShineId = `bronze-plate-shine-${rawId}`;
+  const activeShineId = `bronze-active-shine-${rawId}`;
   const plateShineMaskId = `bronze-plate-shine-mask-${rawId}`;
   const activeShineMaskId = `bronze-active-shine-mask-${rawId}`;
+  const activeStoneDepthId = `stone-active-shine-depth-${rawId}`;
+  const activeStoneShineMaskId = `stone-active-shine-mask-${rawId}`;
   const clipId = `stone-clip-${rawId}`;
   const shadowId = `bronze-shadow-${rawId}`;
   const insetId = `stone-inset-${rawId}`;
@@ -187,6 +190,26 @@ export function NaturalStoneIcon({
           <stop offset=".8" stopColor="var(--bronze-shine-tail)" stopOpacity=".12" />
           <stop offset="1" stopColor="var(--bronze-shine-end)" stopOpacity="0" />
         </linearGradient>
+        <linearGradient id={activeShineId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--bronze-shine-edge)" stopOpacity="0" />
+          <stop offset=".12" stopColor="var(--bronze-shine-soft)" stopOpacity=".22" />
+          <stop offset=".28" stopColor="var(--bronze-shine-mid)" stopOpacity=".58" />
+          <stop offset=".43" stopColor="var(--bronze-shine-bright)" stopOpacity=".9" />
+          <stop offset=".5" stopColor="var(--bronze-shine-core)" stopOpacity="1" />
+          <stop offset=".58" stopColor="var(--bronze-shine-warm)" stopOpacity=".88" />
+          <stop offset=".72" stopColor="var(--bronze-shine-tail)" stopOpacity=".52" />
+          <stop offset=".9" stopColor="var(--bronze-shine-end)" stopOpacity=".12" />
+          <stop offset="1" stopColor="var(--bronze-shine-end)" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={activeStoneDepthId} gradientUnits="userSpaceOnUse" x1="32" y1={32 - stoneR} x2="32" y2={32 + stoneR}>
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity=".18" />
+          <stop offset=".18" stopColor="#FFFFFF" stopOpacity="1" />
+          <stop offset=".34" stopColor="#FFFFFF" stopOpacity=".78" />
+          <stop offset=".54" stopColor="#FFFFFF" stopOpacity=".46" />
+          <stop offset=".72" stopColor="#FFFFFF" stopOpacity=".25" />
+          <stop offset=".9" stopColor="#FFFFFF" stopOpacity=".1" />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+        </linearGradient>
         <clipPath id={plateClipId}>
           <circle cx="32" cy="32" r={outerR - 0.8} />
         </clipPath>
@@ -198,6 +221,9 @@ export function NaturalStoneIcon({
           <circle cx="32" cy="32" r={outerR - 0.8} fill="white" />
           <circle cx="32" cy="32" r={stoneR + (medallion ? 2 : 1.6)} fill="black" />
           <circle cx="32" cy="32" r={outerR - 3.8} fill="none" stroke="black" strokeWidth="1.1" />
+        </mask>
+        <mask id={activeStoneShineMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+          <circle cx="32" cy="32" r={stoneR} fill={`url(#${activeStoneDepthId})`} />
         </mask>
         <clipPath id={clipId}>
           <circle cx="32" cy="32" r={stoneR} />
@@ -346,14 +372,20 @@ export function NaturalStoneIcon({
           <g
             className="natural-stone-active-shine"
             clipPath={`url(#${plateClipId})`}
-            mask={`url(#${activeShineMaskId})`}
             pointerEvents="none"
           >
             <g transform="rotate(45 32 32)">
-              <rect x="-44" y="-18" width="11" height="100" fill={`url(#${plateShineId})`} opacity="0">
-                <animate
-                  attributeName="x"
-                  values="-44;4;40;84;84"
+              <g opacity="0">
+                <g mask={`url(#${activeShineMaskId})`}>
+                  <rect x="-48" y="-18" width="17" height="100" fill={`url(#${activeShineId})`} opacity=".9" />
+                </g>
+                <g clipPath={`url(#${clipId})`} mask={`url(#${activeStoneShineMaskId})`}>
+                  <rect x="-48" y="-18" width="17" height="100" fill={`url(#${activeShineId})`} opacity="1" />
+                </g>
+                <animateTransform
+                  attributeName="transform"
+                  type="translate"
+                  values="0 0;48 0;84 0;128 0;128 0"
                   keyTimes="0;.2;.4;.6;1"
                   begin={activeShineDelay}
                   dur="6s"
@@ -363,14 +395,14 @@ export function NaturalStoneIcon({
                 />
                 <animate
                   attributeName="opacity"
-                  values="0;.62;.6;.56;0;0"
+                  values="0;.9;1;.88;0;0"
                   keyTimes="0;.06;.38;.56;.62;1"
                   begin={activeShineDelay}
                   dur="6s"
                   calcMode="linear"
                   repeatCount="indefinite"
                 />
-              </rect>
+              </g>
             </g>
           </g>
         )}
