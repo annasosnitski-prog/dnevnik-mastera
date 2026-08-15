@@ -43,7 +43,7 @@ import {
   contentPhotoExtension,
   type ContentSharePhoto,
 } from '../../lib/contentShare';
-import { downsizePhotosSequentially, downsizeForStorage } from '../../lib/imagePreview';
+import { downsizePhotosSequentially, downsizeForContentDuplicate } from '../../lib/imagePreview';
 import { createContentEntryCardRevision } from '../../lib/contentCardMemo';
 import { buildInitialContentInstruction } from '../../lib/contentPrompt';
 import { confirmContentEntry, createContentEntryId, setContentEntryExemplar } from '../../lib/contentApproval';
@@ -693,12 +693,15 @@ export function ContentINKAScreen({
       const description = composerText.trim() || noteFallback;
       const rawPhotos = composerPhotos.length > 0 ? composerPhotos : linkedItem?.photos ?? [];
       const photoIds = createContentPhotoIds(rawPhotos.length);
-      // linkedItem.photos может быть несжатым оригиналом (сессия создана до
-      // downsizeForStorage) — пересжимаем перед тем как положить в ещё одну
-      // IndexedDB-запись (contentIngestJobs, потом contentEntries), иначе то
-      // же фото временно лежит в базе в 2-3 копиях одновременно, пока
-      // POSTiNKA его обрабатывает.
-      const storedPhotoResults = await downsizePhotosSequentially(rawPhotos, photoIds, (photo) => downsizeForStorage(photo).catch(() => photo));
+      // ContentEntry — отдельная постоянная запись в IndexedDB
+      // ('contentEntries'), не ссылка на сессию: её photos переживают
+      // удаление или правку исходной сессии (нужно для уже сгенерированного
+      // контента), а значит это НАВСЕГДА второй экземпляр тех же байт — и
+      // каждый повторный «Отправить» по одной сессии (перегенерация с новым
+      // текстом создаёт новый entryId) добавляет ещё один. См.
+      // downsizeForContentDuplicate — раз это заведомый дубль, а не
+      // единственная копия, ему незачем весить как Session.photos.
+      const storedPhotoResults = await downsizePhotosSequentially(rawPhotos, photoIds, (photo) => downsizeForContentDuplicate(photo).catch(() => photo));
       const photos = storedPhotoResults.map((p) => p.preview_data_url);
       const selectedTextArchetype = ARCHETYPE_CHIPS.find((preset) => preset.label === composerTextArchetype);
       const masterInstruction = photos.length > 0
