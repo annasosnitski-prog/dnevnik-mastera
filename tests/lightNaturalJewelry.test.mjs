@@ -126,32 +126,26 @@ test('home plate shine stays inside the inner disc and widens softly through its
   assert.match(stoneCss, /prefers-reduced-motion[\s\S]*natural-stone-home-shine/);
 });
 
-test('current light toolbar item uses one wider brighter SVG timeline for rim and concave stone', () => {
-  assert.match(stoneSource, /activeShine = false/);
-  assert.match(stoneSource, /activeShineDelay = '0s'/);
-  assert.match(stoneSource, /const activeShineId = `bronze-active-shine-\$\{rawId\}`/);
-  assert.match(stoneSource, /const activeShineMaskId = `bronze-active-shine-mask-\$\{rawId\}`/);
-  assert.match(stoneSource, /const activeStoneShineMaskId = `stone-active-shine-mask-\$\{rawId\}`/);
-  assert.match(stoneSource, /className="natural-stone-active-shine"/);
-  assert.match(stoneSource, /<rect x="-48" y="-18" width="17" height="100" fill=\{`url\(#\$\{activeShineId\}\)`\} opacity="\.9"/);
-  assert.match(stoneSource, /<rect x="-48" y="-18" width="17" height="100" fill=\{`url\(#\$\{activeShineId\}\)`\} opacity="1"/);
-  assert.match(stoneSource, /<animateTransform[\s\S]*type="translate"[\s\S]*values="0 0;48 0;84 0;128 0;128 0"/);
-  assert.match(stoneSource, /keyTimes="0;\.2;\.4;\.6;1"/);
-  assert.match(stoneSource, /begin=\{activeShineDelay\}/);
-  assert.match(stoneSource, /dur="6s"/);
-  assert.match(stoneSource, /values="0;\.9;1;\.88;0;0"/);
-  assert.match(stoneSource, /repeatCount="indefinite"/);
-  assert.match(stoneSource, /offset="\.5" stopColor="var\(--bronze-active-shine-core\)" stopOpacity="1"/);
-  assert.match(stoneSource, /id=\{activeStoneDepthId\}[\s\S]*offset="\.18" stopColor="#FFFFFF" stopOpacity="1"/);
-  assert.match(stoneSource, /id=\{activeStoneDepthId\}[\s\S]*offset="\.54" stopColor="#FFFFFF" stopOpacity="\.46"/);
+test('current light toolbar item uses one visible wide bright sweep over rim and concave stone', () => {
   assert.match(navSource, /activeShine=\{isCurrentItem\}/);
-  assert.match(navSource, /activeShineDelay=\{`\$\{\(travelDelayMs \+ durationMs \+ 180\) \/ 1000\}s`\}/);
-  assert.doesNotMatch(stoneCss, /natural-stone-active-concave-shine/);
-  assert.match(stoneCss, /\.nav-fab__item--current[\s\S]*\.theme-light-jewel::after[\s\S]*content: none;[\s\S]*display: none;/);
+  assert.match(stoneCss, /\.natural-stone-active-shine[\s\S]*display: none;/);
+  assert.match(stoneCss, /\.nav-fab__item--current[\s\S]*\.theme-light-jewel::after/);
+  assert.match(stoneCss, /inset: 0;/);
+  assert.match(stoneCss, /transparent 0 39%/);
+  assert.match(stoneCss, /var\(--bronze-active-shine-core\) 50%/);
+  assert.match(stoneCss, /transparent 62% 100%/);
+  assert.match(stoneCss, /rgba\(0, 0, 0, 1\) 18%/);
+  assert.match(stoneCss, /rgba\(0, 0, 0, 0\.68\) 54%/);
+  assert.match(stoneCss, /animation: natural-stone-active-unified-shine 6s linear infinite/);
+  assert.match(stoneCss, /animation-delay: calc\(var\(--travel-delay, 0ms\) \+ var\(--travel-duration, 0ms\) \+ 80ms\)/);
+  assert.match(stoneCss, /@keyframes natural-stone-active-unified-shine/);
+  assert.match(stoneCss, /20%[\s\S]*background-position: 91% 91%/);
+  assert.match(stoneCss, /40%[\s\S]*opacity: 1;[\s\S]*background-position: 39% 39%/);
+  assert.match(stoneCss, /60%[\s\S]*background-position: -34% -34%/);
   assert.doesNotMatch(stoneCss, /var\(--natural-jewel-color\)/);
   assert.match(jewelryThemeCss, /\.nav-fab__item--current \.theme-light-jewel[\s\S]*filter: saturate\(1\.16\) brightness\(1\.08\) contrast\(1\.05\) !important/);
   assert.match(jewelryThemeCss, /\.nav-fab__item--current::before[\s\S]*width: 33\.34% !important[\s\S]*height: 33\.34% !important/);
-  assert.match(stoneCss, /prefers-reduced-motion[\s\S]*natural-stone-active-shine/);
+  assert.match(stoneCss, /prefers-reduced-motion[\s\S]*\.theme-light-jewel::after[\s\S]*display: none/);
 });
 
 test('light Create plus is engraved into the bronze plate instead of drawn as a flat glyph', () => {
