@@ -34,26 +34,16 @@ test('natural stones are round concave inserts in polished bronze, not faceted g
 });
 
 test('polished bronze has one canonical light-theme token file loaded after base css', () => {
-  for (const sampledTone of ['#A8612F', '#F3C98F', '#DDA35F', '#99532A', '#7A421F', '#63361D']) {
+  for (const sampledTone of ['#A86531', '#F2C486', '#D99650', '#F3C98F', '#63361D']) {
     assert.match(jewelryThemeCss, new RegExp(sampledTone));
   }
   const baseImport = mainSource.indexOf("import './index.css';");
   const jewelryImport = mainSource.indexOf("import './components/ui/LightJewelryTheme.css';");
   assert.ok(baseImport >= 0 && jewelryImport > baseImport, 'canonical light jewelry tokens must load after the base theme');
-  assert.match(jewelryThemeCss, /--nav-metal: var\(--bronze-mid\)/);
-  assert.match(jewelryThemeCss, /--nav-metal-highlight: var\(--bronze-highlight\)/);
-  assert.match(jewelryThemeCss, /--bronze-face-shadow: #99532A/);
-  assert.match(jewelryThemeCss, /--bronze-engrave-groove:/);
   assert.doesNotMatch(stoneCss, /--nav-metal|--bronze-/);
   assert.match(tabCss, /var\(--bronze-highlight\)/);
   assert.match(tabCss, /var\(--bronze-patina\)/);
-  assert.doesNotMatch(jewelryThemeCss + tabCss, /#657C72|#506A61|#94694E|#CC9D75/);
-});
-
-test('light toolbar halo and ornamental rays are warmed into the canonical bronze family', () => {
-  assert.match(jewelryThemeCss, /\.nav-fab__main::before,[\s\S]*\.nav-fab__item::before[\s\S]*var\(--bronze-highlight\)/);
-  assert.match(jewelryThemeCss, /\.nav-fab\.nav-fab--open:not\(\.nav-fab--minimal\)::before[\s\S]*hue-rotate\(345deg\)/);
-  assert.match(jewelryThemeCss, /\.nav-fab\.nav-fab--open:not\(\.nav-fab--minimal\)::after[\s\S]*var\(--bronze-highlight\)/);
+  assert.doesNotMatch(jewelryThemeCss + tabCss, /#657C72/);
 });
 
 test('stone css does not own client-card tab-bar styling', () => {
@@ -131,10 +121,11 @@ test('home plate stays evenly lit while shine remains restrained and relief-awar
   assert.match(stoneSource, /!isHomePlate && \(/);
   assert.doesNotMatch(stoneCss, /path\[stroke=/);
   assert.doesNotMatch(stoneCss, /@keyframes[^}]*home-shine|animation:\s*polished-bronze-home-shine/);
+  assert.match(stoneCss, /\.nav-fab--open \.natural-stone-home-shine[\s\S]*display: none/);
   assert.match(stoneCss, /prefers-reduced-motion[\s\S]*natural-stone-home-shine/);
 });
 
-test('current light toolbar item gets one relief-aware bronze sweep after it arrives', () => {
+test('current light toolbar item gets one concave relief-aware sweep after it arrives', () => {
   assert.match(stoneSource, /activeShine = false/);
   assert.match(stoneSource, /activeShineDelay = '0s'/);
   assert.match(stoneSource, /const activeShineMaskId = `bronze-active-shine-mask-\$\{rawId\}`/);
@@ -147,6 +138,12 @@ test('current light toolbar item gets one relief-aware bronze sweep after it arr
   assert.match(stoneSource, /repeatCount="1"/);
   assert.match(navSource, /activeShine=\{isCurrentItem\}/);
   assert.match(navSource, /activeShineDelay=\{`\$\{\(travelDelayMs \+ durationMs \+ 180\) \/ 1000\}s`\}/);
+  assert.match(stoneCss, /natural-stone-active-concave-shine/);
+  assert.match(stoneCss, /clip-path: circle\(35\.9% at 50% 50%\)/);
+  assert.match(stoneCss, /circle at 44% 38%/);
+  assert.match(stoneCss, /rgba\(0, 0, 0, 0\.28\) 0 54%/);
+  assert.match(stoneCss, /rgba\(0, 0, 0, 0\.9\) 77%/);
+  assert.match(stoneCss, /animation-delay: calc\(var\(--travel-delay, 0ms\) \+ var\(--travel-duration, 0ms\) \+ 180ms\)/);
   assert.match(stoneCss, /prefers-reduced-motion[\s\S]*natural-stone-active-shine/);
 });
 
