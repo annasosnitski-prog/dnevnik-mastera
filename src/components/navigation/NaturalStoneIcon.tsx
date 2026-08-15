@@ -115,6 +115,7 @@ export function NaturalStoneIcon({
   const flatId = `flat-bronze-${rawId}`;
   const plateClipId = `bronze-plate-clip-${rawId}`;
   const plateShineId = `bronze-plate-shine-${rawId}`;
+  const plateShineMaskId = `bronze-plate-shine-mask-${rawId}`;
   const clipId = `stone-clip-${rawId}`;
   const shadowId = `bronze-shadow-${rawId}`;
   const insetId = `stone-inset-${rawId}`;
@@ -171,18 +172,23 @@ export function NaturalStoneIcon({
           <stop offset="1" stopColor="#D08A49" />
         </linearGradient>
         <linearGradient id={plateShineId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#FFF8E8" stopOpacity="0" />
-          <stop offset=".16" stopColor="#FFF8E8" stopOpacity=".14" />
-          <stop offset=".34" stopColor="#FFF4D8" stopOpacity=".46" />
-          <stop offset=".47" stopColor="#FFF8EA" stopOpacity=".92" />
-          <stop offset=".54" stopColor="#FFFFFF" stopOpacity="1" />
-          <stop offset=".63" stopColor="#FFEFC8" stopOpacity=".88" />
-          <stop offset=".8" stopColor="#FFF4D8" stopOpacity=".18" />
-          <stop offset="1" stopColor="#FFF8E8" stopOpacity="0" />
+          <stop offset="0" stopColor="#D8893E" stopOpacity="0" />
+          <stop offset=".16" stopColor="#E9A657" stopOpacity=".14" />
+          <stop offset=".34" stopColor="#F0BB70" stopOpacity=".46" />
+          <stop offset=".47" stopColor="#F5CA88" stopOpacity=".92" />
+          <stop offset=".54" stopColor="#FFE2AA" stopOpacity="1" />
+          <stop offset=".63" stopColor="#F3C078" stopOpacity=".88" />
+          <stop offset=".8" stopColor="#E39A4B" stopOpacity=".18" />
+          <stop offset="1" stopColor="#C97732" stopOpacity="0" />
         </linearGradient>
         <clipPath id={plateClipId}>
           <circle cx="32" cy="32" r={outerR - 0.8} />
         </clipPath>
+        <mask id={plateShineMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+          <circle cx="32" cy="32" r={outerR - 0.8} fill="white" />
+          <circle cx="32" cy="32" r={outerR - 3.8} fill="none" stroke="black" strokeWidth="1.55" />
+          <circle cx="32" cy="32" r={outerR - 8.2} fill="none" stroke="black" strokeWidth="1.3" />
+        </mask>
         <clipPath id={clipId}>
           <circle cx="32" cy="32" r={stoneR} />
         </clipPath>
@@ -253,14 +259,19 @@ export function NaturalStoneIcon({
             )}
 
             {isHomePlate && (
-              <g className="natural-stone-home-shine" clipPath={`url(#${plateClipId})`} pointerEvents="none">
+              <g
+                className="natural-stone-home-shine"
+                clipPath={`url(#${plateClipId})`}
+                mask={`url(#${plateShineMaskId})`}
+                pointerEvents="none"
+              >
                 <g transform="rotate(45 32 32)">
                   <rect x="-50" y="-24" width="19" height="112" fill={`url(#${plateShineId})`} opacity="0">
                     <animate
                       attributeName="x"
                       values="-50;-50;92;92"
                       keyTimes="0;0.52;0.8;1"
-                      dur="15.2s"
+                      dur="18s"
                       calcMode="spline"
                       keySplines="0 0 1 1;0.18 0.82 0.2 1;0 0 1 1"
                       repeatCount="indefinite"
@@ -269,7 +280,7 @@ export function NaturalStoneIcon({
                       attributeName="opacity"
                       values="0;0;1;1;0;0"
                       keyTimes="0;.53;.57;.77;.81;1"
-                      dur="15.2s"
+                      dur="18s"
                       calcMode="linear"
                       repeatCount="indefinite"
                     />
