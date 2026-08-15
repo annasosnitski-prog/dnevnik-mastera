@@ -1,6 +1,6 @@
-/* Home and selected-button reflections are SVG/SMIL sweeps in
-   NaturalStoneIcon.tsx. The selected bronze rim and mineral now share one
-   moving SVG group, so their position, peak and exit cannot drift apart. */
+/* The home reflection remains SVG/SMIL. The selected-button reflection is a
+   single CSS layer over the whole light jewel, so the bronze rim and concave
+   mineral share exactly one moving band and can never drift apart. */
 .natural-stone-home-shine,
 .natural-stone-active-shine {
   pointer-events: none;
@@ -37,14 +37,99 @@
   display: none;
 }
 
-/* No CSS pseudo-element is allowed to draw a second mineral reflection here.
-   The active stone and bronze ring are intentionally one SVG timeline. */
+/* Keep the experimental SVG active sweep disabled. The visible selected-state
+   highlight below is one physical layer spanning rim + stone, so there is no
+   second animation clock and therefore no rim/stone desynchronisation. */
+.natural-stone-active-shine {
+  display: none;
+}
+
+:root[data-theme='light']
+  .nav-fab--open
+  .nav-fab__item--current
+  .theme-light-jewel {
+  position: relative;
+  border-radius: 50%;
+}
+
 :root[data-theme='light']
   .nav-fab--open
   .nav-fab__item--current
   .theme-light-jewel::after {
-  content: none;
-  display: none;
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    linear-gradient(
+      135deg,
+      transparent 0 39%,
+      color-mix(in srgb, var(--bronze-active-shine-soft) 36%, transparent) 42%,
+      color-mix(in srgb, var(--bronze-active-shine-mid) 62%, transparent) 45.5%,
+      color-mix(in srgb, var(--bronze-active-shine-bright) 86%, transparent) 48%,
+      var(--bronze-active-shine-core) 50%,
+      color-mix(in srgb, var(--bronze-active-shine-warm) 88%, transparent) 52.5%,
+      color-mix(in srgb, var(--bronze-active-shine-tail) 62%, transparent) 56%,
+      color-mix(in srgb, var(--bronze-active-shine-end) 30%, transparent) 59%,
+      transparent 62% 100%
+    );
+  background-size: 235% 235%;
+  background-position: 132% 132%;
+  background-repeat: no-repeat;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 1) 18%,
+    rgba(0, 0, 0, 0.9) 34%,
+    rgba(0, 0, 0, 0.68) 54%,
+    rgba(0, 0, 0, 0.42) 74%,
+    rgba(0, 0, 0, 0.2) 90%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 1) 18%,
+    rgba(0, 0, 0, 0.9) 34%,
+    rgba(0, 0, 0, 0.68) 54%,
+    rgba(0, 0, 0, 0.42) 74%,
+    rgba(0, 0, 0, 0.2) 90%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+  animation: natural-stone-active-unified-shine 6s linear infinite;
+  animation-delay: calc(var(--travel-delay, 0ms) + var(--travel-duration, 0ms) + 80ms);
+}
+
+/* The first 60% of the cycle is the deliberately slow pass (3.6s), split into
+   three readable phrases. The rest is a short pause before the reflection
+   returns. Because this one layer covers both materials, every phase is shared. */
+@keyframes natural-stone-active-unified-shine {
+  0% {
+    opacity: 0;
+    background-position: 132% 132%;
+  }
+  5% {
+    opacity: 0.96;
+  }
+  20% {
+    background-position: 91% 91%;
+  }
+  40% {
+    opacity: 1;
+    background-position: 39% 39%;
+  }
+  60% {
+    opacity: 0.9;
+    background-position: -34% -34%;
+  }
+  63%,
+  100% {
+    opacity: 0;
+    background-position: -34% -34%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -54,6 +139,14 @@
   }
 
   .natural-stone-home-shine rect {
+    animation: none;
+  }
+
+  :root[data-theme='light']
+    .nav-fab--open
+    .nav-fab__item--current
+    .theme-light-jewel::after {
+    display: none;
     animation: none;
   }
 }
