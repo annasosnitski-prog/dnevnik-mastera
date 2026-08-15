@@ -6,6 +6,13 @@
   pointer-events: none;
 }
 
+/* The closed hub is the attention cue. Once the toolbar is open the hub must
+   stay visually quiet while the selected destination receives the one-shot
+   reflection instead. */
+.nav-fab--open .natural-stone-home-shine {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .natural-stone-home-shine,
   .natural-stone-active-shine {
