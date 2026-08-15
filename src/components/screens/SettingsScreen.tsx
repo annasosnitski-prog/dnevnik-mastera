@@ -19,6 +19,7 @@ import {
   type PreparedBackupArchive,
   type PrepareBackupArchiveOptions,
 } from '../../lib/backupArchive';
+import { compareBackupSource } from '../../lib/backupIdentity';
 import { copyTextToClipboard } from '../../lib/clipboard';
 import { formatErrorLog, errorSourceLabel, type DiaryErrorEntry } from '../../lib/errorLog';
 import {
@@ -89,6 +90,7 @@ export function SettingsScreen({
   onChange,
   onBack,
   masterInfo,
+  installationId,
   onPrepareBackup,
   persistence,
   storageEstimate,
@@ -114,6 +116,9 @@ export function SettingsScreen({
   // случиться, — тогда в файл уедет то, что мастер видит на экране, а не
   // пустая карточка.
   masterInfo: MasterInfo;
+  // Stable per browser installation. Four masters can use the app without
+  // their independent backup files looking interchangeable.
+  installationId: string;
   // Собирает disk-backed ZIP прямо из IndexedDB, по одной записи за раз.
   // Большая копия не проходит ни через React state, ни через один общий
   // JSON.stringify — иначе 630 МБ базы превращались в несколько копий в RAM.
@@ -175,6 +180,7 @@ export function SettingsScreen({
   >(null);
   const [importProgress, setImportProgress] = useState<BackupArchiveProgress | null>(null);
   const [importBusy, setImportBusy] = useState(false);
+  const [foreignImportAcknowledged, setForeignImportAcknowledged] = useState(false);
   const importAbortRef = useRef<AbortController | null>(null);
 
   useEffect(
@@ -189,6 +195,16 @@ export function SettingsScreen({
   const [logCopied, setLogCopied] = useState<string | null>(null);
   const backup = backupStatus(lastBackupAt, new Date());
   const storageUsedText = formatMegabytes(storageEstimate?.usage);
+  const archiveSourceRelation =
+    pendingImport?.kind === 'archive'
+      ? compareBackupSource(pendingImport.summary.source, {
+          installationId,
+          ownerName: masterInfo.name,
+        })
+      : 'unknown';
+  const isForeignOwner = archiveSourceRelation === 'different-owner';
+  const needsSourceAcknowledgement =
+    pendingImport?.kind === 'archive' && archiveSourceRelation !== 'same-installation';
 
   const handlePrepareExport = async () => {
     await preparedBackup?.cleanup();
@@ -201,6 +217,7 @@ export function SettingsScreen({
       const prepared = await onPrepareBackup({
         masterFallback: masterInfo,
         errorLog,
+        source: { installationId, ownerName: masterInfo.name.trim() },
         signal: controller.signal,
         onProgress: (progress) => setExportState({ kind: 'preparing', progress }),
       });
@@ -275,6 +292,7 @@ export function SettingsScreen({
       isZip = signature[0] === 0x50 && signature[1] === 0x4b;
       if (isZip) {
         const summary = await inspectBackupArchive(file);
+        setForeignImportAcknowledged(false);
         setPendingImport({ kind: 'archive', file, summary });
         return;
       }
@@ -291,6 +309,7 @@ export function SettingsScreen({
         contentEntries: Array.isArray(parsed?.contentEntries) ? (parsed.contentEntries as ContentEntry[]) : undefined,
         master: masterInfoFromBackup(parsed) ?? undefined,
       });
+      setForeignImportAcknowledged(false);
     } catch (error) {
       setImportError(
         isZip && error instanceof Error
@@ -307,6 +326,7 @@ export function SettingsScreen({
       onImport(bundle);
       setImportSuccess(`Импортировано ${pendingImport.clients.length} клиент(ов).`);
       setPendingImport(null);
+      setForeignImportAcknowledged(false);
       return;
     }
 
@@ -324,6 +344,7 @@ export function SettingsScreen({
         `Импортировано ${result.summary.counts.clients} клиент(ов), ${result.summary.counts.projects} проект(ов) и ${result.summary.mediaCount} медиафайл(ов).`,
       );
       setPendingImport(null);
+      setForeignImportAcknowledged(false);
     } catch (error) {
       const cancelled = error instanceof DOMException && error.name === 'AbortError';
       setImportError(
@@ -637,6 +658,19 @@ export function SettingsScreen({
           {pendingImport ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', flex: 1, minWidth: 160 }}>
+                {pendingImport.kind === 'archive' && pendingImport.summary.source.ownerName && (
+                  <>Копия дневника «{pendingImport.summary.source.ownerName}». </>
+                )}
+                {archiveSourceRelation === 'same-owner' && <>Она создана на другом устройстве этого владельца. </>}
+                {archiveSourceRelation === 'other-installation' && <>Копия создана в другой установке приложения. </>}
+                {archiveSourceRelation === 'unknown' && pendingImport.kind === 'archive' && (
+                  <>В этой копии нет сведений о владельце или устройстве. </>
+                )}
+                {isForeignOwner && (
+                  <>
+                    Сейчас открыт дневник «{masterInfo.name.trim() || 'без имени'}» — это данные другого человека.{' '}
+                  </>
+                )}
                 Импортировать{' '}
                 {pendingImport.kind === 'archive' ? pendingImport.summary.counts.clients : pendingImport.clients.length} клиент(ов)? Текущие данные будут заменены
                 {(pendingImport.kind === 'archive' || pendingImport.master?.kind === 'full') && ', включая личный кабинет'}.
@@ -650,14 +684,20 @@ export function SettingsScreen({
                 </span>
               ) : (
                 <>
-                  <span onClick={confirmImport} style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
-                    Да
+                  <span
+                    onClick={needsSourceAcknowledgement && !foreignImportAcknowledged ? () => setForeignImportAcknowledged(true) : confirmImport}
+                    style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
+                  >
+                    {needsSourceAcknowledgement && !foreignImportAcknowledged ? 'Это нужная копия' : 'Заменить'}
                   </span>
                   <span
-                    onClick={() => setPendingImport(null)}
+                    onClick={() => {
+                      setPendingImport(null);
+                      setForeignImportAcknowledged(false);
+                    }}
                     style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
                   >
-                    Нет
+                    Отмена
                   </span>
                 </>
               )}

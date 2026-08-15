@@ -27,6 +27,7 @@ function manifest(overrides = {}) {
     scope: 'full',
     exportedAt: '2026-08-15T12:00:00.000Z',
     sourceDbVersion: 4,
+    source: { installationId: 'installation-anna', ownerName: 'Анна' },
     counts: { clients: 1, projects: 0, contentEntries: 0 },
     hasMasterInfo: true,
     mediaCount: 1,
@@ -160,6 +161,7 @@ test('archive inspection reads only the directory and manifest summary', async (
   assert.equal(summary.counts.clients, 1);
   assert.equal(summary.mediaCount, 1);
   assert.equal(summary.hasMasterInfo, true);
+  assert.deepEqual(summary.source, { installationId: 'installation-anna', ownerName: 'Анна' });
   assert.equal(summary.archiveBytes, archive.size);
 });
 
@@ -184,10 +186,11 @@ test('full export streams an importable ZIP into OPFS and cleanup removes only t
     const prepared = await prepareBackupArchive(db, {
       masterFallback: { name: 'fallback' },
       errorLog: [],
+      source: { installationId: 'installation-anna', ownerName: 'Анна Мастер' },
       now: new Date('2026-08-15T12:00:00.000Z'),
       onProgress: (value) => progress.push(value),
     });
-    assert.equal(prepared.filename, 'inka-backup-2026-08-15.inka.zip');
+    assert.equal(prepared.filename, 'inka-backup-Анна-Мастер-2026-08-15.inka.zip');
     assert.equal(prepared.summary.counts.clients, 1);
     assert.equal(prepared.summary.mediaCount, 1);
     assert.equal((await inspectBackupArchive(prepared.file)).mediaCount, 1);

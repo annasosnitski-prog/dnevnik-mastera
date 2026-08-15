@@ -25,9 +25,17 @@ media/000000001.jpg
 ```
 
 `manifest.json` identifies `format: "inka-backup"`, `version: 6`, the full
-restore scope, record counts, and media count. Any base64 data URL is detached
+restore scope, record counts, media count, master name, and a stable id of the
+browser installation that created it. Any base64 data URL is detached
 recursively, so current `photos` fields, document data URLs, and future media
 fields use the same path.
+
+The source identity is a safety label, not an account or sync key. Each master
+keeps a separate, independent database. A restore from another named master shows
+an extra confirmation before it can replace the current diary; restoring the
+same master's copy on a new phone/tablet is labelled as another device and
+also requires the cross-device acknowledgement because the restore is still
+destructive.
 
 ## Tablet/phone flow
 
@@ -50,6 +58,8 @@ wrap the archive in another archive-sized `Blob`.
   or cancelled restore never starts by clearing the current diary.
 - Content ingest jobs are cleared only when the full restore completes.
 - Existing JSON backups v1–v5 remain importable.
+- Early/legacy archives without source identity remain importable and are
+  shown as an unknown source instead of being mistaken for the current diary.
 
 ## Deliberate limits of this step
 

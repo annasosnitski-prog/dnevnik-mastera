@@ -11,6 +11,7 @@ import {
 } from '@zip.js/zip.js';
 import { CONTENT_INGEST_JOB_STORE, TATTO_DIARY_DB_VERSION } from './contentJobQueue.js';
 import { normalizeContentEntry } from './contentApproval.js';
+import type { BackupSourceIdentity } from './backupIdentity.js';
 import { MASTER_INFO_RECORD_ID, MASTER_INFO_STORE, normalizeMasterInfo, type MasterInfo } from './masterInfoStore.js';
 import { normalizeClient, normalizeProject } from './normalize.js';
 
@@ -36,6 +37,9 @@ export interface BackupArchiveManifest {
   scope: 'full';
   exportedAt: string;
   sourceDbVersion: number;
+  // Optional only for compatibility with v6 preview archives created before
+  // multi-installation labelling was added. New exports always include it.
+  source?: { installationId: string; ownerName: string };
   counts: Record<BackupStore, number>;
   hasMasterInfo: boolean;
   mediaCount: number;
@@ -44,6 +48,7 @@ export interface BackupArchiveManifest {
 export interface BackupArchiveSummary {
   version: typeof BACKUP_ARCHIVE_VERSION;
   exportedAt: string;
+  source: BackupSourceIdentity;
   counts: Record<BackupStore, number>;
   hasMasterInfo: boolean;
   mediaCount: number;
@@ -69,6 +74,7 @@ export interface PreparedBackupArchive {
 export interface PrepareBackupArchiveOptions {
   masterFallback: unknown;
   errorLog: unknown;
+  source: { installationId: string; ownerName: string };
   signal?: AbortSignal;
   onProgress?: (progress: BackupArchiveProgress) => void;
   now?: Date;
@@ -262,6 +268,12 @@ export function parseBackupArchiveManifest(value: unknown): BackupArchiveManifes
     scope: 'full',
     exportedAt: raw.exportedAt,
     sourceDbVersion: integerCount(raw.sourceDbVersion) ? raw.sourceDbVersion : 0,
+    source:
+      raw.source &&
+      typeof raw.source.installationId === 'string' &&
+      typeof raw.source.ownerName === 'string'
+        ? { installationId: raw.source.installationId, ownerName: raw.source.ownerName }
+        : undefined,
     counts: {
       clients: raw.counts.clients,
       projects: raw.counts.projects,
@@ -336,6 +348,10 @@ function summaryFromManifest(manifest: BackupArchiveManifest, archiveBytes: numb
   return {
     version: manifest.version,
     exportedAt: manifest.exportedAt,
+    source: {
+      installationId: manifest.source?.installationId || null,
+      ownerName: manifest.source?.ownerName ?? '',
+    },
     counts: manifest.counts,
     hasMasterInfo: manifest.hasMasterInfo,
     mediaCount: manifest.mediaCount,
@@ -370,8 +386,13 @@ async function checkFreeSpace(): Promise<void> {
   }
 }
 
-function archiveFilename(now: Date): string {
-  return `inka-backup-${now.toISOString().slice(0, 10)}.inka.zip`;
+function archiveFilename(now: Date, ownerName: string): string {
+  const owner = ownerName
+    .trim()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  return `inka-backup-${owner || 'diary'}-${now.toISOString().slice(0, 10)}.inka.zip`;
 }
 
 function serialPath(prefix: string, index: number): string {
@@ -390,7 +411,7 @@ export async function prepareBackupArchive(
   const root = await getDirectory.call(navigator.storage);
   const directory = await root.getDirectoryHandle(BACKUP_DIRECTORY, { create: true });
   const now = options.now ?? new Date();
-  const filename = archiveFilename(now);
+  const filename = archiveFilename(now, options.source.ownerName);
   // A prepared-but-not-shared copy from an interrupted attempt must not make
   // the quota preflight count that same output twice.
   await directory.removeEntry(filename).catch(() => undefined);
@@ -474,6 +495,7 @@ export async function prepareBackupArchive(
       scope: 'full',
       exportedAt: now.toISOString(),
       sourceDbVersion: TATTO_DIARY_DB_VERSION,
+      source: options.source,
       counts: {
         clients: keys.clients.length,
         projects: keys.projects.length,
