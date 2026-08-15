@@ -93,7 +93,7 @@ test('durable flow splits create and one-shot status GET while retaining sendToC
 
 test('root coordinator is mounted outside the conditional POSTiNKA screen', () => {
   const coordinator = diary.indexOf('startContentIngestJobCoordinator({');
-  const contentScreen = diary.indexOf("{screen === 'content' && (");
+  const contentScreen = diary.indexOf("{screen === 'content' && masterInfo.modules.content && (");
   assert.ok(coordinator > 0 && contentScreen > 0 && coordinator < contentScreen);
 });
 

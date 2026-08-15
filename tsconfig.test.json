@@ -28,6 +28,7 @@
     "src/lib/projectRecordSave.ts",
     "src/lib/storageHealth.ts",
     "src/lib/masterInfoStore.ts",
+    "src/modules/registry.ts",
     "src/lib/errorLog.ts",
     "src/lib/storageMessages.ts",
     "src/lib/chatLink.ts",

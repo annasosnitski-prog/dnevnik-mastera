@@ -3,6 +3,7 @@ import { PendantIcon } from "./PendantIcon";
 import { ToolbarIcon } from "./ToolbarIcons";
 import { TERRITORY_COLORS } from "../ui/designTokens";
 import { useMinimalism } from "../ui/minimalism";
+import type { ModuleFlags, ModuleKey } from "../../modules/registry";
 import "./NavFabReveal.css";
 import "./NavFabMinimal.css";
 
@@ -12,6 +13,11 @@ type NavItemId = "clients" | "gear" | "content" | "brush" | "sketchbook" | "prof
 interface NavFabProps {
   active: AppScreen;
   onNavigate: (screen: AppScreen) => void;
+  // Клиенты (ядро) не привязаны ни к одному модулю — showsFor undefined
+  // держит их в вееере всегда. Остальные пункты прячутся, когда их модуль
+  // выключен (см. modules/registry.ts), — веер просто заново распределяется
+  // по оставшимся пунктам (radialOffset делит круг на fanEntries.length).
+  moduleFlags: ModuleFlags;
   adminBadges?: ("urgent" | "reminder")[];
   onCreate?: () => void;
 }
@@ -24,6 +30,7 @@ const NAV_ITEMS = [
     isActive: (active: AppScreen) => active === "list" || active === "settings" || active === "detail",
     color: TERRITORY_COLORS.clients,
     durationMs: 2000,
+    moduleKey: null as ModuleKey | null,
   },
   {
     id: "gear",
@@ -32,6 +39,10 @@ const NAV_ITEMS = [
     isActive: (active: AppScreen) => active === "master",
     color: TERRITORY_COLORS.personal,
     durationMs: 3600,
+    // Не гасится ни одним модулем: это единственный путь к «Настройкам»,
+    // где живут сами тогглы модулей — спрятав вкладку, было бы некуда
+    // вернуться, чтобы включить модуль обратно.
+    moduleKey: null as ModuleKey | null,
   },
   {
     id: "content",
@@ -40,6 +51,7 @@ const NAV_ITEMS = [
     isActive: (active: AppScreen) => active === "content",
     color: TERRITORY_COLORS.content,
     durationMs: 3200,
+    moduleKey: "content" as ModuleKey | null,
   },
   {
     id: "brush",
@@ -48,6 +60,7 @@ const NAV_ITEMS = [
     isActive: (active: AppScreen) => active === "workshop",
     color: TERRITORY_COLORS.projects,
     durationMs: 2100,
+    moduleKey: "workshop" as ModuleKey | null,
   },
   {
     id: "sketchbook",
@@ -56,6 +69,7 @@ const NAV_ITEMS = [
     isActive: (active: AppScreen) => active === "summary",
     color: TERRITORY_COLORS.notes,
     durationMs: 1800,
+    moduleKey: "planner" as ModuleKey | null,
   },
   {
     id: "profile",
@@ -64,6 +78,7 @@ const NAV_ITEMS = [
     isActive: (active: AppScreen) => active === "admin",
     color: TERRITORY_COLORS.admin,
     durationMs: 3800,
+    moduleKey: "adminka" as ModuleKey | null,
   },
 ] as const;
 
@@ -194,14 +209,15 @@ function MinimalGlyph({ id, size }: { id: NavItemId; size: number }) {
   );
 }
 
-export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProps) {
+export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate }: NavFabProps) {
   const minimalism = useMinimalism();
   const [open, setOpen] = useState(false);
   const [pressedId, setPressedId] = useState<string | null>(null);
   const releasePress = (id: string) => setPressedId((current) => (current === id ? null : current));
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
+  const isNavItemVisible = (item: (typeof NAV_ITEMS)[number]) => item.moduleKey === null || moduleFlags[item.moduleKey];
 
-  const fanEntries: FanEntry[] = onCreate
+  const allFanEntries: FanEntry[] = onCreate
     ? [
         { kind: "nav", item: NAV_ITEMS[1] },
         { kind: "nav", item: NAV_ITEMS[5] },
@@ -219,6 +235,10 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         { kind: "nav", item: NAV_ITEMS[4] },
         { kind: "nav", item: NAV_ITEMS[3] },
       ];
+  // Отключённый модуль просто выпадает из веера — radialOffset делит круг на
+  // fanEntries.length, так что оставшиеся пункты сами перераспределяются
+  // равномерно, без дыр.
+  const fanEntries: FanEntry[] = allFanEntries.filter((entry) => entry.kind !== "nav" || isNavItemVisible(entry.item));
 
   const positions = fanEntries.map((_, index) => radialOffset(index, fanEntries.length));
   const innerPolygonVertices: PolygonVertex[] = positions.map(({ dx, dy }, index) => {

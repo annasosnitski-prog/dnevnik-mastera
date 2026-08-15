@@ -20,6 +20,7 @@ import {
   type PrepareBackupArchiveOptions,
 } from '../../lib/backupArchive';
 import { compareBackupSource } from '../../lib/backupIdentity';
+import { MODULE_REGISTRY } from '../../modules/registry';
 import { copyTextToClipboard } from '../../lib/clipboard';
 import { formatErrorLog, errorSourceLabel, type DiaryErrorEntry } from '../../lib/errorLog';
 import {
@@ -90,6 +91,7 @@ export function SettingsScreen({
   onChange,
   onBack,
   masterInfo,
+  onChangeMasterInfo,
   installationId,
   onPrepareBackup,
   persistence,
@@ -116,6 +118,9 @@ export function SettingsScreen({
   // случиться, — тогда в файл уедет то, что мастер видит на экране, а не
   // пустая карточка.
   masterInfo: MasterInfo;
+  // Только для тоглов модулей (см. секцию «Модули» ниже) — остальные поля
+  // карточки правятся из Личного кабинета, сюда не дублируются.
+  onChangeMasterInfo: (m: MasterInfo) => void;
   // Stable per browser installation. Four masters can use the app without
   // their independent backup files looking interchangeable.
   installationId: string;
@@ -486,6 +491,52 @@ export function SettingsScreen({
                 {o.label}
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Modules — экраны поверх ядра (клиент → проект → сессии →
+            консультации), которое всегда включено и в список не входит.
+            Выключенный модуль исчезает из вкладок навигации, и его lazy-чанк
+            вообще не грузится (см. modules/registry.ts). */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Модули</div>
+          <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic', marginBottom: 10 }}>
+            Ядро — клиенты, проекты, сессии — отключить нельзя. Здесь можно скрыть то, что сейчас не нужно.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {MODULE_REGISTRY.map((m) => {
+              const active = masterInfo.modules[m.key];
+              return (
+                <div
+                  key={m.key}
+                  onClick={() => onChangeMasterInfo({ ...masterInfo, modules: { ...masterInfo.modules, [m.key]: !active } })}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 13px',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    border: active ? '1px solid rgba(var(--gold-rgb),0.35)' : '1px solid rgba(var(--gold-rgb),0.1)',
+                    background: active ? 'rgba(var(--gold-rgb),0.05)' : 'transparent',
+                  }}
+                >
+                  <span style={{ fontSize: fs(13), color: active ? COLORS.textPrimary : COLORS.textFaint }}>
+                    {m.icon} {m.label}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: fs(11),
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      color: active ? COLORS.gold : COLORS.textGhost,
+                    }}
+                  >
+                    {active ? 'Включён' : 'Выключен'}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
