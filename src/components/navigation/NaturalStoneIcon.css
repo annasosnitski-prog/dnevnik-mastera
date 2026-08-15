@@ -77,7 +77,7 @@
       transparent 62% 100%
     );
   background-size: 235% 235%;
-  background-position: 132% 132%;
+  background-position: 112% 112%;
   background-repeat: no-repeat;
   -webkit-mask-image: linear-gradient(
     to bottom,
@@ -100,7 +100,7 @@
     rgba(0, 0, 0, 0.08) 100%
   );
   animation: natural-stone-active-unified-shine 6s linear infinite;
-  animation-delay: calc(var(--travel-delay, 0ms) + var(--travel-duration, 0ms) + 80ms);
+  animation-delay: calc(var(--travel-delay, 0ms) + var(--travel-duration, 0ms) + 40ms);
 }
 
 /* The first 60% of the cycle is the deliberately slow pass (3.6s), split into
@@ -109,26 +109,26 @@
 @keyframes natural-stone-active-unified-shine {
   0% {
     opacity: 0;
-    background-position: 132% 132%;
+    background-position: 112% 112%;
   }
-  5% {
-    opacity: 0.96;
+  4% {
+    opacity: 0.98;
   }
   20% {
-    background-position: 91% 91%;
+    background-position: 82% 82%;
   }
   40% {
     opacity: 1;
-    background-position: 39% 39%;
+    background-position: 35% 35%;
   }
   60% {
-    opacity: 0.9;
-    background-position: -34% -34%;
+    opacity: 0.92;
+    background-position: -28% -28%;
   }
   63%,
   100% {
     opacity: 0;
-    background-position: -34% -34%;
+    background-position: -28% -28%;
   }
 }
 
