@@ -214,7 +214,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         { kind: "nav", item: NAV_ITEMS[1] },
         { kind: "nav", item: NAV_ITEMS[5] },
         { kind: "nav", item: NAV_ITEMS[0] },
-        { kind: "create", id: "create", label: "Создать", durationMs: CREATE_DURATION_MS },
+        { kind: "create", id: "create", label: "Создать"; durationMs: CREATE_DURATION_MS },
         { kind: "nav", item: NAV_ITEMS[2] },
         { kind: "nav", item: NAV_ITEMS[4] },
         { kind: "nav", item: NAV_ITEMS[3] },
@@ -386,6 +386,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
             const { dx, dy } = positions[index];
             const id = entry.kind === "create" ? entry.id : entry.item.id;
             const durationMs = entry.kind === "create" ? entry.durationMs : entry.item.durationMs;
+            const travelDelayMs = 120 + index * 65;
             const classes = ["nav-fab__item", minimalism ? "nav-fab__item--minimal" : "nav-fab__item--ice"];
 
             if (entry.kind === "create") classes.push(minimalism ? "nav-fab__item--minimal-create" : "nav-fab__item--create");
@@ -401,7 +402,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                     ["--dx" as string]: `${dx}px`,
                     ["--dy" as string]: `${dy}px`,
                     ["--travel-duration" as string]: `${durationMs}ms`,
-                    ["--travel-delay" as string]: `${120 + index * 65}ms`,
+                    ["--travel-delay" as string]: `${travelDelayMs}ms`,
                   }}
                   aria-label={entry.label}
                   onPointerDown={() => setPressedId(entry.id)}
@@ -428,8 +429,14 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                       </span>
                       <span className="theme-light-jewel" aria-hidden="true">
                         <NaturalStoneIcon size={ITEM_SIZE} plate>
-                          <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.8" strokeLinecap="round" />
-                          <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.8" strokeLinecap="round" />
+                          <g aria-hidden="true">
+                            <line x1="0" y1="-7" x2="0" y2="7" stroke="var(--bronze-engrave-groove)" strokeWidth="3.4" strokeLinecap="round" />
+                            <line x1="-7" y1="0" x2="7" y2="0" stroke="var(--bronze-engrave-groove)" strokeWidth="3.4" strokeLinecap="round" />
+                            <line x1="-.62" y1="-7" x2="-.62" y2="7" stroke="var(--bronze-engrave-highlight)" strokeWidth=".72" strokeLinecap="round" opacity=".64" />
+                            <line x1="-7" y1="-.62" x2="7" y2="-.62" stroke="var(--bronze-engrave-highlight)" strokeWidth=".72" strokeLinecap="round" opacity=".64" />
+                            <line x1=".62" y1="-7" x2=".62" y2="7" stroke="var(--bronze-engrave-shadow)" strokeWidth=".76" strokeLinecap="round" opacity=".72" />
+                            <line x1="-7" y1=".62" x2="7" y2=".62" stroke="var(--bronze-engrave-shadow)" strokeWidth=".76" strokeLinecap="round" opacity=".72" />
+                          </g>
                         </NaturalStoneIcon>
                       </span>
                     </>
@@ -451,7 +458,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                   ["--dx" as string]: `${dx}px`,
                   ["--dy" as string]: `${dy}px`,
                   ["--travel-duration" as string]: `${durationMs}ms`,
-                  ["--travel-delay" as string]: `${120 + index * 65}ms`,
+                  ["--travel-delay" as string]: `${travelDelayMs}ms`,
                   ["--natural-jewel-color" as string]: item.color,
                   ...(minimalism && isCurrentItem ? { ["--item-color" as string]: item.color, color: item.color } : {}),
                 }}
@@ -487,7 +494,12 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
                       aria-hidden="true"
                       style={{ ['--natural-jewel-color' as string]: item.color }}
                     >
-                      <NaturalStoneIcon kind={NATURAL_STONE_BY_ITEM[item.id]} size={ITEM_SIZE} />
+                      <NaturalStoneIcon
+                        kind={NATURAL_STONE_BY_ITEM[item.id]}
+                        size={ITEM_SIZE}
+                        activeShine={isCurrentItem}
+                        activeShineDelay={`${(travelDelayMs + durationMs + 180) / 1000}s`}
+                      />
                     </span>
                   </>
                 )}
