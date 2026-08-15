@@ -34,7 +34,7 @@ test('natural stones are round concave inserts in polished bronze, not faceted g
 });
 
 test('polished bronze has one canonical light-theme token file loaded after base css', () => {
-  for (const sampledTone of ['#A86531', '#F2C486', '#D99650', '#F3C98F', '#63361D']) {
+  for (const sampledTone of ['#986039', '#E9C08D', '#D29C68', '#F4D4A7', '#5B3924']) {
     assert.match(jewelryThemeCss, new RegExp(sampledTone));
   }
   const baseImport = mainSource.indexOf("import './index.css';");
@@ -43,6 +43,7 @@ test('polished bronze has one canonical light-theme token file loaded after base
   assert.doesNotMatch(stoneCss, /--nav-metal\s*:|--bronze-[\w-]+\s*:/);
   assert.match(tabCss, /var\(--bronze-highlight\)/);
   assert.match(tabCss, /var\(--bronze-patina\)/);
+  assert.match(jewelryThemeCss, /--bronze-active-shine-core: #FFF0CF/);
   assert.doesNotMatch(jewelryThemeCss + tabCss, /#657C72/);
 });
 
@@ -125,31 +126,29 @@ test('home plate shine stays inside the inner disc and widens softly through its
   assert.match(stoneCss, /prefers-reduced-motion[\s\S]*natural-stone-home-shine/);
 });
 
-test('current light toolbar item gets a slower recurring three-phrase concave sweep without coloured glow', () => {
+test('current light toolbar item uses one wider brighter SVG timeline for rim and concave stone', () => {
   assert.match(stoneSource, /activeShine = false/);
   assert.match(stoneSource, /activeShineDelay = '0s'/);
+  assert.match(stoneSource, /const activeShineId = `bronze-active-shine-\$\{rawId\}`/);
   assert.match(stoneSource, /const activeShineMaskId = `bronze-active-shine-mask-\$\{rawId\}`/);
+  assert.match(stoneSource, /const activeStoneShineMaskId = `stone-active-shine-mask-\$\{rawId\}`/);
   assert.match(stoneSource, /className="natural-stone-active-shine"/);
-  assert.match(stoneSource, /<rect x="-44" y="-18" width="11" height="100"/);
-  assert.match(stoneSource, /values="-44;4;40;84;84"/);
+  assert.match(stoneSource, /<rect x="-48" y="-18" width="17" height="100" fill=\{`url\(#\$\{activeShineId\}\)`\} opacity="\.9"/);
+  assert.match(stoneSource, /<rect x="-48" y="-18" width="17" height="100" fill=\{`url\(#\$\{activeShineId\}\)`\} opacity="1"/);
+  assert.match(stoneSource, /<animateTransform[\s\S]*type="translate"[\s\S]*values="0 0;48 0;84 0;128 0;128 0"/);
   assert.match(stoneSource, /keyTimes="0;\.2;\.4;\.6;1"/);
   assert.match(stoneSource, /begin=\{activeShineDelay\}/);
   assert.match(stoneSource, /dur="6s"/);
-  assert.match(stoneSource, /values="0;\.62;\.6;\.56;0;0"/);
+  assert.match(stoneSource, /values="0;\.9;1;\.88;0;0"/);
   assert.match(stoneSource, /repeatCount="indefinite"/);
+  assert.match(stoneSource, /offset="\.5" stopColor="var\(--bronze-active-shine-core\)" stopOpacity="1"/);
+  assert.match(stoneSource, /id=\{activeStoneDepthId\}[\s\S]*offset="\.18" stopColor="#FFFFFF" stopOpacity="1"/);
+  assert.match(stoneSource, /id=\{activeStoneDepthId\}[\s\S]*offset="\.54" stopColor="#FFFFFF" stopOpacity="\.46"/);
   assert.match(navSource, /activeShine=\{isCurrentItem\}/);
   assert.match(navSource, /activeShineDelay=\{`\$\{\(travelDelayMs \+ durationMs \+ 180\) \/ 1000\}s`\}/);
-  assert.match(stoneCss, /natural-stone-active-concave-shine 6s linear infinite/);
-  assert.match(stoneCss, /inset: 14\.1%/);
-  assert.match(stoneCss, /transparent 0 44%/);
-  assert.match(stoneCss, /var\(--bronze-shine-core\) 72%/);
+  assert.doesNotMatch(stoneCss, /natural-stone-active-concave-shine/);
+  assert.match(stoneCss, /\.nav-fab__item--current[\s\S]*\.theme-light-jewel::after[\s\S]*content: none;[\s\S]*display: none;/);
   assert.doesNotMatch(stoneCss, /var\(--natural-jewel-color\)/);
-  assert.match(stoneCss, /20%[\s\S]*background-position: 90% 90%/);
-  assert.match(stoneCss, /40%[\s\S]*background-position: 38% 38%/);
-  assert.match(stoneCss, /60%[\s\S]*background-position: -32% -32%/);
-  assert.match(stoneCss, /rgba\(0, 0, 0, 0\.92\) 18%/);
-  assert.match(stoneCss, /rgba\(0, 0, 0, 0\.34\) 54%/);
-  assert.match(stoneCss, /animation-delay: calc\(var\(--travel-delay, 0ms\) \+ var\(--travel-duration, 0ms\) \+ 180ms\)/);
   assert.match(jewelryThemeCss, /\.nav-fab__item--current \.theme-light-jewel[\s\S]*filter: saturate\(1\.16\) brightness\(1\.08\) contrast\(1\.05\) !important/);
   assert.match(jewelryThemeCss, /\.nav-fab__item--current::before[\s\S]*width: 33\.34% !important[\s\S]*height: 33\.34% !important/);
   assert.match(stoneCss, /prefers-reduced-motion[\s\S]*natural-stone-active-shine/);
@@ -184,7 +183,7 @@ test('light client tabs use polished bronze rods, fasteners, wire and hardware r
   assert.match(tabCss, /\.client-card-tabbar__tab:not\(:last-child\)::after/);
   assert.match(tabCss, /\.jewel-wire-shadow/);
   assert.match(tabCss, /\.jewel-wire-highlight/);
-  assert.match(bronzeSource, /#F3C98F/);
+  assert.match(bronzeSource, /#E9C08D/);
 });
 
 test('master two-pendant geometry is explicit and gradient ids are instance-safe', () => {
