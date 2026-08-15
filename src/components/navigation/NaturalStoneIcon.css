@@ -1,21 +1,25 @@
-/* The home reflection remains SVG/SMIL. The selected-button reflection is a
-   single CSS layer over the whole light jewel, so the bronze rim and concave
-   mineral share exactly one moving band and can never drift apart. */
+/* Home and selected-button reflections are the same SVG/SMIL light strip.
+   The selected button reuses the approved home reflection instead of owning a
+   separate CSS shine system. */
 .natural-stone-home-shine,
 .natural-stone-active-shine {
   pointer-events: none;
 }
 
-/* The home reflection is still the approved soft strip, but its footprint is
-   subtly spindle-shaped. It widens as it crosses the middle of the inner
-   bronze disc and narrows again toward the far side, mimicking a gently curved
-   metal surface rather than a perfectly flat plate. */
-.natural-stone-home-shine rect {
+.natural-stone-home-shine rect,
+.natural-stone-active-shine rect {
   filter: blur(0.62px);
   transform-box: fill-box;
   transform-origin: center;
   clip-path: ellipse(50% 90% at 50% 50%);
+}
+
+.natural-stone-home-shine rect {
   animation: natural-stone-home-spindle 9s cubic-bezier(0.18, 0.82, 0.2, 1) 2s infinite;
+}
+
+.natural-stone-active-shine rect {
+  animation: natural-stone-home-spindle 9s cubic-bezier(0.18, 0.82, 0.2, 1) var(--active-shine-delay, 0s) infinite;
 }
 
 @keyframes natural-stone-home-spindle {
@@ -31,97 +35,21 @@
   }
 }
 
+/* Once the toolbar opens, the hub reflection disappears and the selected
+   destination receives the same reflection after its reveal completes. */
 .nav-fab--open .natural-stone-home-shine {
   display: none;
 }
 
-.natural-stone-active-shine {
-  display: none;
-}
-
-:root[data-theme='light']
-  .nav-fab--open
-  .nav-fab__item--current
-  .theme-light-jewel {
-  position: relative;
-  border-radius: 50%;
-}
-
+/* Kill the former selected-button pseudo reflection completely. There is now
+   only the SVG clone of the home-button shine. */
 :root[data-theme='light']
   .nav-fab--open
   .nav-fab__item--current
   .theme-light-jewel::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  border-radius: 50%;
-  pointer-events: none;
-  opacity: 0;
-  background:
-    linear-gradient(
-      135deg,
-      transparent 0 39%,
-      color-mix(in srgb, var(--bronze-active-shine-soft) 36%, transparent) 42%,
-      color-mix(in srgb, var(--bronze-active-shine-mid) 62%, transparent) 45.5%,
-      color-mix(in srgb, var(--bronze-active-shine-bright) 86%, transparent) 48%,
-      var(--bronze-active-shine-core) 50%,
-      color-mix(in srgb, var(--bronze-active-shine-warm) 88%, transparent) 52.5%,
-      color-mix(in srgb, var(--bronze-active-shine-tail) 62%, transparent) 56%,
-      color-mix(in srgb, var(--bronze-active-shine-end) 30%, transparent) 59%,
-      transparent 62% 100%
-    );
-  background-size: 235% 235%;
-  background-position: 132% 132%;
-  background-repeat: no-repeat;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.72) 0%,
-    rgba(0, 0, 0, 1) 18%,
-    rgba(0, 0, 0, 0.9) 34%,
-    rgba(0, 0, 0, 0.68) 54%,
-    rgba(0, 0, 0, 0.42) 74%,
-    rgba(0, 0, 0, 0.2) 90%,
-    rgba(0, 0, 0, 0.08) 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.72) 0%,
-    rgba(0, 0, 0, 1) 18%,
-    rgba(0, 0, 0, 0.9) 34%,
-    rgba(0, 0, 0, 0.68) 54%,
-    rgba(0, 0, 0, 0.42) 74%,
-    rgba(0, 0, 0, 0.2) 90%,
-    rgba(0, 0, 0, 0.08) 100%
-  );
-  animation: natural-stone-active-unified-shine 6s linear infinite;
-  animation-delay: calc(var(--travel-delay, 0ms) + var(--travel-duration, 0ms) + 80ms);
-}
-
-@keyframes natural-stone-active-unified-shine {
-  0% {
-    opacity: 0;
-    background-position: 132% 132%;
-  }
-  5% {
-    opacity: 0.96;
-  }
-  20% {
-    background-position: 91% 91%;
-  }
-  40% {
-    opacity: 1;
-    background-position: 39% 39%;
-  }
-  60% {
-    opacity: 0.9;
-    background-position: -34% -34%;
-  }
-  63%,
-  100% {
-    opacity: 0;
-    background-position: -34% -34%;
-  }
+  content: none;
+  display: none;
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -130,15 +58,8 @@
     display: none;
   }
 
-  .natural-stone-home-shine rect {
-    animation: none;
-  }
-
-  :root[data-theme='light']
-    .nav-fab--open
-    .nav-fab__item--current
-    .theme-light-jewel::after {
-    display: none;
+  .natural-stone-home-shine rect,
+  .natural-stone-active-shine rect {
     animation: none;
   }
 }
