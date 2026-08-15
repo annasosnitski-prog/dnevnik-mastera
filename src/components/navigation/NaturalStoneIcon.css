@@ -1,12 +1,14 @@
-/* The diagonal shine has one animation source only: the SVG/SMIL sweep in
-   NaturalStoneIcon.tsx. Entry and exit visibility are controlled on that same
-   SVG rect, so no second CSS animation can create an arrow-shaped fragment. */
-.natural-stone-home-shine {
+/* The diagonal shines have one animation source only: SVG/SMIL sweeps in
+   NaturalStoneIcon.tsx. Entry and exit visibility stay on those SVG rects so
+   no second CSS animation can create an arrow-shaped fragment. */
+.natural-stone-home-shine,
+.natural-stone-active-shine {
   pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .natural-stone-home-shine {
+  .natural-stone-home-shine,
+  .natural-stone-active-shine {
     display: none;
   }
 }
