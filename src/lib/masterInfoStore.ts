@@ -20,6 +20,7 @@ import { PLATFORM_LABELS, type ChatLink } from '../domain/client.js';
 import type { ClientNote } from '../domain/task.js';
 import { normalizeClientNote } from './normalize.js';
 import { buildChatLink } from './chatLink.js';
+import { defaultModuleFlags, type ModuleFlags } from '../modules/registry.js';
 
 export const MASTER_INFO_STORE = 'masterInfo';
 // Запись всегда одна — у дневника один владелец.
@@ -43,6 +44,7 @@ export interface MasterInfo {
   chatLinks: ChatLink[]; // master's own site/WhatsApp/Telegram/Instagram/etc
   colorLabels: Record<string, string>; // MARKER_COLORS hex -> master's own label
   notes: ClientNote[]; // the master's own notes (not tied to any client), shown in «Задачи»
+  modules: ModuleFlags; // какие экраны-модули включены (см. modules/registry.ts)
 }
 
 export const DEFAULT_MASTER_INFO: MasterInfo = {
@@ -54,6 +56,7 @@ export const DEFAULT_MASTER_INFO: MasterInfo = {
   chatLinks: [],
   colorLabels: {},
   notes: [],
+  modules: defaultModuleFlags(),
 };
 
 // Приводит запись любого происхождения (старый localStorage, запись из базы,
@@ -87,6 +90,10 @@ export function normalizeMasterInfo(raw: unknown): MasterInfo {
     chatLinks,
     colorLabels: p.colorLabels && typeof p.colorLabels === 'object' ? p.colorLabels : {},
     notes: Array.isArray(p.notes) ? p.notes.map((n: any, i: number) => normalizeClientNote(n, i, 'm')) : [],
+    // Слить с дефолтами, а не заменить ими целиком: модуль, добавленный в
+    // реестр позже записи в базе, получает свой defaultActive, а не исчезает
+    // из объекта молча (и не остаётся undefined при чтении).
+    modules: p.modules && typeof p.modules === 'object' ? { ...defaultModuleFlags(), ...(p.modules as ModuleFlags) } : defaultModuleFlags(),
   };
 }
 

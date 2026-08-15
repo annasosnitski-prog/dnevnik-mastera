@@ -2787,6 +2787,7 @@ export default function TattoDiary() {
         <NavFab
           active={screen}
           onNavigate={(s) => setScreen(s)}
+          moduleFlags={masterInfo.modules}
           adminBadges={[
             // Просроченная задача (task_overdue) — как urgent; задача на
             // сегодня (task_due) — как reminder, рядом с healing/soon/проекты.
@@ -2865,7 +2866,7 @@ export default function TattoDiary() {
           zIndex: 3,
         }}
       >
-        {screen === 'summary' && (
+        {screen === 'summary' && masterInfo.modules.planner && (
           <Suspense fallback={null}>
             <SummaryScreen
               clients={clients}
@@ -2930,6 +2931,10 @@ export default function TattoDiary() {
           zIndex: 3,
         }}
       >
+        {/* «Личный кабинет» не гасится флагом adminka, хоть и относится к
+            этому модулю по реестру: это единственная дверь к «Настройкам»
+            (там же живут тогглы самих модулей) — спрятав её, мастер
+            лишилась бы способа снова включить admINKA. */}
         {screen === 'master' && (
           <Suspense fallback={null}>
             <MasterDashboardScreen
@@ -2966,7 +2971,7 @@ export default function TattoDiary() {
           zIndex: 3,
         }}
       >
-        {screen === 'content' && (
+        {screen === 'content' && masterInfo.modules.content && (
           <Suspense fallback={null}>
             <ContentINKAScreen
               clients={clients}
@@ -3001,7 +3006,7 @@ export default function TattoDiary() {
           zIndex: 3,
         }}
       >
-        {screen === 'admin' && (
+        {screen === 'admin' && masterInfo.modules.adminka && (
           <Suspense fallback={null}>
             <AdminDashboardScreen
               clients={clients}
@@ -3051,7 +3056,7 @@ export default function TattoDiary() {
           zIndex: 3,
         }}
       >
-        {screen === 'workshop' && (
+        {screen === 'workshop' && masterInfo.modules.workshop && (
           <Suspense fallback={null}>
             <WorkshopScreen
               projects={projects}
@@ -3086,6 +3091,7 @@ export default function TattoDiary() {
               onChange={setPrefs}
               onBack={() => setScreen('master')}
               masterInfo={masterInfo}
+              onChangeMasterInfo={setMasterInfo}
               installationId={installationId}
               onPrepareBackup={prepareFullBackup}
               persistence={persistence}

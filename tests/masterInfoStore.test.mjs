@@ -9,6 +9,7 @@ import {
   masterInfoFromBackup,
   applyMasterInfoRestore,
 } from '../.test-dist/src/lib/masterInfoStore.js';
+import { defaultModuleFlags } from '../.test-dist/src/modules/registry.js';
 
 test('битая или пустая запись не роняет карточку', () => {
   for (const raw of [null, undefined, 'строка', 42, []]) {
@@ -54,6 +55,22 @@ test('нормализация сохраняет заполненную кар�
   assert.deepEqual(info.colorLabels, { '#C9A227': 'Постоянные' });
   assert.equal(info.notes.length, 1);
   assert.equal(info.notes[0].text, 'позвонить');
+});
+
+test('пустая запись получает модули по умолчанию из реестра', () => {
+  assert.deepEqual(normalizeMasterInfo({}).modules, defaultModuleFlags());
+  assert.deepEqual(DEFAULT_MASTER_INFO.modules, defaultModuleFlags());
+});
+
+test('модуль, добавленный в реестр позже записи в базе, получает свой defaultActive, а не пропадает', () => {
+  const info = normalizeMasterInfo({ modules: { content: false } });
+  assert.equal(info.modules.content, false);
+  assert.deepEqual(info.modules, { ...defaultModuleFlags(), content: false });
+});
+
+test('битые модули (не объект) не роняют карточку', () => {
+  const info = normalizeMasterInfo({ modules: 'мусор' });
+  assert.deepEqual(info.modules, defaultModuleFlags());
 });
 
 test('легаси-поле website не теряется, а становится ссылкой «Сайт»', () => {
