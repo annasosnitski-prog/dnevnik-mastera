@@ -2,7 +2,8 @@
    Components consume these variables; component styles do not redefine the
    bronze palette independently. */
 :root[data-theme='light'] {
-  /* Structural bronze: less orange/gold, more natural warm bronze. */
+  /* Structural bronze: warm brown/copper body, champagne reflections, no
+     orange-gold cast. This family is shared by every ornate light button. */
   --bronze-shadow: #24150D;
   --bronze-recess: #56351F;
   --bronze-deep: #6E472A;
@@ -14,15 +15,17 @@
   --bronze-sheen: #FBE4C2;
   --bronze-patina: #5B3924;
 
-  /* Approved flat plate face: keep the hub/Create face untouched. */
-  --bronze-face-light: #DDA35F;
-  --bronze-face-highlight: #F2C98F;
-  --bronze-face-mid: #C77B3E;
-  --bronze-face-shadow: #99532A;
-  --bronze-face-warm: #C07839;
-  --bronze-face-deep: #7A421F;
+  /* Flat hub/Create faces now belong to the same bronze family instead of
+     keeping the older orange plate palette. They remain lighter and flatter
+     than the rims, but the hue is the same material. */
+  --bronze-face-light: #CCA06F;
+  --bronze-face-highlight: #E9C396;
+  --bronze-face-mid: #B67B4D;
+  --bronze-face-shadow: #855336;
+  --bronze-face-warm: #A96D43;
+  --bronze-face-deep: #68432B;
 
-  /* Edge reflections follow the refined structural bronze. */
+  /* Edge reflections follow the same refined bronze. */
   --bronze-edge-shadow: #25160E;
   --bronze-edge-highlight: #F0CDA0;
   --bronze-edge-warm: #B87949;
@@ -31,18 +34,18 @@
   --bronze-edge-mid: #875536;
   --bronze-edge-end: #BC7D4D;
 
-  /* Approved home-button reflection remains unchanged. */
-  --bronze-shine-edge: #D8893E;
-  --bronze-shine-soft: #E9A657;
-  --bronze-shine-mid: #F0BB70;
-  --bronze-shine-bright: #F5CA88;
-  --bronze-shine-core: #FFE2AA;
-  --bronze-shine-warm: #F3C078;
-  --bronze-shine-tail: #E39A4B;
-  --bronze-shine-end: #C97732;
+  /* Home-button reflection keeps its approved intensity/timing, but its colour
+     is normalized to champagne bronze so the light does not turn the disc gold. */
+  --bronze-shine-edge: #AD7045;
+  --bronze-shine-soft: #D3A171;
+  --bronze-shine-mid: #E2B47F;
+  --bronze-shine-bright: #F0C99B;
+  --bronze-shine-core: #FFE8C7;
+  --bronze-shine-warm: #EAC08F;
+  --bronze-shine-tail: #CA8F5E;
+  --bronze-shine-end: #A56840;
 
-  /* Selected-button reflection: brighter champagne, deliberately less orange
-     than the home-button sheen so it reads as light on bronze, not gold paint. */
+  /* Selected-button reflection: brighter champagne on the same bronze. */
   --bronze-active-shine-edge: #A86B42;
   --bronze-active-shine-soft: #D5A06F;
   --bronze-active-shine-mid: #E7BA83;
@@ -52,9 +55,11 @@
   --bronze-active-shine-tail: #D7A16E;
   --bronze-active-shine-end: #A96B42;
 
-  --bronze-engrave-groove: #4A2411;
-  --bronze-engrave-shadow: #6B3518;
-  --bronze-engrave-highlight: #E9B778;
+  /* Engraving is the same bronze seen in shadow/highlight, not a separate
+     orange metal. */
+  --bronze-engrave-groove: #3F2819;
+  --bronze-engrave-shadow: #62402A;
+  --bronze-engrave-highlight: #DDB486;
 
   --nav-metal: var(--bronze-mid);
   --nav-metal-highlight: var(--bronze-highlight);
@@ -81,9 +86,8 @@
   filter: blur(5px);
 }
 
-/* Selection is now communicated by the moving reflection itself. Cancel the
-   old gemstone-coloured drop-shadows and the enlarged coloured halo so the
-   current button does not glow as a coloured light source. */
+/* Selection is communicated by the moving reflection itself. Cancel the old
+   gemstone-coloured drop-shadows and enlarged coloured halo. */
 :root[data-theme='light'] .nav-fab__item--current .theme-light-jewel {
   filter: saturate(1.16) brightness(1.08) contrast(1.05) !important;
 }
@@ -122,11 +126,8 @@
 }
 
 /* NavFabReveal keeps a legacy asymmetric rotating conic-gradient on the
-   CLOSED ornate hub via ::after. It belongs to the old brushed-gold treatment
-   and sits above NaturalStoneIcon, so in the light theme it survives every
-   change to the SVG shine and reads as the persistent crescent/arrow. Remove
-   that entire overlay only for the light skin; the dark jewellery skin keeps
-   its existing treatment unchanged. */
+   CLOSED ornate hub via ::after. Remove that overlay only for the light skin;
+   the dark jewellery skin keeps its existing treatment unchanged. */
 :root[data-theme='light']
   .nav-fab:not(.nav-fab--open)
   .nav-fab__main--gold::after {
