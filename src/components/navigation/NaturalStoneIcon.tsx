@@ -191,8 +191,7 @@ export function NaturalStoneIcon({
           <circle cx="32" cy="32" r={outerR - 0.8} />
         </clipPath>
         <mask id={plateShineMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
-          <circle cx="32" cy="32" r={outerR - 0.8} fill="white" />
-          <circle cx="32" cy="32" r={outerR - 3.8} fill="none" stroke="black" strokeWidth="1.55" />
+          <circle cx="32" cy="32" r={outerR - 5.55} fill="white" />
           <circle cx="32" cy="32" r={outerR - 8.2} fill="none" stroke="black" strokeWidth="1.3" />
         </mask>
         <mask id={activeShineMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
@@ -351,27 +350,25 @@ export function NaturalStoneIcon({
             pointerEvents="none"
           >
             <g transform="rotate(45 32 32)">
-              <rect x="-42" y="-18" width="13" height="100" fill={`url(#${plateShineId})`} opacity="0">
+              <rect x="-44" y="-18" width="11" height="100" fill={`url(#${plateShineId})`} opacity="0">
                 <animate
                   attributeName="x"
-                  values="-42;82"
-                  keyTimes="0;1"
+                  values="-44;4;40;84;84"
+                  keyTimes="0;.2;.4;.6;1"
                   begin={activeShineDelay}
-                  dur="2.4s"
+                  dur="6s"
                   calcMode="spline"
-                  keySplines="0.18 0.82 0.2 1"
-                  repeatCount="1"
-                  fill="freeze"
+                  keySplines="0.24 0.68 0.22 1;0.18 0.82 0.2 1;0.24 0.68 0.22 1;0 0 1 1"
+                  repeatCount="indefinite"
                 />
                 <animate
                   attributeName="opacity"
-                  values="0;.72;.68;0"
-                  keyTimes="0;.12;.78;1"
+                  values="0;.62;.6;.56;0;0"
+                  keyTimes="0;.06;.38;.56;.62;1"
                   begin={activeShineDelay}
-                  dur="2.4s"
+                  dur="6s"
                   calcMode="linear"
-                  repeatCount="1"
-                  fill="freeze"
+                  repeatCount="indefinite"
                 />
               </rect>
             </g>
