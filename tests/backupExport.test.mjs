@@ -13,9 +13,10 @@ function readSource(path) {
 const share = readSource('../src/lib/contentShare.ts');
 const settings = readSource('../src/components/screens/SettingsScreen.tsx');
 const app = readSource('../src/components/TattoDiary.tsx');
+const archive = readSource('../src/lib/backupArchive.ts');
 
 const shareJSON = share.slice(share.indexOf('export async function shareOrDownloadJSON('));
-const handleExport = settings.slice(settings.indexOf('const handleExport = async () => {'), settings.indexOf('const handleImportFile ='));
+const handleExport = settings.slice(settings.indexOf('const handlePrepareExport = async () => {'), settings.indexOf('const handleImportFile ='));
 
 test('исход отдачи файла возвращается, а не теряется', () => {
   assert.match(share, /export type ShareJSONResult = 'shared' \| 'downloaded' \| 'cancelled' \| 'failed';/);
@@ -46,9 +47,12 @@ test('сбой share (кроме отмены) не тупик — пробуе�
 
 test('копия собирается из базы, а не из состояния экрана', () => {
   // Пустое состояние из-за сбоя загрузки давало валидный с виду ПУСТОЙ файл.
-  assert.match(handleExport, /await onReadBackupData\(\)/);
-  assert.match(app, /const readBackupPayload = \(\): Promise</);
-  assert.match(app, /openTx\(\['clients', 'projects', 'contentEntries', MASTER_INFO_STORE\], db, 'readonly'/);
+  assert.match(handleExport, /await onPrepareBackup\(\{/);
+  assert.match(app, /return prepareBackupArchive\(db, options\);/);
+  assert.match(archive, /tx\.objectStore\(store\)\.getAllKeys\(\)/);
+  assert.match(archive, /tx\.objectStore\(store\)\.get\(key\)/);
+  // Heavy values are never fetched as one store-sized array.
+  assert.doesNotMatch(archive, /objectStore\(store\)\.getAll\(\)/);
   // Экран больше не получает данные для копии как props (типы внутри
   // onImport — это payload импорта, они остаются).
   assert.doesNotMatch(settings, /^  clients: Client\[\];$/m);
@@ -57,12 +61,12 @@ test('копия собирается из базы, а не из состоян
 });
 
 test('недоступное хранилище и пустая база — отказ, а не файл', () => {
-  assert.match(handleExport, /catch \{[\s\S]*?Копия не сделана: хранилище сейчас недоступно/);
+  assert.match(app, /if \(!db\) return Promise\.reject\(new Error\('Хранилище сейчас недоступно/);
   // «Пусто» — это когда пусто ВЕЗДЕ. Заполненный кабинет без единого клиента
   // тоже есть что терять, и отказывать в копии там незачем.
   assert.match(
     handleExport,
-    /if \(data\.clients\.length === 0 && data\.projects\.length === 0 && isMasterInfoEmpty\(normalizeMasterInfo\(masterCard\)\)\)/,
+    /prepared\.summary\.counts\.clients === 0[\s\S]*?prepared\.summary\.counts\.projects === 0[\s\S]*?isMasterInfoEmpty\(normalizeMasterInfo\(masterInfo\)\)/,
   );
   assert.match(handleExport, /Копия не сделана: база вернулась пустой/);
 });
@@ -74,21 +78,22 @@ test('недоступное хранилище и пустая база — о�
 // возвращало историю работы и теряло всё личное.
 
 test('кабинет читается из базы вместе с остальным', () => {
-  assert.match(app, /tx\.objectStore\(MASTER_INFO_STORE\)\.get\(MASTER_INFO_RECORD_ID\)\.onsuccess/);
-  assert.match(app, /out\.masterInfo = \(e\.target as IDBRequest\)\.result \?\? null;/);
+  assert.match(archive, /tx\.objectStore\(MASTER_INFO_STORE\)\.get\(MASTER_INFO_RECORD_ID\)/);
+  assert.match(archive, /const storedMaster = await readMasterRecord\(db\);/);
 });
 
 test('кабинет попадает в файл целиком, а не одними задачами', () => {
-  assert.match(handleExport, /masterInfo: masterCard/);
+  assert.match(archive, /writer\.add\('data\/masterInfo\.json'/);
   // Отдельного masterNotes в новом файле нет: задачи несут фото, и вторая их
   // копия удваивала бы самую тяжёлую часть файла.
-  assert.doesNotMatch(handleExport, /masterNotes,/);
+  assert.doesNotMatch(archive, /masterNotes,/);
 });
 
 test('кабинет без записи в базе берётся с экрана, а не теряется', () => {
   // Переезд из localStorage мог ещё не случиться — тогда в базе пусто, но у
   // мастера карточка на экране есть.
-  assert.match(handleExport, /const masterCard = data\.masterInfo \?\? masterInfo;/);
+  assert.match(archive, /const masterInfo = storedMaster \?\? options\.masterFallback;/);
+  assert.match(handleExport, /masterFallback: masterInfo/);
 });
 
 test('у экспорта нет молчаливых исходов — каждый показывается мастеру', () => {
@@ -96,11 +101,11 @@ test('у экспорта нет молчаливых исходов — каж�
     assert.match(handleExport, new RegExp(`result === '${kind}'`));
   }
   assert.match(handleExport, /setExportState\(\{\s*kind: 'ok'/);
-  assert.match(settings, /exportState\.kind === 'ok' \? COLORS\.gold : 'var\(--urgent\)'/);
+  assert.match(settings, /exportState\.kind === 'error' \? 'var\(--urgent\)' : COLORS\.gold/);
 });
 
 test('успех называет, сколько всего сохранено — пустую копию видно сразу', () => {
-  assert.match(handleExport, /data\.clients\.length\} клиент\(ов\), \$\{data\.projects\.length\} проект\(ов\)/);
+  assert.match(handleExport, /summary\.counts\.clients\} клиент\(ов\), \$\{summary\.counts\.projects\} проект\(ов\)/);
 });
 
 // ===== СКАЧИВАНИЕ В STANDALONE-РЕЖИМЕ (iOS, «с экрана Домой») =====
@@ -126,7 +131,7 @@ test('в standalone файл уходит через window.open, а не чер
 
 test('обычная вкладка браузера по-прежнему скачивает через <a download> — рабочий путь не тронут', () => {
   const fallback = shareJSON.slice(shareJSON.indexOf('const url = URL.createObjectURL(file);'));
-  assert.match(fallback, /a\.download = filename;/);
+  assert.match(fallback, /a\.download = downloadName;/);
   assert.match(fallback, /document\.body\.appendChild\(a\);\s*a\.click\(\);/);
 });
 

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Client } from '../../domain/client';
 import type { ContentEntry } from '../../domain/content';
 import type { Project } from '../../domain/project';
@@ -10,8 +10,15 @@ import {
   type MasterInfo,
   type MasterInfoRestore,
 } from '../../lib/masterInfoStore';
-import { shareOrDownloadJSON } from '../../lib/contentShare';
-import { buildBackupBlobParts } from '../../lib/backupSerialize';
+import { shareOrDownloadFile } from '../../lib/contentShare';
+import {
+  inspectBackupArchive,
+  type BackupArchiveProgress,
+  type BackupArchiveSummary,
+  type ImportBackupArchiveResult,
+  type PreparedBackupArchive,
+  type PrepareBackupArchiveOptions,
+} from '../../lib/backupArchive';
 import { copyTextToClipboard } from '../../lib/clipboard';
 import { formatErrorLog, errorSourceLabel, type DiaryErrorEntry } from '../../lib/errorLog';
 import {
@@ -82,7 +89,7 @@ export function SettingsScreen({
   onChange,
   onBack,
   masterInfo,
-  onReadBackupData,
+  onPrepareBackup,
   persistence,
   storageEstimate,
   lastBackupAt,
@@ -90,6 +97,7 @@ export function SettingsScreen({
   errorLog,
   onClearErrorLog,
   onImport,
+  onImportArchive,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -101,16 +109,15 @@ export function SettingsScreen({
   onChange: (p: Prefs) => void;
   onBack: () => void;
   // Текущий кабинет — ЗАПАСНОЙ вариант для копии. Основной источник тот же,
-  // что у остальных данных: база (см. onReadBackupData). Пригождается, если
+  // что у остальных данных: база (см. onPrepareBackup). Пригождается, если
   // записи в базе ещё нет — переезд карточки из localStorage мог не
   // случиться, — тогда в файл уедет то, что мастер видит на экране, а не
   // пустая карточка.
   masterInfo: MasterInfo;
-  // Читает данные для копии прямо из IndexedDB. Отдельно от props выше именно
-  // потому, что копия обязана отражать хранилище, а не экран: props могут быть
-  // пустыми из-за сбоя загрузки, и тогда экспорт обязан отказать, а не отдать
-  // пустой файл.
-  onReadBackupData: () => Promise<{ clients: unknown[]; projects: unknown[]; contentEntries: unknown[]; masterInfo: unknown }>;
+  // Собирает disk-backed ZIP прямо из IndexedDB, по одной записи за раз.
+  // Большая копия не проходит ни через React state, ни через один общий
+  // JSON.stringify — иначе 630 МБ базы превращались в несколько копий в RAM.
+  onPrepareBackup: (options: PrepareBackupArchiveOptions) => Promise<PreparedBackupArchive>;
   // Состояние хранилища — см. lib/storageHealth.ts. Показывается честно, в
   // том числе когда браузер вообще не умеет отвечать на этот вопрос.
   persistence: PersistenceState;
@@ -127,6 +134,10 @@ export function SettingsScreen({
   // личный кабинет (целиком из новой копии либо одни задачи из старой,
   // см. masterInfoFromBackup).
   onImport: (bundle: { clients: Client[]; projects?: Project[]; contentEntries?: ContentEntry[]; master?: MasterInfoRestore }) => void;
+  onImportArchive: (
+    file: File,
+    options: { signal?: AbortSignal; onProgress?: (progress: BackupArchiveProgress) => void },
+  ) => Promise<ImportBackupArchiveResult>;
   // Собирает старые сессии/консультации (без projectId) в проекты-корзины
   // по клиенту. Возвращает сводку для показа результата.
 }) {
@@ -135,119 +146,204 @@ export function SettingsScreen({
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   // Исход экспорта показывается всегда — «ничего не произошло» больше не
   // выглядит как успех.
-  const [exportState, setExportState] = useState<{ kind: 'idle' } | { kind: 'busy' } | { kind: 'ok'; text: string } | { kind: 'error'; text: string }>({ kind: 'idle' });
+  const [exportState, setExportState] = useState<
+    | { kind: 'idle' }
+    | { kind: 'preparing'; progress: BackupArchiveProgress | null }
+    | { kind: 'sharing' }
+    | { kind: 'ready'; text: string }
+    | { kind: 'ok'; text: string }
+    | { kind: 'error'; text: string }
+  >({ kind: 'idle' });
+  const [preparedBackup, setPreparedBackup] = useState<PreparedBackupArchive | null>(null);
+  const preparedBackupRef = useRef<PreparedBackupArchive | null>(null);
+  preparedBackupRef.current = preparedBackup;
+  const exportAbortRef = useRef<AbortController | null>(null);
   // Parsed and normalized, waiting on the inline «Да/Нет» confirm below —
   // replaces window.confirm() so the prompt matches the app's own dialogs.
   // Опциональные поля отсутствуют в старых backup и тогда текущие данные
   // соответствующих хранилищ не меняются.
-  const [pendingImport, setPendingImport] = useState<{
-    clients: Client[];
-    projects?: Project[];
-    contentEntries?: ContentEntry[];
-    master?: MasterInfoRestore;
-  } | null>(null);
+  const [pendingImport, setPendingImport] = useState<
+    | {
+        kind: 'legacy';
+        clients: Client[];
+        projects?: Project[];
+        contentEntries?: ContentEntry[];
+        master?: MasterInfoRestore;
+      }
+    | { kind: 'archive'; file: File; summary: BackupArchiveSummary }
+    | null
+  >(null);
+  const [importProgress, setImportProgress] = useState<BackupArchiveProgress | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const importAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      exportAbortRef.current?.abort();
+      importAbortRef.current?.abort();
+      void preparedBackupRef.current?.cleanup();
+    },
+    [],
+  );
 
   const [logCopied, setLogCopied] = useState<string | null>(null);
   const backup = backupStatus(lastBackupAt, new Date());
   const storageUsedText = formatMegabytes(storageEstimate?.usage);
 
-  // Резервная копия — единственное, что стоит между мастером и потерей всей
-  // истории работы, поэтому здесь нет ни одного тихого исхода: либо файл
-  // отдан, либо на экране написано, что именно не получилось.
-  const handleExport = async () => {
-    setExportState({ kind: 'busy' });
-    let data: { clients: unknown[]; projects: unknown[]; contentEntries: unknown[]; masterInfo: unknown };
+  const handlePrepareExport = async () => {
+    await preparedBackup?.cleanup();
+    setPreparedBackup(null);
+    setImportError(null);
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
+    setExportState({ kind: 'preparing', progress: null });
     try {
-      // Читаем ИЗ БАЗЫ, а не из этого экрана: если хранилище отвалилось,
-      // состояние осталось бы пустым и в файл уехал бы пустой, но с виду
-      // нормальный бэкап (см. onReadBackupData в TattoDiary.tsx).
-      data = await onReadBackupData();
-    } catch {
-      setExportState({ kind: 'error', text: 'Копия не сделана: хранилище сейчас недоступно. Нажмите «Повторить» на плашке вверху и попробуйте снова.' });
-      return;
+      const prepared = await onPrepareBackup({
+        masterFallback: masterInfo,
+        errorLog,
+        signal: controller.signal,
+        onProgress: (progress) => setExportState({ kind: 'preparing', progress }),
+      });
+      if (
+        prepared.summary.counts.clients === 0 &&
+        prepared.summary.counts.projects === 0 &&
+        prepared.summary.counts.contentEntries === 0 &&
+        isMasterInfoEmpty(normalizeMasterInfo(masterInfo))
+      ) {
+        await prepared.cleanup();
+        setExportState({ kind: 'error', text: 'Копия не сделана: база вернулась пустой. Перезагрузите приложение и попробуйте снова.' });
+        return;
+      }
+      setPreparedBackup(prepared);
+      const size = formatMegabytes(prepared.file.size);
+      setExportState({
+        kind: 'ready',
+        text: `Архив подготовлен${size ? ` · ${size}` : ''}. Теперь нажмите «Сохранить / поделиться».`,
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setExportState({ kind: 'idle' });
+      } else {
+        setExportState({
+          kind: 'error',
+          text: error instanceof Error ? error.message : 'Копия не сделана: не удалось подготовить архив.',
+        });
+      }
+    } finally {
+      if (exportAbortRef.current === controller) exportAbortRef.current = null;
     }
-    // Карточка из базы; если записи там ещё нет (переезд из localStorage не
-    // случился), в копию идёт текущая — иначе копия окажется без кабинета
-    // ровно у тех, у кого он ещё не переехал.
-    const masterCard = data.masterInfo ?? masterInfo;
-    if (data.clients.length === 0 && data.projects.length === 0 && isMasterInfoEmpty(normalizeMasterInfo(masterCard))) {
-      setExportState({ kind: 'error', text: 'Копия не сделана: база вернулась пустой. Это похоже на сбой хранилища — перезагрузите приложение и попробуйте снова.' });
-      return;
-    }
-    // Версия 5 добавляет личный кабинет целиком (ключ masterInfo): имя,
-    // телефон, реквизиты, ссылку на бота, чат-ссылки и подписи цветов —
-    // раньше из него сохранялись только задачи, и всё остальное терялось при
-    // восстановлении на новом телефоне. Задачи теперь лежат ВНУТРИ него, а не
-    // отдельным ключом masterNotes: они несут фото, и дублировать их в файле
-    // значило бы удваивать самую тяжёлую его часть. Старые копии с masterNotes
-    // читаются по-прежнему (см. masterInfoFromBackup).
-    //
-    // Сам номер версии нигде на импорте не читается, normalize.ts дефолтит
-    // отсутствующие поля независимо от него; это чисто информационная метка.
-    // Backup version 1/2/3/4 продолжают читаться.
-    //
-    // Журнал сбоев уезжает вместе с копией: чтобы разобрать «у меня упало»,
-    // мастеру достаточно прислать файл. На импорте он игнорируется — это
-    // диагностика, а не данные дневника.
-    const payload = { version: 5, exportedAt: new Date().toISOString(), ...data, masterInfo: masterCard, errorLog };
-    // Фото (session.photos/contentEntry.photos/задачи кабинета) вынесены из
-    // payload отдельными частями Blob — иначе JSON.stringify целиком и
-    // следующий File/Blob над той же строкой удваивали пиковую память и
-    // роняли вкладку на телефонах с большой библиотекой фото (см.
-    // buildBackupBlobParts).
-    const parts = buildBackupBlobParts(payload);
-    const filename = `inka-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    const result = await shareOrDownloadJSON(parts, filename, 'INKA — резервная копия');
+  };
+
+  // Отдельный тап после подготовки нужен Web Share API: Safari разрешает
+  // открыть системное «Поделиться» только прямо из жеста пользователя.
+  const handleSharePrepared = async () => {
+    if (!preparedBackup) return;
+    setExportState({ kind: 'sharing' });
+    const result = await shareOrDownloadFile(preparedBackup.file, 'INKA — резервная копия', preparedBackup.filename);
     if (result === 'cancelled') {
-      setExportState({ kind: 'error', text: 'Копия не сохранена — окно «Поделиться» закрыли. Данные целы, попробуйте ещё раз.' });
+      setExportState({ kind: 'ready', text: 'Окно «Поделиться» закрыли — архив всё ещё готов, можно повторить.' });
       return;
     }
     if (result === 'failed') {
-      setExportState({ kind: 'error', text: 'Не удалось отдать файл. Откройте дневник в обычной вкладке браузера и повторите экспорт оттуда.' });
+      setExportState({ kind: 'ready', text: 'Не удалось отдать файл. Откройте дневник в обычной вкладке браузера и нажмите здесь ещё раз.' });
       return;
     }
     onBackupDone();
-    // Кабинет назван отдельно: он невидим в счёте клиентов и проектов, а
-    // мастеру важно знать, что имя, реквизиты и подписи цветов тоже в файле.
-    const cardPart = isMasterInfoEmpty(normalizeMasterInfo(masterCard)) ? '' : ', личный кабинет';
+    const completedBackup = preparedBackup;
+    const summary = completedBackup.summary;
+    if (result === 'downloaded') {
+      // A synthetic download starts after click() returns. Keep the OPFS file
+      // alive until the browser has definitely consumed its blob URL.
+      preparedBackupRef.current = null;
+      setTimeout(() => void completedBackup.cleanup(), 120_000);
+    } else {
+      await completedBackup.cleanup();
+    }
+    setPreparedBackup(null);
     setExportState({
       kind: 'ok',
-      text: `Копия готова: ${data.clients.length} клиент(ов), ${data.projects.length} проект(ов)${cardPart}. Сохраните файл туда, где он переживёт телефон.`,
+      text: `Копия сохранена: ${summary.counts.clients} клиент(ов), ${summary.counts.projects} проект(ов), ${summary.mediaCount} медиафайл(ов).`,
     });
   };
 
-  const handleImportFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result));
-        const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
-        if (!rawClients) throw new Error('bad shape');
-        setImportError(null);
-        setImportSuccess(null);
-        setPendingImport({
-          clients: rawClients.map((c: any, i: number) => normalizeClient(c, i)),
-          // Только если ключ реально есть в файле — иначе оставляем undefined,
-          // чтобы импорт старого бэкапа не стёр текущие данные.
-          projects: Array.isArray(parsed?.projects) ? parsed.projects.map((p: any, i: number) => normalizeProject(p, i)) : undefined,
-          contentEntries: Array.isArray(parsed?.contentEntries) ? (parsed.contentEntries as ContentEntry[]) : undefined,
-          // Тот же принцип для кабинета, но с двумя видами файлов: новая
-          // копия несёт карточку целиком, старая — только задачи, и тогда
-          // имя, реквизиты и подписи цветов остаются текущими.
-          master: masterInfoFromBackup(parsed) ?? undefined,
-        });
-      } catch {
-        setImportError('Не удалось прочитать файл — проверьте, что это резервная копия INKA.');
+  const handleImportFile = async (file: File) => {
+    setImportError(null);
+    setImportSuccess(null);
+    let isZip = false;
+    try {
+      const signature = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      isZip = signature[0] === 0x50 && signature[1] === 0x4b;
+      if (isZip) {
+        const summary = await inspectBackupArchive(file);
+        setPendingImport({ kind: 'archive', file, summary });
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      // JSON v1–v5 stays readable. Those old files were monolithic by
+      // definition, so only this compatibility path still reads a whole file.
+      const parsed = JSON.parse(await file.text());
+      const rawClients = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clients) ? parsed.clients : null;
+      if (!rawClients) throw new Error('bad shape');
+      setPendingImport({
+        kind: 'legacy',
+        clients: rawClients.map((c: any, i: number) => normalizeClient(c, i)),
+        projects: Array.isArray(parsed?.projects) ? parsed.projects.map((p: any, i: number) => normalizeProject(p, i)) : undefined,
+        contentEntries: Array.isArray(parsed?.contentEntries) ? (parsed.contentEntries as ContentEntry[]) : undefined,
+        master: masterInfoFromBackup(parsed) ?? undefined,
+      });
+    } catch (error) {
+      setImportError(
+        isZip && error instanceof Error
+          ? error.message
+          : 'Не удалось прочитать файл — проверьте, что это резервная копия INKA.',
+      );
+    }
   };
 
-  const confirmImport = () => {
+  const confirmImport = async () => {
     if (!pendingImport) return;
-    onImport(pendingImport);
-    setImportSuccess(`Импортировано ${pendingImport.clients.length} клиент(ов).`);
-    setPendingImport(null);
+    if (pendingImport.kind === 'legacy') {
+      const { kind: _kind, ...bundle } = pendingImport;
+      onImport(bundle);
+      setImportSuccess(`Импортировано ${pendingImport.clients.length} клиент(ов).`);
+      setPendingImport(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    importAbortRef.current = controller;
+    setImportBusy(true);
+    setImportProgress(null);
+    setImportError(null);
+    try {
+      const result = await onImportArchive(pendingImport.file, {
+        signal: controller.signal,
+        onProgress: setImportProgress,
+      });
+      setImportSuccess(
+        `Импортировано ${result.summary.counts.clients} клиент(ов), ${result.summary.counts.projects} проект(ов) и ${result.summary.mediaCount} медиафайл(ов).`,
+      );
+      setPendingImport(null);
+    } catch (error) {
+      const cancelled = error instanceof DOMException && error.name === 'AbortError';
+      setImportError(
+        cancelled
+          ? 'Импорт остановлен. Уже проверенные записи не удалены; запустите этот же файл снова, чтобы завершить восстановление.'
+          : error instanceof Error
+            ? error.message
+            : 'Не удалось восстановить резервную копию.',
+      );
+    } finally {
+      if (importAbortRef.current === controller) importAbortRef.current = null;
+      setImportBusy(false);
+      setImportProgress(null);
+    }
+  };
+
+  const progressText = (progress: BackupArchiveProgress | null, verb: string) => {
+    if (!progress) return `${verb}…`;
+    const percent = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 100;
+    return `${verb}: ${percent}% · медиа ${progress.mediaCount}`;
   };
 
   const actionButtonStyle: React.CSSProperties = {
@@ -520,8 +616,8 @@ export function SettingsScreen({
           )}
         </div>
 
-        {/* Backup — export the whole client list to a JSON file, or restore
-            from one (replaces everything currently stored). */}
+        {/* Backup v6 is a disk-backed ZIP. Preparing and handing it off are
+            separate taps because mobile share sheets require user activation. */}
         <div style={rowStyle}>
           <div style={labelStyle}>Резервная копия</div>
           {/* Возраст копии — прямо над кнопкой. Пока копии нет или она
@@ -541,36 +637,88 @@ export function SettingsScreen({
           {pendingImport ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', flex: 1, minWidth: 160 }}>
-                Импортировать {pendingImport.clients.length} клиент(ов)? Текущие данные будут заменены
-                {pendingImport.master?.kind === 'full' && ', включая личный кабинет'}.
+                Импортировать{' '}
+                {pendingImport.kind === 'archive' ? pendingImport.summary.counts.clients : pendingImport.clients.length} клиент(ов)? Текущие данные будут заменены
+                {(pendingImport.kind === 'archive' || pendingImport.master?.kind === 'full') && ', включая личный кабинет'}.
               </span>
-              <span onClick={confirmImport} style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
-                Да
-              </span>
-              <span
-                onClick={() => setPendingImport(null)}
-                style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
-              >
-                Нет
-              </span>
+              {importBusy ? (
+                <span
+                  onClick={() => importAbortRef.current?.abort()}
+                  style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
+                >
+                  Остановить
+                </span>
+              ) : (
+                <>
+                  <span onClick={confirmImport} style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
+                    Да
+                  </span>
+                  <span
+                    onClick={() => setPendingImport(null)}
+                    style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
+                  >
+                    Нет
+                  </span>
+                </>
+              )}
+            </div>
+          ) : exportState.kind === 'preparing' ? (
+            <div
+              onClick={() => exportAbortRef.current?.abort()}
+              style={{ ...actionButtonStyle, color: 'var(--urgent)' }}
+            >
+              Остановить
             </div>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
-              <div onClick={exportState.kind === 'busy' ? undefined : handleExport} style={{ ...actionButtonStyle, opacity: exportState.kind === 'busy' ? 0.5 : 1 }}>
-                {exportState.kind === 'busy' ? 'Готовим…' : 'Экспортировать'}
-              </div>
-              <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
-                Импортировать
-              </div>
+              {preparedBackup ? (
+                <>
+                  <div
+                    onClick={exportState.kind === 'sharing' ? undefined : handleSharePrepared}
+                    style={{ ...actionButtonStyle, opacity: exportState.kind === 'sharing' ? 0.5 : 1 }}
+                  >
+                    {exportState.kind === 'sharing' ? 'Открываем…' : 'Сохранить / поделиться'}
+                  </div>
+                  <div
+                    onClick={async () => {
+                      await preparedBackup.cleanup();
+                      setPreparedBackup(null);
+                      setExportState({ kind: 'idle' });
+                    }}
+                    style={{ ...actionButtonStyle, flex: 0.55, color: COLORS.textFaint }}
+                  >
+                    Убрать
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div onClick={handlePrepareExport} style={actionButtonStyle}>
+                    Подготовить копию
+                  </div>
+                  <div onClick={() => fileInputRef.current?.click()} style={actionButtonStyle}>
+                    Импортировать
+                  </div>
+                </>
+              )}
             </div>
           )}
-          {(exportState.kind === 'ok' || exportState.kind === 'error') && (
+          {exportState.kind === 'preparing' && (
+            <div style={{ marginTop: 10, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>
+              {progressText(exportState.progress, 'Готовим архив')}
+            </div>
+          )}
+          {importBusy && (
+            <div style={{ marginTop: 10, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>
+              {progressText(importProgress, 'Восстанавливаем')}
+            </div>
+          )}
+          {(exportState.kind === 'ready' || exportState.kind === 'ok' || exportState.kind === 'error') && (
             <div
               style={{
                 marginTop: 10,
                 fontSize: fs(12),
                 fontStyle: 'italic',
-                color: exportState.kind === 'ok' ? COLORS.gold : 'var(--urgent)',
+                color: exportState.kind === 'error' ? 'var(--urgent)' : COLORS.gold,
               }}
             >
               {exportState.text}
@@ -579,7 +727,7 @@ export function SettingsScreen({
           <input
             ref={fileInputRef}
             type="file"
-            accept="application/json"
+            accept=".inka.zip,.zip,application/zip,.json,application/json"
             style={{ display: 'none' }}
             onChange={(e) => {
               const file = e.target.files?.[0];

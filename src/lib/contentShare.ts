@@ -149,21 +149,29 @@ function isStandaloneDisplayMode(): boolean {
 
 // Shares a JSON payload via the native share sheet if the device has one
 // (files, not just text, so it can be AirDropped/sent as an attachment),
-// falling back to a plain browser download otherwise — shared by the full
-// backup export (Настройки) and the single-client export (Инфо tab).
+// falling back to a plain browser download otherwise. This wrapper remains
+// for the single-client JSON export; the full v6 backup calls
+// shareOrDownloadFile with its already disk-backed OPFS File.
 //
-// Принимает части, а не готовую строку: полный бэкап собирает их через
-// buildBackupBlobParts (backupSerialize.ts), чтобы фото не склеивались в
-// одну гигантскую JS-строку при stringify (см. комментарий там). File
-// строится один раз и переиспользуется под скачивание — раньше вторым шагом
-// собирался ещё один Blob из той же строки, что на большом бэкапе удваивало
-// пиковую память без всякой пользы (File уже и есть Blob).
+// Принимает части, а не готовую строку, чтобы малый JSON-экспорт мог не
+// делать лишний Blob. File строится один раз и переиспользуется ниже.
 export async function shareOrDownloadJSON(
   parts: BlobPart[],
   filename: string,
   shareTitle: string,
 ): Promise<ShareJSONResult> {
   const file = new File(parts, filename, { type: 'application/json' });
+  return shareOrDownloadFile(file, shareTitle, filename);
+}
+
+// The large backup is already a disk-backed OPFS File. Reusing it here is
+// essential: wrapping it in another Blob/File can make WebKit stage a second
+// archive-sized copy before the share sheet even opens.
+export async function shareOrDownloadFile(
+  file: File,
+  shareTitle: string,
+  downloadName = file.name,
+): Promise<ShareJSONResult> {
   const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
   if (nav.canShare && nav.canShare({ files: [file] })) {
     try {
@@ -190,7 +198,7 @@ export async function shareOrDownloadJSON(
     }
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = downloadName;
     a.rel = 'noopener';
     // Ссылка обязана побывать в документе: часть браузеров игнорирует click()
     // по элементу, которого нет в дереве, — скачивание просто не начиналось.
