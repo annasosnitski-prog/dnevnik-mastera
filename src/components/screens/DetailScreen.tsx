@@ -290,9 +290,8 @@ export function DetailScreen({
     setOrphanView(null);
   }, [client.id, activeTab]);
 
-  // Same file shape as the full backup (see handleExport in
-  // AdminDashboardScreen), just with a single-client array — so it imports
-  // back in through that same «Импортировать» flow without any special-casing.
+  // Legacy single-client JSON stays importable through the same input as the
+  // full v6 ZIP. Unlike a full restore, it merges this client by id.
   const handleExportClient = async () => {
     const payload = { version: 1, exportedAt: new Date().toISOString(), clients: [client] };
     const json = JSON.stringify(payload, null, 2);

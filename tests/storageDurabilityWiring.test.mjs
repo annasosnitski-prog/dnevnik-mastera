@@ -30,14 +30,14 @@ test('браузер без поддержки не выдаётся за отк
 });
 
 test('отметка о копии ставится только на реально сделанную копию', () => {
-  const handleExport = settings.slice(settings.indexOf('const handleExport = async () => {'), settings.indexOf('const handleImportFile ='));
+  const handleExport = settings.slice(settings.indexOf('const handleSharePrepared = async () => {'), settings.indexOf('const handleImportFile ='));
   // Отмена и сбой копией не считаются — иначе напоминание замолчит зря.
   const okBranch = handleExport.slice(handleExport.indexOf("result === 'failed'"));
   assert.match(okBranch, /onBackupDone\(\);/);
   const cancelBranch = handleExport.slice(handleExport.indexOf("result === 'cancelled'"), handleExport.indexOf("result === 'failed'"));
   assert.doesNotMatch(cancelBranch, /onBackupDone/);
   // И не раньше, чем файл действительно отдан.
-  assert.ok(handleExport.indexOf('onBackupDone()') > handleExport.indexOf('await shareOrDownloadJSON'));
+  assert.ok(handleExport.indexOf('onBackupDone()') > handleExport.indexOf('await shareOrDownloadFile'));
 });
 
 test('напоминание о копии видно на всех экранах, но не спорит с другими', () => {

@@ -1,6 +1,8 @@
 // Полный бэкап несёт фото прямо внутри JSON — data URL в session.photos,
 // contentEntry.photos и задачах личного кабинета, включая легаси-массивы
-// client.sessions/consultations (см. TattoDiary.tsx: readBackupPayload).
+// client.sessions/consultations. Полный backup v6 теперь использует
+// backupArchive.ts; этот helper оставлен для совместимости малых JSON-
+// экспортов, которым не нужен OPFS-архив.
 // На телефоне с месяцами фотографий это реально десятки-сотни мегабайт.
 //
 // JSON.stringify(payload) держит одновременно и исходные объекты из

@@ -71,6 +71,13 @@ import {
   backupStatus,
   type PersistenceState,
 } from '../lib/storageHealth';
+import type {
+  BackupArchiveProgress,
+  ImportBackupArchiveResult,
+  PrepareBackupArchiveOptions,
+  PreparedBackupArchive,
+} from '../lib/backupArchive';
+import { readOrCreateInstallationId } from '../lib/backupIdentity';
 // Все мутации сессий/консультаций после Этапа 2 — записи живут на проектах,
 // вся чистая логика (цепочки, перевод в сессию, переезд между проектами) там.
 import {
@@ -642,6 +649,10 @@ export default function TattoDiary() {
   // (и даже если она вообще не откроется). Как только база ответит, её
   // запись заменит это значение — см. эффект загрузки ниже.
   const [masterInfo, setMasterInfo] = useState<MasterInfo>(readLocalMasterInfo);
+  // Стабильный на эту установку приложения — не на дневник и не на мастера:
+  // им подписывается каждая резервная копия (см. lib/backupIdentity.ts),
+  // чтобы отличить «копия с этого же устройства» от чужой при восстановлении.
+  const [installationId] = useState(readOrCreateInstallationId);
 
   // САМОЕ ОПАСНОЕ МЕСТО ПЕРЕЕЗДА. Запись асинхронная, а состояние уже есть,
   // поэтому без этого флага порядок был бы такой: смонтировались со
@@ -986,7 +997,7 @@ export default function TattoDiary() {
   }, []);
 
   // Когда в последний раз мастер реально унесла копию из телефона. Пишется
-  // только на успешный экспорт (см. handleExport в SettingsScreen) — попытка
+  // только на успешную отдачу файла (см. handleSharePrepared в SettingsScreen) — попытка
   // и отмена копией не считаются.
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(() => {
     try {
@@ -1083,58 +1094,45 @@ export default function TattoDiary() {
     request.onerror = () => reportStorageFailure('read', STORAGE_ACTIONS.loadProjects);
   };
 
-  // Резервная копия читается ПРЯМО ИЗ БАЗЫ, а не из состояния экрана.
-  // Раньше экспорт складывал в файл то, что успело попасть в React: если
-  // хранилище не открылось или отдало ошибку, состояние оставалось пустым, и
-  // на выходе получался валидный с виду, но ПУСТОЙ бэкап — худшее, что может
-  // случиться с резервной копией, потому что мастер уверена, что копия есть.
-  // Отказ теперь честный: не смогли прочитать — не отдаём файл, а говорим об
-  // этом (см. handleExport в SettingsScreen).
-  //
-  // Клиенты выгружаются в «сыром» виде, как лежат в базе, вместе с легаси-
-  // массивами sessions/consultations: копия обязана повторять хранилище, а не
-  // то, как приложение его показывает (записи после Этапа 2 живут в проектах,
-  // см. lib/clientRecordsMigration.ts).
-  //
-  // Личный кабинет читается отсюда же, а не из состояния экрана: он теперь
-  // такая же запись базы, как всё остальное (см. lib/masterInfoStore.ts).
-  // Раньше в копию уезжали только его задачи, и имя, телефон, реквизиты,
-  // ссылка на бота и подписи цветов-маркеров не сохранялись никуда.
-  // null — записи в базе нет; на экспорте это заменяется текущей карточкой,
-  // см. handleExport.
-  const readBackupPayload = (): Promise<{ clients: unknown[]; projects: unknown[]; contentEntries: unknown[]; masterInfo: unknown }> =>
-    new Promise((resolve, reject) => {
-      if (!db) {
-        reject(new Error('Хранилище недоступно'));
-        return;
-      }
-      const tx = openTx(['clients', 'projects', 'contentEntries', MASTER_INFO_STORE], db, 'readonly', STORAGE_ACTIONS.readBackup);
-      if (!tx) {
-        reject(new Error('Хранилище недоступно'));
-        return;
-      }
-      const out: { clients: unknown[]; projects: unknown[]; contentEntries: unknown[]; masterInfo: unknown } = {
-        clients: [],
-        projects: [],
-        contentEntries: [],
-        masterInfo: null,
-      };
-      tx.objectStore('clients').getAll().onsuccess = (e) => {
-        out.clients = (e.target as IDBRequest).result || [];
-      };
-      tx.objectStore('projects').getAll().onsuccess = (e) => {
-        out.projects = (e.target as IDBRequest).result || [];
-      };
-      tx.objectStore('contentEntries').getAll().onsuccess = (e) => {
-        out.contentEntries = (e.target as IDBRequest).result || [];
-      };
-      tx.objectStore(MASTER_INFO_STORE).get(MASTER_INFO_RECORD_ID).onsuccess = (e) => {
-        out.masterInfo = (e.target as IDBRequest).result ?? null;
-      };
-      tx.oncomplete = () => resolve(out);
-      tx.onerror = () => reject(tx.error ?? new Error('Не удалось прочитать данные'));
-      tx.onabort = () => reject(tx.error ?? new Error('Чтение прервано'));
-    });
+  const reloadMasterInfo = (database: IDBDatabase) => {
+    const tx = openTx(MASTER_INFO_STORE, database, 'readonly', STORAGE_ACTIONS.loadMasterInfo);
+    if (!tx) return;
+    const request = tx.objectStore(MASTER_INFO_STORE).get(MASTER_INFO_RECORD_ID);
+    request.onsuccess = () => {
+      if (request.result) setMasterInfo(normalizeMasterInfo(request.result));
+    };
+    request.onerror = () => reportStorageFailure('read', STORAGE_ACTIONS.loadMasterInfo);
+  };
+
+  // ZIP v6 is written to OPFS record-by-record. In contrast to the old
+  // getAll()+monolithic JSON path, export no longer materializes a second
+  // copy of the entire photo library in page memory.
+  const prepareFullBackup = async (options: PrepareBackupArchiveOptions): Promise<PreparedBackupArchive> => {
+    if (!db) return Promise.reject(new Error('Хранилище сейчас недоступно. Нажмите «Повторить» и попробуйте снова.'));
+    const { prepareBackupArchive } = await import('../lib/backupArchive');
+    return prepareBackupArchive(db, options);
+  };
+
+  const restoreFullBackup = async (
+    file: File,
+    options: { signal?: AbortSignal; onProgress?: (progress: BackupArchiveProgress) => void },
+  ): Promise<ImportBackupArchiveResult> => {
+    if (!db) throw new Error('Хранилище сейчас недоступно. Нажмите «Повторить» и попробуйте снова.');
+    try {
+      const { importBackupArchive } = await import('../lib/backupArchive');
+      const result = await importBackupArchive(db, file, options);
+      if (result.masterInfo) setMasterInfo(result.masterInfo);
+      return result;
+    } finally {
+      // A cancelled restore may already have safely upserted some records.
+      // Always make React reflect IndexedDB before the user continues.
+      loadClients(db);
+      loadProjects(db);
+      loadContentEntries(db);
+      reloadContentIngestJobs(db);
+      reloadMasterInfo(db);
+    }
+  };
 
   // Единственная точка записи в стор проектов — поэтому и единственное место,
   // где бампается lastMeaningfulActivityAt (M4): ищем предыдущую сохранённую
@@ -3088,7 +3086,8 @@ export default function TattoDiary() {
               onChange={setPrefs}
               onBack={() => setScreen('master')}
               masterInfo={masterInfo}
-              onReadBackupData={readBackupPayload}
+              installationId={installationId}
+              onPrepareBackup={prepareFullBackup}
               persistence={persistence}
               storageEstimate={storageEstimate}
               lastBackupAt={lastBackupAt}
@@ -3096,6 +3095,7 @@ export default function TattoDiary() {
               errorLog={errorLog}
               onClearErrorLog={clearErrorLog}
               onImport={replaceAllData}
+              onImportArchive={restoreFullBackup}
             />
           </Suspense>
         )}
