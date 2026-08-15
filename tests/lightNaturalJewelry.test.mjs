@@ -95,18 +95,19 @@ test('light toolbar stones carry no navigation glyphs', () => {
   );
 });
 
-test('home plate shine follows relief, stays mirrored, bronze-tinted and slower', () => {
+test('home plate shine follows relief, starts after two seconds and repeats with a shorter pause', () => {
   assert.match(stoneSource, /const isHomePlate = plate && !children/);
   assert.match(stoneSource, /const plateShineMaskId = `bronze-plate-shine-mask-\$\{rawId\}`/);
   assert.match(stoneSource, /className="natural-stone-home-shine"/);
   assert.match(stoneSource, /<linearGradient id=\{flatId\} x1="\.08" y1="0" x2="\.92" y2="1">/);
   assert.match(stoneSource, /transform="rotate\(45 32 32\)"/);
   assert.match(stoneSource, /<rect x="-50" y="-24" width="19" height="112"/);
-  assert.match(stoneSource, /values="-50;-50;92;92"/);
-  assert.match(stoneSource, /keyTimes="0;0\.52;0\.8;1"/);
-  assert.match(stoneSource, /attributeName="opacity"[\s\S]*values="0;0;1;1;0;0"/);
-  assert.match(stoneSource, /keyTimes="0;\.53;\.57;\.77;\.81;1"/);
-  assert.match(stoneSource, /dur="18s"/);
+  assert.match(stoneSource, /values="-50;92;92"/);
+  assert.match(stoneSource, /keyTimes="0;0\.56;1"/);
+  assert.match(stoneSource, /begin="2s"/);
+  assert.match(stoneSource, /dur="9s"/);
+  assert.match(stoneSource, /attributeName="opacity"[\s\S]*values="0;1;1;0;0"/);
+  assert.match(stoneSource, /keyTimes="0;\.04;\.52;\.57;1"/);
   assert.match(stoneSource, /offset="\.47" stopColor="#F5CA88" stopOpacity="\.92"/);
   assert.match(stoneSource, /offset="\.54" stopColor="#FFE2AA" stopOpacity="1"/);
   assert.match(stoneSource, /offset="\.63" stopColor="#F3C078" stopOpacity="\.88"/);
