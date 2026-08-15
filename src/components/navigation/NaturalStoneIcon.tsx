@@ -191,15 +191,15 @@ export function NaturalStoneIcon({
           <stop offset="1" stopColor="var(--bronze-shine-end)" stopOpacity="0" />
         </linearGradient>
         <linearGradient id={activeShineId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--bronze-shine-edge)" stopOpacity="0" />
-          <stop offset=".12" stopColor="var(--bronze-shine-soft)" stopOpacity=".22" />
-          <stop offset=".28" stopColor="var(--bronze-shine-mid)" stopOpacity=".58" />
-          <stop offset=".43" stopColor="var(--bronze-shine-bright)" stopOpacity=".9" />
-          <stop offset=".5" stopColor="var(--bronze-shine-core)" stopOpacity="1" />
-          <stop offset=".58" stopColor="var(--bronze-shine-warm)" stopOpacity=".88" />
-          <stop offset=".72" stopColor="var(--bronze-shine-tail)" stopOpacity=".52" />
-          <stop offset=".9" stopColor="var(--bronze-shine-end)" stopOpacity=".12" />
-          <stop offset="1" stopColor="var(--bronze-shine-end)" stopOpacity="0" />
+          <stop offset="0" stopColor="var(--bronze-active-shine-edge)" stopOpacity="0" />
+          <stop offset=".12" stopColor="var(--bronze-active-shine-soft)" stopOpacity=".22" />
+          <stop offset=".28" stopColor="var(--bronze-active-shine-mid)" stopOpacity=".58" />
+          <stop offset=".43" stopColor="var(--bronze-active-shine-bright)" stopOpacity=".9" />
+          <stop offset=".5" stopColor="var(--bronze-active-shine-core)" stopOpacity="1" />
+          <stop offset=".58" stopColor="var(--bronze-active-shine-warm)" stopOpacity=".88" />
+          <stop offset=".72" stopColor="var(--bronze-active-shine-tail)" stopOpacity=".52" />
+          <stop offset=".9" stopColor="var(--bronze-active-shine-end)" stopOpacity=".12" />
+          <stop offset="1" stopColor="var(--bronze-active-shine-end)" stopOpacity="0" />
         </linearGradient>
         <linearGradient id={activeStoneDepthId} gradientUnits="userSpaceOnUse" x1="32" y1={32 - stoneR} x2="32" y2={32 + stoneR}>
           <stop offset="0" stopColor="#FFFFFF" stopOpacity=".18" />
