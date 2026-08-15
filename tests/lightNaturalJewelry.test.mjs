@@ -40,7 +40,7 @@ test('polished bronze has one canonical light-theme token file loaded after base
   const baseImport = mainSource.indexOf("import './index.css';");
   const jewelryImport = mainSource.indexOf("import './components/ui/LightJewelryTheme.css';");
   assert.ok(baseImport >= 0 && jewelryImport > baseImport, 'canonical light jewelry tokens must load after the base theme');
-  assert.doesNotMatch(stoneCss, /--nav-metal|--bronze-/);
+  assert.doesNotMatch(stoneCss, /--nav-metal\s*:|--bronze-[\w-]+\s*:/);
   assert.match(tabCss, /var\(--bronze-highlight\)/);
   assert.match(tabCss, /var\(--bronze-patina\)/);
   assert.doesNotMatch(jewelryThemeCss + tabCss, /#657C72/);
@@ -95,7 +95,7 @@ test('light toolbar stones carry no navigation glyphs', () => {
   );
 });
 
-test('home plate stays evenly lit while shine remains restrained and relief-aware', () => {
+test('home plate shine stays inside the inner disc and widens softly through its centre', () => {
   assert.match(stoneSource, /const isHomePlate = plate && !children/);
   assert.match(stoneSource, /const plateShineMaskId = `bronze-plate-shine-mask-\$\{rawId\}`/);
   assert.match(stoneSource, /className="natural-stone-home-shine"/);
@@ -103,6 +103,8 @@ test('home plate stays evenly lit while shine remains restrained and relief-awar
   assert.match(stoneSource, /offset="\.68" stopColor="var\(--bronze-face-shadow\)"/);
   assert.match(stoneSource, /offset="1" stopColor="var\(--bronze-face-deep\)"/);
   assert.match(stoneSource, /r=\{outerR - 8\.2\} fill="none" stroke="var\(--bronze-face-shadow\)" strokeWidth="\.68" opacity="\.6"/);
+  assert.match(stoneSource, /<mask id=\{plateShineMaskId\}[\s\S]*r=\{outerR - 5\.55\} fill="white"/);
+  assert.doesNotMatch(stoneSource, /<mask id=\{plateShineMaskId\}[\s\S]*r=\{outerR - 3\.8\}/);
   assert.match(stoneSource, /transform="rotate\(45 32 32\)"/);
   assert.match(stoneSource, /<rect x="-50" y="-24" width="19" height="112"/);
   assert.match(stoneSource, /values="-50;92;92"/);
@@ -114,40 +116,42 @@ test('home plate stays evenly lit while shine remains restrained and relief-awar
   assert.match(stoneSource, /offset="\.47" stopColor="var\(--bronze-shine-bright\)" stopOpacity="\.74"/);
   assert.match(stoneSource, /offset="\.54" stopColor="var\(--bronze-shine-core\)" stopOpacity="\.82"/);
   assert.match(stoneSource, /offset="\.63" stopColor="var\(--bronze-shine-warm\)" stopOpacity="\.7"/);
-  assert.match(stoneSource, /<mask id=\{plateShineMaskId\}[\s\S]*r=\{outerR - 3\.8\}[\s\S]*stroke="black" strokeWidth="1\.55"/);
-  assert.match(stoneSource, /<mask id=\{plateShineMaskId\}[\s\S]*r=\{outerR - 8\.2\}[\s\S]*stroke="black" strokeWidth="1\.3"/);
-  assert.match(stoneSource, /mask=\{`url\(#\$\{plateShineMaskId\}\)`\}/);
-  assert.match(stoneSource, /clipPath=\{`url\(#\$\{plateClipId\}\)`\}/);
-  assert.match(stoneSource, /!isHomePlate && \(/);
-  assert.doesNotMatch(stoneCss, /path\[stroke=/);
-  assert.doesNotMatch(stoneCss, /@keyframes[^}]*home-shine|animation:\s*polished-bronze-home-shine/);
   assert.match(stoneCss, /\.natural-stone-home-shine rect[\s\S]*filter: blur\(0\.62px\)/);
+  assert.match(stoneCss, /clip-path: ellipse\(50% 90% at 50% 50%\)/);
+  assert.match(stoneCss, /@keyframes natural-stone-home-spindle/);
+  assert.match(stoneCss, /28%[\s\S]*transform: scaleX\(1\.16\)/);
+  assert.match(stoneCss, /56%,[\s\S]*100%[\s\S]*transform: scaleX\(0\.88\)/);
   assert.match(stoneCss, /\.nav-fab--open \.natural-stone-home-shine[\s\S]*display: none/);
   assert.match(stoneCss, /prefers-reduced-motion[\s\S]*natural-stone-home-shine/);
 });
 
-test('current light toolbar item gets one narrow concave relief-aware sweep after it arrives', () => {
+test('current light toolbar item gets a slower recurring three-phrase concave sweep without coloured glow', () => {
   assert.match(stoneSource, /activeShine = false/);
   assert.match(stoneSource, /activeShineDelay = '0s'/);
   assert.match(stoneSource, /const activeShineMaskId = `bronze-active-shine-mask-\$\{rawId\}`/);
   assert.match(stoneSource, /className="natural-stone-active-shine"/);
-  assert.match(stoneSource, /<rect x="-42" y="-18" width="13" height="100"/);
-  assert.match(stoneSource, /values="-42;82"/);
+  assert.match(stoneSource, /<rect x="-44" y="-18" width="11" height="100"/);
+  assert.match(stoneSource, /values="-44;4;40;84;84"/);
+  assert.match(stoneSource, /keyTimes="0;\.2;\.4;\.6;1"/);
   assert.match(stoneSource, /begin=\{activeShineDelay\}/);
-  assert.match(stoneSource, /dur="2\.4s"/);
-  assert.match(stoneSource, /values="0;\.72;\.68;0"/);
-  assert.match(stoneSource, /repeatCount="1"/);
+  assert.match(stoneSource, /dur="6s"/);
+  assert.match(stoneSource, /values="0;\.62;\.6;\.56;0;0"/);
+  assert.match(stoneSource, /repeatCount="indefinite"/);
   assert.match(navSource, /activeShine=\{isCurrentItem\}/);
   assert.match(navSource, /activeShineDelay=\{`\$\{\(travelDelayMs \+ durationMs \+ 180\) \/ 1000\}s`\}/);
-  assert.match(stoneCss, /natural-stone-active-concave-shine/);
+  assert.match(stoneCss, /natural-stone-active-concave-shine 6s linear infinite/);
   assert.match(stoneCss, /inset: 14\.1%/);
   assert.match(stoneCss, /transparent 0 44%/);
-  assert.match(stoneCss, /white 76%, var\(--natural-jewel-color\) 24%/);
+  assert.match(stoneCss, /var\(--bronze-shine-core\) 72%/);
+  assert.doesNotMatch(stoneCss, /var\(--natural-jewel-color\)/);
+  assert.match(stoneCss, /20%[\s\S]*background-position: 90% 90%/);
+  assert.match(stoneCss, /40%[\s\S]*background-position: 38% 38%/);
+  assert.match(stoneCss, /60%[\s\S]*background-position: -32% -32%/);
   assert.match(stoneCss, /rgba\(0, 0, 0, 0\.92\) 18%/);
   assert.match(stoneCss, /rgba\(0, 0, 0, 0\.34\) 54%/);
-  assert.match(stoneCss, /background-position: 132% 132%/);
-  assert.match(stoneCss, /background-position: -32% -32%/);
   assert.match(stoneCss, /animation-delay: calc\(var\(--travel-delay, 0ms\) \+ var\(--travel-duration, 0ms\) \+ 180ms\)/);
+  assert.match(jewelryThemeCss, /\.nav-fab__item--current \.theme-light-jewel[\s\S]*filter: saturate\(1\.16\) brightness\(1\.08\) contrast\(1\.05\) !important/);
+  assert.match(jewelryThemeCss, /\.nav-fab__item--current::before[\s\S]*width: 33\.34% !important[\s\S]*height: 33\.34% !important/);
   assert.match(stoneCss, /prefers-reduced-motion[\s\S]*natural-stone-active-shine/);
 });
 
