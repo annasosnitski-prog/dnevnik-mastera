@@ -31,15 +31,10 @@
   }
 }
 
-/* Once the toolbar is open the hub stays quiet while the selected destination
-   owns the recurring reflection. */
 .nav-fab--open .natural-stone-home-shine {
   display: none;
 }
 
-/* Keep the experimental SVG active sweep disabled. The visible selected-state
-   highlight below is one physical layer spanning rim + stone, so there is no
-   second animation clock and therefore no rim/stone desynchronisation. */
 .natural-stone-active-shine {
   display: none;
 }
@@ -103,9 +98,6 @@
   animation-delay: calc(var(--travel-delay, 0ms) + var(--travel-duration, 0ms) + 80ms);
 }
 
-/* The first 60% of the cycle is the deliberately slow pass (3.6s), split into
-   three readable phrases. The rest is a short pause before the reflection
-   returns. Because this one layer covers both materials, every phase is shared. */
 @keyframes natural-stone-active-unified-shine {
   0% {
     opacity: 0;
