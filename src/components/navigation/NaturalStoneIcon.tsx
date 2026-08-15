@@ -155,12 +155,12 @@ export function NaturalStoneIcon({
           <stop offset="1" stopColor="#75401F" />
         </linearGradient>
         <linearGradient id={flatId} x1=".08" y1="0" x2=".92" y2="1">
-          <stop offset="0" stopColor="#D99B56" />
-          <stop offset=".2" stopColor="#F0C282" />
-          <stop offset=".42" stopColor="#B96D34" />
-          <stop offset=".68" stopColor="#7A3F1D" />
-          <stop offset=".86" stopColor="#B86B31" />
-          <stop offset="1" stopColor="#603017" />
+          <stop offset="0" stopColor="#DDA35F" />
+          <stop offset=".2" stopColor="#F2C98F" />
+          <stop offset=".42" stopColor="#C77B3E" />
+          <stop offset=".68" stopColor="#99532A" />
+          <stop offset=".86" stopColor="#C07839" />
+          <stop offset="1" stopColor="#7A421F" />
         </linearGradient>
         <linearGradient id={edgeId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#271308" />
@@ -173,12 +173,12 @@ export function NaturalStoneIcon({
         </linearGradient>
         <linearGradient id={plateShineId} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="#D8893E" stopOpacity="0" />
-          <stop offset=".16" stopColor="#E9A657" stopOpacity=".14" />
-          <stop offset=".34" stopColor="#F0BB70" stopOpacity=".46" />
-          <stop offset=".47" stopColor="#F5CA88" stopOpacity=".92" />
-          <stop offset=".54" stopColor="#FFE2AA" stopOpacity="1" />
-          <stop offset=".63" stopColor="#F3C078" stopOpacity=".88" />
-          <stop offset=".8" stopColor="#E39A4B" stopOpacity=".18" />
+          <stop offset=".16" stopColor="#E9A657" stopOpacity=".1" />
+          <stop offset=".34" stopColor="#F0BB70" stopOpacity=".36" />
+          <stop offset=".47" stopColor="#F5CA88" stopOpacity=".74" />
+          <stop offset=".54" stopColor="#FFE2AA" stopOpacity=".82" />
+          <stop offset=".63" stopColor="#F3C078" stopOpacity=".7" />
+          <stop offset=".8" stopColor="#E39A4B" stopOpacity=".12" />
           <stop offset="1" stopColor="#C97732" stopOpacity="0" />
         </linearGradient>
         <clipPath id={plateClipId}>
@@ -250,7 +250,7 @@ export function NaturalStoneIcon({
         {plate || !kind ? (
           <>
             <circle cx="32" cy="32" r={outerR - 5.2} fill={`url(#${flatId})`} stroke="#DCA363" strokeWidth=".62" />
-            <circle cx="32" cy="32" r={outerR - 8.2} fill="none" stroke="#6F3D20" strokeWidth=".68" opacity=".82" />
+            <circle cx="32" cy="32" r={outerR - 8.2} fill="none" stroke="#8B512C" strokeWidth=".68" opacity=".6" />
             {!isHomePlate && (
               <>
                 <path d="M16 24c5-7 13-10 21-8M44 46c-7 4-15 4-22 0" fill="none" stroke="#F0C181" strokeWidth=".72" strokeLinecap="round" opacity=".28" />
