@@ -63,6 +63,19 @@ export function downsizeForStorage(dataUrl: string, maxSide = 1600, quality = 0.
   return resizeImage(dataUrl, maxSide, quality);
 }
 
+// Сжимает фото перед тем как положить его копию в ContentEntry.photos
+// (ContentINKAScreen.tsx) — это ВСЕГДА второй экземпляр байтов, уже
+// лежащих через downsizeForStorage в Session/Consultation/Project.photos:
+// ContentEntry — самостоятельная запись в отдельном IndexedDB store, и её
+// копия переживает удаление или правку исходной сессии (это осознанно —
+// уже сгенерированный контент не должен «уехать» вслед за источником).
+// Раз это заведомый дубль, а не единственная копия, ему незачем совпадать
+// с ней по весу: 1280px/0.8 хватает и на публикацию в Instagram, и на
+// просмотр на экране, но весит заметно меньше, чем повторный 1600px/0.85.
+export function downsizeForContentDuplicate(dataUrl: string, maxSide = 1280, quality = 0.8): Promise<string> {
+  return resizeImage(dataUrl, maxSide, quality);
+}
+
 export async function downsizePhotosSequentially(
   photos: string[],
   photoIds: string[],
