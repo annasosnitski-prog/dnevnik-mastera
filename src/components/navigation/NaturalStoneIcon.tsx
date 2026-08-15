@@ -269,18 +269,20 @@ export function NaturalStoneIcon({
                   <rect x="-50" y="-24" width="19" height="112" fill={`url(#${plateShineId})`} opacity="0">
                     <animate
                       attributeName="x"
-                      values="-50;-50;92;92"
-                      keyTimes="0;0.52;0.8;1"
-                      dur="18s"
+                      values="-50;92;92"
+                      keyTimes="0;0.56;1"
+                      begin="2s"
+                      dur="9s"
                       calcMode="spline"
-                      keySplines="0 0 1 1;0.18 0.82 0.2 1;0 0 1 1"
+                      keySplines="0.18 0.82 0.2 1;0 0 1 1"
                       repeatCount="indefinite"
                     />
                     <animate
                       attributeName="opacity"
-                      values="0;0;1;1;0;0"
-                      keyTimes="0;.53;.57;.77;.81;1"
-                      dur="18s"
+                      values="0;1;1;0;0"
+                      keyTimes="0;.04;.52;.57;1"
+                      begin="2s"
+                      dur="9s"
                       calcMode="linear"
                       repeatCount="indefinite"
                     />
