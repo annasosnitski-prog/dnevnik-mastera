@@ -2,19 +2,19 @@
    Components consume these variables; component styles do not redefine the
    bronze palette independently. */
 :root[data-theme='light'] {
-  --bronze-shadow: #281308;
-  --bronze-recess: #653319;
-  --bronze-deep: #74401F;
-  --bronze-mid: #A8612F;
-  --bronze-front: #B66D35;
-  --bronze-light: #DCA064;
-  --bronze-highlight: #F3C98F;
-  --bronze-specular: #F7D39F;
-  --bronze-sheen: #FFE1B5;
-  --bronze-patina: #63361D;
+  /* Structural bronze: less orange/gold, more natural warm bronze. */
+  --bronze-shadow: #24150D;
+  --bronze-recess: #56351F;
+  --bronze-deep: #6E472A;
+  --bronze-mid: #986039;
+  --bronze-front: #AC7042;
+  --bronze-light: #D29C68;
+  --bronze-highlight: #E9C08D;
+  --bronze-specular: #F4D4A7;
+  --bronze-sheen: #FBE4C2;
+  --bronze-patina: #5B3924;
 
-  /* Approved flat plate face: kept as named bronze tones so the hub, Create
-     plate and any future flat bronze controls cannot drift into copper/grey. */
+  /* Approved flat plate face: keep the hub/Create face untouched. */
   --bronze-face-light: #DDA35F;
   --bronze-face-highlight: #F2C98F;
   --bronze-face-mid: #C77B3E;
@@ -22,14 +22,16 @@
   --bronze-face-warm: #C07839;
   --bronze-face-deep: #7A421F;
 
-  --bronze-edge-shadow: #271308;
-  --bronze-edge-highlight: #F5D09A;
-  --bronze-edge-warm: #B46A34;
-  --bronze-edge-recess: #6A3518;
-  --bronze-edge-light: #E1A35F;
-  --bronze-edge-mid: #8A4A23;
-  --bronze-edge-end: #D08A49;
+  /* Edge reflections follow the refined structural bronze. */
+  --bronze-edge-shadow: #25160E;
+  --bronze-edge-highlight: #F0CDA0;
+  --bronze-edge-warm: #B87949;
+  --bronze-edge-recess: #654027;
+  --bronze-edge-light: #D6A271;
+  --bronze-edge-mid: #875536;
+  --bronze-edge-end: #BC7D4D;
 
+  /* Approved home-button reflection remains unchanged. */
   --bronze-shine-edge: #D8893E;
   --bronze-shine-soft: #E9A657;
   --bronze-shine-mid: #F0BB70;
@@ -38,6 +40,17 @@
   --bronze-shine-warm: #F3C078;
   --bronze-shine-tail: #E39A4B;
   --bronze-shine-end: #C97732;
+
+  /* Selected-button reflection: brighter champagne, deliberately less orange
+     than the home-button sheen so it reads as light on bronze, not gold paint. */
+  --bronze-active-shine-edge: #A86B42;
+  --bronze-active-shine-soft: #D5A06F;
+  --bronze-active-shine-mid: #E7BA83;
+  --bronze-active-shine-bright: #F4D2A4;
+  --bronze-active-shine-core: #FFF0CF;
+  --bronze-active-shine-warm: #EDC795;
+  --bronze-active-shine-tail: #D7A16E;
+  --bronze-active-shine-end: #A96B42;
 
   --bronze-engrave-groove: #4A2411;
   --bronze-engrave-shadow: #6B3518;
