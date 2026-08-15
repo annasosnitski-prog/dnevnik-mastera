@@ -1,9 +1,16 @@
 /* The hub and bronze-rim reflections are SVG/SMIL sweeps in
-   NaturalStoneIcon.tsx. The selected mineral adds one synchronized surface
-   reflection below so the light can visibly drop into its concave bowl. */
+   NaturalStoneIcon.tsx. The selected mineral gets one synchronized narrow
+   surface sweep below so the light reads as a reflection, not a glow. */
 .natural-stone-home-shine,
 .natural-stone-active-shine {
   pointer-events: none;
+}
+
+/* Soften only the moving strip itself. The SVG relief mask still cuts the
+   reflection at the recessed rings, while the strip edges feather slightly
+   like light grazing a finely roughened metal surface. */
+.natural-stone-home-shine rect {
+  filter: blur(0.62px);
 }
 
 /* The closed hub is the attention cue. Once the toolbar is open the hub must
@@ -13,10 +20,10 @@
   display: none;
 }
 
-/* The SVG active sweep deliberately owns the bronze rim. This companion layer
-   is clipped to the mineral only. Its shifted radial mask makes the reflection
-   dim on the recessed floor, stronger on the upper inner wall and weak again
-   on the lower wall, preserving the already-approved concave read. */
+/* The SVG active sweep owns the bronze rim. This companion layer is clipped
+   to the mineral and is deliberately a narrow moving band, not a full-surface
+   illumination. The vertical mask follows the concave bowl: strongest on the
+   upper inner wall, quieter on the recessed floor, fading toward the lower wall. */
 :root[data-theme='light']
   .nav-fab--open
   .nav-fab__item--current
@@ -31,38 +38,44 @@
   .theme-light-jewel::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: 14.1%;
   z-index: 2;
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
-  clip-path: circle(35.9% at 50% 50%);
-  -webkit-clip-path: circle(35.9% at 50% 50%);
-  background: linear-gradient(
-    135deg,
-    transparent 0 38%,
-    color-mix(in srgb, var(--bronze-sheen) 66%, var(--natural-jewel-color) 34%) 44%,
-    color-mix(in srgb, var(--bronze-specular) 76%, var(--natural-jewel-color) 24%) 49%,
-    color-mix(in srgb, var(--bronze-highlight) 62%, var(--natural-jewel-color) 38%) 54%,
-    transparent 62% 100%
+  background:
+    linear-gradient(
+      135deg,
+      transparent 0 44%,
+      color-mix(in srgb, transparent 72%, var(--natural-jewel-color) 28%) 46.5%,
+      color-mix(in srgb, white 46%, var(--natural-jewel-color) 54%) 48.8%,
+      color-mix(in srgb, white 76%, var(--natural-jewel-color) 24%) 50%,
+      color-mix(in srgb, white 42%, var(--natural-jewel-color) 58%) 51.2%,
+      color-mix(in srgb, transparent 76%, var(--natural-jewel-color) 24%) 53.5%,
+      transparent 56% 100%
+    );
+  background-size: 245% 245%;
+  background-position: 132% 132%;
+  background-repeat: no-repeat;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.18) 0%,
+    rgba(0, 0, 0, 0.92) 18%,
+    rgba(0, 0, 0, 0.58) 34%,
+    rgba(0, 0, 0, 0.34) 54%,
+    rgba(0, 0, 0, 0.2) 72%,
+    rgba(0, 0, 0, 0.08) 90%,
+    transparent 100%
   );
-  background-size: 260% 260%;
-  background-position: 135% 135%;
-  -webkit-mask-image: radial-gradient(
-    circle at 44% 38%,
-    rgba(0, 0, 0, 0.28) 0 54%,
-    rgba(0, 0, 0, 0.46) 64%,
-    rgba(0, 0, 0, 0.9) 77%,
-    rgba(0, 0, 0, 0.34) 87%,
-    transparent 92%
-  );
-  mask-image: radial-gradient(
-    circle at 44% 38%,
-    rgba(0, 0, 0, 0.28) 0 54%,
-    rgba(0, 0, 0, 0.46) 64%,
-    rgba(0, 0, 0, 0.9) 77%,
-    rgba(0, 0, 0, 0.34) 87%,
-    transparent 92%
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.18) 0%,
+    rgba(0, 0, 0, 0.92) 18%,
+    rgba(0, 0, 0, 0.58) 34%,
+    rgba(0, 0, 0, 0.34) 54%,
+    rgba(0, 0, 0, 0.2) 72%,
+    rgba(0, 0, 0, 0.08) 90%,
+    transparent 100%
   );
   animation: natural-stone-active-concave-shine 2.4s cubic-bezier(0.18, 0.82, 0.2, 1) 1 both;
   animation-delay: calc(var(--travel-delay, 0ms) + var(--travel-duration, 0ms) + 180ms);
@@ -71,17 +84,17 @@
 @keyframes natural-stone-active-concave-shine {
   0% {
     opacity: 0;
-    background-position: 135% 135%;
+    background-position: 132% 132%;
   }
-  12% {
-    opacity: 0.5;
+  10% {
+    opacity: 0.68;
   }
-  78% {
-    opacity: 0.46;
+  82% {
+    opacity: 0.62;
   }
   100% {
     opacity: 0;
-    background-position: -35% -35%;
+    background-position: -32% -32%;
   }
 }
 
