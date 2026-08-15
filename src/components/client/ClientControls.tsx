@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
-import { type ClientType, CLIENT_TYPES, type ChatPlatform, PLATFORM_LABELS } from '../../domain/client';
+import { type Client, type ClientType, CLIENT_TYPES, type ChatPlatform, PLATFORM_LABELS } from '../../domain/client';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
-import { type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep } from '../../domain/project';
+import { type Project, type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep } from '../../domain/project';
 import { downsizeForStorage } from '../../lib/imagePreview';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT, INPUT_STYLE } from '../TattoDiary';
@@ -959,6 +959,160 @@ export function AddMasterLinkForm({ onAdd }: { onAdd: (label: string, value: str
         >
           Добавить
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Moved out of DetailScreen.tsx for the same reason as AddChatLinkForm /
+// AddMasterLinkForm above: NoteComposerSheet imported it directly (not
+// lazily), which forced the whole 2600+-line DetailScreen file into the main
+// bundle. Logic and markup unchanged — only the location moved.
+//
+// Compose a new note: text + urgency marker + any photos, all attached before
+// the note is saved (photos live on the note from the moment it's created).
+// `clients`, when passed, adds a client picker so the note can be attached to
+// a client right from creation (e.g. from «Сводка», where there's no single
+// client already in scope) — omitted where the note is already scoped to one
+// client (the «Дополнительно» tab composer) and the field would be redundant.
+export function NoteComposer({
+  onAdd,
+  clients,
+  projects,
+  presetClientId = null,
+  presetProjectId = null,
+}: {
+  onAdd: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, clientId: string | null, projectId: string | null) => void;
+  clients?: Client[];
+  // Проекты, к которым можно привязать заметку прямо при создании. Раньше
+  // выбор проекта был только в NoteItem (правка уже созданной заметки), и
+  // из Личного кабинета/Мастерской привязать заметку к проекту было нельзя
+  // вообще — приходилось создавать, а потом открывать и править.
+  // Список сужается по выбранному клиенту (см. availableProjects ниже),
+  // чтобы не предлагать чужие проекты.
+  projects?: Project[];
+  // Предзаполняет клиента (например, из открытой карточки клиента) — но
+  // поле остаётся редактируемым через тот же select, если clients передан.
+  presetClientId?: string | null;
+  // Заметка создаётся уже привязанной к проекту (например, из открытого
+  // просмотра проекта) — тогда picker'а не показываем, значение просто
+  // уходит в onAdd как есть.
+  presetProjectId?: string | null;
+}) {
+  const [text, setText] = useState('');
+  const [urgency, setUrgency] = useState<UrgencyKey>('important');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [dueDate, setDueDate] = useState('');
+  const [clientId, setClientId] = useState<string | null>(presetClientId);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  // Проекты выбранного клиента; без клиента — проекты «Мастерской».
+  // Меняется вслед за клиентом, поэтому выбранный ранее проект сбрасывается,
+  // если он не принадлежит новому владельцу (иначе заметка уехала бы в
+  // проект чужого клиента).
+  const availableProjects = (projects ?? []).filter((p) => (clientId ? p.clientId === clientId : p.clientId === null));
+  const submit = () => {
+    const t = text.trim();
+    if (!t) return;
+    // presetProjectId (создание из открытого проекта) всегда сильнее выбора
+    // в форме — там picker'а и нет.
+    onAdd(t, urgency, photos, dueDate || null, clientId, presetProjectId ?? projectId);
+    setText('');
+    setUrgency('important');
+    setPhotos([]);
+    setDueDate('');
+    setClientId(presetClientId);
+    setProjectId(null);
+  };
+  // Сменили клиента — прежде выбранный проект мог принадлежать другому
+  // владельцу; сбрасываем, чтобы заметка не уехала не туда.
+  const changeClient = (nextClientId: string | null) => {
+    setClientId(nextClientId);
+    setProjectId(null);
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <textarea
+        dir="auto"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Новая заметка или задача..."
+        style={{
+          width: '100%',
+          background: 'rgba(var(--surface-rgb),0.018)',
+          border: '1px solid rgba(var(--gold-rgb),0.1)',
+          borderRadius: 2,
+          padding: '11px 13px',
+          fontFamily: "'Inter', sans-serif",
+          color: COLORS.textPrimary,
+          outline: 'none',
+          resize: 'none',
+          height: 64,
+          fontStyle: 'italic',
+          lineHeight: 1.5,
+          letterSpacing: '0.3px',
+        }}
+      />
+      <UrgencyChips value={urgency} onPick={setUrgency} />
+      {clients && clients.length > 0 && (
+        <div>
+          <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+            Клиент (необязательно)
+          </div>
+          <select value={clientId ?? ''} onChange={(e) => changeClient(e.target.value || null)} style={INPUT_STYLE}>
+            <option value="">— без клиента —</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {`${c.name} ${c.surname}`.trim()}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {/* Привязка к проекту прямо при создании. Скрыта, когда проект уже
+          задан контекстом (заметка создаётся из открытого проекта) или когда
+          у выбранного владельца проектов ещё нет — выбирать не из чего. */}
+      {!presetProjectId && availableProjects.length > 0 && (
+        <div>
+          <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+            Проект (необязательно)
+          </div>
+          <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
+            <option value="">— без проекта —</option>
+            {availableProjects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title || 'Проект'}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div>
+        <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
+          Срок (необязательно)
+        </div>
+        <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={INPUT_STYLE} />
+      </div>
+      {/* Attach photos to the note up front — button first so it reads as an
+          action even before any thumbnails exist. */}
+      <SessionPhotos photos={photos} onChange={setPhotos} allowDelete buttonFirst />
+      <div
+        className="inka-submit"
+        onClick={submit}
+        style={{
+          border: '1px solid rgba(var(--gold-rgb),0.35)',
+          borderRadius: 2,
+          padding: '10px 0',
+          textAlign: 'center',
+          cursor: text.trim() ? 'pointer' : 'not-allowed',
+          background: 'rgba(var(--gold-rgb),0.05)',
+          opacity: text.trim() ? 1 : 0.4,
+          fontSize: fs(13),
+          color: COLORS.gold,
+          letterSpacing: '1.5px',
+          textTransform: 'uppercase',
+        }}
+      >
+        Добавить заметку
       </div>
     </div>
   );

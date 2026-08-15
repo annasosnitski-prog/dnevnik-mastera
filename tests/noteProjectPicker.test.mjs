@@ -12,14 +12,12 @@ function readSource(path) {
 }
 
 const detailScreen = readSource('../src/components/screens/DetailScreen.tsx');
+const clientControls = readSource('../src/components/client/ClientControls.tsx');
 const noteSheet = readSource('../src/components/sheets/NoteComposerSheet.tsx');
 const summaryScreen = readSource('../src/components/screens/SummaryScreen.tsx');
 const app = readSource('../src/components/TattoDiary.tsx');
 
-const noteComposer = detailScreen.slice(
-  detailScreen.indexOf('export function NoteComposer('),
-  detailScreen.indexOf('// ── «Заметки и задачи» tab'),
-);
+const noteComposer = clientControls.slice(clientControls.indexOf('export function NoteComposer('));
 
 test('NoteComposer takes a projects list so a note can be tied to a project at creation', () => {
   assert.match(noteComposer, /projects\?: Project\[\];/);

@@ -9,7 +9,8 @@ import { clientNameFor, getProjectsByClientId, getWorkshopProjects } from '../..
 import { urgencyRank } from '../../domain/taskSelectors';
 import { ISO_DATE_RE, formatDate, todayISO } from '../../utils/dates';
 import { COLORS, DONE_EMOJI, fs } from '../ui/designTokens';
-import { NoteComposer, NoteItem } from './DetailScreen';
+import { NoteItem } from './DetailScreen';
+import { NoteComposer } from '../client/ClientControls';
 
 // Вынесено из TattoDiary.tsx без изменения поведения, разметки и
 // prop-driven контракта. Локальное состояние фильтров и composer сохранено.
