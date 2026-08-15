@@ -95,11 +95,14 @@ test('light toolbar stones carry no navigation glyphs', () => {
   );
 });
 
-test('home plate shine follows relief, starts after two seconds and repeats with a shorter pause', () => {
+test('home plate stays evenly lit while shine remains restrained and relief-aware', () => {
   assert.match(stoneSource, /const isHomePlate = plate && !children/);
   assert.match(stoneSource, /const plateShineMaskId = `bronze-plate-shine-mask-\$\{rawId\}`/);
   assert.match(stoneSource, /className="natural-stone-home-shine"/);
   assert.match(stoneSource, /<linearGradient id=\{flatId\} x1="\.08" y1="0" x2="\.92" y2="1">/);
+  assert.match(stoneSource, /offset="\.68" stopColor="#99532A"/);
+  assert.match(stoneSource, /offset="1" stopColor="#7A421F"/);
+  assert.match(stoneSource, /r=\{outerR - 8\.2\} fill="none" stroke="#8B512C" strokeWidth="\.68" opacity="\.6"/);
   assert.match(stoneSource, /transform="rotate\(45 32 32\)"/);
   assert.match(stoneSource, /<rect x="-50" y="-24" width="19" height="112"/);
   assert.match(stoneSource, /values="-50;92;92"/);
@@ -108,9 +111,9 @@ test('home plate shine follows relief, starts after two seconds and repeats with
   assert.match(stoneSource, /dur="9s"/);
   assert.match(stoneSource, /attributeName="opacity"[\s\S]*values="0;1;1;0;0"/);
   assert.match(stoneSource, /keyTimes="0;\.04;\.52;\.57;1"/);
-  assert.match(stoneSource, /offset="\.47" stopColor="#F5CA88" stopOpacity="\.92"/);
-  assert.match(stoneSource, /offset="\.54" stopColor="#FFE2AA" stopOpacity="1"/);
-  assert.match(stoneSource, /offset="\.63" stopColor="#F3C078" stopOpacity="\.88"/);
+  assert.match(stoneSource, /offset="\.47" stopColor="#F5CA88" stopOpacity="\.74"/);
+  assert.match(stoneSource, /offset="\.54" stopColor="#FFE2AA" stopOpacity="\.82"/);
+  assert.match(stoneSource, /offset="\.63" stopColor="#F3C078" stopOpacity="\.7"/);
   assert.match(stoneSource, /<mask id=\{plateShineMaskId\}[\s\S]*r=\{outerR - 3\.8\}[\s\S]*stroke="black" strokeWidth="1\.55"/);
   assert.match(stoneSource, /<mask id=\{plateShineMaskId\}[\s\S]*r=\{outerR - 8\.2\}[\s\S]*stroke="black" strokeWidth="1\.3"/);
   assert.match(stoneSource, /mask=\{`url\(#\$\{plateShineMaskId\}\)`\}/);
