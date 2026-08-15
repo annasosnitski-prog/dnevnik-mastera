@@ -358,7 +358,7 @@ export function NaturalStoneIcon({
               <circle
                 cx="32"
                 cy="32"
-                r={stoneR - (medallion ? .25 : .5)}
+                r={stoneR - (medallion ? '.25' : '.5')}
                 fill="none"
                 stroke={material?.rim ?? stoneColor}
                 strokeWidth={medallion ? '.42' : '.7'}
@@ -375,34 +375,35 @@ export function NaturalStoneIcon({
             pointerEvents="none"
           >
             <g transform="rotate(45 32 32)">
-              <g opacity="0">
-                <g mask={`url(#${activeShineMaskId})`}>
-                  <rect x="-48" y="-18" width="17" height="100" fill={`url(#${activeShineId})`} opacity=".9" />
-                </g>
-                <g clipPath={`url(#${clipId})`} mask={`url(#${activeStoneShineMaskId})`}>
-                  <rect x="-48" y="-18" width="17" height="100" fill={`url(#${activeShineId})`} opacity="1" />
-                </g>
-                <animateTransform
-                  attributeName="transform"
-                  type="translate"
-                  values="0 0;48 0;84 0;128 0;128 0"
-                  keyTimes="0;.2;.4;.6;1"
+              <rect
+                x="-50"
+                y="-24"
+                width="19"
+                height="112"
+                fill={`url(#${plateShineId})`}
+                opacity="0"
+                style={{ ['--active-shine-delay' as string]: activeShineDelay }}
+              >
+                <animate
+                  attributeName="x"
+                  values="-50;92;92"
+                  keyTimes="0;0.56;1"
                   begin={activeShineDelay}
-                  dur="6s"
+                  dur="9s"
                   calcMode="spline"
-                  keySplines="0.24 0.68 0.22 1;0.18 0.82 0.2 1;0.24 0.68 0.22 1;0 0 1 1"
+                  keySplines="0.18 0.82 0.2 1;0 0 1 1"
                   repeatCount="indefinite"
                 />
                 <animate
                   attributeName="opacity"
-                  values="0;.9;1;.88;0;0"
-                  keyTimes="0;.06;.38;.56;.62;1"
+                  values="0;1;1;0;0"
+                  keyTimes="0;.04;.52;.57;1"
                   begin={activeShineDelay}
-                  dur="6s"
+                  dur="9s"
                   calcMode="linear"
                   repeatCount="indefinite"
                 />
-              </g>
+              </rect>
             </g>
           </g>
         )}
