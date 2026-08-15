@@ -214,7 +214,7 @@ export function NavFab({ active, onNavigate, adminBadges, onCreate }: NavFabProp
         { kind: "nav", item: NAV_ITEMS[1] },
         { kind: "nav", item: NAV_ITEMS[5] },
         { kind: "nav", item: NAV_ITEMS[0] },
-        { kind: "create", id: "create", label: "Создать"; durationMs: CREATE_DURATION_MS },
+        { kind: "create", id: "create", label: "Создать", durationMs: CREATE_DURATION_MS },
         { kind: "nav", item: NAV_ITEMS[2] },
         { kind: "nav", item: NAV_ITEMS[4] },
         { kind: "nav", item: NAV_ITEMS[3] },
