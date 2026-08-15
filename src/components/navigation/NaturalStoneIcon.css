@@ -1,13 +1,13 @@
-/* The hub and bronze-rim reflections are SVG/SMIL sweeps in
-   NaturalStoneIcon.tsx. The selected mineral adds a synchronized narrow
-   surface sweep so the light reads as a moving reflection, not a glow. */
+/* Home and selected-button reflections are SVG/SMIL sweeps in
+   NaturalStoneIcon.tsx. The selected bronze rim and mineral now share one
+   moving SVG group, so their position, peak and exit cannot drift apart. */
 .natural-stone-home-shine,
 .natural-stone-active-shine {
   pointer-events: none;
 }
 
 /* The home reflection is still the approved soft strip, but its footprint is
-   now subtly spindle-shaped. It widens as it crosses the middle of the inner
+   subtly spindle-shaped. It widens as it crosses the middle of the inner
    bronze disc and narrows again toward the far side, mimicking a gently curved
    metal surface rather than a perfectly flat plate. */
 .natural-stone-home-shine rect {
@@ -31,102 +31,20 @@
   }
 }
 
-/* The closed hub is the attention cue. Once the toolbar is open the hub must
-   stay visually quiet while the selected destination receives its own sweep. */
+/* Once the toolbar is open the hub stays quiet while the selected destination
+   owns the recurring reflection. */
 .nav-fab--open .natural-stone-home-shine {
   display: none;
 }
 
-/* The SVG active sweep owns the bronze rim. This companion layer is clipped
-   to the mineral and is deliberately a narrow moving band, not a full-surface
-   illumination. It uses only neutral bronze/champagne light — never the stone
-   colour. The vertical mask follows the concave bowl: strongest on the upper
-   inner wall, quieter on the recessed floor, fading toward the lower wall. */
-:root[data-theme='light']
-  .nav-fab--open
-  .nav-fab__item--current
-  .theme-light-jewel {
-  position: relative;
-  border-radius: 50%;
-}
-
+/* No CSS pseudo-element is allowed to draw a second mineral reflection here.
+   The active stone and bronze ring are intentionally one SVG timeline. */
 :root[data-theme='light']
   .nav-fab--open
   .nav-fab__item--current
   .theme-light-jewel::after {
-  content: '';
-  position: absolute;
-  inset: 14.1%;
-  z-index: 2;
-  border-radius: 50%;
-  pointer-events: none;
-  opacity: 0;
-  background:
-    linear-gradient(
-      135deg,
-      transparent 0 44%,
-      color-mix(in srgb, var(--bronze-shine-soft) 28%, transparent) 46.5%,
-      color-mix(in srgb, var(--bronze-shine-bright) 48%, transparent) 48.8%,
-      color-mix(in srgb, var(--bronze-shine-core) 72%, transparent) 50%,
-      color-mix(in srgb, var(--bronze-shine-warm) 46%, transparent) 51.2%,
-      color-mix(in srgb, var(--bronze-shine-tail) 24%, transparent) 53.5%,
-      transparent 56% 100%
-    );
-  background-size: 245% 245%;
-  background-position: 132% 132%;
-  background-repeat: no-repeat;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.18) 0%,
-    rgba(0, 0, 0, 0.92) 18%,
-    rgba(0, 0, 0, 0.58) 34%,
-    rgba(0, 0, 0, 0.34) 54%,
-    rgba(0, 0, 0, 0.2) 72%,
-    rgba(0, 0, 0, 0.08) 90%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.18) 0%,
-    rgba(0, 0, 0, 0.92) 18%,
-    rgba(0, 0, 0, 0.58) 34%,
-    rgba(0, 0, 0, 0.34) 54%,
-    rgba(0, 0, 0, 0.2) 72%,
-    rgba(0, 0, 0, 0.08) 90%,
-    transparent 100%
-  );
-  animation: natural-stone-active-concave-shine 6s linear infinite;
-  animation-delay: calc(var(--travel-delay, 0ms) + var(--travel-duration, 0ms) + 180ms);
-}
-
-/* Three equal movement phrases occupy the first 60% of the cycle — a visual
-   1-2-3 waltz cadence. The actual sweep therefore takes 3.6s (slower than the
-   old 2.4s pass), then rests for 2.4s before returning, so it is slower per
-   pass but appears more often while the selected button remains open. */
-@keyframes natural-stone-active-concave-shine {
-  0% {
-    opacity: 0;
-    background-position: 132% 132%;
-  }
-  6% {
-    opacity: 0.62;
-  }
-  20% {
-    background-position: 90% 90%;
-  }
-  40% {
-    opacity: 0.6;
-    background-position: 38% 38%;
-  }
-  60% {
-    opacity: 0.56;
-    background-position: -32% -32%;
-  }
-  62%,
-  100% {
-    opacity: 0;
-    background-position: -32% -32%;
-  }
+  content: none;
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -136,14 +54,6 @@
   }
 
   .natural-stone-home-shine rect {
-    animation: none;
-  }
-
-  :root[data-theme='light']
-    .nav-fab--open
-    .nav-fab__item--current
-    .theme-light-jewel::after {
-    display: none;
     animation: none;
   }
 }
