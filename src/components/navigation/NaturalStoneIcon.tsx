@@ -95,6 +95,11 @@ export function NaturalStoneIcon({
   const plateClipId = `bronze-plate-clip-${rawId}`;
   const plateShineId = `bronze-plate-shine-${rawId}`;
   const plateShineMaskId = `bronze-plate-shine-mask-${rawId}`;
+  const selectedStoneShineId = `stone-selected-shine-${rawId}`;
+  const selectedStoneDepthId = `stone-selected-shine-depth-${rawId}`;
+  const selectedStoneMaskId = `stone-selected-shine-mask-${rawId}`;
+  const selectedBronzeReliefId = `bronze-selected-shine-relief-${rawId}`;
+  const selectedBronzeMaskId = `bronze-selected-shine-mask-${rawId}`;
   const clipId = `stone-clip-${rawId}`;
   const shadowId = `bronze-shadow-${rawId}`;
   const insetId = `stone-inset-${rawId}`;
@@ -112,6 +117,12 @@ export function NaturalStoneIcon({
   const spriteIndex = kind ? STONE_SPRITE_INDEX[kind] : 0;
   const isHomePlate = plate && !children;
   const isEngravedPlate = plate && Boolean(children);
+  const selectedUpperReliefArc = medallion
+    ? 'M27.7 31.5C28.6 28.2 31.3 26.5 34.7 27.1'
+    : 'M13.2 29.1C15.8 18.3 25.2 11.2 36.4 12.4C39 12.7 41.2 13.4 43.2 14.6';
+  const selectedLowerReliefArc = medallion
+    ? 'M36.6 34.7C35.4 36.8 33.5 37.8 31.1 37.7'
+    : 'M49.5 40.3C47 47.8 40.3 52.5 32.5 53.2';
 
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" className={medallion ? 'natural-stone-icon natural-stone-icon--medallion' : 'natural-stone-icon'} style={{ display: 'block', overflow: 'visible', ['--stone-color' as string]: stoneColor }}>
@@ -128,8 +139,44 @@ export function NaturalStoneIcon({
         <linearGradient id={plateShineId} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="var(--bronze-shine-edge)" stopOpacity="0" /><stop offset=".16" stopColor="var(--bronze-shine-soft)" stopOpacity=".1" /><stop offset=".34" stopColor="var(--bronze-shine-mid)" stopOpacity=".36" /><stop offset=".47" stopColor="var(--bronze-shine-bright)" stopOpacity=".74" /><stop offset=".54" stopColor="var(--bronze-shine-core)" stopOpacity=".82" /><stop offset=".63" stopColor="var(--bronze-shine-warm)" stopOpacity=".7" /><stop offset=".8" stopColor="var(--bronze-shine-tail)" stopOpacity=".12" /><stop offset="1" stopColor="var(--bronze-shine-end)" stopOpacity="0" />
         </linearGradient>
+        <linearGradient id={selectedStoneShineId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor={material?.deep ?? stoneColor} stopOpacity="0" />
+          <stop offset=".16" stopColor={material?.rim ?? stoneColor} stopOpacity=".1" />
+          <stop offset=".34" stopColor={material?.rim ?? stoneColor} stopOpacity=".3" />
+          <stop offset=".47" stopColor={material?.rim ?? stoneColor} stopOpacity=".58" />
+          <stop offset=".54" stopColor="#FFF7E8" stopOpacity=".76" />
+          <stop offset=".63" stopColor={material?.rim ?? stoneColor} stopOpacity=".58" />
+          <stop offset=".8" stopColor={stoneColor} stopOpacity=".14" />
+          <stop offset="1" stopColor={material?.deep ?? stoneColor} stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={selectedStoneDepthId} gradientUnits="userSpaceOnUse" x1="32" y1={32 - stoneR} x2="32" y2={32 + stoneR}>
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity=".18" />
+          <stop offset=".12" stopColor="#FFFFFF" stopOpacity=".62" />
+          <stop offset=".22" stopColor="#FFFFFF" stopOpacity="1" />
+          <stop offset=".36" stopColor="#FFFFFF" stopOpacity=".82" />
+          <stop offset=".54" stopColor="#FFFFFF" stopOpacity=".5" />
+          <stop offset=".7" stopColor="#FFFFFF" stopOpacity=".3" />
+          <stop offset=".86" stopColor="#FFFFFF" stopOpacity=".13" />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity=".04" />
+        </linearGradient>
+        <radialGradient id={selectedBronzeReliefId} gradientUnits="userSpaceOnUse" cx="32" cy="32" r={outerR - 0.8}>
+          <stop offset="0" stopColor="#000000" />
+          <stop offset=".78" stopColor="#000000" />
+          <stop offset=".815" stopColor="#777777" />
+          <stop offset=".85" stopColor="#FFFFFF" />
+          <stop offset=".91" stopColor="#A8A8A8" />
+          <stop offset=".96" stopColor="#FFFFFF" />
+          <stop offset="1" stopColor="#777777" />
+        </radialGradient>
         <clipPath id={plateClipId}><circle cx="32" cy="32" r={outerR - 0.8} /></clipPath>
         <mask id={plateShineMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><circle cx="32" cy="32" r={outerR - 5.55} fill="white" /><circle cx="32" cy="32" r={outerR - 8.2} fill="none" stroke="black" strokeWidth="1.3" /></mask>
+        <mask id={selectedBronzeMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><circle cx="32" cy="32" r={outerR - 0.8} fill={`url(#${selectedBronzeReliefId})`} /></mask>
+        <mask id={selectedStoneMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+          <rect x="0" y="0" width="64" height="64" fill="black" />
+          <circle cx="32" cy="32" r={stoneR} fill={`url(#${selectedStoneDepthId})`} />
+          <path d={selectedUpperReliefArc} fill="none" stroke="white" strokeWidth={medallion ? '1.8' : '6.2'} strokeLinecap="round" opacity=".4" filter={`url(#${softGlossId})`} />
+          <path d={selectedLowerReliefArc} fill="none" stroke="white" strokeWidth={medallion ? '.8' : '2.2'} strokeLinecap="round" opacity=".08" filter={`url(#${softGlossId})`} />
+        </mask>
         <clipPath id={clipId}><circle cx="32" cy="32" r={stoneR} /></clipPath>
         <filter id={shadowId} x="-45%" y="-45%" width="190%" height="200%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.2" floodColor="var(--bronze-shadow)" floodOpacity=".62" /><feDropShadow dx="-.35" dy="-.35" stdDeviation=".34" floodColor="var(--bronze-highlight)" floodOpacity=".28" /></filter>
         <filter id={insetId} x="-35%" y="-35%" width="170%" height="170%"><feGaussianBlur in="SourceAlpha" stdDeviation={medallion ? '.4' : '1.08'} result="blur" /><feOffset dx={medallion ? '.34' : '.8'} dy={medallion ? '.48' : '1.12'} result="offset" /><feComposite in="offset" in2="SourceAlpha" operator="out" result="inner" /><feColorMatrix in="inner" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .78 0" /><feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge></filter>
@@ -178,10 +225,16 @@ export function NaturalStoneIcon({
         {activeShine && kind && !plate && (
           <g className="natural-stone-active-shine" clipPath={`url(#${plateClipId})`} pointerEvents="none">
             <g transform="rotate(45 32 32)">
-              <rect x="-50" y="-24" width="19" height="112" fill={`url(#${plateShineId})`} opacity="0" style={{ ['--active-shine-delay' as string]: activeShineDelay }}>
-                <animate attributeName="x" values="-50;92;92" keyTimes="0;0.56;1" begin={activeShineDelay} dur="9s" calcMode="spline" keySplines="0.18 0.82 0.2 1;0 0 1 1" repeatCount="indefinite" />
+              <g opacity="0" style={{ ['--active-shine-delay' as string]: activeShineDelay }}>
+                <g mask={`url(#${selectedBronzeMaskId})`}>
+                  <rect x="-50" y="-24" width="19" height="112" fill={`url(#${plateShineId})`} />
+                </g>
+                <g clipPath={`url(#${clipId})`} mask={`url(#${selectedStoneMaskId})`}>
+                  <rect x="-50" y="-24" width="19" height="112" fill={`url(#${selectedStoneShineId})`} />
+                </g>
+                <animateTransform attributeName="transform" type="translate" values="0 0;142 0;142 0" keyTimes="0;0.56;1" begin={activeShineDelay} dur="9s" calcMode="spline" keySplines="0.18 0.82 0.2 1;0 0 1 1" repeatCount="indefinite" />
                 <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;.04;.52;.57;1" begin={activeShineDelay} dur="9s" calcMode="linear" repeatCount="indefinite" />
-              </rect>
+              </g>
             </g>
           </g>
         )}
