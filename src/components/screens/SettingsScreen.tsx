@@ -464,7 +464,7 @@ export function SettingsScreen({
         <div style={rowStyle}>
           <div style={labelStyle}>Минимализм</div>
           <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic', marginBottom: 10 }}>
-            Убрать камни, бабочек и декоративные эффекты
+            Убрать камни, подвесы и декоративные эффекты
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {([
