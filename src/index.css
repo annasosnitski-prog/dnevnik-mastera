@@ -67,14 +67,23 @@
   /* Nav FAB icons — muted gold against the starfield directly (no plate). */
   --toolbar-icon: #a77a31;
   --toolbar-icon-active: #e2b85e;
+  --nav-metal: var(--gold);
+  --nav-metal-highlight: var(--gold);
+  --nav-metal-point: #f7cf69;
+  --two-pendant-ray-highlight: #FFF0B3;
+  --two-pendant-ray-light: #E2B655;
+  --two-pendant-ray-mid: #A87522;
+  --two-pendant-ray-recess: #5B3B10;
+  --two-pendant-ray-shadow: #211406;
+  --two-pendant-ray-sheen: #FFF6CE;
 }
 
 /* ── Light (warm parchment / "Casa di Vetro") ── */
 :root[data-theme='light'] {
-  --bg: #E4E1D8;
-  --bg-rgb: 228, 225, 216;
-  --sheet: #EBE9E3;
-  --hero-grad: linear-gradient(160deg, #EBE7DB 0%, #E4E1D8 60%);
+  --bg: #F2EDE3;
+  --bg-rgb: 242, 237, 227;
+  --sheet: #F6F1E9;
+  --hero-grad: linear-gradient(160deg, #F7F2E9 0%, #F2EDE3 60%);
 
   --gold: #9C6F22;
   --gold-rgb: 156, 111, 34;
@@ -112,6 +121,35 @@
      background directly (no plate behind them to contrast with instead). */
   --toolbar-icon: rgba(156, 111, 34, 0.75);
   --toolbar-icon-active: #7E5818;
+  --nav-metal: #94694E;
+  --nav-metal-highlight: #CC9D75;
+  --nav-metal-point: #657C72;
+  --two-pendant-ray-highlight: #CC9D75;
+  --two-pendant-ray-light: #A2775A;
+  --two-pendant-ray-mid: #875B43;
+  --two-pendant-ray-recess: #506A61;
+  --two-pendant-ray-shadow: #2F1D13;
+  --two-pendant-ray-sheen: #F0C49D;
+}
+
+/* Ornate navigation has two genuinely different material systems. The dark
+   theme keeps its existing faceted gold jewellery untouched; the light theme
+   reveals the aged-copper cabochons instead. Both layers share the same
+   buttons, routes, hit areas and state. */
+.theme-dark-jewel {
+  display: block;
+}
+
+.theme-light-jewel {
+  display: none !important;
+}
+
+:root[data-theme='light'] .theme-dark-jewel {
+  display: none !important;
+}
+
+:root[data-theme='light'] .theme-light-jewel {
+  display: block !important;
 }
 
 /* The tap-to-close backdrop behind the open fan — softly blurs whatever
@@ -186,12 +224,12 @@
    ground), but its halo turns dark and ink-like, so it still reads as
    "this line has depth", just via shadow rather than glow. */
 :root[data-theme="light"] .nav-fab__ray-glow {
-  fill: #4a3010;
-  opacity: 0.198;
+  fill: #3D2822;
+  opacity: 0.18;
 }
 
 .nav-fab__ray-dot {
-  fill: var(--gold);
+  fill: var(--nav-metal);
   /* Matches the ray's own peak opacity (see .nav-fab__ray above) so the dot
      reads as the same beam continuing, not a separately-coloured cap on it. */
   opacity: 0.9;
@@ -203,7 +241,7 @@
    free to spill a little onto the button it's marking; only the crisp dot
    above stays confined to its own side of the edge. */
 .nav-fab__ray-dot-glow {
-  fill: var(--gold);
+  fill: var(--nav-metal);
   opacity: 0.495;
   filter: blur(3px);
   animation: nav-fab-ray-in 0.2s ease both;
@@ -270,6 +308,49 @@
   pointer-events: none;
 }
 
+:root[data-theme='light'] .nav-fab__main::before,
+:root[data-theme='light'] .nav-fab__item::before {
+  background: radial-gradient(circle, rgba(101, 124, 114, 0.22), rgba(114, 76, 57, 0));
+  filter: blur(5px);
+}
+
+.natural-stone-icon,
+.natural-stone-cabochon {
+  transform-origin: 32px 32px;
+}
+
+.natural-stone-cabochon {
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+:root[data-theme='light'] .nav-fab__item .theme-light-jewel {
+  opacity: 1;
+  filter: saturate(1.16) brightness(1.08) contrast(1.05);
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+:root[data-theme='light'] .nav-fab__item--current .theme-light-jewel {
+  filter:
+    saturate(1.16)
+    brightness(1.08)
+    contrast(1.05)
+    drop-shadow(0 0 6px color-mix(in srgb, var(--natural-jewel-color) 68%, transparent))
+    drop-shadow(0 0 15px color-mix(in srgb, var(--natural-jewel-color) 38%, transparent))
+    drop-shadow(0 0 26px color-mix(in srgb, var(--natural-jewel-color) 20%, transparent));
+}
+
+:root[data-theme='light'] .nav-fab__item--current::before {
+  width: 142%;
+  height: 142%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--natural-jewel-color) 36%, transparent) 0%,
+    color-mix(in srgb, var(--natural-jewel-color) 16%, transparent) 44%,
+    transparent 74%
+  );
+  filter: blur(9px);
+}
+
 .nav-fab__main {
   width: 62px;
   height: 62px;
@@ -313,6 +394,11 @@
 .nav-fab__item--pressed .pendant-stone {
   transform: scale(0.82) translateY(1px);
   filter: brightness(0.8);
+}
+
+:root[data-theme='light'] .nav-fab__item--pressed .natural-stone-cabochon {
+  transform: scale(0.88) translateY(1px);
+  filter: brightness(0.78);
 }
 
 /* Both keyframes read the same --dx/--dy/--nav-scale custom properties as
@@ -1603,6 +1689,136 @@ input[type='date'] {
 .client-card-tabbar__medallion {
   filter: drop-shadow(0 -1px 1.2px rgba(255, 215, 119, 0.24));
 }
+
+/* The light-theme tab bar is a single patinated-copper object: one narrow rod
+   behind the threaded rings, plus a small fastening bead exactly between
+   adjacent pendant centres. The two-medallion master bar replaces that rod
+   with the approved three-piece ray construction below. */
+:root[data-theme='light'] .client-card-tabbar::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 1px;
+  left: 0;
+  right: 0;
+  height: 5px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    #CC9D75 0%,
+    #A2775A 22%,
+    #875B43 48%,
+    #506A61 73%,
+    #2F1D13 100%
+  );
+  box-shadow: 0 1px 4px rgba(84, 51, 35, 0.24), 0 0 1px rgba(204, 157, 117, 0.72);
+}
+
+:root[data-theme='light'] .client-card-tabbar__tab:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  z-index: 5;
+  top: 0.7px;
+  right: -2.75px;
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 34% 24%, #CC9D75 0%, #A2775A 22%, #724C39 51%, #506A61 78%, #2F1D13 100%);
+  box-shadow: 0 0 2px rgba(84, 51, 35, 0.28);
+}
+
+/* Two ring centres divide the usable width at 25% and 75%. The middle ray
+   tapers at both rings; each side ray tapers only at its ring and leaves the
+   screen with a square, un-narrowed end. */
+.client-card-tabbar__two-pendant-rays {
+  display: none;
+}
+
+:root[data-theme='light'] .client-card-tabbar[data-two-pendant-rays='true']::before,
+:root[data-theme='light'] .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__tab::after {
+  content: none;
+  display: none;
+}
+
+.client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__two-pendant-rays {
+  display: block;
+  position: absolute;
+  z-index: 0;
+  top: -2px;
+  left: 8px;
+  width: calc(100% - 16px);
+  height: 12px;
+  overflow: visible;
+  pointer-events: none;
+  filter:
+    drop-shadow(0 -0.5px 1px rgba(255, 221, 133, 0.28))
+    drop-shadow(0 1px 2px rgba(32, 18, 4, 0.42));
+}
+
+/* Keep the approved rays fixed. The complete pendant assembly moves instead,
+   placing the upper inside edge of each jump ring on the ray join. */
+.client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__marker--ornate {
+  transform: translateY(11px);
+}
+
+.client-card-tabbar__ray-metal {
+  fill: url(#twoPendantRayMetal);
+}
+
+.client-card-tabbar__ray-sheen {
+  fill: url(#twoPendantRaySheen);
+  opacity: 0.72;
+}
+
+:root[data-theme='light']
+  .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__two-pendant-rays {
+  filter: drop-shadow(0 1px 2px rgba(84, 51, 35, 0.22));
+}
+
+/* Minimalism owns a separate flat tab treatment; jewellery hardware must not
+   leak through merely because the master dashboard happens to have two tabs. */
+[data-minimalism='true']
+  .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__two-pendant-rays {
+  display: none;
+}
+
+:root[data-theme='light'] .client-card-tabbar__jump-ring {
+  filter: drop-shadow(0 -1px 0.9px rgba(204, 157, 117, 0.44));
+}
+
+:root[data-theme='light'] .client-card-tabbar__bail {
+  filter: drop-shadow(0 -1px 0.7px rgba(170, 134, 106, 0.36));
+}
+
+:root[data-theme='light'] .client-card-tabbar__medallion {
+  filter: drop-shadow(0 1px 1.1px rgba(55, 31, 25, 0.34));
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-shadow {
+  stroke: #2F1D13 !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-rear {
+  stroke: #724C39 !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-front {
+  stroke: #94694E !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-highlight {
+  stroke: #CC9D75 !important;
+}
+
+:root[data-theme='light'] .client-card-tabbar .jewel-wire-patina {
+  stroke: #657C72 !important;
+}
 .client-card-tabbar__gem-glow {
   position: absolute;
   z-index: 3;
@@ -1634,6 +1850,25 @@ input[type='date'] {
   box-shadow:
     0 0 7px color-mix(in srgb, var(--gem-glow-color) 78%, transparent),
     0 0 16px color-mix(in srgb, var(--gem-glow-color) 42%, transparent);
+}
+
+:root[data-theme='light'] .client-card-tabbar__gem-glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, white 34%, var(--gem-glow-color) 66%) 0%,
+    color-mix(in srgb, var(--gem-glow-color) 26%, transparent) 34%,
+    transparent 72%
+  );
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gem-glow-color) 18%, transparent);
+  mix-blend-mode: normal;
+  opacity: 0.46;
+}
+
+:root[data-theme='light'] .client-card-tabbar__gem-glow--active {
+  opacity: 0.8;
+  box-shadow:
+    0 0 7px color-mix(in srgb, var(--gem-glow-color) 30%, transparent),
+    0 0 15px color-mix(in srgb, var(--gem-glow-color) 14%, transparent);
 }
 .client-card-tabbar__marker {
   isolation: isolate;
@@ -1669,6 +1904,26 @@ input[type='date'] {
   filter: blur(4.5px);
   opacity: 0.92;
   animation: active-medallion-halo-in 0.28s ease-out both;
+}
+
+:root[data-theme='light'] .client-card-tabbar__active-halo {
+  background:
+    radial-gradient(
+      ellipse 29px 34px at 50% 50%,
+      color-mix(in srgb, var(--active-gem-color) 34%, transparent) 0%,
+      color-mix(in srgb, var(--active-gem-color) 15%, transparent) 42%,
+      rgba(91, 101, 106, 0.06) 61%,
+      transparent 79%
+    ),
+    radial-gradient(
+      ellipse 13px 39px at 50% 0%,
+      rgba(248, 251, 252, 0.42) 0%,
+      rgba(170, 180, 185, 0.18) 38%,
+      rgba(66, 74, 78, 0.05) 63%,
+      transparent 84%
+    );
+  filter: blur(4.2px);
+  opacity: 0.78;
 }
 @keyframes active-medallion-halo-in {
   from {

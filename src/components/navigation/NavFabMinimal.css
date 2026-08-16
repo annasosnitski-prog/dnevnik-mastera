@@ -14,6 +14,7 @@
 
 .nav-fab__main--minimal,
 .nav-fab__item--minimal {
+  --minimal-icon-color: #f0bd55;
   border: 0.8px solid rgba(var(--gold-rgb), 0.68) !important;
   outline: 0;
   background: radial-gradient(circle at 40% 34%, #2c2a27 0%, #181715 54%, #090908 100%);
@@ -22,13 +23,14 @@
     0 0 10px rgba(var(--gold-rgb), 0.3),
     0 0 20px rgba(var(--gold-rgb), 0.12),
     0 9px 20px rgba(0, 0, 0, 0.54);
-  color: var(--gold) !important;
+  color: var(--minimal-icon-color) !important;
   overflow: visible;
   touch-action: manipulation;
 }
 
 :root[data-theme='light'] .nav-fab__main--minimal,
 :root[data-theme='light'] .nav-fab__item--minimal {
+  --minimal-icon-color: #785014;
   border-color: rgba(var(--gold-rgb), 0.5) !important;
   background: radial-gradient(circle at 40% 34%, #fbf5e8 0%, #eee4d0 68%, #ddd0b7 100%);
   box-shadow:
@@ -69,31 +71,34 @@
   height: 64px;
 }
 
-/* Non-current destinations keep the same gold, but sit one visual step back. */
+/* Every destination stays fully legible. The current one is distinguished by
+   its stronger halo, never by making the rest fade into the background. */
 .nav-fab--minimal .nav-fab__item--dim {
-  border-color: rgba(var(--gold-rgb), 0.42) !important;
+  opacity: 1;
+  filter: none;
+  border-color: rgba(var(--gold-rgb), 0.62) !important;
   box-shadow:
-    inset 0 0 0 0.5px rgba(255, 218, 142, 0.025),
-    0 0 6px rgba(var(--gold-rgb), 0.16),
-    0 0 13px rgba(var(--gold-rgb), 0.055),
+    inset 0 0 0 0.5px rgba(255, 218, 142, 0.05),
+    0 0 8px rgba(var(--gold-rgb), 0.25),
+    0 0 17px rgba(var(--gold-rgb), 0.09),
     0 8px 18px rgba(0, 0, 0, 0.5);
 }
 
 .nav-fab--minimal .nav-fab__item--dim::before {
-  opacity: 0.72;
+  opacity: 1;
 }
 
 :root[data-theme='light'] .nav-fab--minimal .nav-fab__item--dim {
-  border-color: rgba(var(--gold-rgb), 0.32) !important;
+  border-color: rgba(var(--gold-rgb), 0.48) !important;
   box-shadow:
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.34),
-    0 0 5px rgba(var(--gold-rgb), 0.07),
-    0 0 10px rgba(var(--gold-rgb), 0.03),
-    0 5px 11px rgba(74, 49, 16, 0.1);
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.46),
+    0 0 7px rgba(var(--gold-rgb), 0.13),
+    0 0 14px rgba(var(--gold-rgb), 0.06),
+    0 6px 13px rgba(74, 49, 16, 0.13);
 }
 
 .nav-fab--minimal .nav-fab__item--minimal:not(.nav-fab__item--minimal-create) {
-  color: var(--gold) !important;
+  color: var(--minimal-icon-color) !important;
 }
 
 /* Current destination stays gold like the rest of the toolbar; only its halo is brighter. */
@@ -157,19 +162,23 @@
   opacity: 0;
 }
 
-/* The central hub reads as a small governing seal, not as the largest action. */
+/* Do not reuse the generic blurred ::before spotlight for the hub: a real
+   character remains visible across both themes and every browser. */
 .nav-fab--minimal .nav-fab__main--minimal::before {
-  content: '$';
+  content: none;
+  display: none;
+}
+
+.nav-fab__minimal-home-mark {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: auto;
-  height: auto;
+  z-index: 3;
   transform: translate(-50%, -52%);
-  border-radius: 0;
-  background: none;
-  color: var(--gold);
-  filter: drop-shadow(0 1px 0 rgba(255, 221, 148, 0.12));
+  color: var(--minimal-icon-color);
+  filter:
+    drop-shadow(0 0 2px rgba(255, 215, 126, 0.72))
+    drop-shadow(0 0 7px rgba(var(--gold-rgb), 0.34));
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 34px;
   font-weight: 700;
@@ -177,7 +186,7 @@
   pointer-events: none;
 }
 
-.nav-fab--minimal.nav-fab--open .nav-fab__main--minimal::before {
+.nav-fab--minimal.nav-fab--open .nav-fab__minimal-home-mark {
   font-size: 28px;
 }
 
@@ -193,10 +202,12 @@
   z-index: 2;
   width: 43px;
   height: 43px;
-  transform: translate(-50%, -50%) scale(0.75);
+  transform: translate(-50%, -50%) scale(0.84);
   border-radius: 0;
   background: currentColor;
-  filter: blur(0.18px) drop-shadow(0 1px 0 rgba(255, 220, 145, 0.14));
+  filter:
+    drop-shadow(0 0 2px rgba(255, 220, 145, 0.48))
+    drop-shadow(0 0 6px rgba(var(--gold-rgb), 0.18));
   -webkit-mask-image: var(--inka-toolbar-mask);
   mask-image: var(--inka-toolbar-mask);
   -webkit-mask-repeat: no-repeat;
@@ -223,12 +234,20 @@
 .nav-fab--minimal .nav-fab__item--minimal-create::before {
   width: 30px;
   height: 30px;
-  background: var(--gold);
+  background: currentColor;
   opacity: 1;
   filter:
     blur(0.18px)
     drop-shadow(0 0 3px rgba(var(--gold-rgb), 0.58))
     drop-shadow(0 0 8px rgba(var(--gold-rgb), 0.26));
+}
+
+.nav-fab--minimal .nav-fab__item--minimal-create {
+  color: #171009 !important;
+}
+
+:root[data-theme='light'] .nav-fab--minimal .nav-fab__item--minimal-create {
+  color: #4a2e08 !important;
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет'] {

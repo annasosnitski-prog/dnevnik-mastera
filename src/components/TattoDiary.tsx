@@ -457,7 +457,7 @@ function applyTheme(theme: Theme) {
     /* ignore */
   }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'light' ? '#E4E1D8' : '#0D0B08');
+  if (meta) meta.setAttribute('content', theme === 'light' ? '#F2EDE3' : '#0D0B08');
 }
 
 // ===================== USER PREFERENCES =====================
