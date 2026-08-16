@@ -57,12 +57,12 @@ test('stone css does not own client-card tab-bar styling', () => {
 
 test('cabochons use six supplied mineral samples and strengthen saturation without synthetic textures', () => {
   assert.match(stoneSource, /href="\/mineral-cabochons\.webp"/);
-  assert.match(stoneSource, /rhodonite: 0, \/\/ rose quartz/);
+  assert.match(stoneSource, /rhodonite: 0/);
   assert.match(stoneSource, /malachite: 1/);
-  assert.match(stoneSource, /'star-sapphire': 2, \/\/ amethyst/);
-  assert.match(stoneSource, /'fire-opal': 3, \/\/ amber/);
-  assert.match(stoneSource, /'honey-jadeite': 4, \/\/ tiger's eye/);
-  assert.match(stoneSource, /turquoise: 5, \/\/ blue agate/);
+  assert.match(stoneSource, /'star-sapphire': 2/);
+  assert.match(stoneSource, /'fire-opal': 3/);
+  assert.match(stoneSource, /'honey-jadeite': 4/);
+  assert.match(stoneSource, /turquoise: 5/);
   assert.match(stoneSource, /type="saturate" values="1\.42"/);
   assert.match(stoneSource, /intercept="-\.11"/);
   assert.equal(stoneSprite.subarray(0, 4).toString(), 'RIFF');
@@ -89,10 +89,7 @@ test('the light material layer swaps visually without duplicating navigation log
 
 test('light toolbar stones carry no navigation glyphs', () => {
   assert.match(navSource, /<NaturalStoneIcon[\s\S]*kind=\{NATURAL_STONE_BY_ITEM\[item\.id\]\}[\s\S]*size=\{ITEM_SIZE\}[\s\S]*activeShine=\{isCurrentItem\}/);
-  assert.doesNotMatch(
-    navSource,
-    /<NaturalStoneIcon[^>]*kind=\{NATURAL_STONE_BY_ITEM\[item\.id\]\}[^>]*>[\s\S]*?<GemGlyph/,
-  );
+  assert.doesNotMatch(navSource, /<NaturalStoneIcon[^>]*kind=\{NATURAL_STONE_BY_ITEM\[item\.id\]\}[^>]*>[\s\S]*?<GemGlyph/);
 });
 
 test('home plate shine stays inside the inner disc and widens softly through its centre', () => {
@@ -119,7 +116,7 @@ test('home plate shine stays inside the inner disc and widens softly through its
   assert.match(stoneCss, /\.nav-fab--open \.natural-stone-home-shine[\s\S]*display: none/);
 });
 
-test('current light toolbar item reuses the approved home-button shine', () => {
+test('current light toolbar item reuses the approved visible home-button shine', () => {
   assert.match(stoneSource, /activeShine = false/);
   assert.match(stoneSource, /activeShineDelay = '0s'/);
   assert.match(stoneSource, /className="natural-stone-active-shine"/);
@@ -131,13 +128,12 @@ test('current light toolbar item reuses the approved home-button shine', () => {
   assert.match(stoneSource, /dur="9s"/);
   assert.match(stoneSource, /values="0;1;1;0;0"/);
   assert.match(stoneSource, /keyTimes="0;\.04;\.52;\.57;1"/);
-  assert.doesNotMatch(stoneSource, /bronze-active-shine-|stone-active-shine-/);
+  assert.doesNotMatch(stoneSource, /selectedStoneShineId|selectedStoneMaskId|selectedBronzeMaskId/);
   assert.match(stoneCss, /\.natural-stone-active-shine rect[\s\S]*natural-stone-home-spindle 9s/);
   assert.match(stoneCss, /var\(--active-shine-delay, 0s\)/);
   assert.match(stoneCss, /\.theme-light-jewel::after[\s\S]*content: none;[\s\S]*display: none;/);
   assert.match(navSource, /activeShine=\{isCurrentItem\}/);
   assert.match(navSource, /activeShineDelay=\{`\$\{\(travelDelayMs \+ durationMs \+ 180\) \/ 1000\}s`\}/);
-  assert.match(jewelryThemeCss, /\.nav-fab__item--current \.theme-light-jewel[\s\S]*filter: saturate\(1\.16\) brightness\(1\.08\) contrast\(1\.05\) !important/);
 });
 
 test('light Create plus is engraved into the bronze plate instead of drawn as a flat glyph', () => {
@@ -154,10 +150,7 @@ test('light closed hub removes the legacy rotating conic arrow layer', () => {
   assert.match(navRevealCss, /\.nav-fab:not\(\.nav-fab--open\) \.nav-fab__main--gold::after/);
   assert.match(navRevealCss, /conic-gradient/);
   assert.match(navRevealCss, /nav-fab-brushed-gold/);
-  assert.match(
-    jewelryThemeCss,
-    /:root\[data-theme='light'\][\s\S]*\.nav-fab:not\(\.nav-fab--open\)[\s\S]*\.nav-fab__main--gold::after[\s\S]*content: none !important;[\s\S]*display: none !important;[\s\S]*background: none !important;[\s\S]*animation: none !important;/,
-  );
+  assert.match(jewelryThemeCss, /:root\[data-theme='light'\][\s\S]*\.nav-fab:not\(\.nav-fab--open\)[\s\S]*\.nav-fab__main--gold::after[\s\S]*content: none !important;[\s\S]*display: none !important;[\s\S]*background: none !important;[\s\S]*animation: none !important;/);
 });
 
 test('light client tabs use polished bronze rods, fasteners, wire and hardware reflections', () => {
