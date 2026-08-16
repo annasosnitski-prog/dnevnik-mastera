@@ -1,0 +1,154 @@
+/* Общие контролы (Этап 1, Шаг 2). Один компонент на функцию — см.
+   src/components/ui/controls/*.tsx — вместо разнобоя button/div/span
+   и по-своему выкрашенной кнопки удаления на каждом экране. */
+
+.ctl-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.ctl-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ctl-button--sm {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.ctl-button--md {
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 13.5px;
+}
+
+.ctl-button--default {
+  border-color: rgba(var(--gold-rgb), 0.22);
+}
+.ctl-button--default:hover:not(:disabled) {
+  border-color: rgba(var(--gold-rgb), 0.5);
+  background: rgba(var(--gold-rgb), 0.05);
+}
+
+.ctl-button--primary {
+  border-color: rgba(var(--gold-rgb), 0.42);
+  background: rgba(var(--gold-rgb), 0.06);
+  color: var(--gold);
+}
+.ctl-button--primary:hover:not(:disabled) {
+  border-color: rgba(var(--gold-rgb), 0.72);
+  background: rgba(var(--gold-rgb), 0.12);
+}
+
+.ctl-button--danger {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+  color: var(--color-danger);
+}
+.ctl-button--danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+
+/* ── IconButton — квадрат/круг под один символ, без подписи ── */
+.ctl-icon-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+.ctl-icon-button:hover:not(:disabled) {
+  background: rgba(var(--gold-rgb), 0.08);
+  color: var(--gold);
+}
+.ctl-icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── DangerButton — двухшаговое подтверждение ── */
+.ctl-danger-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.ctl-danger-confirm button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.ctl-danger-confirm button[data-action="yes"] {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+.ctl-danger-confirm button[data-action="no"] {
+  color: var(--text-muted);
+}
+
+/* ── Chip ── */
+.ctl-chip {
+  appearance: none;
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 7px 13px;
+  border: 1px solid rgba(var(--gold-rgb), 0.3);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--gold-rgb), 0.025);
+  color: var(--text-ghost);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+.ctl-chip:hover:not(:disabled) {
+  border-color: rgba(var(--gold-rgb), 0.6);
+}
+.ctl-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ctl-chip--selected {
+  border-color: rgba(var(--gold-rgb), 0.7);
+  background: rgba(var(--gold-rgb), 0.14);
+  color: var(--gold);
+}
+
+/* ── Backdrop ── */
+.ctl-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay-backdrop);
+}
+.ctl-backdrop__content {
+  position: relative;
+  z-index: var(--z-overlay-content);
+}
