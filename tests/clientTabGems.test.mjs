@@ -24,6 +24,7 @@ const navFab = readFileSync(new URL('../src/components/navigation/NavFab.tsx', i
 const pendantIcon = readFileSync(new URL('../src/components/navigation/PendantIcon.tsx', import.meta.url), 'utf8');
 const designTokens = readFileSync(new URL('../src/components/ui/designTokens.ts', import.meta.url), 'utf8');
 const indexCss = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+const tokensCss = readFileSync(new URL('../src/styles/tokens.css', import.meta.url), 'utf8');
 
 test('each client tab crops exactly one tile from the shared gemstone sprite', () => {
   assert.doesNotMatch(tabBarModule, /gem-icons\.svg#/);
@@ -67,12 +68,20 @@ test('all six tabs keep the same order as the six tiles in gem-icons.svg', () =>
 });
 
 test('toolbar and client tabs share one semantic colour palette', () => {
-  assert.match(designTokens, /clients: '#008A5A'/);
-  assert.match(designTokens, /personal: '#C99516'/);
-  assert.match(designTokens, /content: '#7935B2'/);
-  assert.match(designTokens, /projects: '#1448A7'/);
-  assert.match(designTokens, /notes: '#D45A1F'/);
-  assert.match(designTokens, /admin: '#B01236'/);
+  // Actual hex values live in tokens.css; designTokens.ts just mirrors the
+  // CSS variable names (single source of truth, see TERRITORY_COLORS).
+  assert.match(tokensCss, /--territory-clients: #008A5A;/);
+  assert.match(tokensCss, /--territory-personal: #C99516;/);
+  assert.match(tokensCss, /--territory-content: #7935B2;/);
+  assert.match(tokensCss, /--territory-projects: #1448A7;/);
+  assert.match(tokensCss, /--territory-notes: #D45A1F;/);
+  assert.match(tokensCss, /--territory-admin: #B01236;/);
+  assert.match(designTokens, /clients: 'var\(--territory-clients\)'/);
+  assert.match(designTokens, /personal: 'var\(--territory-personal\)'/);
+  assert.match(designTokens, /content: 'var\(--territory-content\)'/);
+  assert.match(designTokens, /projects: 'var\(--territory-projects\)'/);
+  assert.match(designTokens, /notes: 'var\(--territory-notes\)'/);
+  assert.match(designTokens, /admin: 'var\(--territory-admin\)'/);
 
   assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
   assert.match(tabBarModule, /sessions: TERRITORY_COLORS\.admin/);

@@ -425,7 +425,6 @@ body {
   height: 3px;
   border-radius: 3px;
   background: rgba(var(--gold-rgb), 0.22);
-  outline: none;
 }
 .inka-range::-webkit-slider-thumb {
   -webkit-appearance: none;

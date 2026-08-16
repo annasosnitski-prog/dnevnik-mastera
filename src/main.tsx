@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import TattoDiary from './components/TattoDiary';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import './styles/tokens.css';
 import './index.css';
 
 // ─────────────── Обновление до свежего деплоя ───────────────

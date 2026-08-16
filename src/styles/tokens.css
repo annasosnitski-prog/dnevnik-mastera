@@ -1,0 +1,92 @@
+/* ============================================
+   Функциональное ядро дизайн-системы: токены,
+   не зависящие от темы/декора (Этап 1).
+   Подключается до index.css — ничего здесь не
+   переопределяет существующие --bg/--gold/…,
+   только добавляет новые имена.
+   ============================================ */
+
+/* ── Территориальные цвета — одинаковы во всех темах и режимах ── */
+:root {
+  --territory-clients: #008A5A;
+  --territory-personal: #C99516;
+  --territory-content: #7935B2;
+  --territory-projects: #1448A7;
+  --territory-notes: #D45A1F;
+  --territory-admin: #B01236;
+}
+
+/* ── Базовые шкалы. Значения взяты из уже используемых в коде литералов
+   (radius/shadow/z-index/duration), а не придуманы заново — это шаг
+   именования и сведения в одну шкалу, не редизайн. Пока используются
+   только новыми компонентами (Этап 2+); существующие inline-литералы
+   не тронуты — массовая замена отложена на следующий этап. ── */
+:root {
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 36px rgba(var(--gold-rgb), 0.16), 0 3px 10px rgba(0, 0, 0, 0.6);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 20;
+  --z-overlay-backdrop: 40;
+  --z-overlay-content: 50;
+  --z-nav: 60;
+  --z-modal: 950;
+  --z-toast: 1000;
+
+  --duration-fast: 0.15s;
+  --duration-base: 0.2s;
+  --duration-slow: 0.35s;
+  --ease-standard: ease;
+  --ease-decelerate: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ── Семантические токены. danger — алиас на уже существующий --urgent
+   (используется в 8+ местах, менять значение не нужно). Остальные шесть
+   (warning/success/info/reminder/current) в ТЗ не заданы численно —
+   значения ниже ПРЕДЛОЖЕНЫ и подобраны под контраст AA (≥4.5:1) к фону
+   темы по той же методике, что уже применена к --urgent и --text-faint
+   в index.css, но требуют подтверждения перед тем, как заедут в
+   компоненты. См. таблицу-обзор для сверки и утверждения значений. ── */
+:root[data-theme='dark'] {
+  --color-danger: var(--urgent);
+  --color-success: #5E8C4A;   /* PLACEHOLDER: совпадает с существующим SheetSavedCheck */
+  --color-warning: #D9A438;   /* PLACEHOLDER */
+  --color-info: #5B9BD9;      /* PLACEHOLDER */
+  --color-reminder: #C97B3D;  /* PLACEHOLDER */
+  --color-current: #5AA9A3;   /* PLACEHOLDER */
+  --color-focus: var(--gold);
+  --color-disabled: var(--text-ghost);
+}
+
+:root[data-theme='light'] {
+  --color-danger: var(--urgent);
+  --color-success: #35602A;   /* PLACEHOLDER */
+  --color-warning: #7A5810;   /* PLACEHOLDER */
+  --color-info: #1F5A94;      /* PLACEHOLDER */
+  --color-reminder: #8F5323;  /* PLACEHOLDER */
+  --color-current: #256C63;   /* PLACEHOLDER */
+  --color-focus: var(--gold);
+  --color-disabled: var(--text-ghost);
+}
+
+/* ── focus-visible. Раньше не было нигде в приложении (0 совпадений) —
+   ни одна из 48 настоящих <button> в приложении не имела клавиатурного
+   индикатора фокуса. ── */
+:focus-visible {
+  outline: 2px solid var(--color-focus, var(--gold));
+  outline-offset: 2px;
+}
