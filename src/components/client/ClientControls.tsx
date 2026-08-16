@@ -5,6 +5,7 @@ import { type Project, type ProjectCategory, PROJECT_CATEGORIES, type NextAction
 import { downsizeForStorage } from '../../lib/imagePreview';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT, INPUT_STYLE } from '../TattoDiary';
+import { DangerButton } from '../ui/controls';
 
 // Вынесено из TattoDiary.tsx (PR 10 рефакторинга) — общие форм-контролы
 // «карточки клиента», которые использует и сам экран деталей, и bottom
@@ -28,7 +29,11 @@ const SKIN_TONES = [
 // behind "Ещё тона", same disclosure pattern as StyleChips below.
 const SKIN_TONES_PINNED_STEP = 3;
 
-// Two-step delete control: first tap reveals an inline confirm row.
+// Тонкий реэкспорт над общим DangerButton (src/components/ui/controls) —
+// имя и сигнатура сохранены, чтобы не трогать единственного потребителя
+// (ClientSheets.tsx). Раньше здесь был независимый div/span-маркап со
+// своим оттенком красного (#A85A66/#C56676) — теперь один токен
+// --color-danger на все кнопки удаления в приложении.
 export function DeleteButton({
   label,
   confirmLabel,
@@ -40,75 +45,7 @@ export function DeleteButton({
   onConfirm: () => void;
   compact?: boolean;
 }) {
-  const [confirming, setConfirming] = useState(false);
-
-  if (!confirming) {
-    return (
-      <div
-        onClick={() => setConfirming(true)}
-        style={{
-          border: '1px solid rgba(138,48,64,0.3)',
-          borderRadius: 2,
-          padding: compact ? '6px 10px' : '11px 14px',
-          textAlign: 'center',
-          cursor: 'pointer',
-          color: '#A85A66',
-          fontSize: compact ? 10 : 11,
-          letterSpacing: '1px',
-          textTransform: 'uppercase',
-          fontStyle: 'italic',
-        }}
-      >
-        {label}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        border: '1px solid rgba(138,48,64,0.45)',
-        borderRadius: 2,
-        padding: compact ? '6px 8px' : '11px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        background: 'rgba(138,48,64,0.06)',
-      }}
-    >
-      <span style={{ flex: 1, fontSize: compact ? 10 : 12, color: '#A85A66', fontStyle: 'italic', letterSpacing: '0.3px' }}>
-        {confirmLabel}
-      </span>
-      <span
-        onClick={onConfirm}
-        style={{
-          fontSize: compact ? 10 : 11,
-          color: '#C56676',
-          letterSpacing: '1px',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          padding: '4px 8px',
-          border: '1px solid rgba(138,48,64,0.5)',
-          borderRadius: 2,
-        }}
-      >
-        Да
-      </span>
-      <span
-        onClick={() => setConfirming(false)}
-        style={{
-          fontSize: compact ? 10 : 11,
-          color: COLORS.textFaint,
-          letterSpacing: '1px',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          padding: '4px 8px',
-        }}
-      >
-        Нет
-      </span>
-    </div>
-  );
+  return <DangerButton label={label} confirmLabel={confirmLabel} onConfirm={onConfirm} size={compact ? 'sm' : 'md'} />;
 }
 
 

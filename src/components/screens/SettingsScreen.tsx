@@ -435,8 +435,10 @@ export function SettingsScreen({
           <div style={labelStyle}>Тема</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {(['dark', 'light'] as Theme[]).map((t) => (
-              <div
+              <button
                 key={t}
+                type="button"
+                aria-pressed={theme === t}
                 onClick={() => t !== theme && onToggleTheme()}
                 style={{
                   flex: 1,
@@ -445,6 +447,7 @@ export function SettingsScreen({
                   borderRadius: 2,
                   cursor: 'pointer',
                   fontSize: fs(13),
+                  fontFamily: 'inherit',
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                   border: theme === t ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
@@ -453,7 +456,7 @@ export function SettingsScreen({
                 }}
               >
                 {t === 'dark' ? 'Тёмная' : 'Светлая'}
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -471,8 +474,10 @@ export function SettingsScreen({
               { v: true, label: 'Включён' },
               { v: false, label: 'Выключен' },
             ] as { v: boolean; label: string }[]).map((o) => (
-              <div
+              <button
                 key={String(o.v)}
+                type="button"
+                aria-pressed={minimalism === o.v}
                 onClick={() => onChangeMinimalism(o.v)}
                 style={{
                   flex: 1,
@@ -481,6 +486,7 @@ export function SettingsScreen({
                   borderRadius: 2,
                   cursor: 'pointer',
                   fontSize: fs(13),
+                  fontFamily: 'inherit',
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                   border: minimalism === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
@@ -489,7 +495,7 @@ export function SettingsScreen({
                 }}
               >
                 {o.label}
-              </div>
+              </button>
             ))}
           </div>
         </div>

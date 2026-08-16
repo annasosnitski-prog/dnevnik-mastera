@@ -142,13 +142,13 @@
   color: var(--gold);
 }
 
-/* ── Backdrop ── */
+/* ── Backdrop. Content stays wherever the caller renders it (usually
+   absolute-positioned relative to its own trigger) — see Backdrop.tsx for
+   why this doesn't wrap/portal children — so only the click-catcher itself
+   gets a token z-index here; callers set --z-overlay-content on their own
+   dropdown/popover element. ── */
 .ctl-backdrop {
   position: fixed;
   inset: 0;
   z-index: var(--z-overlay-backdrop);
-}
-.ctl-backdrop__content {
-  position: relative;
-  z-index: var(--z-overlay-content);
 }

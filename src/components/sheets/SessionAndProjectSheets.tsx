@@ -48,6 +48,7 @@ import {
 } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton, SheetSavedCheck } from '../ui/Sheet';
 import { FieldLabel, SheetStarDivider } from '../ui/TextAtoms';
+import { DangerButton } from '../ui/controls';
 
 // Вынесено из TattoDiary.tsx (PR 6 рефакторинга). Логика и разметка не
 // менялись — только перенос в отдельный модуль.
@@ -1172,7 +1173,6 @@ export function NewProjectSheet({
   const [creative, setCreative] = useState('');
   const [inspirationSources, setInspirationSources] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   // See NewSessionSheet's justSaved — same «крестик превращается в зелёную
   // галочку» подтверждение, единообразно для всех форм редактирования.
   const [justSaved, setJustSaved] = useState(false);
@@ -1197,7 +1197,6 @@ export function NewProjectSheet({
       setCreative(initial?.creative ?? '');
       setInspirationSources(initial?.inspirationSources ?? '');
       setPhotos(initial?.photos ?? []);
-      setConfirmingDelete(false);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1422,29 +1421,14 @@ export function NewProjectSheet({
         </div>
 
         {onDelete && (
-          confirmingDelete ? (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div
-                onClick={() => setConfirmingDelete(false)}
-                style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}
-              >
-                Отмена
-              </div>
-              <div
-                onClick={onDelete}
-                style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}
-              >
-                Удалить проект
-              </div>
-            </div>
-          ) : (
-            <div
-              onClick={() => setConfirmingDelete(true)}
-              style={{ textAlign: 'center', padding: '10px 0', color: COLORS.textFaint, fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}
-            >
-              Удалить проект
-            </div>
-          )
+          <div style={{ textAlign: 'center' }}>
+            {/* key=open: same reset-on-open contract as every other field in
+                this sheet (see the effect above) — BottomSheet keeps this
+                node mounted across opens, so without a remount a delete
+                confirmation left open on close would still be showing when
+                the sheet reopens for a different project. */}
+            <DangerButton key={String(open)} label="Удалить проект" confirmLabel="Удалить проект безвозвратно?" onConfirm={onDelete} />
+          </div>
         )}
       </div>
     </BottomSheet>

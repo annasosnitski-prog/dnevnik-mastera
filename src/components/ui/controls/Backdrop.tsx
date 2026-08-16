@@ -1,18 +1,23 @@
 import { useEffect, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import './controls.css';
 
 export interface BackdropProps {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
-  ariaLabel?: string;
 }
 
-// Один портал+оверлей+клик-вне-закрывает вместо независимых копий (scrim
-// у NavFab, попап у заметки, попап поиска/фильтров/сортировки — у каждого
+// Один клик-вне-закрывает-оверлей вместо независимых копий (scrim у
+// NavFab, попап у заметки, попап поиска/фильтров/сортировки — у каждого
 // свой рукописный z-index). Использует общую шкалу --z-overlay-*.
-export function Backdrop({ open, onClose, children, ariaLabel }: BackdropProps) {
+//
+// Намеренно НЕ порталируется: как и все семь существующих scrim/попап
+// реализаций в проекте (NavFab, список фильтров, это меню), контент
+// обычно позиционируется `absolute` относительно своего триггера —
+// портал в document.body сломал бы это якорение. Портал нужен только
+// «настоящим» модалкам (см. BottomSheet в ui/Sheet.tsx), это другой,
+// уже хорошо решённый случай.
+export function Backdrop({ open, onClose, children }: BackdropProps) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -24,13 +29,10 @@ export function Backdrop({ open, onClose, children, ariaLabel }: BackdropProps) 
 
   if (!open) return null;
 
-  return createPortal(
+  return (
     <>
       <div className="ctl-backdrop" onClick={onClose} aria-hidden="true" />
-      <div className="ctl-backdrop__content" role="dialog" aria-modal="true" aria-label={ariaLabel}>
-        {children}
-      </div>
-    </>,
-    document.body,
+      {children}
+    </>
   );
 }
