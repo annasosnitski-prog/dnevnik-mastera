@@ -155,13 +155,23 @@ function isStandaloneDisplayMode(): boolean {
 //
 // Принимает части, а не готовую строку, чтобы малый JSON-экспорт мог не
 // делать лишний Blob. File строится один раз и переиспользуется ниже.
-export async function shareOrDownloadJSON(
-  parts: BlobPart[],
-  filename: string,
-  shareTitle: string,
-): Promise<ShareJSONResult> {
+export async function shareOrDownloadJSON(parts: BlobPart[], filename: string): Promise<ShareJSONResult> {
   const file = new File(parts, filename, { type: 'application/json' });
-  return shareOrDownloadFile(file, shareTitle, filename);
+  return shareOrDownloadFile(file, filename, 'application/json');
+}
+
+// Тип файла — это НЕ украшение: система решает по нему, что именно ей
+// отдали. Файл из OPFS приходит с тем типом, который браузер вывел из
+// расширения имени; если вывести не удалось, type пустой, и окно
+// «Поделиться» получает предмет без опознавательных знаков. Тогда его
+// заворачиваем заново, уже с честным типом.
+//
+// Обёртка стоит ровно один конструктор File: части Blob — это ССЫЛКИ на уже
+// лежащие на диске данные, а не их копия в памяти (поэтому и обычный путь —
+// переиспользовать OPFS-файл как есть, без пересборки содержимого).
+function fileWithShareableType(file: File, fallbackType: string): File {
+  if (file.type) return file;
+  return new File([file], file.name, { type: fallbackType });
 }
 
 // The large backup is already a disk-backed OPFS File. Reusing it here is
@@ -169,13 +179,25 @@ export async function shareOrDownloadJSON(
 // archive-sized copy before the share sheet even opens.
 export async function shareOrDownloadFile(
   file: File,
-  shareTitle: string,
   downloadName = file.name,
+  fallbackType = 'application/octet-stream',
 ): Promise<ShareJSONResult> {
+  const shared = fileWithShareableType(file, fallbackType);
   const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
-  if (nav.canShare && nav.canShare({ files: [file] })) {
+  if (nav.canShare && nav.canShare({ files: [shared] })) {
     try {
-      await nav.share({ files: [file], title: shareTitle });
+      // ТОЛЬКО files — ни title, ни text. Мастер прислала «резервную копию»
+      // размером 38 байт: внутри лежал текст «INKA — резервная копия», то
+      // есть ровно тот заголовок, который здесь раньше передавался рядом с
+      // файлом. Когда iOS не может отдать сам файл выбранному приложению, она
+      // не сообщает об этом никак — просто отдаёт вторую половину предложения,
+      // текст, и «Сохранить в Файлы» честно сохраняет его в .txt. Внешне это
+      // выглядит как удачный экспорт, а на деле копии нет вообще.
+      //
+      // Без заголовка вырождаться не во что: либо уходит файл, либо share
+      // падает и ниже пробуется обычное скачивание. Так же (files и ничего
+      // больше) уже устроена отдача фото в Instagram — см. выше в этом файле.
+      await nav.share({ files: [shared] });
       return 'shared';
     } catch (err) {
       // Мастер сама закрыла окно «Поделиться» — это не ошибка, но и не
@@ -185,7 +207,7 @@ export async function shareOrDownloadFile(
     }
   }
 
-  const url = URL.createObjectURL(file);
+  const url = URL.createObjectURL(shared);
   try {
     if (isStandaloneDisplayMode()) {
       // window.open уводит blob в отдельную вкладку системного браузера —

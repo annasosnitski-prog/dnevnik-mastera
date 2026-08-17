@@ -15,34 +15,34 @@ const settings = readSource('../src/components/screens/SettingsScreen.tsx');
 const app = readSource('../src/components/TattoDiary.tsx');
 const archive = readSource('../src/lib/backupArchive.ts');
 
-const shareJSON = share.slice(share.indexOf('export async function shareOrDownloadJSON('));
+const shareFile = share.slice(share.indexOf('export async function shareOrDownloadFile('));
 const handleExport = settings.slice(settings.indexOf('const handlePrepareExport = async () => {'), settings.indexOf('const handleImportFile ='));
 
 test('исход отдачи файла возвращается, а не теряется', () => {
   assert.match(share, /export type ShareJSONResult = 'shared' \| 'downloaded' \| 'cancelled' \| 'failed';/);
-  assert.match(shareJSON, /Promise<ShareJSONResult>/);
-  assert.match(shareJSON, /return 'shared';/);
-  assert.match(shareJSON, /return 'cancelled';/);
-  assert.match(shareJSON, /return 'downloaded';/);
-  assert.match(shareJSON, /return 'failed';/);
+  assert.match(shareFile, /Promise<ShareJSONResult>/);
+  assert.match(shareFile, /return 'shared';/);
+  assert.match(shareFile, /return 'cancelled';/);
+  assert.match(shareFile, /return 'downloaded';/);
+  assert.match(shareFile, /return 'failed';/);
 });
 
 test('ссылка на скачивание побывала в документе — иначе клик игнорируется', () => {
-  assert.match(shareJSON, /document\.body\.appendChild\(a\);\s*a\.click\(\);/);
+  assert.match(shareFile, /document\.body\.appendChild\(a\);\s*a\.click\(\);/);
 });
 
 test('blob не отзывается в том же тике, что и клик', () => {
   // Раньше URL.revokeObjectURL стоял сразу после click(): браузер мог ещё не
   // начать читать blob, и скачивание срывалось молча.
-  assert.doesNotMatch(shareJSON, /a\.click\(\);\s*URL\.revokeObjectURL/);
-  assert.match(shareJSON, /setTimeout\(\(\) => URL\.revokeObjectURL\(url\), 60_000\)/);
+  assert.doesNotMatch(shareFile, /a\.click\(\);\s*URL\.revokeObjectURL/);
+  assert.match(shareFile, /setTimeout\(\(\) => URL\.revokeObjectURL\(url\), 60_000\)/);
 });
 
 test('сбой share (кроме отмены) не тупик — пробуем обычное скачивание', () => {
-  assert.match(shareJSON, /if \(isShareAbortError\(err\)\) return 'cancelled';/);
+  assert.match(shareFile, /if \(isShareAbortError\(err\)\) return 'cancelled';/);
   // После catch управление уходит вниз, к скачиванию, а не возвращается.
-  const afterCatch = shareJSON.slice(shareJSON.indexOf("return 'cancelled';"));
-  assert.match(afterCatch, /const url = URL\.createObjectURL\(file\);/);
+  const afterCatch = shareFile.slice(shareFile.indexOf("return 'cancelled';"));
+  assert.match(afterCatch, /const url = URL\.createObjectURL\(shared\);/);
 });
 
 test('копия собирается из базы, а не из состояния экрана', () => {
@@ -125,17 +125,60 @@ test('standalone-режим определяется до попытки ска�
 test('в standalone файл уходит через window.open, а не через клик по ссылке', () => {
   // window.open открывает blob в отдельной вкладке системного браузера — это
   // не навигация самой страницы приложения, поэтому её не перезапускает.
-  const fallback = shareJSON.slice(shareJSON.indexOf('const url = URL.createObjectURL(file);'));
+  const fallback = shareFile.slice(shareFile.indexOf('const url = URL.createObjectURL(shared);'));
   assert.match(fallback, /if \(isStandaloneDisplayMode\(\)\) \{[\s\S]*?window\.open\(url, '_blank'\)/);
 });
 
 test('обычная вкладка браузера по-прежнему скачивает через <a download> — рабочий путь не тронут', () => {
-  const fallback = shareJSON.slice(shareJSON.indexOf('const url = URL.createObjectURL(file);'));
+  const fallback = shareFile.slice(shareFile.indexOf('const url = URL.createObjectURL(shared);'));
   assert.match(fallback, /a\.download = downloadName;/);
   assert.match(fallback, /document\.body\.appendChild\(a\);\s*a\.click\(\);/);
 });
 
 test('заблокированный window.open — явный отказ, а не молчаливая «удача»', () => {
-  const fallback = shareJSON.slice(shareJSON.indexOf('const url = URL.createObjectURL(file);'));
+  const fallback = shareFile.slice(shareFile.indexOf('const url = URL.createObjectURL(shared);'));
   assert.match(fallback, /return opened \? 'downloaded' : 'failed';/);
+});
+
+// ===== 38 БАЙТ ВМЕСТО КОПИИ =====
+// Мастер прислала «резервную копию» размером 38 байт: внутри лежал текст
+// «INKA — резервная копия» — ровно тот заголовок, который экспорт передавал в
+// окно «Поделиться» рядом с файлом. Когда система не может отдать сам файл
+// выбранному приложению, она не сообщает об этом никак: уезжает вторая
+// половина предложения, текст, и «Сохранить в Файлы» честно сохраняет его
+// в .txt. Экспорт выглядит удачным, а копии нет вообще.
+
+test('в окно «Поделиться» уходит только файл — ни title, ни text', () => {
+  assert.match(shareFile, /await nav\.share\(\{ files: \[shared\] \}\);/);
+  assert.doesNotMatch(shareFile, /nav\.share\(\{[^}]*title/);
+  assert.doesNotMatch(shareFile, /nav\.share\(\{[^}]*text/);
+  // Заголовка нет и на вызывающей стороне.
+  assert.doesNotMatch(settings, /shareOrDownloadFile\([^)]*'INKA — резервная копия'/);
+  assert.doesNotMatch(share, /shareTitle/);
+});
+
+test('файл без типа доопределяется, а не уезжает «неизвестным предметом»', () => {
+  assert.match(share, /function fileWithShareableType\(file: File, fallbackType: string\): File \{\n  if \(file\.type\) return file;/);
+  assert.match(shareFile, /const shared = fileWithShareableType\(file, fallbackType\);/);
+  // Проверяется в canShare и отдаётся в share один и тот же предмет.
+  assert.match(shareFile, /nav\.canShare\(\{ files: \[shared\] \}\)/);
+  assert.match(settings, /shareOrDownloadFile\(preparedBackup\.file, preparedBackup\.filename, BACKUP_ARCHIVE_MIME\)/);
+  assert.match(archive, /export const BACKUP_ARCHIVE_MIME = 'application\/zip';/);
+});
+
+test('у архива обычное расширение .zip — телефон обязан его опознать', () => {
+  assert.match(archive, /\$\{now\.toISOString\(\)\.slice\(0, 10\)\}\.zip`/);
+  assert.doesNotMatch(archive, /\.inka\.zip'/);
+});
+
+test('готовым архив называется только после чтения обратно', () => {
+  // «Файл записался» ещё не значит «файл читается»: оборванная запись или
+  // кончившееся место дают такой же на вид готовый файл, о котором узнаёшь
+  // в тот единственный день, когда копия понадобилась.
+  assert.match(archive, /await verifyPreparedArchive\(file, summary, options\.signal\);\n    return \{ file, filename, summary, cleanup \};/);
+  const verify = archive.slice(archive.indexOf('async function verifyPreparedArchive('));
+  assert.match(verify, /if \(file\.size === 0\) throw new Error/);
+  assert.match(verify, /readBack = await inspectBackupArchive\(file, signal\);/);
+  assert.match(verify, /readBack\.mediaCount !== expected\.mediaCount/);
+  assert.match(verify, /readBack\.hasMasterInfo !== expected\.hasMasterInfo/);
 });

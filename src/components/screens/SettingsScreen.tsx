@@ -12,6 +12,12 @@ import {
 } from '../../lib/masterInfoStore';
 import { shareOrDownloadFile } from '../../lib/contentShare';
 import {
+  describeUnreadableBackupFile,
+  rememberImportResult,
+  takeImportResult,
+} from '../../lib/backupImport';
+import {
+  BACKUP_ARCHIVE_MIME,
   inspectBackupArchive,
   type BackupArchiveProgress,
   type BackupArchiveSummary,
@@ -153,7 +159,8 @@ export function SettingsScreen({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  // Успех восстановления пережил перезагрузку дневника — см. confirmImport.
+  const [importSuccess, setImportSuccess] = useState<string | null>(takeImportResult);
   // Исход экспорта показывается всегда — «ничего не произошло» больше не
   // выглядит как успех.
   const [exportState, setExportState] = useState<
@@ -261,7 +268,7 @@ export function SettingsScreen({
   const handleSharePrepared = async () => {
     if (!preparedBackup) return;
     setExportState({ kind: 'sharing' });
-    const result = await shareOrDownloadFile(preparedBackup.file, 'INKA — резервная копия', preparedBackup.filename);
+    const result = await shareOrDownloadFile(preparedBackup.file, preparedBackup.filename, BACKUP_ARCHIVE_MIME);
     if (result === 'cancelled') {
       setExportState({ kind: 'ready', text: 'Окно «Поделиться» закрыли — архив всё ещё готов, можно повторить.' });
       return;
@@ -282,9 +289,14 @@ export function SettingsScreen({
       await completedBackup.cleanup();
     }
     setPreparedBackup(null);
+    // Что система сделала с файлом дальше, страница узнать не может. Поэтому
+    // успех называет имя и вес — по ним копию можно найти в «Файлах» и
+    // отличить настоящий архив от того, что осталось от неудачной отдачи
+    // (мастер получила «копию» в 38 байт и узнала об этом много позже).
+    const saved = formatMegabytes(completedBackup.file.size);
     setExportState({
       kind: 'ok',
-      text: `Копия сохранена: ${summary.counts.clients} клиент(ов), ${summary.counts.projects} проект(ов), ${summary.mediaCount} медиафайл(ов).`,
+      text: `Копия сохранена: ${summary.counts.clients} клиент(ов), ${summary.counts.projects} проект(ов), ${summary.mediaCount} медиафайл(ов). Проверьте, что в «Файлах» лежит ${completedBackup.filename}${saved ? ` · ${saved}` : ''}.`,
     });
   };
 
@@ -292,6 +304,15 @@ export function SettingsScreen({
     setImportError(null);
     setImportSuccess(null);
     let isZip = false;
+    // Начало файла читается до всякого разбора и ради самого разбора не
+    // нужно: по нему объясняется отказ, если файл окажется не копией.
+    let head = '';
+    try {
+      head = new TextDecoder().decode(await file.slice(0, 512).arrayBuffer());
+    } catch {
+      // Не прочитали начало — объяснение будет общим, но отказ всё равно
+      // покажется.
+    }
     try {
       const signature = new Uint8Array(await file.slice(0, 4).arrayBuffer());
       isZip = signature[0] === 0x50 && signature[1] === 0x4b;
@@ -317,9 +338,7 @@ export function SettingsScreen({
       setForeignImportAcknowledged(false);
     } catch (error) {
       setImportError(
-        isZip && error instanceof Error
-          ? error.message
-          : 'Не удалось прочитать файл — проверьте, что это резервная копия INKA.',
+        isZip && error instanceof Error ? error.message : describeUnreadableBackupFile(file, head),
       );
     }
   };
@@ -345,11 +364,20 @@ export function SettingsScreen({
         signal: controller.signal,
         onProgress: setImportProgress,
       });
-      setImportSuccess(
-        `Импортировано ${result.summary.counts.clients} клиент(ов), ${result.summary.counts.projects} проект(ов) и ${result.summary.mediaCount} медиафайл(ов).`,
-      );
       setPendingImport(null);
       setForeignImportAcknowledged(false);
+      // Данные уже в базе — дальше дневник перезапускается. Читать только что
+      // восстановленную библиотеку обратно в ЭТУ страницу — самый тяжёлый шаг
+      // всего восстановления: страница только что разобрала архив на сотни
+      // мегабайт, и поверх этого в неё пятью getAll заливается вся библиотека
+      // целиком. Это главный подозреваемый в белом экране, которым импорт
+      // заканчивался на телефоне. После перезагрузки страница открывается
+      // чистой и читает базу как при обычном запуске.
+      const done = `Восстановлено: ${result.summary.counts.clients} клиент(ов), ${result.summary.counts.projects} проект(ов) и ${result.summary.mediaCount} медиафайл(ов).`;
+      rememberImportResult(done);
+      setImportSuccess(`${done} Перезапускаю дневник…`);
+      setTimeout(() => window.location.reload(), 600);
+      return;
     } catch (error) {
       const cancelled = error instanceof DOMException && error.name === 'AbortError';
       setImportError(
@@ -815,10 +843,15 @@ export function SettingsScreen({
               {exportState.text}
             </div>
           )}
+          {/* Без accept — намеренно. Телефон гасит в списке файлов всё, что
+              не подошло под фильтр, а копия попадает туда через «Поделиться»
+              и приезжает с каким угодно типом (или вовсе без него) — тогда
+              недоступным для выбора оказывается сам архив, и импортировать
+              просто нечего. Что это за файл, решает не расширение, а
+              сигнатура PK внутри — см. handleImportFile. */}
           <input
             ref={fileInputRef}
             type="file"
-            accept=".inka.zip,.zip,application/zip,.json,application/json"
             style={{ display: 'none' }}
             onChange={(e) => {
               const file = e.target.files?.[0];

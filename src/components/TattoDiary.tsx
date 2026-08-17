@@ -1119,18 +1119,24 @@ export default function TattoDiary() {
   ): Promise<ImportBackupArchiveResult> => {
     if (!db) throw new Error('Хранилище сейчас недоступно. Нажмите «Повторить» и попробуйте снова.');
     try {
+      // Успешное восстановление НЕ втягивается обратно в это состояние React:
+      // экран настроек сразу после него перезапускает дневник (см.
+      // confirmImport), и библиотека читается уже чистой страницей. Раньше
+      // здесь же, в странице, только что разобравшей многосотмегабайтный
+      // архив, выполнялись пять getAll подряд — самое тяжёлое место импорта и
+      // главный подозреваемый в белом экране вместо восстановленного дневника.
       const { importBackupArchive } = await import('../lib/backupArchive');
-      const result = await importBackupArchive(db, file, options);
-      if (result.masterInfo) setMasterInfo(result.masterInfo);
-      return result;
-    } finally {
-      // A cancelled restore may already have safely upserted some records.
-      // Always make React reflect IndexedDB before the user continues.
+      return await importBackupArchive(db, file, options);
+    } catch (error) {
+      // Прерванное или упавшее восстановление могло успеть записать часть
+      // записей — перезагрузки не будет, поэтому состояние приводится к базе
+      // здесь, чтобы мастер видела то, что в дневнике на самом деле.
       loadClients(db);
       loadProjects(db);
       loadContentEntries(db);
       reloadContentIngestJobs(db);
       reloadMasterInfo(db);
+      throw error;
     }
   };
 

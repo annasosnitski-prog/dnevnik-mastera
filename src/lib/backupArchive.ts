@@ -17,6 +17,10 @@ import { normalizeClient, normalizeProject } from './normalize.js';
 
 const BACKUP_FORMAT = 'inka-backup';
 export const BACKUP_ARCHIVE_VERSION = 6;
+// Чем архив представляется системе, когда та не смогла определить тип сама
+// (см. shareOrDownloadFile): предмет без типа окно «Поделиться» отдать не
+// может, и вместо файла уезжает что угодно другое.
+export const BACKUP_ARCHIVE_MIME = 'application/zip';
 const BACKUP_DIRECTORY = 'inka-prepared-backups';
 const MANIFEST_PATH = 'manifest.json';
 const ERROR_LOG_PATH = 'diagnostics/errorLog.json';
@@ -386,13 +390,46 @@ async function checkFreeSpace(): Promise<void> {
   }
 }
 
+// Расширение ровно одно и обычное — .zip. Раньше было «.inka.zip»: красиво,
+// но телефон опознаёт файл именно по расширению, и всё, что он не опознал,
+// живёт дальше как «неизвестный файл» — окно «Поделиться» не знает, что с
+// таким делать, а в списке файлов при импорте он вообще может оказаться
+// недоступным для выбора. Импорт по-прежнему смотрит внутрь файла (сигнатуру
+// PK), а не на имя, поэтому старые «.inka.zip» читаются как раньше.
 function archiveFilename(now: Date, ownerName: string): string {
   const owner = ownerName
     .trim()
     .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
-  return `inka-backup-${owner || 'diary'}-${now.toISOString().slice(0, 10)}.inka.zip`;
+  return `inka-backup-${owner || 'diary'}-${now.toISOString().slice(0, 10)}.zip`;
+}
+
+// Собранный архив читается обратно ПЕРЕД тем, как его назовут готовым:
+// открывается оглавление ZIP, разбирается манифест и сверяются количества.
+// Копия — единственное, что стоит между мастером и потерей всей истории, и
+// «файл записался» ещё не значит «файл читается»: оборванная запись, полная
+// квота, сбой на последнем блоке дают такой же на вид готовый файл, о котором
+// узнаёшь только в тот день, когда он понадобился.
+async function verifyPreparedArchive(
+  file: File,
+  expected: BackupArchiveSummary,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (file.size === 0) throw new Error('Копия не сделана: архив оказался пустым.');
+  let readBack: BackupArchiveSummary;
+  try {
+    readBack = await inspectBackupArchive(file, signal);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error;
+    throw new Error('Копия не сделана: собранный архив не читается обратно. Освободите место на устройстве и попробуйте снова.');
+  }
+  const sameCounts = (Object.keys(STORE_PATHS) as BackupStore[]).every(
+    (store) => readBack.counts[store] === expected.counts[store],
+  );
+  if (!sameCounts || readBack.mediaCount !== expected.mediaCount || readBack.hasMasterInfo !== expected.hasMasterInfo) {
+    throw new Error('Копия не сделана: в собранном архиве не хватает записей. Попробуйте ещё раз.');
+  }
 }
 
 function serialPath(prefix: string, index: number): string {
@@ -511,7 +548,9 @@ export async function prepareBackupArchive(
     report('finishing');
     await writer.close();
     const file = await fileHandle.getFile();
-    return { file, filename, summary: summaryFromManifest(manifest, file.size), cleanup };
+    const summary = summaryFromManifest(manifest, file.size);
+    await verifyPreparedArchive(file, summary, options.signal);
+    return { file, filename, summary, cleanup };
   } catch (error) {
     try {
       await writable.abort(error);
