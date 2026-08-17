@@ -34,6 +34,7 @@
     "src/lib/chatLink.ts",
     "src/lib/backupSerialize.ts",
     "src/lib/backupArchive.ts",
+    "src/lib/backupImport.ts",
     "src/lib/backupIdentity.ts",
     "src/lib/clientRecordsMigration.ts",
     "src/lib/calendarSync.ts",

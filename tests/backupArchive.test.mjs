@@ -190,7 +190,7 @@ test('full export streams an importable ZIP into OPFS and cleanup removes only t
       now: new Date('2026-08-15T12:00:00.000Z'),
       onProgress: (value) => progress.push(value),
     });
-    assert.equal(prepared.filename, 'inka-backup-Анна-Мастер-2026-08-15.inka.zip');
+    assert.equal(prepared.filename, 'inka-backup-Анна-Мастер-2026-08-15.zip');
     assert.equal(prepared.summary.counts.clients, 1);
     assert.equal(prepared.summary.mediaCount, 1);
     assert.equal((await inspectBackupArchive(prepared.file)).mediaCount, 1);
