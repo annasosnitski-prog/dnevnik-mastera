@@ -53,6 +53,7 @@ import { SessionPhotos, SkinTonePalette, UrgencyChips, AddChatLinkForm, NoteComp
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { GoldFrame } from '../ui/Stripes';
 import { MetaLabel, MetaValue, SectionDivider, SectionHeader } from '../ui/TextAtoms';
+import { Backdrop } from '../ui/controls';
 
 // Вынесено из TattoDiary.tsx (PR 11 рефакторинга) — весь кластер «карточка
 // клиента»: экран DetailScreen + его вкладки (Инфо/Сессии/Консультации/
@@ -2295,10 +2296,9 @@ export function NoteItem({
               <circle cx="2" cy="14" r="1.6" fill={COLORS.textFaint} />
             </svg>
           </div>
-          {showActions && (
-            <>
-              <div onClick={() => setShowActions(false)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />
+          <Backdrop open={showActions} onClose={() => setShowActions(false)}>
               <div
+                role="menu"
                 style={{
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
@@ -2308,8 +2308,8 @@ export function NoteItem({
                   border: '1px solid rgba(var(--gold-rgb),0.2)',
                   borderRadius: 4,
                   padding: 6,
-                  boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-                  zIndex: 17,
+                  boxShadow: 'var(--shadow-md)',
+                  zIndex: 'var(--z-overlay-content)',
                 }}
               >
                 {deleteConfirm ? (
@@ -2375,8 +2375,7 @@ export function NoteItem({
                   </>
                 )}
               </div>
-            </>
-          )}
+          </Backdrop>
         </div>
       )}
     </div>

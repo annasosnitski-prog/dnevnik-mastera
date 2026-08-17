@@ -16,7 +16,6 @@
 .nav-fab__item--minimal {
   --minimal-icon-color: #f0bd55;
   border: 0.8px solid rgba(var(--gold-rgb), 0.68) !important;
-  outline: 0;
   background: radial-gradient(circle at 40% 34%, #2c2a27 0%, #181715 54%, #090908 100%);
   box-shadow:
     inset 0 0 0 0.5px rgba(255, 218, 142, 0.04),
