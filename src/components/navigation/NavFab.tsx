@@ -448,7 +448,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
                         </PendantIcon>
                       </span>
                       <span className="theme-light-jewel" aria-hidden="true">
-                        <NaturalStoneIcon size={ITEM_SIZE} plate>
+                        <NaturalStoneIcon size={ITEM_SIZE} plate shineDelay={`${(travelDelayMs + durationMs + 180) / 1000}s`}>
                           <g aria-hidden="true">
                             <line x1="0" y1="-7" x2="0" y2="7" stroke="var(--bronze-engrave-groove)" strokeWidth="3.4" strokeLinecap="round" />
                             <line x1="-7" y1="0" x2="7" y2="0" stroke="var(--bronze-engrave-groove)" strokeWidth="3.4" strokeLinecap="round" />
@@ -517,8 +517,6 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
                       <NaturalStoneIcon
                         kind={NATURAL_STONE_BY_ITEM[item.id]}
                         size={ITEM_SIZE}
-                        activeShine={isCurrentItem}
-                        activeShineDelay={`${(travelDelayMs + durationMs + 180) / 1000}s`}
                       />
                     </span>
                   </>
