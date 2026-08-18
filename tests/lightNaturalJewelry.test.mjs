@@ -120,10 +120,11 @@ test('create plate shine follows the plate relief and only runs while the fan is
   assert.match(navSource, /<NaturalStoneIcon size=\{ITEM_SIZE\} plate shineDelay=\{`\$\{\(travelDelayMs \+ durationMs \+ 180\) \/ 1000\}s`\}>/);
 });
 
-test('only the current toolbar destination reads as lit — the rest sit dimmed like an unlit gem', () => {
-  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item \.theme-light-jewel[\s\S]{0,80}opacity: 0\.5;[\s\S]{0,80}filter: saturate\(0\.65\) brightness\(0\.82\) contrast\(0\.96\)/);
-  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item--current \.theme-light-jewel[\s\S]{0,40}opacity: 1;[\s\S]*drop-shadow\(0 0 6px color-mix/);
-  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item--create \.theme-light-jewel[\s\S]{0,40}opacity: 1;[\s\S]{0,80}filter: saturate\(1\.16\) brightness\(1\.08\) contrast\(1\.05\);/);
+test('only the gem dims for a non-current destination — its bronze mount stays lit like the current item\'s', () => {
+  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item \.theme-light-jewel[\s\S]{0,40}opacity: 1;[\s\S]{0,80}filter: saturate\(1\.16\) brightness\(1\.08\) contrast\(1\.05\);/);
+  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item--current \.theme-light-jewel[\s\S]*drop-shadow\(0 0 6px color-mix/);
+  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item \.natural-stone-cabochon[\s\S]{0,80}opacity: 0\.5;[\s\S]{0,80}filter: saturate\(0\.55\) brightness\(0\.8\) contrast\(0\.96\)/);
+  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item--current \.natural-stone-cabochon[\s\S]{0,40}opacity: 1;[\s\S]{0,20}filter: none;/);
 });
 
 test('light Create plus is engraved into the bronze plate instead of drawn as a flat glyph', () => {

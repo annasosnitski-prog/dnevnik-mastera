@@ -323,16 +323,13 @@
   transition: transform 0.1s ease, filter 0.1s ease;
 }
 
-/* Only the current destination reads as "on" — the rest sit dimmed and
-   desaturated, like an unlit gem, rather than at the same full brightness. */
 :root[data-theme='light'] .nav-fab__item .theme-light-jewel {
-  opacity: 0.5;
-  filter: saturate(0.65) brightness(0.82) contrast(0.96);
-  transition: opacity 0.25s ease, filter 0.25s ease;
+  opacity: 1;
+  filter: saturate(1.16) brightness(1.08) contrast(1.05);
+  transition: filter 0.25s ease;
 }
 
 :root[data-theme='light'] .nav-fab__item--current .theme-light-jewel {
-  opacity: 1;
   filter:
     saturate(1.16)
     brightness(1.08)
@@ -342,11 +339,19 @@
     drop-shadow(0 0 26px color-mix(in srgb, var(--natural-jewel-color) 20%, transparent));
 }
 
-/* «Создать» is an action, not a screen toggle — it stays fully lit regardless
-   of which destination is current. */
-:root[data-theme='light'] .nav-fab__item--create .theme-light-jewel {
+/* Only the gem itself dims for a non-current destination — the bronze
+   mount/ring around it stays lit the same as the current item's, so it
+   reads as "unlit stone in a normal setting", not "the whole medallion went
+   dark". («Создать» has no cabochon at all — plate icons are unaffected.) */
+:root[data-theme='light'] .nav-fab__item .natural-stone-cabochon {
+  opacity: 0.5;
+  filter: saturate(0.55) brightness(0.8) contrast(0.96);
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+:root[data-theme='light'] .nav-fab__item--current .natural-stone-cabochon {
   opacity: 1;
-  filter: saturate(1.16) brightness(1.08) contrast(1.05);
+  filter: none;
 }
 
 :root[data-theme='light'] .nav-fab__item--current::before {
