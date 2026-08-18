@@ -932,6 +932,26 @@ input[type='date'] {
   cursor: default;
 }
 
+/* Light theme optimization: improve toolbar button visibility and contrast */
+:root[data-theme='light'] .archetype-toolbar__button {
+  border-color: rgba(var(--gold-rgb), 0.55);
+  background: rgba(var(--gold-rgb), 0.08);
+  color: var(--text-soft);
+}
+
+:root[data-theme='light'] .archetype-toolbar__button:hover:not(:disabled) {
+  border-color: rgba(var(--gold-rgb), 0.85);
+  background: rgba(var(--gold-rgb), 0.18);
+  color: var(--text);
+}
+
+:root[data-theme='light'] .archetype-toolbar__button.is-selected {
+  border-color: rgba(var(--gold-rgb), 1);
+  background: rgba(var(--gold-rgb), 0.28);
+  color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.4);
+}
+
 .content-refresh-row {
   display: flex;
   flex-wrap: wrap;
