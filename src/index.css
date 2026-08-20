@@ -358,18 +358,6 @@
   filter: saturate(0.55) brightness(0.8) contrast(0.96);
 }
 
-:root[data-theme='light'] .nav-fab__item:not(.nav-fab__item--current):not(.nav-fab__item--create)::before {
-  width: 142%;
-  height: 142%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--natural-jewel-color) 36%, transparent) 0%,
-    color-mix(in srgb, var(--natural-jewel-color) 16%, transparent) 44%,
-    transparent 74%
-  );
-  filter: blur(9px);
-}
-
 .nav-fab__main {
   width: 62px;
   height: 62px;

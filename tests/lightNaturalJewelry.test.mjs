@@ -125,7 +125,9 @@ test('the current destination sits unlit — every other reachable destination i
   assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item:not\(\.nav-fab__item--current\):not\(\.nav-fab__item--create\) \.theme-light-jewel[\s\S]*drop-shadow\(0 0 6px color-mix/);
   assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item \.natural-stone-cabochon[\s\S]{0,40}opacity: 1;[\s\S]{0,20}filter: none;/);
   assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item--current \.natural-stone-cabochon[\s\S]{0,80}opacity: 0\.5;[\s\S]{0,80}filter: saturate\(0\.55\) brightness\(0\.8\) contrast\(0\.96\)/);
-  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item:not\(\.nav-fab__item--current\):not\(\.nav-fab__item--create\)::before/);
+  // The big blurred aura behind non-current buttons was removed — only the
+  // gem's own drop-shadow glow (asserted above) marks a lit destination now.
+  assert.doesNotMatch(css, /nav-fab__item[^{]*::before[\s\S]{0,120}142%/);
 });
 
 test('light Create plus is engraved into the bronze plate instead of drawn as a flat glyph', () => {
