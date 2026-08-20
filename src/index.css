@@ -285,35 +285,6 @@
   filter: saturate(0.72) brightness(0.82);
 }
 
-/* A small pale spotlight sitting behind each icon, a third of the button's
-   own diameter — brighter than the icon itself so the glyph reads as
-   silhouetted against its own little glow rather than floating on flat
-   background. Percentage sizing scales it correctly for both the bigger
-   main button and the smaller fan items without a separate rule for each. */
-.nav-fab__main::before,
-.nav-fab__item::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 33.34%;
-  height: 33.34%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 230, 170, 0.54), rgba(255, 230, 170, 0));
-  /* A real blur on top of the gradient's own falloff, rather than relying on
-     the gradient alone — it reads as a soft diffuse glow instead of a disc
-     with a feathered edge. */
-  filter: blur(6px);
-  pointer-events: none;
-}
-
-:root[data-theme='light'] .nav-fab__main::before,
-:root[data-theme='light'] .nav-fab__item::before {
-  background: radial-gradient(circle, rgba(101, 124, 114, 0.22), rgba(114, 76, 57, 0));
-  filter: blur(5px);
-}
-
 .natural-stone-icon,
 .natural-stone-cabochon {
   transform-origin: 32px 32px;
@@ -323,27 +294,16 @@
   transition: transform 0.1s ease, filter 0.1s ease;
 }
 
-/* Reversed reading: you're already on the current screen, so its icon sits
-   calm/unlit — every OTHER, reachable destination is the one that lights up
-   and invites the tap. «Создать» is an action, not a destination, so it's
-   excluded from this swap and stays on its own separate always-lit rule. */
 :root[data-theme='light'] .nav-fab__item .theme-light-jewel {
   opacity: 1;
   filter: saturate(1.16) brightness(1.08) contrast(1.05);
   transition: filter 0.25s ease;
 }
 
-:root[data-theme='light'] .nav-fab__item:not(.nav-fab__item--current):not(.nav-fab__item--create) .theme-light-jewel {
-  filter:
-    saturate(1.16)
-    brightness(1.08)
-    contrast(1.05)
-    drop-shadow(0 0 6px color-mix(in srgb, var(--natural-jewel-color) 68%, transparent))
-    drop-shadow(0 0 15px color-mix(in srgb, var(--natural-jewel-color) 38%, transparent))
-    drop-shadow(0 0 26px color-mix(in srgb, var(--natural-jewel-color) 20%, transparent));
-}
-
-/* Only the gem itself changes brightness — the bronze mount/ring around it
+/* Reversed reading: you're already on the current screen, so its stone sits
+   calm/unlit — every OTHER, reachable destination stays lit, inviting the
+   tap. No glow/halo on top — just the plain lit/unlit brightness swap. Only
+   the gem itself changes brightness — the bronze mount/ring around it
    stays lit the same for every item, so it reads as "unlit stone in a
    normal setting", not "the whole medallion went dark". («Создать» has no
    cabochon at all — plate icons are unaffected.) */
