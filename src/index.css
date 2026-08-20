@@ -323,13 +323,17 @@
   transition: transform 0.1s ease, filter 0.1s ease;
 }
 
+/* Reversed reading: you're already on the current screen, so its icon sits
+   calm/unlit — every OTHER, reachable destination is the one that lights up
+   and invites the tap. «Создать» is an action, not a destination, so it's
+   excluded from this swap and stays on its own separate always-lit rule. */
 :root[data-theme='light'] .nav-fab__item .theme-light-jewel {
   opacity: 1;
   filter: saturate(1.16) brightness(1.08) contrast(1.05);
   transition: filter 0.25s ease;
 }
 
-:root[data-theme='light'] .nav-fab__item--current .theme-light-jewel {
+:root[data-theme='light'] .nav-fab__item:not(.nav-fab__item--current):not(.nav-fab__item--create) .theme-light-jewel {
   filter:
     saturate(1.16)
     brightness(1.08)
@@ -339,22 +343,22 @@
     drop-shadow(0 0 26px color-mix(in srgb, var(--natural-jewel-color) 20%, transparent));
 }
 
-/* Only the gem itself dims for a non-current destination — the bronze
-   mount/ring around it stays lit the same as the current item's, so it
-   reads as "unlit stone in a normal setting", not "the whole medallion went
-   dark". («Создать» has no cabochon at all — plate icons are unaffected.) */
+/* Only the gem itself changes brightness — the bronze mount/ring around it
+   stays lit the same for every item, so it reads as "unlit stone in a
+   normal setting", not "the whole medallion went dark". («Создать» has no
+   cabochon at all — plate icons are unaffected.) */
 :root[data-theme='light'] .nav-fab__item .natural-stone-cabochon {
-  opacity: 0.5;
-  filter: saturate(0.55) brightness(0.8) contrast(0.96);
+  opacity: 1;
+  filter: none;
   transition: opacity 0.25s ease, filter 0.25s ease;
 }
 
 :root[data-theme='light'] .nav-fab__item--current .natural-stone-cabochon {
-  opacity: 1;
-  filter: none;
+  opacity: 0.5;
+  filter: saturate(0.55) brightness(0.8) contrast(0.96);
 }
 
-:root[data-theme='light'] .nav-fab__item--current::before {
+:root[data-theme='light'] .nav-fab__item:not(.nav-fab__item--current):not(.nav-fab__item--create)::before {
   width: 142%;
   height: 142%;
   background: radial-gradient(
