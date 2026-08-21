@@ -1204,7 +1204,7 @@ export function ContentINKAScreen({
   return (
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
-      {/* ── Шапка POSTiNKA ── */}
+      {/* ── Шапка ContentINKA ── */}
       <div style={{ padding: '6px 24px 12px' }}>
         <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginBottom: 8 }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -1213,7 +1213,7 @@ export function ContentINKAScreen({
           <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
         </div>
         <InkaLogo height={fs(15)} />
-        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>POSTiNKA</div>
+        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>ContentINKA</div>
         <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 2 }}>Собрать материал</div>
         <StarDivider />
       </div>
