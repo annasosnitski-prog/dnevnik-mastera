@@ -765,7 +765,7 @@ export function ContentINKAScreen({
       await onSaveContentIngestJob(record);
       resetComposer();
     } catch (generationError) {
-      setError(generationError instanceof ContentSyncError ? generationError.message : 'Не удалось отправить материал в POSTiNKA.');
+      setError(generationError instanceof ContentSyncError ? generationError.message : 'Не удалось отправить материал в ContentINKA.');
     } finally {
       setSending(false);
     }
@@ -827,7 +827,7 @@ export function ContentINKAScreen({
         ...current,
         [entry.id]: {
           kind: 'error',
-          message: refreshError instanceof ContentSyncError ? refreshError.message : 'Не удалось отправить обновление в POSTiNKA.',
+          message: refreshError instanceof ContentSyncError ? refreshError.message : 'Не удалось отправить обновление в ContentINKA.',
         },
       }));
     }
@@ -869,7 +869,7 @@ export function ContentINKAScreen({
         retryable: undefined,
       });
     } catch (retryError) {
-      setError(retryError instanceof ContentSyncError ? retryError.message : 'Не удалось повторить задачу POSTiNKA.');
+      setError(retryError instanceof ContentSyncError ? retryError.message : 'Не удалось повторить задачу ContentINKA.');
     } finally {
       setRetryingJobIds((current) => {
         const next = new Set(current);
@@ -967,7 +967,7 @@ export function ContentINKAScreen({
       ),
     );
     // A linked entry is still shown inside its project/session — "Удалить"
-    // here should only take it out of POSTiNKA's own draft list, not erase
+    // here should only take it out of ContentINKA's own draft list, not erase
     // the content the project already points at. Only truly unlinked drafts
     // get hard-deleted (nothing else references them, nothing to keep).
     const entry = contentEntriesRef.current.find((candidate) => candidate.id === entryId);
@@ -1178,7 +1178,7 @@ export function ContentINKAScreen({
     shareContentToOtherApps: (entry: ContentEntry) => contentCardActionHandlersRef.current.shareContentToOtherApps(entry),
   }), []);
 
-  // Linked entries "deleted" from POSTiNKA (see deleteContentEntry above)
+  // Linked entries "deleted" from ContentINKA (see deleteContentEntry above)
   // stay in the store but drop out of this workspace's own list — except
   // the one explicitly being focused (opened from its linked project/
   // session via focusEntryId below), which still needs to render so the
@@ -1248,7 +1248,7 @@ export function ContentINKAScreen({
               {createIngestJobs.map((job) => (
                 <div key={job.id} style={{ borderTop: '1px solid rgba(var(--gold-rgb),0.14)', paddingTop: 10 }}>
                   <div style={{ fontSize: fs(13), color: COLORS.textPrimary }}>
-                    {job.state === 'failed' ? 'Не удалось собрать материал' : 'POSTiNKA собирает материал…'}
+                    {job.state === 'failed' ? 'Не удалось собрать материал' : 'ContentINKA собирает материал…'}
                   </div>
                   <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 3 }}>
                     {clientLabel(job.entry.clientId)} · {job.entry.sourceType === 'session' ? 'сессия' : job.entry.sourceType === 'consultation' ? 'консультация' : 'свободный материал'}
@@ -1576,7 +1576,7 @@ export function ContentINKAScreen({
               {entry.status === 'draft' && (
                 <div className="content-refresh-row">
                   {refreshJobByEntry.get(entry.id)?.state !== 'failed' && refreshJobByEntry.has(entry.id) && (
-                    <div className="content-refresh-feedback" role="status">POSTiNKA обновляет черновик… Можно перейти в другой раздел.</div>
+                    <div className="content-refresh-feedback" role="status">ContentINKA обновляет черновик… Можно перейти в другой раздел.</div>
                   )}
                   {refreshJobByEntry.get(entry.id)?.state === 'failed' && (
                     <div className="content-refresh-feedback is-error" role="alert">

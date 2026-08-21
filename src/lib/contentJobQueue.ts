@@ -336,7 +336,7 @@ export function startContentIngestJobCoordinator(options: ContentJobCoordinatorO
       await updateJobState(options.db, currentRecord, {
         state: 'failed',
         updatedAt: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Не удалось проверить задачу POSTiNKA.',
+        error: error instanceof Error ? error.message : 'Не удалось проверить задачу ContentINKA.',
         retryable: currentRecord.operation === 'create',
       });
       options.onChanged();

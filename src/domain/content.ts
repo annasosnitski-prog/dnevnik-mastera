@@ -19,7 +19,7 @@ export interface ContentEntry {
   context: ContentSessionContext; // снимок на момент генерации — перегенерация не бегает за живой сессией
   textArchetype?: string | null; // выбранный основной голос; null = Инка выбирает сама
   photos: string[]; // публикационное качество (не тот же файл, что в Session.photos —
-  // отдельная копия, сжатая слабее превью для POSTiNKA, но легче исходника
+  // отдельная копия, сжатая слабее превью для ContentINKA, но легче исходника
   // сессии, см. downsizeForContentDuplicate в ContentINKAScreen.tsx)
   photoIds?: string[]; // стабильные ID в том же порядке, что и photos
   contentDraft: ContentDraftMedia[] | null; // per-photo разметка (role/format/...), если есть фото

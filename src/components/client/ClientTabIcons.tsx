@@ -33,7 +33,7 @@ function ClientTabGlyph({ name }: { name: ClientTabIconName }): ReactNode {
         </g>
       );
     case 'content':
-      // The same three-spark ✨ glyph used by POSTiNKA in the radial toolbar.
+      // The same three-spark ✨ glyph used by ContentINKA in the radial toolbar.
       return (
         <g transform="translate(-16 -16)" fill="currentColor" stroke="none">
           <path d="M14 6C15 12 18 16 24 18C18 20 15 24 14 30C13 24 10 20 4 18C10 16 13 12 14 6Z" />
