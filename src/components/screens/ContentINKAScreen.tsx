@@ -533,6 +533,12 @@ export function ContentINKAScreen({
   // карточке в разделе «Контент» экрана проекта) — гаснет сама, ничего не
   // меняет в данных.
   const [highlightedEntryId, setHighlightedEntryId] = useState<string | null>(null);
+  // Какую скрытую (removedFromWorkspace) запись раскрыли через focusEntryId —
+  // в отличие от самого focusEntryId (одноразовая команда, которую родитель
+  // тут же обнуляет через onFocusEntryApplied в том же батче обновлений),
+  // это держится, пока не размонтируется экран, иначе запись пропадала бы
+  // из workspaceEntries ниже сразу после того, как эффект её раскрыл.
+  const [revealedEntryId, setRevealedEntryId] = useState<string | null>(null);
   const entriesListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -648,6 +654,7 @@ export function ContentINKAScreen({
         .findIndex((entry) => entry.id === target.id);
       setVisibleEntryLimit(Math.max(CONTENT_ENTRY_PAGE_SIZE, targetIndex + 1));
       setHighlightedEntryId(target.id);
+      setRevealedEntryId(target.id);
       requestAnimationFrame(() => {
         document.getElementById(`content-entry-${target.id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
       });
@@ -1175,8 +1182,15 @@ export function ContentINKAScreen({
   // stay in the store but drop out of this workspace's own list — except
   // the one explicitly being focused (opened from its linked project/
   // session via focusEntryId below), which still needs to render so the
-  // scroll-into-view/highlight effect has something to find.
-  const workspaceEntries = contentEntries.filter((entry) => !entry.removedFromWorkspace || entry.id === focusEntryId);
+  // scroll-into-view/highlight effect has something to find. focusEntryId
+  // itself is a one-shot command the parent clears right after the effect
+  // applies it (onFocusEntryApplied), in the same update batch — so by the
+  // time this filter runs again it's already back to null. revealedEntryId
+  // is the effect's own record of which entry it resolved, and survives
+  // that reset for as long as this screen stays mounted.
+  const workspaceEntries = contentEntries.filter(
+    (entry) => !entry.removedFromWorkspace || entry.id === focusEntryId || entry.id === revealedEntryId,
+  );
   const visibleEntries = selectContentWorkspaceEntries({
     entries: workspaceEntries,
     clientFilter: filterClientId,
@@ -1193,7 +1207,7 @@ export function ContentINKAScreen({
   return (
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
-      {/* ── Шапка POSTiNKA ── */}
+      {/* ── Шапка ContentINKA ── */}
       <div style={{ padding: '6px 24px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
@@ -1205,7 +1219,7 @@ export function ContentINKAScreen({
           <TodayDateBadge onOpen={onOpenCalendar} />
         </div>
         <InkaLogo height={fs(15)} />
-        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>POSTiNKA</div>
+        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>ContentINKA</div>
         <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 2 }}>Собрать материал</div>
         <StarDivider />
       </div>
