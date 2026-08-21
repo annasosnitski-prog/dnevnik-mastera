@@ -121,6 +121,40 @@ test('a click on a project-content card passes the entry.id as a focus target, a
   assert.match(source, /onOpenContent=\{\(\) => setScreen\('content'\)\}/);
 });
 
+test('opening a removed-from-workspace entry via focusEntryId keeps it visible after the one-shot command is cleared', () => {
+  // Regression test: focusEntryId is a one-shot command that the parent
+  // clears (onFocusEntryApplied → setContentFocusEntryId(null)) in the same
+  // React 18 update batch as the effect's own setState calls below — so a
+  // workspaceEntries filter keyed only on the live focusEntryId prop loses
+  // the just-revealed entry in the very render meant to show it. A deleted-
+  // but-linked entry opened from its project/session card (see previous
+  // test) would therefore never actually appear — POSTiNKA just showed an
+  // empty "new entry" composer instead, which is what this bug looked like
+  // to a master who had deleted that content from her feed first.
+  const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');
+  const focusEffect = screen.slice(
+    screen.indexOf('useEffect(() => {\n    if (!focusEntryId) return;'),
+    screen.indexOf('}, [contentEntries, focusEntryId, onFocusEntryApplied]);'),
+  );
+
+  // The effect must record the resolved target into state that survives
+  // focusEntryId being reset to null, not just the transient highlight.
+  assert.match(focusEffect, /set\w*(?:Reveal|Focus)\w*Id\(target\.id\)/);
+
+  const revealStateSetterMatch = focusEffect.match(/set(\w*(?:Reveal|Focus)\w*Id)\(target\.id\)/);
+  assert.ok(revealStateSetterMatch, 'expected the effect to persist the resolved target id into its own state');
+  const revealStateName = revealStateSetterMatch[1][0].toLowerCase() + revealStateSetterMatch[1].slice(1);
+
+  // workspaceEntries must keep a removedFromWorkspace entry visible via that
+  // durable state, not only via the live (already-cleared) focusEntryId prop.
+  const workspaceEntriesLine = screen.slice(
+    screen.indexOf('const workspaceEntries = contentEntries.filter('),
+    screen.indexOf(');', screen.indexOf('const workspaceEntries = contentEntries.filter(')),
+  );
+  assert.match(workspaceEntriesLine, /entry\.id === focusEntryId/);
+  assert.match(workspaceEntriesLine, new RegExp(`entry\\.id === ${revealStateName}`));
+});
+
 test('client Content tab uses the same compact hand-off surface', () => {
   // DetailScreen и его вкладки (включая ClientContentTab) вынесены в
   // отдельный модуль (PR 11 рефакторинга) — читаем оттуда.
