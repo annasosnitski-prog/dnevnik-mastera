@@ -64,11 +64,17 @@ export function WorkshopScreen({
           Мастерская
         </div>
         <StarDivider />
+      </div>
 
-        {/* Same funnel-toggle + floating chip panel pattern as the client
-            list's «Фильтры» — «Все» plus the same category set used when
-            creating a project. */}
-        <div style={{ position: 'absolute', top: 2, right: 20 }}>
+      {/* Same funnel-toggle + floating chip panel pattern as the client
+          list's «Фильтры» — «Все» plus the same category set used when
+          creating a project. Own row below the divider (not overlaid on the
+          header) since the top-right corner above is already claimed by the
+          global «сегодня» calendar badge (TattoDiary's TodayDateBadge) —
+          stacking a second absolute button on the same spot buried it under
+          the badge. */}
+      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ position: 'relative' }}>
           <div
             onClick={() => setFilterOpen((v) => !v)}
             role="button"
