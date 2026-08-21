@@ -254,7 +254,7 @@ test('refresh UI keeps loading and feedback local to each entry', () => {
   assert.match(refreshCatch, /kind: 'error'/);
   assert.doesNotMatch(refreshCatch, /setError\(/);
   assert.match(source, /refreshFeedbackByEntry\[entry\.id\]/);
-  assert.match(source, /POSTiNKA обновляет черновик…/);
+  assert.match(source, /contentINKA обновляет черновик…/);
   assert.match(source, /Обновить черновик/);
   assert.match(source, /isEntryRefreshing\(entry\.id\)/);
 });

@@ -92,7 +92,7 @@ test('translation errors are safe and never expose provider responses or secrets
     ),
     (error) =>
       error instanceof ContentSyncError &&
-      error.message === 'POSTiNKA ответила ошибкой.' &&
+      error.message === 'contentINKA ответила ошибкой (500).' &&
       !error.message.includes('content-secret') &&
       !error.message.includes('provider'),
   );
@@ -102,8 +102,20 @@ test('translation errors are safe and never expose provider responses or secrets
       { sourceText: 'Текст', targetLanguage: 'he' },
       { readSettings: () => settings, fetch: async () => { throw new Error('network details'); } },
     ),
-    (error) => error instanceof ContentSyncError && error.message === 'Не удалось связаться с POSTiNKA.',
+    (error) => error instanceof ContentSyncError && error.message === 'Не удалось связаться с contentINKA.',
   );
+});
+
+test('translation surfaces a settings-specific message on 401/403 instead of a generic error', async () => {
+  for (const status of [401, 403]) {
+    await assert.rejects(
+      translateContentText(
+        { sourceText: 'Текст', targetLanguage: 'en' },
+        { readSettings: () => settings, fetch: async () => ({ ok: false, status }) },
+      ),
+      (error) => error instanceof ContentSyncError && error.message === 'Проверьте настройки contentINKA.',
+    );
+  }
 });
 
 test('missing existing ContentINKA settings produces the local configuration error', async () => {
@@ -112,7 +124,7 @@ test('missing existing ContentINKA settings produces the local configuration err
       { sourceText: 'Текст', targetLanguage: 'he' },
       { readSettings: () => ({ enabled: false, endpoint: '', secret: '' }) },
     ),
-    (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA не настроена.',
+    (error) => error instanceof ContentSyncError && error.message === 'contentINKA не настроена.',
   );
 });
 

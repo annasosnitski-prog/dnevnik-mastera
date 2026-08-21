@@ -1104,7 +1104,7 @@ function ProjectContentCard({ item, onClick }: { item: ProjectContentItem<Conten
           {selectedPhotoCount > 0 ? ` · Фото: ${selectedPhotoCount}` : ''}
         </div>
       </div>
-      <span style={{ fontSize: fs(10.5), color: COLORS.gold, flexShrink: 0, letterSpacing: '0.4px' }}>Открыть в ContentINKA</span>
+      <span style={{ fontSize: fs(10.5), color: COLORS.gold, flexShrink: 0, letterSpacing: '0.4px' }}>Открыть в contentINKA</span>
     </div>
   );
 }
