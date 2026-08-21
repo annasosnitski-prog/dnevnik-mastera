@@ -202,10 +202,9 @@ export function MasterDashboardScreen({
 
       {/* Settings now lives here rather than as its own top-level nav button
           — the list screen keeps only the Мастер shortcut. Placed in its own
-          row below the divider (not overlaid on the header) since the
-          top-right corner above is already claimed by the global «сегодня»
-          calendar badge (see TattoDiary's TodayDateBadge) — stacking a
-          second absolute button on the same spot buried it under the badge. */}
+          row below the divider, in normal flow (not overlaid on the header).
+          No «сегодня» calendar badge on this screen — «today» isn't a
+          relevant frame for the master's own profile. */}
       <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'flex-end' }}>
         <div
           onClick={onOpenSettings}

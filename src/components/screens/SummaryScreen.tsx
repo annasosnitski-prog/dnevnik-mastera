@@ -9,6 +9,7 @@ import { clientNameFor, getProjectsByClientId, getWorkshopProjects } from '../..
 import { urgencyRank } from '../../domain/taskSelectors';
 import { ISO_DATE_RE, formatDate, todayISO } from '../../utils/dates';
 import { COLORS, DONE_EMOJI, fs } from '../ui/designTokens';
+import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { NoteItem } from './DetailScreen';
 import { NoteComposer } from '../client/ClientControls';
 
@@ -54,6 +55,7 @@ export function SummaryScreen({
   onShowComposerChange,
   filter,
   onFilterChange,
+  onOpenCalendar,
 }: {
   clients: Client[];
   // Active projects (Мастерская/клиентские) whose next action is due today
@@ -86,6 +88,7 @@ export function SummaryScreen({
   // narrowed to urgent notes) instead of always opening on «Все».
   filter: UrgencyKey | 'all';
   onFilterChange: (filter: UrgencyKey | 'all') => void;
+  onOpenCalendar: () => void;
 }) {
   const [showClosed, setShowClosed] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -158,7 +161,8 @@ export function SummaryScreen({
           — and the dropdown inside it — sits above the two-column section
           below, which is a later sibling and would otherwise win z-index
           ties by DOM order. */}
-      <div style={{ padding: '4px 20px 14px', position: 'relative', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+      <div style={{ padding: '4px 20px 14px', position: 'relative', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+        <TodayDateBadge onOpen={onOpenCalendar} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Funnel toggle — chips stay hidden until tapped. */}
           <div

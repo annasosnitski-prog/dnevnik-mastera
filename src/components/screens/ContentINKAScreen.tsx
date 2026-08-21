@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { InkaLogo } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { GoldFrame } from '../ui/Stripes';
+import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { SessionPhotos } from '../client/ClientControls';
 import { ArchetypeToolbar } from '../content/ArchetypeToolbar';
 import { ActionButton, ContentEntryActions } from '../content/ContentEntryActions';
@@ -330,6 +331,7 @@ export function ContentINKAScreen({
   onCreateProjectForLink,
   onCreateSessionForLink,
   onBack,
+  onOpenCalendar,
 }: {
   clients: Client[];
   projects: Project[];
@@ -354,6 +356,7 @@ export function ContentINKAScreen({
   onCreateProjectForLink: (entryId: string, preferredClientId: string | null) => void;
   onCreateSessionForLink: (entryId: string, preferredClientId: string | null) => void;
   onBack: () => void;
+  onOpenCalendar: () => void;
 }) {
   const [composerClientId, setComposerClientId] = useState<string | null>(null); // null = мастерская
   const [composerItemKey, setComposerItemKey] = useState<string>(''); // '' | 's:<id>' | 'c:<id>'
@@ -1192,11 +1195,14 @@ export function ContentINKAScreen({
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       {/* ── Шапка POSTiNKA ── */}
       <div style={{ padding: '6px 24px 12px' }}>
-        <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginBottom: 8 }}>
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+          </div>
+          <TodayDateBadge onOpen={onOpenCalendar} />
         </div>
         <InkaLogo height={fs(15)} />
         <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>POSTiNKA</div>

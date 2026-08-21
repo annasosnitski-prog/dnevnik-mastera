@@ -38,6 +38,7 @@ import {
 } from '../../lib/storageHealth';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
+import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, type Theme, type Prefs, DEFAULT_PREFS } from '../TattoDiary';
 
 // Вынесено из TattoDiary.tsx (PR 9 рефакторинга). Логика и разметка не
@@ -108,6 +109,7 @@ export function SettingsScreen({
   onClearErrorLog,
   onImport,
   onImportArchive,
+  onOpenCalendar,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -156,6 +158,7 @@ export function SettingsScreen({
   ) => Promise<ImportBackupArchiveResult>;
   // Собирает старые сессии/консультации (без projectId) в проекты-корзины
   // по клиенту. Возвращает сводку для показа результата.
+  onOpenCalendar: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -434,11 +437,14 @@ export function SettingsScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginBottom: 10 }}>
-          <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-            <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
-          </svg>
-          <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+            <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+              <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
+            </svg>
+            <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+          </div>
+          <TodayDateBadge onOpen={onOpenCalendar} />
         </div>
         <div
           style={{
