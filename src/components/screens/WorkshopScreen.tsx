@@ -6,6 +6,7 @@ import { buildProjectFolders } from '../../domain/projectSelectors';
 import { ProjectFolderCard } from '../project/ProjectFolderCard';
 import { ProjectFolderView } from '../project/ProjectFolderView';
 import { StarDivider } from '../icons/StarIcons';
+import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../TattoDiary';
 
@@ -18,11 +19,13 @@ export function WorkshopScreen({
   projectsLoaded,
   clients,
   onOpenProject,
+  onOpenCalendar,
 }: {
   projects: Project[];
   projectsLoaded: boolean;
   clients: Client[];
   onOpenProject: (project: Project) => void;
+  onOpenCalendar: () => void;
 }) {
   const [categoryFilter, setCategoryFilter] = useState<'all' | ProjectCategory>('all');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -64,11 +67,17 @@ export function WorkshopScreen({
           Мастерская
         </div>
         <StarDivider />
+      </div>
 
-        {/* Same funnel-toggle + floating chip panel pattern as the client
-            list's «Фильтры» — «Все» plus the same category set used when
-            creating a project. */}
-        <div style={{ position: 'absolute', top: 2, right: 20 }}>
+      {/* Same funnel-toggle + floating chip panel pattern as the client
+          list's «Фильтры» — «Все» plus the same category set used when
+          creating a project. Own row below the divider, in normal flow next
+          to the «сегодня» calendar badge, rather than each absolutely
+          overlaid on the header — two absolute buttons in the same corner
+          used to bury one under the other. */}
+      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+        <TodayDateBadge onOpen={onOpenCalendar} />
+        <div style={{ position: 'relative' }}>
           <div
             onClick={() => setFilterOpen((v) => !v)}
             role="button"

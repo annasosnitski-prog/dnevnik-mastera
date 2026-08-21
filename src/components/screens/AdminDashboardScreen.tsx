@@ -26,6 +26,7 @@ import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { GoldFrame } from '../ui/Stripes';
+import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs } from '../ui/designTokens';
 import { type Prefs } from '../ui/preferences';
 import { buildAdminWorkSummary } from './adminWorkSummary';
@@ -67,6 +68,7 @@ export function AdminDashboardScreen({
   onHideAllHealing,
   calendarSync,
   onOpenNotes,
+  onOpenCalendar,
 }: {
   clients: Client[];
   masterNotes: ClientNote[];
@@ -101,6 +103,7 @@ export function AdminDashboardScreen({
   // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
   onOpenNotes: (urgency: UrgencyKey) => void;
+  onOpenCalendar: () => void;
 }) {
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
@@ -133,6 +136,12 @@ export function AdminDashboardScreen({
           Управление и статистика
         </div>
         <StarDivider />
+      </div>
+
+      {/* «Сегодня» calendar badge — own row below the divider, in normal
+          flow (not overlaid on the header). */}
+      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+        <TodayDateBadge onOpen={onOpenCalendar} />
       </div>
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>

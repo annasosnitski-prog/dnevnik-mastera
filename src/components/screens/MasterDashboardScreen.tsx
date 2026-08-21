@@ -183,29 +183,6 @@ export function MasterDashboardScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        {/* Settings now lives here rather than as its own top-level nav
-            button — the list screen keeps only the Мастер shortcut. */}
-        <div
-          onClick={onOpenSettings}
-          role="button"
-          aria-label="Настройки"
-          style={{
-            position: 'absolute',
-            top: 2,
-            right: 20,
-            width: 42,
-            height: 42,
-            borderRadius: '50%',
-            border: '1px solid rgba(var(--gold-rgb),0.25)',
-            background: 'rgba(var(--gold-rgb),0.03)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <ToolbarIcon name="settingsGear" size={21} style={{ color: 'var(--gold)' }} />
-        </div>
         <div
           style={{
             fontFamily: DROP_CAP_FONT,
@@ -221,6 +198,32 @@ export function MasterDashboardScreen({
           Профиль мастера
         </div>
         <StarDivider />
+      </div>
+
+      {/* Settings now lives here rather than as its own top-level nav button
+          — the list screen keeps only the Мастер shortcut. Placed in its own
+          row below the divider, in normal flow (not overlaid on the header).
+          No «сегодня» calendar badge on this screen — «today» isn't a
+          relevant frame for the master's own profile. */}
+      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+        <div
+          onClick={onOpenSettings}
+          role="button"
+          aria-label="Настройки"
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: '50%',
+            border: '1px solid rgba(var(--gold-rgb),0.25)',
+            background: 'rgba(var(--gold-rgb),0.03)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <ToolbarIcon name="settingsGear" size={21} style={{ color: 'var(--gold)' }} />
+        </div>
       </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента (см. её

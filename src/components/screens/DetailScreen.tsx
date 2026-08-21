@@ -53,6 +53,7 @@ import { SessionPhotos, SkinTonePalette, UrgencyChips, AddChatLinkForm, NoteComp
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { GoldFrame } from '../ui/Stripes';
 import { MetaLabel, MetaValue, SectionDivider, SectionHeader } from '../ui/TextAtoms';
+import { TodayDateBadge } from '../ui/TodayDateBadge';
 
 // Вынесено из TattoDiary.tsx (PR 11 рефакторинга) — весь кластер «карточка
 // клиента»: экран DetailScreen + его вкладки (Инфо/Сессии/Консультации/
@@ -216,6 +217,7 @@ export function DetailScreen({
   projects,
   onOpenProject,
   onCreateProject,
+  onOpenCalendar,
 }: {
   client: Client;
   activeTab: ClientCardTab;
@@ -258,6 +260,7 @@ export function DetailScreen({
   projects: Project[];
   onOpenProject: (project: Project) => void;
   onCreateProject: () => void;
+  onOpenCalendar: () => void;
 }) {
   // The tab-content scroller is a single reused DOM node across every client
   // and every tab, so its scrollTop otherwise carries over — opening a new
@@ -457,6 +460,7 @@ export function DetailScreen({
                 <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
             </div>
+            <TodayDateBadge onOpen={onOpenCalendar} />
           </div>
         </div>
 

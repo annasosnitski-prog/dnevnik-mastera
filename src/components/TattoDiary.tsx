@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
+import { TodayDateBadge } from './ui/TodayDateBadge';
 import {
   readSyncSettings,
   writeSyncSettings,
@@ -176,7 +177,7 @@ import {
 export { ACCENT_COLORS, MARKER_COLORS } from '../domain/client';
 // Чистые выборки/сортировки/агрегаты вынесены в domain/*Selectors и
 // utils/dates (PR 3 рефакторинга). Алгоритмы и результаты не менялись.
-import { ISO_DATE_RE, formatDate, dateParts, todayISO } from '../utils/dates';
+import { ISO_DATE_RE, formatDate, todayISO } from '../utils/dates';
 import {
   getProjectById,
   getProjectsByClientId,
@@ -292,47 +293,6 @@ export const SKIN_TYPES: { value: string; label: string }[] = [
   { value: 'thick', label: 'Толстая' },
   { value: 'thin', label: 'Тонкая' },
 ];
-
-// ===================== DERIVED HELPERS =====================
-
-// Tear-off calendar square — weekday/day/month of TODAY, doubling as the
-// «Открыть календарь» launcher. Always shows today's date (was the soonest
-// upcoming session/consultation's date before — confusing next to a «today»
-// -looking icon, and it vanished entirely once there was nothing upcoming).
-// Positioned by the caller (each screen places it inside its own header), so
-// it scrolls away with the rest of that header instead of staying pinned on
-// screen — unlike the Сортировка/Фильтры/Поиск circles, which stay fixed
-// regardless of scroll.
-function TodayDateBadge({ onOpen }: { onOpen: () => void }) {
-  const parts = dateParts(todayISO());
-  if (!parts) return null;
-  return (
-    <div
-      onClick={onOpen}
-      role="button"
-      aria-label="Открыть календарь"
-      style={{
-        width: 42,
-        height: 42,
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        lineHeight: 1,
-        cursor: 'pointer',
-        borderRadius: 4,
-        border: '1px solid rgba(var(--gold-rgb),0.3)',
-        background: 'rgba(var(--gold-rgb),0.04)',
-      }}
-    >
-      <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.gold, marginBottom: 2 }}>{parts.weekday}</div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.textPrimary }}>{parts.day}</div>
-      <div style={{ fontSize: 7, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.textGhost, marginTop: 2 }}>{parts.month}</div>
-    </div>
-  );
-}
-
 
 // ===================== DATABASE =====================
 // Version bumped 1 → 2 to add two new stores at once — «projects»
@@ -2422,12 +2382,12 @@ export default function TattoDiary() {
             Дневник Мастера
           </div>
           <StarDivider />
-          {/* Below the divider, right-aligned under the pinned calendar tag
-              (which floats above, at the logo's height) — this row scrolls
-              away with the header; the calendar tag stays fixed on screen
-              (see the sibling-of-screens render below). */}
+          {/* Below the divider, right-aligned — this whole row (calendar tag
+              included) scrolls away with the header, same as the client
+              grid underneath. */}
           <div style={{ marginTop: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+              <TodayDateBadge onOpen={() => setShowCalendar(true)} />
               {/* ── Поиск ── */}
               <div style={{ position: 'relative' }}>
                 <div
@@ -2832,21 +2792,6 @@ export default function TattoDiary() {
         />
       )}
 
-      {/* Today's-date tag — pinned next to the logo (sibling of the screens,
-          so it never scrolls away with the client grid underneath). Shown on
-          every screen, no exceptions — the open project viewer (viewProject)
-          doesn't count as a sheet (see sheetOpen above), so the badge stays
-          visible over it too. Create-client moved to the nav FAB's
-          contextual create action — see NavFab / onCreate below.
-          Сортировка/Фильтры/Поиск, by contrast, live inside the List header
-          itself and scroll away with it — see the header render below. */}
-      {!sheetOpen && (
-        <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 31px)', right: 20, zIndex: 20 }}>
-          <TodayDateBadge onOpen={() => setShowCalendar(true)} />
-        </div>
-      )}
-
-
       {/* Shared backdrop — closes whichever of Поиск/Фильтры/Сортировка is
           open on an outside tap. */}
       {(sortOpen || filtersOpen || searchOpen) && (
@@ -2920,6 +2865,7 @@ export default function TattoDiary() {
               onShowComposerChange={setShowSummaryComposer}
               filter={summaryFilter}
               onFilterChange={setSummaryFilter}
+              onOpenCalendar={() => setShowCalendar(true)}
             />
           </Suspense>
         )}
@@ -2995,6 +2941,7 @@ export default function TattoDiary() {
               onCreateProjectForLink={openCreateProjectForContentLink}
               onCreateSessionForLink={openCreateSessionForContentLink}
               onBack={goBack}
+              onOpenCalendar={() => setShowCalendar(true)}
             />
           </Suspense>
         )}
@@ -3045,6 +2992,7 @@ export default function TattoDiary() {
                 setSummaryFilter(urgency);
                 setScreen('summary');
               }}
+              onOpenCalendar={() => setShowCalendar(true)}
             />
           </Suspense>
         )}
@@ -3069,6 +3017,7 @@ export default function TattoDiary() {
               projectsLoaded={projectsLoaded}
               clients={clients}
               onOpenProject={(project) => setViewProject(project)}
+              onOpenCalendar={() => setShowCalendar(true)}
             />
           </Suspense>
         )}
@@ -3108,6 +3057,7 @@ export default function TattoDiary() {
               onClearErrorLog={clearErrorLog}
               onImport={replaceAllData}
               onImportArchive={restoreFullBackup}
+              onOpenCalendar={() => setShowCalendar(true)}
             />
           </Suspense>
         )}
@@ -3180,6 +3130,7 @@ export default function TattoDiary() {
               contentEntries={contentEntries}
               onOpenContent={openContentWorkspace}
               onImportClients={importClients}
+              onOpenCalendar={() => setShowCalendar(true)}
             />
           </Suspense>
         )}
