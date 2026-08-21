@@ -60,9 +60,9 @@ test('source previews expose only the compact ContentINKA hand-off block', () =>
   const panel = source.slice(source.indexOf('function ContentPanel({'), source.indexOf('function TimelineViewSheet({'));
 
   assert.match(panel, /findLinkedContentEntries\(entries, \{ sourceType, sourceId \}\)/);
-  assert.match(panel, /Передать в ContentINKA/);
-  assert.match(panel, /Открыть в ContentINKA/);
-  assert.match(panel, /В ContentINKA/);
+  assert.match(panel, /Передать в contentINKA/);
+  assert.match(panel, /Открыть в contentINKA/);
+  assert.match(panel, /В contentINKA/);
   assert.match(panel, /linkedEntries\.length > 1/);
   assert.doesNotMatch(panel, /sendToContent|textDraft|ARCHETYPE_CHIPS|shareContentEntry|onDeleteEntry|onSaveEntry|Обновить черновик|Копировать/);
 });
@@ -128,7 +128,7 @@ test('opening a removed-from-workspace entry via focusEntryId keeps it visible a
   // workspaceEntries filter keyed only on the live focusEntryId prop loses
   // the just-revealed entry in the very render meant to show it. A deleted-
   // but-linked entry opened from its project/session card (see previous
-  // test) would therefore never actually appear — POSTiNKA just showed an
+  // test) would therefore never actually appear — contentINKA just showed an
   // empty "new entry" composer instead, which is what this bug looked like
   // to a master who had deleted that content from her feed first.
   const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');

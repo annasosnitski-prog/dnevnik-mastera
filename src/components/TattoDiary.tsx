@@ -4210,12 +4210,12 @@ export function ContentPanel({
       <div className="content-source-panel__heading">Контент</div>
       {hasLinkedEntries && (
         <div className="content-source-panel__status">
-          <span>В ContentINKA</span>
+          <span>В contentINKA</span>
           {linkedEntries.length > 1 && <span>{linkedEntries.length} черновика</span>}
         </div>
       )}
       <button type="button" className="content-source-panel__action" onClick={navigate}>
-        {hasLinkedEntries ? 'Открыть в ContentINKA' : 'Передать в ContentINKA'}
+        {hasLinkedEntries ? 'Открыть в contentINKA' : 'Передать в contentINKA'}
       </button>
     </div>
   );

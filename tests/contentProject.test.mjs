@@ -257,7 +257,7 @@ test('the order of matching entries follows the input order, no new sort', () =>
   assert.deepEqual(result.map((item) => item.entry.id), ['e1', 'e4']);
 });
 
-test('«Открыть в ContentINKA» does not create a draft or trigger generation', () => {
+test('«Открыть в contentINKA» does not create a draft or trigger generation', () => {
   const source = readFileSync(new URL('../src/components/sheets/SessionAndProjectSheets.tsx', import.meta.url), 'utf8');
   const sheet = source.slice(source.indexOf('function ProjectViewSheet({'), source.indexOf('function NewProjectSheet({'));
 

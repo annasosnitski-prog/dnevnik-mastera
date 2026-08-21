@@ -615,7 +615,7 @@ export function MasterDashboardScreen({
         {/* ContentINKA — тот же принцип, что «Инка-календарь» выше, свой
             секрет и свой адрес сервиса (не тот же деплой, что у бота). */}
         <GoldFrame plain style={{ padding: '14px 16px', marginTop: 12 }}>
-          <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 8 }}>ContentINKA · Отбор и текст</div>
+          <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 8 }}>contentINKA · Отбор и текст</div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             {([
               { v: true, label: 'Включена' },
@@ -647,7 +647,7 @@ export function MasterDashboardScreen({
               type={showContentSecret ? 'text' : 'password'}
               value={contentSync.secret}
               onChange={(e) => onChangeContentSync({ ...contentSync, secret: e.target.value })}
-              placeholder="Секретный код ContentINKA"
+              placeholder="Секретный код contentINKA"
               autoComplete="off"
               style={{
                 width: '100%',
@@ -716,7 +716,7 @@ export function MasterDashboardScreen({
           <div
             onClick={onOpenContent}
             role="button"
-            aria-label="Открыть ContentINKA"
+            aria-label="Открыть contentINKA"
             style={{
               marginTop: 12,
               fontSize: fs(12),
@@ -726,7 +726,7 @@ export function MasterDashboardScreen({
               textDecoration: 'underline',
             }}
           >
-            Открыть ContentINKA · контент мастерской
+            Открыть contentINKA · контент мастерской
           </div>
         </GoldFrame>
 

@@ -1,5 +1,5 @@
 // ============================================================
-// ДНЕВНИК МАСТЕРА — синхронизация с POSTiNKA
+// ДНЕВНИК МАСТЕРА — синхронизация с contentINKA
 // ============================================================
 
 export interface ContentSyncSettings {
@@ -98,7 +98,7 @@ export async function translateContentText(
 
   const settings = (environment.readSettings ?? readContentSyncSettings)();
   if (!settings.endpoint || !settings.secret) {
-    throw new ContentSyncError('POSTiNKA не настроена.');
+    throw new ContentSyncError('contentINKA не настроена.');
   }
 
   let response: Response;
@@ -115,10 +115,13 @@ export async function translateContentText(
       }),
     });
   } catch {
-    throw new ContentSyncError('Не удалось связаться с POSTiNKA.');
+    throw new ContentSyncError('Не удалось связаться с contentINKA.');
   }
 
-  if (!response.ok) throw new ContentSyncError('POSTiNKA ответила ошибкой.');
+  if (response.status === 401 || response.status === 403) {
+    throw new ContentSyncError('Проверьте настройки contentINKA.');
+  }
+  if (!response.ok) throw new ContentSyncError(`contentINKA ответила ошибкой (${response.status}).`);
 
   const data = await response.json().catch(() => null);
   if (
@@ -175,7 +178,7 @@ function defaultWait(ms: number): Promise<void> {
 function settingsFor(environment: ContentIngestEnvironment): ContentSyncSettings {
   const settings = (environment.readSettings ?? readContentSyncSettings)();
   if (!settings.endpoint || !settings.secret) {
-    throw new ContentSyncError('POSTiNKA не настроена — впишите endpoint и секрет в настройках.');
+    throw new ContentSyncError('contentINKA не настроена — впишите endpoint и секрет в настройках.');
   }
   return settings;
 }
@@ -235,16 +238,16 @@ export async function createContentIngestJob(
       }),
     });
   } catch {
-    throw new ContentSyncError('Не удалось связаться с POSTiNKA — проверьте сеть.', true);
+    throw new ContentSyncError('Не удалось связаться с contentINKA — проверьте сеть.', true);
   }
 
   if (response.status !== 202) {
-    throw new ContentSyncError(`POSTiNKA ответила ошибкой (${response.status}).`);
+    throw new ContentSyncError(`contentINKA ответила ошибкой (${response.status}).`);
   }
 
   const data = await response.json().catch(() => null);
   if (!data || typeof data.job_id !== 'string' || !data.job_id || data.status !== 'queued') {
-    throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
+    throw new ContentSyncError('contentINKA вернула неожиданный ответ.');
   }
 
   return { jobId: data.job_id, status: 'queued' };
@@ -254,7 +257,7 @@ export async function getContentIngestJob(
   jobId: string,
   environment: ContentIngestEnvironment = {},
 ): Promise<ContentIngestJobStatus> {
-  if (!jobId.trim()) throw new ContentSyncError('Не указан идентификатор задачи POSTiNKA.');
+  if (!jobId.trim()) throw new ContentSyncError('Не указан идентификатор задачи contentINKA.');
   const settings = settingsFor(environment);
   const fetchImpl = environment.fetch ?? fetch;
   const baseUrl = settings.endpoint.replace(/\/$/, '');
@@ -266,34 +269,34 @@ export async function getContentIngestJob(
       headers: { Authorization: `Bearer ${settings.secret}` },
     });
   } catch {
-    throw new ContentSyncError('Не удалось связаться с POSTiNKA — проверьте сеть.', true);
+    throw new ContentSyncError('Не удалось связаться с contentINKA — проверьте сеть.', true);
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new ContentSyncError('Проверьте настройки POSTiNKA.');
+    throw new ContentSyncError('Проверьте настройки contentINKA.');
   }
   if (response.status === 404) {
     throw new ContentSyncError('Задача генерации больше не найдена (404).');
   }
   if (!response.ok) {
-    throw new ContentSyncError(`POSTiNKA не смогла проверить задачу (${response.status}).`);
+    throw new ContentSyncError(`contentINKA не смогла проверить задачу (${response.status}).`);
   }
 
   const data = await response.json().catch(() => null);
   if (!data || data.job_id !== jobId || typeof data.status !== 'string') {
-    throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
+    throw new ContentSyncError('contentINKA вернула неожиданный ответ.');
   }
 
   if (data.status === 'queued' || data.status === 'running') return { status: 'running' };
   if (data.status === 'completed') {
-    if (!isIngestResult(data.result)) throw new ContentSyncError('POSTiNKA вернула повреждённый результат.');
+    if (!isIngestResult(data.result)) throw new ContentSyncError('contentINKA вернула повреждённый результат.');
     return { status: 'completed', result: data.result };
   }
   if (data.status === 'failed') {
-    return { status: 'failed', error: 'POSTiNKA не смогла собрать материал.' };
+    return { status: 'failed', error: 'contentINKA не смогла собрать материал.' };
   }
 
-  throw new ContentSyncError('POSTiNKA вернула неожиданный ответ.');
+  throw new ContentSyncError('contentINKA вернула неожиданный ответ.');
 }
 
 async function pollIngestJob(
@@ -309,7 +312,7 @@ async function pollIngestJob(
 
   for (;;) {
     if (now() - startedAt > maxWaitMs) {
-      throw new ContentSyncError('POSTiNKA слишком долго не отвечает — попробуйте ещё раз позже.');
+      throw new ContentSyncError('contentINKA слишком долго не отвечает — попробуйте ещё раз позже.');
     }
 
     await wait(pollIntervalMs);
