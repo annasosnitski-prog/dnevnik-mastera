@@ -1058,8 +1058,12 @@ export function ProjectViewSheet({
 // Компактная карточка одного материала ContentINKA внутри «Контент» на
 // экране проекта — только для просмотра, без редактирования, перевода,
 // архетипов и управления фотоподборкой (см. onClick — открывает уже
-// существующий ContentINKA, а не что-то новое).
-function ProjectContentCard({ item, onClick }: { item: ProjectContentItem<ContentEntry>; onClick: () => void }) {
+// существующий ContentINKA, а не что-то новое). Экспортирована — тот же
+// компонент переиспользует вкладка «Контент» карточки клиента
+// (ClientContentTab в DetailScreen.tsx), чтобы контент, привязанный к
+// проекту клиента напрямую (а не через сессию/консультацию), тоже было
+// видно, не только внутри самого проекта.
+export function ProjectContentCard({ item, onClick }: { item: ProjectContentItem<ContentEntry>; onClick: () => void }) {
   const { entry, link } = item;
   const firstLine = (entry.textDraft || entry.text || '').split('\n')[0].trim();
   const datePart = entry.createdDate.slice(0, 10);
