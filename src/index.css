@@ -285,35 +285,6 @@
   filter: saturate(0.72) brightness(0.82);
 }
 
-/* A small pale spotlight sitting behind each icon, a third of the button's
-   own diameter — brighter than the icon itself so the glyph reads as
-   silhouetted against its own little glow rather than floating on flat
-   background. Percentage sizing scales it correctly for both the bigger
-   main button and the smaller fan items without a separate rule for each. */
-.nav-fab__main::before,
-.nav-fab__item::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 33.34%;
-  height: 33.34%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 230, 170, 0.54), rgba(255, 230, 170, 0));
-  /* A real blur on top of the gradient's own falloff, rather than relying on
-     the gradient alone — it reads as a soft diffuse glow instead of a disc
-     with a feathered edge. */
-  filter: blur(6px);
-  pointer-events: none;
-}
-
-:root[data-theme='light'] .nav-fab__main::before,
-:root[data-theme='light'] .nav-fab__item::before {
-  background: radial-gradient(circle, rgba(101, 124, 114, 0.22), rgba(114, 76, 57, 0));
-  filter: blur(5px);
-}
-
 .natural-stone-icon,
 .natural-stone-cabochon {
   transform-origin: 32px 32px;
@@ -326,29 +297,25 @@
 :root[data-theme='light'] .nav-fab__item .theme-light-jewel {
   opacity: 1;
   filter: saturate(1.16) brightness(1.08) contrast(1.05);
+  transition: filter 0.25s ease;
+}
+
+/* Reversed reading: you're already on the current screen, so its stone sits
+   calm/unlit — every OTHER, reachable destination stays lit, inviting the
+   tap. No glow/halo on top — just the plain lit/unlit brightness swap. Only
+   the gem itself changes brightness — the bronze mount/ring around it
+   stays lit the same for every item, so it reads as "unlit stone in a
+   normal setting", not "the whole medallion went dark". («Создать» has no
+   cabochon at all — plate icons are unaffected.) */
+:root[data-theme='light'] .nav-fab__item .natural-stone-cabochon {
+  opacity: 1;
+  filter: none;
   transition: opacity 0.25s ease, filter 0.25s ease;
 }
 
-:root[data-theme='light'] .nav-fab__item--current .theme-light-jewel {
-  filter:
-    saturate(1.16)
-    brightness(1.08)
-    contrast(1.05)
-    drop-shadow(0 0 6px color-mix(in srgb, var(--natural-jewel-color) 68%, transparent))
-    drop-shadow(0 0 15px color-mix(in srgb, var(--natural-jewel-color) 38%, transparent))
-    drop-shadow(0 0 26px color-mix(in srgb, var(--natural-jewel-color) 20%, transparent));
-}
-
-:root[data-theme='light'] .nav-fab__item--current::before {
-  width: 142%;
-  height: 142%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--natural-jewel-color) 36%, transparent) 0%,
-    color-mix(in srgb, var(--natural-jewel-color) 16%, transparent) 44%,
-    transparent 74%
-  );
-  filter: blur(9px);
+:root[data-theme='light'] .nav-fab__item--current .natural-stone-cabochon {
+  opacity: 0.5;
+  filter: saturate(0.55) brightness(0.8) contrast(0.96);
 }
 
 .nav-fab__main {
@@ -930,6 +897,64 @@ input[type='date'] {
 .archetype-toolbar__button:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* Light theme optimization: improve toolbar button visibility and contrast */
+:root[data-theme='light'] .archetype-toolbar__button {
+  border-color: rgba(var(--gold-rgb), 0.55);
+  background: rgba(var(--gold-rgb), 0.08);
+  color: var(--text-soft);
+  opacity: 0.7;
+}
+
+:root[data-theme='light'] .archetype-toolbar__button:hover:not(:disabled) {
+  border-color: rgba(var(--gold-rgb), 0.85);
+  background: rgba(var(--gold-rgb), 0.18);
+  color: var(--text);
+  opacity: 0.95;
+}
+
+:root[data-theme='light'] .archetype-toolbar__button.is-selected {
+  border-color: rgba(var(--gold-rgb), 1);
+  background: rgba(var(--gold-rgb), 0.28);
+  color: var(--text-strong);
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(var(--gold-rgb), 0.35);
+  position: relative;
+}
+
+/* Subtle shine animation on selected button — performant via transform */
+@keyframes archetype-button-shine {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+:root[data-theme='light'] .archetype-toolbar__button.is-selected::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  pointer-events: none;
+  animation: archetype-button-shine 2.5s ease-in-out infinite;
+  will-change: transform;
 }
 
 .content-refresh-row {
