@@ -46,7 +46,7 @@ const NAV_ITEMS = [
   },
   {
     id: "content",
-    label: "POSTiNKA",
+    label: "ContentINKA",
     screen: "content",
     isActive: (active: AppScreen) => active === "content",
     color: TERRITORY_COLORS.content,

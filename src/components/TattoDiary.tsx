@@ -3129,6 +3129,10 @@ export default function TattoDiary() {
               onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
               contentEntries={contentEntries}
               onOpenContent={openContentWorkspace}
+              onOpenContentEntry={(entry) => {
+                setContentFocusEntryId(entry.id);
+                setScreen('content');
+              }}
               onImportClients={importClients}
               onOpenCalendar={() => setShowCalendar(true)}
             />

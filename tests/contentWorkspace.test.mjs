@@ -128,7 +128,7 @@ test('opening a removed-from-workspace entry via focusEntryId keeps it visible a
   // workspaceEntries filter keyed only on the live focusEntryId prop loses
   // the just-revealed entry in the very render meant to show it. A deleted-
   // but-linked entry opened from its project/session card (see previous
-  // test) would therefore never actually appear — POSTiNKA just showed an
+  // test) would therefore never actually appear — ContentINKA just showed an
   // empty "new entry" composer instead, which is what this bug looked like
   // to a master who had deleted that content from her feed first.
   const screen = readFileSync(new URL('../src/components/screens/ContentINKAScreen.tsx', import.meta.url), 'utf8');

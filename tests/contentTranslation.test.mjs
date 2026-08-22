@@ -92,7 +92,7 @@ test('translation errors are safe and never expose provider responses or secrets
     ),
     (error) =>
       error instanceof ContentSyncError &&
-      error.message === 'POSTiNKA ответила ошибкой.' &&
+      error.message === 'ContentINKA ответила ошибкой.' &&
       !error.message.includes('content-secret') &&
       !error.message.includes('provider'),
   );
@@ -102,7 +102,7 @@ test('translation errors are safe and never expose provider responses or secrets
       { sourceText: 'Текст', targetLanguage: 'he' },
       { readSettings: () => settings, fetch: async () => { throw new Error('network details'); } },
     ),
-    (error) => error instanceof ContentSyncError && error.message === 'Не удалось связаться с POSTiNKA.',
+    (error) => error instanceof ContentSyncError && error.message === 'Не удалось связаться с ContentINKA.',
   );
 });
 
@@ -112,7 +112,7 @@ test('missing existing ContentINKA settings produces the local configuration err
       { sourceText: 'Текст', targetLanguage: 'he' },
       { readSettings: () => ({ enabled: false, endpoint: '', secret: '' }) },
     ),
-    (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA не настроена.',
+    (error) => error instanceof ContentSyncError && error.message === 'ContentINKA не настроена.',
   );
 });
 

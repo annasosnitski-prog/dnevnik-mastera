@@ -38,6 +38,7 @@ import { buildChatLink } from '../../lib/chatLink';
 import { normalizeClient } from '../../lib/normalize';
 import { downsizeForStorage } from '../../lib/imagePreview';
 import { type ContentWorkspaceNavigation } from '../../lib/contentWorkspace';
+import { getContentEntriesForProject } from '../../lib/contentProject';
 import { ISO_DATE_RE, formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs, DONE_EMOJI } from '../ui/designTokens';
 import { type ContentEntry } from '../../domain/content';
@@ -49,6 +50,7 @@ import {
   useSwipeToReveal,
   shareOrDownloadJSON,
 } from '../TattoDiary';
+import { ProjectContentCard } from '../sheets/SessionAndProjectSheets';
 import { SessionPhotos, SkinTonePalette, UrgencyChips, AddChatLinkForm, NoteComposer } from '../client/ClientControls';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { GoldFrame } from '../ui/Stripes';
@@ -213,6 +215,7 @@ export function DetailScreen({
   onDeleteNote,
   contentEntries,
   onOpenContent,
+  onOpenContentEntry,
   onImportClients,
   projects,
   onOpenProject,
@@ -253,6 +256,10 @@ export function DetailScreen({
   onDeleteNote: (noteId: string) => void;
   contentEntries: ContentEntry[];
   onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
+  // Открыть уже существующий ContentINKA на конкретной записи — тот же
+  // callback, что и у ProjectViewSheet (см. TattoDiary.tsx), для контента,
+  // привязанного к одному из проектов клиента (см. ClientContentTab ниже).
+  onOpenContentEntry: (entry: ContentEntry) => void;
   // Merge-import (add/update, never clears) — the counterpart to this same
   // screen's client export, so a single exported client's file can be
   // brought back in without wiping the rest of the roster.
@@ -688,7 +695,13 @@ export function DetailScreen({
           />
         )}
         {activeTab === 'content' && (
-          <ClientContentTab client={client} entries={contentEntries} onOpenContent={onOpenContent} />
+          <ClientContentTab
+            client={client}
+            entries={contentEntries}
+            projects={projects}
+            onOpenContent={onOpenContent}
+            onOpenContentEntry={onOpenContentEntry}
+          />
         )}
         {activeTab === 'projects' && orphanView === null && (
           <ProjectsTab
@@ -709,11 +722,15 @@ export function DetailScreen({
 function ClientContentTab({
   client,
   entries,
+  projects,
   onOpenContent,
+  onOpenContentEntry,
 }: {
   client: Client;
   entries: ContentEntry[];
+  projects: Project[];
   onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
+  onOpenContentEntry: (entry: ContentEntry) => void;
 }) {
   const sources = [
     ...client.sessions.map((session) => ({
@@ -730,12 +747,34 @@ function ClientContentTab({
     })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
-  if (sources.length === 0) {
+  // Контент, привязанный прямо к одному из проектов клиента (ручная
+  // привязка к проекту, а не к конкретной сессии/консультации) — иначе он
+  // нигде не был виден на карточке клиента, только внутри самого проекта
+  // (ProjectViewSheet). getContentEntriesForProject уже реализует все
+  // случаи связи (см. src/lib/contentProject.ts) — не повторяем их здесь.
+  // [client] как список клиентов достаточен: сессии этого же проекта
+  // всегда лежат в client.sessions (clientId проекта — этот же клиент).
+  const clientProjects = getProjectsByClientId(projects, client.id);
+  const projectContentSections = clientProjects
+    .map((project) => ({ project, items: getContentEntriesForProject(entries, project.id, projects, [client]) }))
+    .filter((section) => section.items.length > 0);
+
+  if (sources.length === 0 && projectContentSections.length === 0) {
     return <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Сначала добавьте сессию или консультацию.</div>;
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {projectContentSections.map(({ project, items }) => (
+        <GoldFrame key={`project:${project.id}`} plain style={{ padding: '14px 16px' }}>
+          <div style={{ fontSize: fs(13), color: COLORS.textPrimary, marginBottom: 12 }}>{project.title || 'Без названия'}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {items.map((item) => (
+              <ProjectContentCard key={item.entry.id} item={item} onClick={() => onOpenContentEntry(item.entry)} />
+            ))}
+          </div>
+        </GoldFrame>
+      ))}
       {sources.map((source) => (
         <GoldFrame key={`${source.sourceType}:${source.sourceId}`} plain style={{ padding: '14px 16px' }}>
           <div style={{ fontSize: fs(13), color: COLORS.textPrimary, marginBottom: 4 }}>{source.label}</div>

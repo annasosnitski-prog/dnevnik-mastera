@@ -91,7 +91,7 @@ test('durable flow splits create and one-shot status GET while retaining sendToC
   assert.doesNotMatch(sync, /\/api\/ingest(?:['\"`])/);
 });
 
-test('root coordinator is mounted outside the conditional POSTiNKA screen', () => {
+test('root coordinator is mounted outside the conditional ContentINKA screen', () => {
   const coordinator = diary.indexOf('startContentIngestJobCoordinator({');
   const contentScreen = diary.indexOf("{screen === 'content' && masterInfo.modules.content && (");
   assert.ok(coordinator > 0 && contentScreen > 0 && coordinator < contentScreen);
@@ -223,13 +223,13 @@ test('provider response bodies and backend failure details never reach the UI er
       },
       { readSettings: () => settings, fetch: async () => ({ status: 500, text: async () => 'provider content-secret' }) },
     ),
-    (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA ответила ошибкой (500).' && !error.message.includes('content-secret'),
+    (error) => error instanceof ContentSyncError && error.message === 'ContentINKA ответила ошибкой (500).' && !error.message.includes('content-secret'),
   );
   const failed = await getContentIngestJob('job-1', {
     readSettings: () => settings,
     fetch: async () => ({ status: 200, ok: true, json: async () => ({ job_id: 'job-1', status: 'failed', error: 'provider content-secret' }) }),
   });
-  assert.deepEqual(failed, { status: 'failed', error: 'POSTiNKA не смогла собрать материал.' });
+  assert.deepEqual(failed, { status: 'failed', error: 'ContentINKA не смогла собрать материал.' });
 });
 
 test('completed jobs reject malformed media and mismatched job ids', async () => {
@@ -239,14 +239,14 @@ test('completed jobs reject malformed media and mismatched job ids', async () =>
       readSettings: () => settings,
       fetch: async () => ({ status: 200, ok: true, json: async () => ({ job_id: 'job-1', status: 'completed', result: { media: [{ id: 'photo-1' }], visual_archetype: null, text_triad: null, text_draft: 'Текст' } }) }),
     }),
-    (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA вернула повреждённый результат.',
+    (error) => error instanceof ContentSyncError && error.message === 'ContentINKA вернула повреждённый результат.',
   );
   await assert.rejects(
     getContentIngestJob('job-1', {
       readSettings: () => settings,
       fetch: async () => ({ status: 200, ok: true, json: async () => ({ job_id: 'job-other', status: 'running' }) }),
     }),
-    (error) => error instanceof ContentSyncError && error.message === 'POSTiNKA вернула неожиданный ответ.',
+    (error) => error instanceof ContentSyncError && error.message === 'ContentINKA вернула неожиданный ответ.',
   );
 });
 
