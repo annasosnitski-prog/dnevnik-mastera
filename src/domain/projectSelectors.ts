@@ -138,6 +138,55 @@ export function hasOverdueWork(project: Project, sessions: Session[], consultati
   );
 }
 
+// ===================== ПРОИЗВОДНЫЙ ТАЙМЛАЙН «ЗАПРОС → ПЕРВАЯ СЕССИЯ» =====================
+export type PipelineSegmentKey = 'moodboard' | 'sketch' | 'consultation' | 'session';
+
+export interface ProjectPipelineSegment {
+  key: PipelineSegmentKey;
+  targetDate: string; // yyyy-mm-dd
+}
+
+function parseProjectCreatedDate(createdDate: string): Date | null {
+  const dateOnly = toDateOnly(createdDate);
+  if (!isValidISODate(dateOnly)) return null;
+  return new Date(`${dateOnly}T00:00:00.000Z`);
+}
+
+function addCalendarMonthsClamped(date: Date, months: number): Date {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  const targetFirst = new Date(Date.UTC(year, month + months, 1));
+  const targetLastDay = new Date(Date.UTC(targetFirst.getUTCFullYear(), targetFirst.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(targetFirst.getUTCFullYear(), targetFirst.getUTCMonth(), Math.min(day, targetLastDay)));
+}
+
+export function getProjectPipelineSegments(project: Project): ProjectPipelineSegment[] | null {
+  const amount = project.firstSessionWindowAmount;
+  const unit = project.firstSessionWindowUnit;
+  if (amount === null || amount === undefined || unit === null || unit === undefined) return null;
+  if (!Number.isFinite(amount) || amount < 0) return null;
+
+  const start = parseProjectCreatedDate(project.createdDate);
+  if (!start) return null;
+
+  const target = unit === 'week'
+    ? new Date(start.getTime() + amount * 7 * 24 * 60 * 60 * 1000)
+    : addCalendarMonthsClamped(start, amount);
+  const meeting = project.preSessionMeeting ?? 'consultation';
+  const keys: PipelineSegmentKey[] = meeting === 'none'
+    ? ['moodboard', 'sketch', 'session']
+    : ['moodboard', 'sketch', 'consultation', 'session'];
+  const totalMs = target.getTime() - start.getTime();
+
+  return keys.map((key, index) => {
+    const isLast = index === keys.length - 1;
+    const offset = isLast ? totalMs : Math.floor((totalMs * (index + 1)) / keys.length);
+    const targetDate = new Date(start.getTime() + offset).toISOString().slice(0, 10);
+    return { key, targetDate };
+  });
+}
+
 // ===================== ФИЛЬТРЫ И СОРТИРОВКА ПРОЕКТОВ =====================
 export type ProjectSortMode = 'lastActive' | 'added' | 'name';
 
@@ -186,7 +235,6 @@ export function sortProjects(
 }
 
 export interface ProjectFilters {
-  // null — «Все».
   category: ProjectCategory | null;
   state: ProjectState | null;
   area: string | null;
@@ -207,9 +255,6 @@ export function filterProjects(projects: Project[], filters: ProjectFilters): Pr
   });
 }
 
-// View-model grouping for project lists. Empty area gets a stable readable
-// bucket; project objects are reused without mutation and group order follows
-// first appearance in the input list.
 export interface ProjectAreaGroup {
   area: string;
   projects: Project[];
