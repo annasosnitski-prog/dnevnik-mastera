@@ -6,8 +6,8 @@ import { type UrgencyKey } from '../../domain/urgency';
 import { type Client } from '../../domain/client';
 import {
   type ProjectCategory,
-  PROJECT_STAGES,
-  type ProjectStage,
+  PROJECT_STATUSES,
+  type ProjectStatus,
   type ProjectState,
   PROJECT_STATES,
   type ProjectWaitingFor,
@@ -916,7 +916,7 @@ export function ProjectViewSheet({
         {project && (
           <>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              <span style={chipStyle}>{PROJECT_STAGES.find((s) => s.key === project.stage)?.label ?? project.stage}</span>
+              <span style={chipStyle}>{PROJECT_STATUSES.find((s) => s.key === project.status)?.label ?? project.status}</span>
               <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
               {project.waitingFor !== 'none' && (
                 <span style={chipStyle}>Ждём: {PROJECT_WAITING_FOR.find((w) => w.key === project.waitingFor)?.label}</span>
@@ -1139,7 +1139,7 @@ export function NewProjectSheet({
     color: string;
     category: ProjectCategory;
     clientId: string | null;
-    stage: ProjectStage;
+    status: ProjectStatus;
     state: ProjectState;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
@@ -1162,7 +1162,7 @@ export function NewProjectSheet({
   const [color, setColor] = useState(MARKER_COLORS[0]);
   const [category, setCategory] = useState<ProjectCategory>('tattoo');
   const [clientId, setClientId] = useState<string | null>(null);
-  const [stage, setStage] = useState<ProjectStage>('idea');
+  const [status, setStatus] = useState<ProjectStatus>('waiting_deposit');
   const [state, setState] = useState<ProjectState>('active');
   const [waitingFor, setWaitingFor] = useState<ProjectWaitingFor>('none');
   const [nextActionText, setNextActionText] = useState('');
@@ -1187,7 +1187,7 @@ export function NewProjectSheet({
       setColor(initial?.color ?? MARKER_COLORS[0]);
       setCategory(initial?.category ?? 'tattoo');
       setClientId(initial?.clientId ?? presetClientId ?? null);
-      setStage(initial?.stage ?? 'idea');
+      setStatus(initial?.status ?? 'waiting_deposit');
       setState(initial?.state ?? 'active');
       setWaitingFor(initial?.waitingFor ?? 'none');
       setNextActionText(initial?.nextActionText ?? '');
@@ -1256,9 +1256,13 @@ export function NewProjectSheet({
 
           <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Этап</FieldLabel>
-              <select value={stage} onChange={(e) => setStage(e.target.value as ProjectStage)} style={INPUT_STYLE}>
-                {PROJECT_STAGES.map((s) => (
+              <FieldLabel>Статус</FieldLabel>
+              {/* Мастер ставит статус вручную только там, где автоматики
+                  нет — прежде всего «Ожидает предоплаты» → «Активен» (факт
+                  предоплаты в модели не хранится, см. withAdvancedStatus).
+                  Остальные переходы проставляются сами. */}
+              <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} style={INPUT_STYLE}>
+                {PROJECT_STATUSES.map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
                   </option>
@@ -1396,7 +1400,7 @@ export function NewProjectSheet({
               color,
               category,
               clientId,
-              stage,
+              status,
               state,
               waitingFor,
               nextActionText,

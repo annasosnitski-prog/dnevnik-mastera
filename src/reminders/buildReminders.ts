@@ -210,7 +210,7 @@ export const STALE_PROJECT_THRESHOLD_DAYS = 30;
 // STALE_PROJECT_THRESHOLD_DAYS дней — «мягкое» напоминание «проект давно не
 // двигался», а не срочное действие (в отличие от overdueProjects, у которого
 // есть конкретный просроченный next step). paused/cancelled/archived
-// намеренно исключены — их «неподвижность» осознанная, не застой; stage
+// намеренно исключены — их «неподвижность» осознанная, не застой; статус
 // 'completed' исключён — работа закончена, двигаться больше нечему.
 //
 // Три независимые защиты от ложных карточек (M4):
@@ -232,7 +232,7 @@ export function staleProjects(projects: Project[], clients: Client[], now: Date)
   const allConsultations = [...clients.flatMap((c) => c.consultations), ...projects.flatMap((p) => p.consultations)];
   const result: StaleProjectItem[] = [];
   for (const project of projects) {
-    if (project.state !== 'active' || project.stage === 'completed') continue;
+    if (project.state !== 'active' || project.status === 'completed') continue;
     if (hasOverdueWork(project, allSessions, allConsultations, today)) continue;
     if (hasScheduledWork(project, allSessions, allConsultations, today)) continue;
     const lastActivityDate = getProjectLastActivityDate(project, allSessions, allConsultations, today);

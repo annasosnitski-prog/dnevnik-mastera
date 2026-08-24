@@ -10,7 +10,7 @@ function makeProject(overrides = {}) {
     color: '#B0413E',
     category: 'tattoo',
     clientId: null,
-    stage: 'idea',
+    status: 'waiting_deposit',
     state: 'active',
     waitingFor: 'none',
     nextActionText: '',
@@ -352,9 +352,9 @@ test('staleProjects ignores a paused/cancelled/archived project — deliberately
   }
 });
 
-test('staleProjects ignores a completed-stage project — nothing left to move', () => {
+test('staleProjects ignores a completed-status project — nothing left to move', () => {
   const stale = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 10);
-  const project = makeProject({ lastMeaningfulActivityAt: stale, stage: 'completed' });
+  const project = makeProject({ lastMeaningfulActivityAt: stale, status: 'completed' });
   assert.equal(staleProjects([project], [], NOW).length, 0);
 });
 

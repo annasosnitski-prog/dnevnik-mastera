@@ -313,7 +313,7 @@ test('normalizeClient drops a malformed history entry instead of keeping garbage
 test('normalizeProject defaults every union field to its documented fallback', () => {
   const p = normalizeProject({}, 0);
   assert.equal(p.category, 'tattoo');
-  assert.equal(p.stage, 'idea');
+  assert.equal(p.status, 'waiting_deposit');
   assert.equal(p.state, 'active');
   assert.equal(p.waitingFor, 'none');
   assert.equal(p.priority, 'normal');
@@ -332,10 +332,33 @@ test('normalizeProject keeps a valid nextActionType unchanged', () => {
 });
 
 test('normalizeProject re-normalizes an already-valid record to the same value (idempotent)', () => {
-  const once = normalizeProject({ stage: 'booked', priority: 'urgent' }, 0);
+  const once = normalizeProject({ status: 'healing', priority: 'urgent' }, 0);
   const twice = normalizeProject(once, 0);
-  assert.equal(twice.stage, 'booked');
+  assert.equal(twice.status, 'healing');
   assert.equal(twice.priority, 'urgent');
+});
+
+// Старый семишаговый `stage` не мигрируется бережно — он просто игнорируется,
+// а проекту проставляется дефолт по фактическим данным (см. ProjectStatus).
+test('normalizeProject ignores a legacy `stage` field instead of carrying it over', () => {
+  const p = normalizeProject({ stage: 'booked' }, 0);
+  assert.equal(p.status, 'waiting_deposit');
+  assert.equal(p.stage, undefined, 'удалённое поле не остаётся на нормализованном проекте');
+});
+
+test('normalizeProject defaults an old record WITH a completed session to «Активен», not «Ожидает предоплаты»', () => {
+  const p = normalizeProject({ stage: 'in_progress', sessions: [{ id: 's1', date: '2026-01-01', done: true }] }, 0);
+  assert.equal(p.status, 'active');
+});
+
+test('normalizeProject defaults an old record with only PLANNED sessions to «Ожидает предоплаты»', () => {
+  const p = normalizeProject({ sessions: [{ id: 's1', date: '2026-09-01', done: false }] }, 0);
+  assert.equal(p.status, 'waiting_deposit');
+});
+
+test('normalizeProject keeps an unknown status value out — falls back to the documented default', () => {
+  const p = normalizeProject({ status: 'nonsense' }, 0);
+  assert.equal(p.status, 'waiting_deposit');
 });
 
 test('normalizeProject normalizes project-owned sessions ("сессии без клиента") the same way as client sessions', () => {

@@ -30,7 +30,9 @@ export function makeBucketProject(id: string, title: string, color: string, clie
     color,
     category: 'tattoo',
     clientId,
-    stage: 'in_progress',
+    // Бакет заводится ровно потому, что в него прямо сейчас кладут запись —
+    // работа уже идёт, ждать предоплату не о чем (см. ProjectStatus).
+    status: 'active',
     state: 'active',
     waitingFor: 'none',
     nextActionText: '',

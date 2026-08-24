@@ -23,17 +23,28 @@ export const PROJECT_CATEGORIES: { key: ProjectCategory; label: string }[] = [
 // (вроде "planning_waiting_client_photo_overdue") — где проект находится,
 // может ли он сейчас двигаться, и кто должен действовать, читаются по
 // отдельности и комбинируются свободно.
-export type ProjectStage = 'idea' | 'inquiry' | 'planning' | 'booked' | 'in_progress' | 'healing' | 'completed';
+//
+// ProjectStatus — общий путь проекта: ждём предоплату → работаем → заживаем →
+// закончили. Заменил прежний семишаговый ProjectStage ('idea' | 'inquiry' |
+// 'planning' | 'booked' | 'in_progress' | 'healing' | 'completed'): половина
+// тех этапов («Идея», «Запрос», «Подготовка») на практике не отличались друг
+// от друга, а «Записан»/«В работе» — это одно и то же «проект в работе».
+// Старые записи не мигрируются бережно, им проставляется разумный дефолт
+// при загрузке (см. normalizeProject в lib/normalize.ts).
+//
+// ProjectState (ниже) — ОТДЕЛЬНАЯ, не связанная с этим ось: пауза/отмена/
+// архив. Их намеренно не сливают в один enum — «проект на этапе заживления»
+// и «проект поставлен на паузу» могут быть верны одновременно.
+export type ProjectStatus = 'waiting_deposit' | 'active' | 'healing' | 'completed';
 export type ProjectState = 'active' | 'paused' | 'cancelled' | 'archived';
 export type ProjectWaitingFor = 'master' | 'client' | 'external' | 'none';
 export type ProjectPriority = 'urgent' | 'important' | 'normal';
 
-export const PROJECT_STAGES: { key: ProjectStage; label: string }[] = [
-  { key: 'idea', label: 'Идея' },
-  { key: 'inquiry', label: 'Запрос' },
-  { key: 'planning', label: 'Подготовка' },
-  { key: 'booked', label: 'Записан' },
-  { key: 'in_progress', label: 'В работе' },
+// Порядок массива — это и порядок движения проекта вперёд, на него опирается
+// withAdvancedStatus ниже. Менять порядок = менять смысл «только вперёд».
+export const PROJECT_STATUSES: { key: ProjectStatus; label: string }[] = [
+  { key: 'waiting_deposit', label: 'Ожидает предоплаты' },
+  { key: 'active', label: 'Активен' },
   { key: 'healing', label: 'Заживление' },
   { key: 'completed', label: 'Завершён' },
 ];
@@ -108,23 +119,30 @@ export function resolveNextStep(
   return { nextActionText: trimmed, nextActionDate: date, nextActionType: type };
 }
 
-// Авто-переход этапа проекта — ТОЛЬКО ВПЕРЁД: создана будущая запись →
-// «Записан», выполненная сессия → «В работе». Никогда не откатывает назад
-// (не трогает, если этап уже на целевом или дальше), «Заживление»/«Завершён»
-// мастер ставит сама.
+// Авто-переход статуса проекта — ТОЛЬКО ВПЕРЁД по порядку PROJECT_STATUSES.
+// Никогда не откатывает назад (не трогает, если статус уже на целевом или
+// дальше). Кто и куда двигает проект автоматически:
+//  - выполненная сессия → 'active' (см. commitSession/toggleSessionDone в
+//    TattoDiary.tsx);
+//  - вход в цикл заживления после последней сессии → 'healing';
+//  - первое фото в галерее заживления проекта → 'completed'.
+// Переход 'waiting_deposit' → 'active' по факту предоплаты автоматики НЕ
+// имеет: отдельного поля «предоплата получена» в модели нет (есть только
+// next-action-тип 'receive_deposit' — это план, а не зафиксированный факт),
+// поэтому мастер ставит 'active' вручную в форме проекта.
 //
-// Возвращает НОВЫЙ объект проекта, а не пишет в стор: продвижение этапа
+// Возвращает НОВЫЙ объект проекта, а не пишет в стор: продвижение статуса
 // должно уехать в базу тем же самым сохранением, что и сама запись. Раньше
 // это были два отдельных saveProject подряд, и второй читал projects из
 // ещё не обновившегося React-состояния — то есть перезаписывал проект
 // снимком БЕЗ только что добавленной сессии и стирал её. Для клиентских
 // сессий это не проявлялось (они лежали в другом сторе), а сессия в проекте
 // без клиента молча пропадала после сохранения.
-export function withAdvancedStage(project: Project, target: ProjectStage): Project {
-  const current = PROJECT_STAGES.findIndex((s) => s.key === project.stage);
-  const next = PROJECT_STAGES.findIndex((s) => s.key === target);
+export function withAdvancedStatus(project: Project, target: ProjectStatus): Project {
+  const current = PROJECT_STATUSES.findIndex((s) => s.key === project.status);
+  const next = PROJECT_STATUSES.findIndex((s) => s.key === target);
   if (next < 0 || next <= current) return project;
-  return { ...project, stage: target };
+  return { ...project, status: target };
 }
 
 export interface Project {
@@ -135,7 +153,7 @@ export interface Project {
   // null = идея без клиента ("мастерская", независимо от одноимённого
   // clientId===null на ContentEntry — те две вещи не связаны).
   clientId: string | null;
-  stage: ProjectStage;
+  status: ProjectStatus;
   state: ProjectState;
   waitingFor: ProjectWaitingFor;
   nextActionText: string;
@@ -188,13 +206,13 @@ export interface Project {
 // НЕ включает правки текстовых полей (title/notes/area/style/feeling/
 // creative/inspirationSources/photos/color/category/priority) — это
 // редактирование содержимого, а не прогресс; иначе любая опечатка сбрасывала
-// бы таймер «застывания». Включает: смену этапа/статуса/того-кто-должен-
+// бы таймер «застывания». Включает: смену статуса/состояния/того-кто-должен-
 // действовать (реальный прогресс или явное возобновление из паузы) и любое
 // изменение «следующего шага» (текст/дата/тип — мастер осознанно
 // спланировала действие).
 export function isMeaningfulProjectChange(prev: Project, next: Project): boolean {
   return (
-    prev.stage !== next.stage ||
+    prev.status !== next.status ||
     prev.state !== next.state ||
     prev.waitingFor !== next.waitingFor ||
     prev.nextActionText !== next.nextActionText ||

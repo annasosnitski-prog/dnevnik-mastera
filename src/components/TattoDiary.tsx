@@ -233,15 +233,15 @@ import {
 import {
   type ProjectCategory,
   PROJECT_CATEGORIES,
-  type ProjectStage,
+  type ProjectStatus,
   type ProjectState,
   type ProjectWaitingFor,
   type ProjectPriority,
-  PROJECT_STAGES,
+  PROJECT_STATUSES,
   type NextActionType,
   type Project,
   isMeaningfulProjectChange,
-  withAdvancedStage,
+  withAdvancedStatus,
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
@@ -1650,13 +1650,16 @@ export default function TattoDiary() {
   ): { projects: Project[]; projectId: string } =>
     ensureBucketProject(source, projectId, ownerClient, masterInfo.name, MARKER_COLORS[0]);
 
-  // Авто-переход этапа проекта ВНУТРИ списка (Этап 3b): создана будущая
-  // сессия → «Записан», сессия выполнена → «В работе». Только вперёд, не
-  // дальше нужного (см. withAdvancedStage). Раньше это была отдельная запись
-  // в стор — теперь этап уезжает тем же сохранением, что и сама сессия: два
-  // сохранения проектов в одном тике затирают друг друга (#248).
-  const advanceStageIn = (source: Project[], projectId: string | null, target: ProjectStage): Project[] =>
-    projectId ? source.map((p) => (p.id === projectId ? withAdvancedStage(p, target) : p)) : source;
+  // Авто-переход статуса проекта ВНУТРИ списка (Этап 3b): выполненная сессия
+  // → «Активен». Только вперёд, не дальше нужного (см. withAdvancedStatus).
+  // Прежний переход «создана будущая сессия → Записан» исчез вместе с самим
+  // этапом «Записан»: назначенная встреча — это как раз то окно, пока ждём
+  // предоплату, и снимать статус «Ожидает предоплаты» она не должна.
+  // Раньше это была отдельная запись в стор — теперь статус уезжает тем же
+  // сохранением, что и сама сессия: два сохранения проектов в одном тике
+  // затирают друг друга (#248).
+  const advanceStatusIn = (source: Project[], projectId: string | null, target: ProjectStatus): Project[] =>
+    projectId ? source.map((p) => (p.id === projectId ? withAdvancedStatus(p, target) : p)) : source;
 
   // Стиль, введённый в форме сессии, подхватывается в список стилей клиента —
   // это единственное, что сессия меняет в самой карточке клиента (остальное
@@ -1695,7 +1698,7 @@ export default function TattoDiary() {
     const withConversion = convertingConsultation
       ? applyConsultationConversionInProjects(withSession, sessionId, convertingConsultation.id)
       : withSession;
-    saveProjects(advanceStageIn(withConversion, projectId, data.done ? 'in_progress' : 'booked'));
+    saveProjects(data.done ? advanceStatusIn(withConversion, projectId, 'active') : withConversion);
     mergeSessionStyleIntoClient(ownerClient, data.style);
     return sessionId;
   };
@@ -1796,7 +1799,7 @@ export default function TattoDiary() {
     color: string;
     category: ProjectCategory;
     clientId: string | null;
-    stage: ProjectStage;
+    status: ProjectStatus;
     state: ProjectState;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
@@ -1981,9 +1984,9 @@ export default function TattoDiary() {
       ?? projects.flatMap((p) => p.sessions).find((s) => s.id === sessionId);
     if (!session) return;
     const flipped = updateSessionInProjects(projects, sessionId, (s) => ({ ...s, done: !s.done }));
-    // Отметили «выполнена» (было не выполнено) → двигаем проект в «В работе».
-    // Тем же сохранением: отдельная запись этапа затёрла бы сам флаг (#248).
-    saveProjects(session.done ? flipped : advanceStageIn(flipped, session.projectId, 'in_progress'));
+    // Отметили «выполнена» (было не выполнено) → двигаем проект в «Активен».
+    // Тем же сохранением: отдельная запись статуса затёрла бы сам флаг (#248).
+    saveProjects(session.done ? flipped : advanceStatusIn(flipped, session.projectId, 'active'));
   };
 
   // clientId-scoped variant of the toggle above — for the «Отменить» quick
@@ -4053,7 +4056,7 @@ export function ProjectCard({ project, clientName, onClick }: { project: Project
               letterSpacing: '0.5px',
             }}
           >
-            {PROJECT_STAGES.find((s) => s.key === project.stage)?.label ?? project.stage}
+            {PROJECT_STATUSES.find((s) => s.key === project.status)?.label ?? project.status}
           </span>
           {clientName && (
             <span style={{ fontSize: fs(11), color: COLORS.textSecondary, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

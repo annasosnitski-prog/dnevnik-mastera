@@ -64,14 +64,26 @@ test('календарь синхронизируется после запис�
   assert.match(sync, /if \(prev\?\.clientId && prev\.clientId !== project\.clientId\) affected\.add\(prev\.clientId\);/);
 });
 
-test('этап проекта продвигается тем же сохранением, что и сама запись', () => {
-  // Отдельная запись этапа читала бы ещё не обновившийся стейт и затирала
+test('статус проекта продвигается тем же сохранением, что и сама запись', () => {
+  // Отдельная запись статуса читала бы ещё не обновившийся стейт и затирала
   // только что добавленную сессию — это и был #248.
   assert.doesNotMatch(app, /const advanceProjectStage =/);
-  assert.match(app, /const advanceStageIn = \(source: Project\[\], projectId: string \| null, target: ProjectStage\): Project\[\] =>/);
+  assert.match(app, /const advanceStatusIn = \(source: Project\[\], projectId: string \| null, target: ProjectStatus\): Project\[\] =>/);
   const commit = app.slice(app.indexOf('const commitSession = ('), app.indexOf('const handleAddConsultation ='));
-  assert.match(commit, /saveProjects\(advanceStageIn\(withConversion, projectId, data\.done \? 'in_progress' : 'booked'\)\)/);
+  // Только ВЫПОЛНЕННАЯ сессия двигает проект в «Активен»: назначенная
+  // будущая встреча — это и есть окно ожидания предоплаты, снимать
+  // «Ожидает предоплаты» она не должна (см. withAdvancedStatus).
+  assert.match(commit, /saveProjects\(data\.done \? advanceStatusIn\(withConversion, projectId, 'active'\) : withConversion\)/);
   assert.equal((commit.match(/saveProjects\(/g) ?? []).length, 1, 'ровно одно сохранение на весь сценарий');
+});
+
+// Удалённый семишаговый ProjectStage не должен остаться висеть ни в одном
+// использовании — иначе экран молча покажет пустой чип/несуществующий этап.
+test('в монолите не осталось ссылок на удалённый ProjectStage/PROJECT_STAGES/.stage', () => {
+  assert.doesNotMatch(app, /ProjectStage\b/);
+  assert.doesNotMatch(app, /PROJECT_STAGES\b/);
+  assert.doesNotMatch(app, /withAdvancedStage\b/);
+  assert.doesNotMatch(app, /project\.stage\b/);
 });
 
 test('автопроект уезжает в базу тем же сохранением, что и запись', () => {

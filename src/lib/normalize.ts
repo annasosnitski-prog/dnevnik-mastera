@@ -10,7 +10,7 @@ import { isValidISODate } from '../utils/dates.js';
 import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, MARKER_COLORS, type Client } from '../domain/client.js';
 import {
   PROJECT_CATEGORIES,
-  PROJECT_STAGES,
+  PROJECT_STATUSES,
   PROJECT_STATES,
   PROJECT_WAITING_FOR,
   PROJECT_PRIORITIES,
@@ -193,7 +193,15 @@ export function normalizeProject(raw: any, index: number): Project {
     color: raw?.color ?? MARKER_COLORS[index % MARKER_COLORS.length],
     category: PROJECT_CATEGORIES.some((c) => c.key === raw?.category) ? raw.category : 'tattoo',
     clientId: raw?.clientId ?? null,
-    stage: PROJECT_STAGES.some((s) => s.key === raw?.stage) ? raw.stage : 'idea',
+    // Прежний семишаговый `stage` не мигрируется бережно (см. ProjectStatus в
+    // domain/project.ts) — старая запись просто получает разумный дефолт:
+    // 'active', если у проекта уже есть выполненная сессия (работа шла, ждать
+    // предоплату поздно), иначе 'waiting_deposit' — начало пути.
+    status: PROJECT_STATUSES.some((s) => s.key === raw?.status)
+      ? raw.status
+      : sessions.some((s) => s.done)
+      ? 'active'
+      : 'waiting_deposit',
     state: PROJECT_STATES.some((s) => s.key === raw?.state) ? raw.state : 'active',
     waitingFor: PROJECT_WAITING_FOR.some((w) => w.key === raw?.waitingFor) ? raw.waitingFor : 'none',
     nextActionText: raw?.nextActionText ?? '',
