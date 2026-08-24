@@ -33,6 +33,9 @@ export function makeBucketProject(id: string, title: string, color: string, clie
     // Бакет заводится ровно потому, что в него прямо сейчас кладут запись —
     // работа уже идёт, ждать предоплату не о чем (см. ProjectStatus).
     status: 'active',
+    // Бакет собирает разнородные записи, а не одну работу — сказать «одна
+    // встреча»/«больше одной» про него нечего (см. SessionsPlan).
+    sessionsPlan: null,
     state: 'active',
     waitingFor: 'none',
     nextActionText: '',
@@ -46,6 +49,7 @@ export function makeBucketProject(id: string, title: string, color: string, clie
     creative: '',
     inspirationSources: '',
     photos: [],
+    healingPhotos: [],
     createdDate: now,
     lastMeaningfulActivityAt: now,
     sessions: [],

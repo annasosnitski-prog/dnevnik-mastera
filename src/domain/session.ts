@@ -15,7 +15,21 @@ export interface Session {
   note: string;
   photos: string[]; // captured/uploaded photos (data URLs)
   done: boolean;
-  healed: boolean; // manually ticked once a healed-skin photo has been added
+  // @deprecated — заменено галереей заживления на Project, см.
+  // Project.healingPhotos. Поле физически оставлено, чтобы старые бэкапы и
+  // импорт не ломались (normalizeSession по-прежнему его переносит), но UI
+  // его больше не показывает, а новая логика заживления
+  // (reminders/healingCycle.ts) не читает и не пишет его. Единственный, кто
+  // ещё на него смотрит, — deprecated healingReminders в
+  // reminders/buildReminders.ts, из UI не вызываемый.
+  healed: boolean;
+  // «Это последняя сессия проекта?» — подтверждается мастером при завершении
+  // сессии и определяет, какой цикл заживления запускать: полный (неделя 1 →
+  // день 21, развилка фото/коррекция) или лёгкий одноразовый чек, см.
+  // reminders/healingCycle.ts. Для проектов с sessionsPlan==='single' не
+  // спрашивается — там ответ известен заранее. Выполненная коррекция тоже
+  // приходит сюда с true: она перезапускает цикл от своей даты.
+  isLastSession: boolean;
   // Set only via the overdue reminder's «Отменить» quick action — a planned
   // session that won't happen and won't be rescheduled, distinct from
   // `done`. Excluded from upcoming/overdue lists; shown as «Отменена» in

@@ -367,6 +367,75 @@ test('normalizeProject normalizes project-owned sessions ("сессии без �
   assert.equal(p.sessions[0].done, true);
 });
 
+// ── sessionsPlan / галерея заживления ─────────────────────────────────────
+
+test('normalizeProject defaults sessionsPlan to null — «не задано», а не угаданное значение', () => {
+  assert.equal(normalizeProject({}, 0).sessionsPlan, null);
+});
+
+// Число уже существующих сессий НЕ повод угадать план: две сессии могли быть
+// двумя разными работами в одном проекте-«отстойнике».
+test('normalizeProject does not guess sessionsPlan from how many sessions a project has', () => {
+  const p = normalizeProject({ sessions: [{ id: 's1', done: true }, { id: 's2', done: true }] }, 0);
+  assert.equal(p.sessionsPlan, null);
+});
+
+test('normalizeProject keeps a valid sessionsPlan and rejects an unknown one', () => {
+  assert.equal(normalizeProject({ sessionsPlan: 'single' }, 0).sessionsPlan, 'single');
+  assert.equal(normalizeProject({ sessionsPlan: 'multiple' }, 0).sessionsPlan, 'multiple');
+  assert.equal(normalizeProject({ sessionsPlan: 'nonsense' }, 0).sessionsPlan, null);
+});
+
+test('normalizeProject defaults healingPhotos to an empty gallery', () => {
+  assert.deepEqual(normalizeProject({}, 0).healingPhotos, []);
+  assert.deepEqual(normalizeProject({ healingPhotos: 'сломано' }, 0).healingPhotos, []);
+});
+
+test('normalizeProject drops a healing photo with no url instead of keeping an empty tile', () => {
+  const p = normalizeProject({ healingPhotos: [{ id: 'p1', url: 'a' }, { id: 'p2' }, null] }, 0);
+  assert.deepEqual(p.healingPhotos.map((ph) => ph.id), ['p1']);
+});
+
+test('normalizeProject forces exactly one cover in the healing gallery', () => {
+  const p = normalizeProject({
+    healingPhotos: [
+      { id: 'p1', url: 'a', isCover: true },
+      { id: 'p2', url: 'b', isCover: true },
+    ],
+  }, 0);
+  assert.deepEqual(p.healingPhotos.map((ph) => ph.isCover), [true, false]);
+});
+
+test('normalizeProject promotes the first healing photo to cover when none is marked', () => {
+  const p = normalizeProject({ healingPhotos: [{ id: 'p1', url: 'a' }, { id: 'p2', url: 'b' }] }, 0);
+  assert.deepEqual(p.healingPhotos.map((ph) => ph.isCover), [true, false]);
+});
+
+test('normalizeProject blanks a malformed healing-photo addedDate rather than trusting it', () => {
+  const p = normalizeProject({ healingPhotos: [{ id: 'p1', url: 'a', addedDate: 'вчера' }] }, 0);
+  assert.equal(p.healingPhotos[0].addedDate, '');
+});
+
+// ── Session.isLastSession / deprecated healed ─────────────────────────────
+
+test('normalizeSession defaults isLastSession to false for a record from before the healing cycle', () => {
+  const p = normalizeProject({ sessions: [{ id: 's1' }] }, 0);
+  assert.equal(p.sessions[0].isLastSession, false);
+});
+
+test('normalizeSession keeps an explicit isLastSession', () => {
+  const p = normalizeProject({ sessions: [{ id: 's1', isLastSession: true }] }, 0);
+  assert.equal(p.sessions[0].isLastSession, true);
+});
+
+// healed объявлен @deprecated и убран из UI, но физически остаётся — иначе
+// импорт старого бэкапа терял бы поле, которое в нём записано.
+test('normalizeSession still carries the deprecated `healed` flag through, so old backups survive import', () => {
+  const p = normalizeProject({ sessions: [{ id: 's1', healed: true }] }, 0);
+  assert.equal(p.sessions[0].healed, true);
+  assert.equal(normalizeProject({ sessions: [{ id: 's2' }] }, 0).sessions[0].healed, false);
+});
+
 test('normalizeProject defaults consultations to an empty array when missing', () => {
   const p = normalizeProject({}, 0);
   assert.deepEqual(p.consultations, []);

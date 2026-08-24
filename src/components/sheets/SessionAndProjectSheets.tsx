@@ -16,6 +16,8 @@ import {
   PROJECT_PRIORITIES,
   type NextActionType,
   NEXT_ACTION_TYPES,
+  type SessionsPlan,
+  SESSIONS_PLANS,
   type Project,
 } from '../../domain/project';
 import { getSessionsByProjectId, getConsultationSequence } from '../../domain/projectSelectors';
@@ -119,7 +121,7 @@ export function NewSessionSheet({
     note: string;
     photos: string[];
     done: boolean;
-    healed: boolean;
+    isLastSession: boolean;
     projectId: string | null;
   }) => void;
 }) {
@@ -140,7 +142,10 @@ export function NewSessionSheet({
   // status; started from a calendar date (clearly a future booking), default
   // to «Запланирована» instead.
   const [done, setDone] = useState(true);
-  const [healed, setHealed] = useState(false);
+  // «Это последняя сессия проекта?» — см. Session.isLastSession. Прежний
+  // тумблер «Зажив» (session.healed) отсюда убран: флаг deprecated, заменён
+  // галереей заживления на проекте (Project.healingPhotos).
+  const [isLastSession, setIsLastSession] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
   // Briefly swaps the close «×» for a green check after saving an edit — see
   // SheetSavedCheck — so the save reads as confirmed rather than the sheet
@@ -168,15 +173,42 @@ export function NewSessionSheet({
       // same reasoning as the initialDate case just below. A chained next
       // session is the same: it hasn't happened yet.
       setDone(initial ? initial.done : !initialDate && !prefillConsultation && !chainFrom);
-      setHealed(initial?.healed ?? false);
+      setIsLastSession(initial?.isLastSession ?? false);
       setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Проект, в который уйдёт сессия — нужен, чтобы понять, спрашивать ли «это
+  // последняя сессия?». У проекта с sessionsPlan==='single' ответ известен
+  // заранее (единственная сессия по определению последняя), поэтому вопрос не
+  // показывается, а `true` подставляется молча. Проект может быть ещё не
+  // выбран (мастер оставила «— создать новый —»): тогда плана нет, и вопрос
+  // показывается, как для 'multiple'/null.
+  const targetProject = projectId ? clientProjects.find((p) => p.id === projectId) ?? null : null;
+  const singleSessionProject = targetProject?.sessionsPlan === 'single';
+  // Вопрос имеет смысл только у выполненной сессии: пока встреча не
+  // состоялась, закрывать ею проект нечего (см. sessionFields).
+  const asksLastSession = done && !singleSessionProject;
+
   const handleSave = () => {
-    const data = { name, date, time, duration, style, area, colors, needles, skinReaction, note, photos, done, healed, projectId };
+    const data = {
+      name,
+      date,
+      time,
+      duration,
+      style,
+      area,
+      colors,
+      needles,
+      skinReaction,
+      note,
+      photos,
+      done,
+      isLastSession: singleSessionProject ? true : isLastSession,
+      projectId,
+    };
     if (isEdit) {
       setJustSaved(true);
       setTimeout(() => onAdd(data), 700);
@@ -340,35 +372,47 @@ export function NewSessionSheet({
           />
         </div>
 
-        {/* Manually ticked once a healed-skin photo has been added — drives
-            the ~30-day «напомнить о себе» reminder in Задачи/Мастер. */}
-        <div
-          onClick={() => setHealed((v) => !v)}
-          role="button"
-          aria-label="Зажив"
-          style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22, cursor: 'pointer' }}
-        >
+        {/* «Это последняя сессия проекта?» — точное число сессий заранее не
+            известно, поэтому оно не вычисляется, а подтверждается мастером на
+            каждой выполненной сессии. От ответа зависит цикл заживления: «да»
+            запускает полный (неделя 1 → день 21, развилка фото/коррекция),
+            «нет» — один лёгкий чек и переход к следующей сессии (см.
+            reminders/healingCycle.ts). У проекта «одна встреча» вопрос не
+            задаётся — там ответ известен заранее. */}
+        {asksLastSession && (
           <div
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 2,
-              flexShrink: 0,
-              border: healed ? '1px solid rgba(var(--gold-rgb),0.7)' : '1px solid rgba(var(--gold-rgb),0.3)',
-              background: healed ? 'rgba(var(--gold-rgb),0.15)' : 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            onClick={() => setIsLastSession((v) => !v)}
+            role="button"
+            aria-label="Последняя сессия проекта"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22, cursor: 'pointer' }}
           >
-            {healed && (
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                <path d="M2.5 7.3L5.5 10.3L11.5 3.7" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 2,
+                flexShrink: 0,
+                border: isLastSession ? '1px solid rgba(var(--gold-rgb),0.7)' : '1px solid rgba(var(--gold-rgb),0.3)',
+                background: isLastSession ? 'rgba(var(--gold-rgb),0.15)' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {isLastSession && (
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                  <path d="M2.5 7.3L5.5 10.3L11.5 3.7" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: fs(14), color: isLastSession ? COLORS.gold : COLORS.textFaint }}>Последняя сессия проекта</div>
+              <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
+                Работа закончена — дальше только заживление
+              </div>
+            </div>
           </div>
-          <span style={{ fontSize: fs(14), color: healed ? COLORS.gold : COLORS.textFaint }}>Зажив</span>
-        </div>
+        )}
 
         <div
           className="inka-submit"
@@ -825,6 +869,7 @@ export function ProjectViewSheet({
   onToggleTaskDone,
   onOpenContentEntry,
   onSaveNextStep,
+  onSaveHealingPhotos,
 }: {
   open: boolean;
   project: Project | null;
@@ -853,6 +898,10 @@ export function ProjectViewSheet({
   // Единственный next step проекта (см. NextStepRow) — пишет напрямую в
   // проект тем же saveProject, что и остальные правки, без глубокой формы.
   onSaveNextStep: (text: string, date: string | null, type: NextActionType | null) => void;
+  // Галерея заживления (Project.healingPhotos) — пишет напрямую в проект, как
+  // и onSaveNextStep. Первое фото закрывает цикл заживления и переводит
+  // проект в «Завершён» (решает вызывающий код, а не эта форма).
+  onSaveHealingPhotos: (urls: string[]) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
@@ -934,6 +983,32 @@ export function ProjectViewSheet({
             />
 
             {project.photos.length > 0 && <SessionPhotos photos={project.photos} onChange={() => {}} allowDelete={false} readOnly />}
+
+            {/* Галерея заживления — фото зажившей работы, одна на проект (см.
+                Project.healingPhotos). В отличие от «Фотографий» выше она
+                редактируемая прямо здесь: добавить снимок — это и есть
+                финальное действие цикла заживления (развилка «фото или
+                коррекция» на 21-й день), ради него незачем открывать форму
+                редактирования проекта. */}
+            <div>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
+                Заживление
+              </div>
+              <SessionPhotos
+                photos={project.healingPhotos.map((p) => p.url)}
+                onChange={onSaveHealingPhotos}
+                buttonFirst
+              />
+              {project.healingPhotos.length === 0 ? (
+                <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                  Фото зажившей работы ещё нет
+                </div>
+              ) : (
+                <div style={{ fontSize: fs(11), color: COLORS.textGhost }}>
+                  Обложка — первое фото
+                </div>
+              )}
+            </div>
 
             <ViewField label="Место" value={project.area} />
             <ViewField label="Техника и стиль" value={project.style} />
@@ -1140,6 +1215,7 @@ export function NewProjectSheet({
     category: ProjectCategory;
     clientId: string | null;
     status: ProjectStatus;
+    sessionsPlan: SessionsPlan;
     state: ProjectState;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
@@ -1163,6 +1239,7 @@ export function NewProjectSheet({
   const [category, setCategory] = useState<ProjectCategory>('tattoo');
   const [clientId, setClientId] = useState<string | null>(null);
   const [status, setStatus] = useState<ProjectStatus>('waiting_deposit');
+  const [sessionsPlan, setSessionsPlan] = useState<SessionsPlan>(null);
   const [state, setState] = useState<ProjectState>('active');
   const [waitingFor, setWaitingFor] = useState<ProjectWaitingFor>('none');
   const [nextActionText, setNextActionText] = useState('');
@@ -1188,6 +1265,7 @@ export function NewProjectSheet({
       setCategory(initial?.category ?? 'tattoo');
       setClientId(initial?.clientId ?? presetClientId ?? null);
       setStatus(initial?.status ?? 'waiting_deposit');
+      setSessionsPlan(initial?.sessionsPlan ?? null);
       setState(initial?.state ?? 'active');
       setWaitingFor(initial?.waitingFor ?? 'none');
       setNextActionText(initial?.nextActionText ?? '');
@@ -1279,6 +1357,27 @@ export function NewProjectSheet({
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Не точное количество сессий — мастер на старте часто сама не
+              знает, сколько понадобится, но знает «одна встреча» или «больше
+              одной». Отсюда всего два значения плюс «пока не знаю» (см.
+              SessionsPlan). Влияет ровно на одно: спрашивать ли при
+              завершении сессии «это последняя?». */}
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Сессий в проекте</FieldLabel>
+            <select
+              value={sessionsPlan ?? ''}
+              onChange={(e) => setSessionsPlan((e.target.value || null) as SessionsPlan)}
+              style={INPUT_STYLE}
+            >
+              <option value="">Пока не знаю</option>
+              {SESSIONS_PLANS.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
@@ -1401,6 +1500,7 @@ export function NewProjectSheet({
               category,
               clientId,
               status,
+              sessionsPlan,
               state,
               waitingFor,
               nextActionText,

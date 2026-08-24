@@ -20,7 +20,14 @@ export interface SessionFormData {
   note: string;
   photos: string[];
   done: boolean;
-  healed: boolean;
+  // «Это последняя сессия проекта?» — см. Session.isLastSession. Формой
+  // спрашивается только у выполненной сессии проекта, где это не выведено из
+  // sessionsPlan (см. NewSessionSheet).
+  //
+  // Прежнего `healed` здесь больше нет: флаг deprecated (см. Session.healed),
+  // убран из UI, и форма не должна его перезаписывать — старое значение
+  // остаётся на записи нетронутым, а нормализация переносит его как есть.
+  isLastSession: boolean;
   projectId: string | null;
 }
 
@@ -38,7 +45,10 @@ export function sessionFields(data: SessionFormData) {
     note: data.note.trim(),
     photos: data.photos,
     done: data.done,
-    healed: data.healed,
+    // Не последняя, пока сессия не выполнена: незавершённая встреча ничего
+    // не закрывает, а держать «да» на будущей сессии значило бы запустить
+    // цикл заживления по дате, которой ещё не было.
+    isLastSession: data.done && data.isLastSession,
     projectId: data.projectId,
   };
 }

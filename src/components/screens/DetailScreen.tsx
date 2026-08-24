@@ -2013,9 +2013,14 @@ function SessionRow({
                 Запланирована
               </span>
             )}
-            {session.done && session.healed && (
+            {/* «Последняя» — с этой сессии начинается цикл заживления проекта
+                (см. Session.isLastSession). Заменила прежний бейдж «Зажила»
+                по session.healed: заживает работа целиком, а не сессия по
+                отдельности, и её итог теперь живёт в галерее заживления
+                проекта (Project.healingPhotos), а не флагом на сессии. */}
+            {session.done && session.isLastSession && (
               <span
-                title="Зажила"
+                title="Последняя сессия проекта — дальше только заживление"
                 style={{
                   fontSize: fs(10),
                   color: COLORS.textFaint,
@@ -2027,7 +2032,7 @@ function SessionRow({
                   whiteSpace: 'nowrap',
                 }}
               >
-                Зажила
+                Последняя
               </span>
             )}
             {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}

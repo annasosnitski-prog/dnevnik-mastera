@@ -234,6 +234,7 @@ import {
   type ProjectCategory,
   PROJECT_CATEGORIES,
   type ProjectStatus,
+  type SessionsPlan,
   type ProjectState,
   type ProjectWaitingFor,
   type ProjectPriority,
@@ -242,6 +243,7 @@ import {
   type Project,
   isMeaningfulProjectChange,
   withAdvancedStatus,
+  withHealingGallery,
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
@@ -1800,6 +1802,7 @@ export default function TattoDiary() {
     category: ProjectCategory;
     clientId: string | null;
     status: ProjectStatus;
+    sessionsPlan: SessionsPlan;
     state: ProjectState;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
@@ -1825,7 +1828,7 @@ export default function TattoDiary() {
       saveProject({ ...editProject, ...data });
     } else {
       const newProjectId = crypto.randomUUID();
-      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], consultations: [], ...data });
+      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], consultations: [], healingPhotos: [], ...data });
       // Проект создан из ContentLinkPickerSheet «Сохранить в…».
       if (pendingContentLinkRef.current) {
         if (pendingContentLinkRef.current.target === 'project') {
@@ -3427,6 +3430,10 @@ export default function TattoDiary() {
         onSaveNextStep={(text, date, type) => {
           const current = viewProject ? getProjectById(projects, viewProject.id) : null;
           if (current) saveProject({ ...current, nextActionText: text, nextActionDate: date, nextActionType: type });
+        }}
+        onSaveHealingPhotos={(urls) => {
+          const current = viewProject ? getProjectById(projects, viewProject.id) : null;
+          if (current) saveProject(withHealingGallery(current, urls, todayISO()));
         }}
       />
 

@@ -69,6 +69,62 @@ export const PROJECT_PRIORITIES: { key: ProjectPriority; label: string }[] = [
   { key: 'normal', label: 'Обычный' },
 ];
 
+// Сколько встреч предполагает проект — задаётся мастером при создании.
+// Это НЕ точное количество сессий: на старте мастер часто сама не знает,
+// сколько их понадобится, но всегда знает «одна встреча» или «больше одной».
+// От этого зависит только одно — спрашивать ли при завершении сессии «это
+// последняя?»: у 'single' ответ известен заранее (единственная сессия проекта
+// по определению последняя), у 'multiple' и null его каждый раз подтверждает
+// мастер вручную (см. Session.isLastSession и reminders/healingCycle.ts).
+// null — «не задано»: так выглядят проекты, созданные до появления поля.
+export type SessionsPlan = 'single' | 'multiple' | null;
+
+export const SESSIONS_PLANS: { key: Exclude<SessionsPlan, null>; label: string }[] = [
+  { key: 'single', label: 'Одна встреча' },
+  { key: 'multiple', label: 'Больше одной' },
+];
+
+// Фото зажившей работы — живут на ПРОЕКТЕ, а не на сессии: заживает работа
+// целиком, а не каждая сессия по отдельности, и снимок нужен один на проект
+// (портфолио), даже если сессий было пять. Заменяет прежний флаг
+// Session.healed, см. его @deprecated-пометку в domain/session.ts.
+export interface HealingPhoto {
+  id: string;
+  url: string; // data URL, как в остальных *.photos полях
+  addedDate: string; // ISO yyyy-mm-dd
+  // Обложка проекта среди фото заживления. Не более одной — за инвариант
+  // отвечает withHealingPhoto/withHealingCover ниже, а не вызывающий код.
+  isCover: boolean;
+}
+
+// Галерея редактируется тем же SessionPhotos, что и остальные фото в
+// приложении, а он знает только про массив data-URL. Эта функция — мост
+// обратно: сопоставляет присланный список url с уже существующими
+// HealingPhoto, чтобы у переживших правку снимков сохранились их id и дата
+// добавления, а новым завелись свои.
+//
+// Совпадение ищется по url и КОНСЬЮМИТСЯ (каждый существующий снимок
+// сопоставляется не больше одного раза): если мастер добавит второй раз
+// ровно тот же файл, второй экземпляр получит собственный id, а не станет
+// дублем чужого — иначе в галерее оказались бы две записи с одним id.
+//
+// Обложка нормализуется тут же, одним инвариантом на всю модель: ровно одна,
+// и если после правки не осталось ни одной помеченной — ею становится первый
+// снимок. Так галерея из одного фото не остаётся без обложки, а удаление
+// обложки не оставляет галерею без неё.
+export function reconcileHealingPhotos(existing: HealingPhoto[], urls: string[], today: string): HealingPhoto[] {
+  const remaining = [...existing];
+  const next = urls.map((url) => {
+    const i = remaining.findIndex((p) => p.url === url);
+    if (i !== -1) return remaining.splice(i, 1)[0];
+    return { id: crypto.randomUUID(), url, addedDate: today, isCover: false };
+  });
+  if (!next.length) return next;
+  const coverIndex = next.findIndex((p) => p.isCover);
+  const cover = coverIndex === -1 ? 0 : coverIndex;
+  return next.map((p, i) => ({ ...p, isCover: i === cover }));
+}
+
 // Структурный тип «следующего шага» — чтобы будущая система (напоминания,
 // автоматизация) понимала СМЫСЛ действия без распознавания свободного текста
 // nextActionText. Дополняет его, не заменяет: nextActionText/nextActionDate
@@ -145,6 +201,21 @@ export function withAdvancedStatus(project: Project, target: ProjectStatus): Pro
   return { ...project, status: target };
 }
 
+// Правка галереи заживления вместе с автопереходом статуса — единственная
+// точка, где эти две вещи связаны, чтобы «добавила фото» и «проект завершён»
+// не разъезжались по разным местам сохранения.
+//
+// Первое фото закрывает цикл заживления: работа зажила, снимок для портфолио
+// есть, двигаться проекту больше некуда → 'completed'. Опустевшая галерея
+// статус НЕ откатывает — withAdvancedStatus ходит только вперёд, и удаление
+// неудачного кадра не должно «расзавершать» проект (мастер вправе вернуть
+// его вручную, как и любой другой откат статуса).
+export function withHealingGallery(project: Project, urls: string[], today: string): Project {
+  const healingPhotos = reconcileHealingPhotos(project.healingPhotos, urls, today);
+  const next = { ...project, healingPhotos };
+  return healingPhotos.length > 0 ? withAdvancedStatus(next, 'completed') : next;
+}
+
 export interface Project {
   id: string;
   title: string; // project name, e.g. "Дракон в стиле джапан"
@@ -154,6 +225,8 @@ export interface Project {
   // clientId===null на ContentEntry — те две вещи не связаны).
   clientId: string | null;
   status: ProjectStatus;
+  // «Одна встреча» / «больше одной» — не точное число сессий, см. SessionsPlan.
+  sessionsPlan: SessionsPlan;
   state: ProjectState;
   waitingFor: ProjectWaitingFor;
   nextActionText: string;
@@ -169,6 +242,10 @@ export interface Project {
   creative: string; // "Креатив"
   inspirationSources: string; // "Источники вдохновения"
   photos: string[];
+  // Галерея заживления — фото зажившей работы (см. HealingPhoto выше).
+  // Первое добавленное фото закрывает цикл заживления и переводит проект в
+  // 'completed' (см. reminders/healingCycle.ts).
+  healingPhotos: HealingPhoto[];
   createdDate: string;
   // «Сессии без клиента» (Этап 3b-доп.) — для проектов без clientId, живут
   // прямо на проекте (свой стор, клиента/календарь не трогают), пока не
