@@ -966,7 +966,16 @@ export function ProjectViewSheet({
           <>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <span style={chipStyle}>{PROJECT_STATUSES.find((s) => s.key === project.status)?.label ?? project.status}</span>
-              <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
+              {/* Состояние показывается, только когда оно НЕ 'active' — тем
+                  же правилом, что waitingFor/priority ниже: «Активен» это
+                  умолчание и ничего не сообщает. Раньше чип стоял всегда, но
+                  у ProjectStatus теперь есть собственный 'active' с той же
+                  подписью, и пара по умолчанию читалась как «Активен ·
+                  Активен». Пауза/отмена/архив — та информация, ради которой
+                  чип и нужен, — по-прежнему видна. */}
+              {project.state !== 'active' && (
+                <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
+              )}
               {project.waitingFor !== 'none' && (
                 <span style={chipStyle}>Ждём: {PROJECT_WAITING_FOR.find((w) => w.key === project.waitingFor)?.label}</span>
               )}
