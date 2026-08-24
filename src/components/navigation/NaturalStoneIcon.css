@@ -1,28 +1,19 @@
-/* Home and selected-button reflections are the same SVG/SMIL light strip.
-   The selected button reuses the approved home reflection instead of owning a
-   separate CSS shine system. */
-.natural-stone-home-shine,
-.natural-stone-active-shine {
+/* The shine only lives on the engraved «Создать» plate now — it only exists
+   in the DOM while the fan is open (see NavFab.tsx), so unlike the old
+   always-on hub reflection it can't run indefinitely in the background. */
+.natural-stone-create-shine {
   pointer-events: none;
 }
 
-.natural-stone-home-shine rect,
-.natural-stone-active-shine rect {
+.natural-stone-create-shine rect {
   filter: blur(0.62px);
   transform-box: fill-box;
   transform-origin: center;
   clip-path: ellipse(50% 90% at 50% 50%);
+  animation: natural-stone-create-spindle 9s cubic-bezier(0.18, 0.82, 0.2, 1) var(--shine-delay, 0s) infinite;
 }
 
-.natural-stone-home-shine rect {
-  animation: natural-stone-home-spindle 9s cubic-bezier(0.18, 0.82, 0.2, 1) 2s infinite;
-}
-
-.natural-stone-active-shine rect {
-  animation: natural-stone-home-spindle 9s cubic-bezier(0.18, 0.82, 0.2, 1) var(--active-shine-delay, 0s) infinite;
-}
-
-@keyframes natural-stone-home-spindle {
+@keyframes natural-stone-create-spindle {
   0% {
     transform: scaleX(0.88);
   }
@@ -35,31 +26,12 @@
   }
 }
 
-/* Once the toolbar opens, the hub reflection disappears and the selected
-   destination receives the same reflection after its reveal completes. */
-.nav-fab--open .natural-stone-home-shine {
-  display: none;
-}
-
-/* Kill the former selected-button pseudo reflection completely. There is now
-   only the SVG clone of the home-button shine. */
-:root[data-theme='light']
-  .nav-fab--open
-  .nav-fab__item--current
-  .theme-light-jewel::after {
-  content: none;
-  display: none;
-  animation: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .natural-stone-home-shine,
-  .natural-stone-active-shine {
+  .natural-stone-create-shine {
     display: none;
   }
 
-  .natural-stone-home-shine rect,
-  .natural-stone-active-shine rect {
+  .natural-stone-create-shine rect {
     animation: none;
   }
 }

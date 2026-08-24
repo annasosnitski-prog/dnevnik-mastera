@@ -88,52 +88,48 @@ test('the light material layer swaps visually without duplicating navigation log
 });
 
 test('light toolbar stones carry no navigation glyphs', () => {
-  assert.match(navSource, /<NaturalStoneIcon[\s\S]*kind=\{NATURAL_STONE_BY_ITEM\[item\.id\]\}[\s\S]*size=\{ITEM_SIZE\}[\s\S]*activeShine=\{isCurrentItem\}/);
+  assert.match(navSource, /<NaturalStoneIcon[\s\S]*kind=\{NATURAL_STONE_BY_ITEM\[item\.id\]\}[\s\S]*size=\{ITEM_SIZE\}[\s\S]*\/>/);
   assert.doesNotMatch(navSource, /<NaturalStoneIcon[^>]*kind=\{NATURAL_STONE_BY_ITEM\[item\.id\]\}[^>]*>[\s\S]*?<GemGlyph/);
 });
 
-test('home plate shine stays inside the inner disc and widens softly through its centre', () => {
-  assert.match(stoneSource, /const isHomePlate = plate && !children/);
+// The shine sweep moved off the hub/current-item and onto the engraved
+// «Создать» plate only — it now lives in the fan (see NavFab.tsx), which is
+// only mounted while the fan is open, instead of animating indefinitely
+// behind every idle screen.
+test('create plate shine follows the plate relief and only runs while the fan is open', () => {
+  assert.match(stoneSource, /const isEngravedPlate = plate && Boolean\(children\)/);
   assert.match(stoneSource, /const plateShineMaskId = `bronze-plate-shine-mask-\$\{rawId\}`/);
-  assert.match(stoneSource, /className="natural-stone-home-shine"/);
-  assert.match(stoneSource, /<linearGradient id=\{flatId\} x1="\.08" y1="0" x2="\.92" y2="1">/);
-  assert.match(stoneSource, /offset="\.68" stopColor="var\(--bronze-face-shadow\)"/);
-  assert.match(stoneSource, /offset="1" stopColor="var\(--bronze-face-deep\)"/);
-  assert.match(stoneSource, /r=\{outerR - 8\.2\} fill="none" stroke="var\(--bronze-face-shadow\)" strokeWidth="\.68" opacity="\.6"/);
+  assert.match(stoneSource, /className="natural-stone-create-shine"/);
   assert.match(stoneSource, /<mask id=\{plateShineMaskId\}[\s\S]*r=\{outerR - 5\.55\} fill="white"/);
   assert.match(stoneSource, /<rect x="-50" y="-24" width="19" height="112"/);
   assert.match(stoneSource, /values="-50;92;92"/);
   assert.match(stoneSource, /keyTimes="0;0\.56;1"/);
-  assert.match(stoneSource, /begin="2s"/);
+  assert.match(stoneSource, /begin=\{shineDelay\}/);
   assert.match(stoneSource, /dur="9s"/);
   assert.match(stoneSource, /attributeName="opacity"[\s\S]*values="0;1;1;0;0"/);
   assert.match(stoneSource, /keyTimes="0;\.04;\.52;\.57;1"/);
-  assert.match(stoneCss, /\.natural-stone-home-shine rect,[\s\S]*\.natural-stone-active-shine rect[\s\S]*filter: blur\(0\.62px\)/);
+  assert.match(stoneSource, /shineDelay = '0s'/);
+  assert.match(stoneCss, /\.natural-stone-create-shine rect[\s\S]*filter: blur\(0\.62px\)/);
   assert.match(stoneCss, /clip-path: ellipse\(50% 90% at 50% 50%\)/);
-  assert.match(stoneCss, /@keyframes natural-stone-home-spindle/);
+  assert.match(stoneCss, /@keyframes natural-stone-create-spindle/);
   assert.match(stoneCss, /28%[\s\S]*transform: scaleX\(1\.16\)/);
   assert.match(stoneCss, /56%,[\s\S]*100%[\s\S]*transform: scaleX\(0\.88\)/);
-  assert.match(stoneCss, /\.nav-fab--open \.natural-stone-home-shine[\s\S]*display: none/);
+  assert.match(stoneCss, /var\(--shine-delay, 0s\)/);
+  assert.doesNotMatch(stoneSource, /natural-stone-home-shine|natural-stone-active-shine|activeShine/);
+  assert.doesNotMatch(stoneCss, /natural-stone-home-shine|natural-stone-active-shine|--active-shine-delay/);
+  assert.match(navSource, /<NaturalStoneIcon size=\{ITEM_SIZE\} plate shineDelay=\{`\$\{\(travelDelayMs \+ durationMs \+ 180\) \/ 1000\}s`\}>/);
 });
 
-test('current light toolbar item reuses the approved visible home-button shine', () => {
-  assert.match(stoneSource, /activeShine = false/);
-  assert.match(stoneSource, /activeShineDelay = '0s'/);
-  assert.match(stoneSource, /className="natural-stone-active-shine"/);
-  assert.match(stoneSource, /fill=\{`url\(#\$\{plateShineId\}\)`\}/);
-  assert.match(stoneSource, /x="-50"[\s\S]*y="-24"[\s\S]*width="19"[\s\S]*height="112"/);
-  assert.match(stoneSource, /values="-50;92;92"/);
-  assert.match(stoneSource, /keyTimes="0;0\.56;1"/);
-  assert.match(stoneSource, /begin=\{activeShineDelay\}/);
-  assert.match(stoneSource, /dur="9s"/);
-  assert.match(stoneSource, /values="0;1;1;0;0"/);
-  assert.match(stoneSource, /keyTimes="0;\.04;\.52;\.57;1"/);
-  assert.doesNotMatch(stoneSource, /selectedStoneShineId|selectedStoneMaskId|selectedBronzeMaskId/);
-  assert.match(stoneCss, /\.natural-stone-active-shine rect[\s\S]*natural-stone-home-spindle 9s/);
-  assert.match(stoneCss, /var\(--active-shine-delay, 0s\)/);
-  assert.match(stoneCss, /\.theme-light-jewel::after[\s\S]*content: none;[\s\S]*display: none;/);
-  assert.match(navSource, /activeShine=\{isCurrentItem\}/);
-  assert.match(navSource, /activeShineDelay=\{`\$\{\(travelDelayMs \+ durationMs \+ 180\) \/ 1000\}s`\}/);
+test('the current destination sits unlit — every other reachable destination stays lit, with no glow/halo anywhere', () => {
+  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item \.theme-light-jewel[\s\S]{0,40}opacity: 1;[\s\S]{0,80}filter: saturate\(1\.16\) brightness\(1\.08\) contrast\(1\.05\);/);
+  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item \.natural-stone-cabochon[\s\S]{0,40}opacity: 1;[\s\S]{0,20}filter: none;/);
+  assert.match(css, /:root\[data-theme='light'\] \.nav-fab__item--current \.natural-stone-cabochon[\s\S]{0,80}opacity: 0\.5;[\s\S]{0,80}filter: saturate\(0\.55\) brightness\(0\.8\) contrast\(0\.96\)/);
+  // No glow/halo left anywhere on the toolbar buttons: neither the big
+  // blurred aura, the gem's own drop-shadow bloom, nor the small pale
+  // spotlight every button used to sit on top of.
+  assert.doesNotMatch(css, /drop-shadow\([^)]*--natural-jewel-color/);
+  assert.doesNotMatch(css, /\.nav-fab__item::before/);
+  assert.doesNotMatch(css, /\.nav-fab__main::before/);
 });
 
 test('light Create plus is engraved into the bronze plate instead of drawn as a flat glyph', () => {

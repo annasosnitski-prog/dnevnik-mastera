@@ -73,37 +73,6 @@
   --two-pendant-ray-sheen: var(--bronze-sheen);
 }
 
-/* The old light skin left a cool grey-green spotlight behind toolbar buttons.
-   Keep the same depth cue, but make it a reflection from the canonical bronze. */
-:root[data-theme='light'] .nav-fab__main::before,
-:root[data-theme='light'] .nav-fab__item::before {
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--bronze-highlight) 24%, transparent) 0%,
-    color-mix(in srgb, var(--bronze-mid) 9%, transparent) 48%,
-    transparent 74%
-  ) !important;
-  filter: blur(5px);
-}
-
-/* Selection is communicated by the moving reflection itself. Cancel the old
-   gemstone-coloured drop-shadows and enlarged coloured halo. */
-:root[data-theme='light'] .nav-fab__item--current .theme-light-jewel {
-  filter: saturate(1.16) brightness(1.08) contrast(1.05) !important;
-}
-
-:root[data-theme='light'] .nav-fab__item--current::before {
-  width: 33.34% !important;
-  height: 33.34% !important;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--bronze-highlight) 20%, transparent) 0%,
-    color-mix(in srgb, var(--bronze-mid) 7%, transparent) 48%,
-    transparent 74%
-  ) !important;
-  filter: blur(5px) !important;
-}
-
 /* NavFabReveal's large ornamental SVGs are legacy gold data-URIs shared with
    the dark skin. In the light skin they are toned into the same warm bronze
    family instead of reading as a second yellow metal. */

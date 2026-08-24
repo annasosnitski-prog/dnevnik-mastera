@@ -76,16 +76,16 @@ export function NaturalStoneIcon({
   size,
   plate = false,
   medallion = false,
-  activeShine = false,
-  activeShineDelay = '0s',
+  shineDelay = '0s',
   children,
 }: {
   kind?: NaturalStoneKind;
   size: number;
   plate?: boolean;
   medallion?: boolean;
-  activeShine?: boolean;
-  activeShineDelay?: string;
+  // Delay before the plate-relief shine sweep starts — only rendered for the
+  // engraved plate (currently «Создать»), so this is meaningless elsewhere.
+  shineDelay?: string;
   children?: ReactNode;
 }) {
   const rawId = useId().replace(/:/g, '');
@@ -153,11 +153,6 @@ export function NaturalStoneIcon({
             <circle cx="32" cy="32" r={outerR - 5.2} fill={`url(#${flatId})`} stroke="var(--bronze-light)" strokeWidth=".62" />
             <circle cx="32" cy="32" r={outerR - 8.2} fill="none" stroke="var(--bronze-face-shadow)" strokeWidth=".68" opacity=".6" />
             {!isHomePlate && <><path d="M16 24c5-7 13-10 21-8M44 46c-7 4-15 4-22 0" fill="none" stroke="var(--bronze-highlight)" strokeWidth=".72" strokeLinecap="round" opacity=".28" /><path d="M18 43c-3-5-4-10-2-15M47 22c3 5 3 10 2 15" fill="none" stroke="var(--bronze-shadow)" strokeWidth=".68" strokeLinecap="round" opacity=".38" /></>}
-            {isHomePlate && (
-              <g className="natural-stone-home-shine" clipPath={`url(#${plateClipId})`} mask={`url(#${plateShineMaskId})`} pointerEvents="none">
-                <g transform="rotate(45 32 32)"><rect x="-50" y="-24" width="19" height="112" fill={`url(#${plateShineId})`} opacity="0"><animate attributeName="x" values="-50;92;92" keyTimes="0;0.56;1" begin="2s" dur="9s" calcMode="spline" keySplines="0.18 0.82 0.2 1;0 0 1 1" repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;.04;.52;.57;1" begin="2s" dur="9s" calcMode="linear" repeatCount="indefinite" /></rect></g>
-              </g>
-            )}
           </>
         ) : (
           <>
@@ -175,12 +170,12 @@ export function NaturalStoneIcon({
           </>
         )}
 
-        {activeShine && kind && !plate && (
-          <g className="natural-stone-active-shine" clipPath={`url(#${plateClipId})`} pointerEvents="none">
+        {isEngravedPlate && (
+          <g className="natural-stone-create-shine" clipPath={`url(#${plateClipId})`} mask={`url(#${plateShineMaskId})`} pointerEvents="none">
             <g transform="rotate(45 32 32)">
-              <rect x="-50" y="-24" width="19" height="112" fill={`url(#${plateShineId})`} opacity="0" style={{ ['--active-shine-delay' as string]: activeShineDelay }}>
-                <animate attributeName="x" values="-50;92;92" keyTimes="0;0.56;1" begin={activeShineDelay} dur="9s" calcMode="spline" keySplines="0.18 0.82 0.2 1;0 0 1 1" repeatCount="indefinite" />
-                <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;.04;.52;.57;1" begin={activeShineDelay} dur="9s" calcMode="linear" repeatCount="indefinite" />
+              <rect x="-50" y="-24" width="19" height="112" fill={`url(#${plateShineId})`} opacity="0" style={{ ['--shine-delay' as string]: shineDelay }}>
+                <animate attributeName="x" values="-50;92;92" keyTimes="0;0.56;1" begin={shineDelay} dur="9s" calcMode="spline" keySplines="0.18 0.82 0.2 1;0 0 1 1" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;.04;.52;.57;1" begin={shineDelay} dur="9s" calcMode="linear" repeatCount="indefinite" />
               </rect>
             </g>
           </g>
