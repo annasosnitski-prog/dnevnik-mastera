@@ -201,6 +201,17 @@ export function withAdvancedStatus(project: Project, target: ProjectStatus): Pro
   return { ...project, status: target };
 }
 
+// Куда выполненная сессия двигает проект. Последняя — в «Заживление»: работа
+// закончена, дальше только цикл заживления (см. reminders/healingCycle.ts).
+// Любая другая — в «Активен»: проект в работе, впереди ещё сессии.
+//
+// «Последняя» определяется тем же правилом, что и в самом цикле: у проекта
+// «одна встреча» единственная сессия последняя по определению, у остальных
+// это подтверждение мастера на сессии (см. Session.isLastSession).
+export function withStatusAfterDoneSession(project: Project, isLastSession: boolean): Project {
+  return withAdvancedStatus(project, project.sessionsPlan === 'single' || isLastSession ? 'healing' : 'active');
+}
+
 // Правка галереи заживления вместе с автопереходом статуса — единственная
 // точка, где эти две вещи связаны, чтобы «добавила фото» и «проект завершён»
 // не разъезжались по разным местам сохранения.

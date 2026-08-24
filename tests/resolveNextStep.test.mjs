@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { resolveNextStep, isMeaningfulProjectChange, withAdvancedStatus } from '../.test-dist/src/domain/project.js';
+import {
+  resolveNextStep,
+  isMeaningfulProjectChange,
+  withAdvancedStatus,
+  withStatusAfterDoneSession,
+} from '../.test-dist/src/domain/project.js';
 
 test('resolveNextStep keeps text, date and type when text is non-empty', () => {
   const r = resolveNextStep('Отправить мудборд', '2026-08-12', 'prepare_design');
@@ -41,6 +46,8 @@ function makeProject(overrides = {}) {
     category: 'tattoo',
     clientId: null,
     status: 'waiting_deposit',
+    sessionsPlan: null,
+    healingPhotos: [],
     state: 'active',
     waitingFor: 'none',
     nextActionText: '',
@@ -153,4 +160,44 @@ test('withAdvancedStatus ignores an unknown target status', () => {
 test('withAdvancedStatus ignores a legacy ProjectStage value as a target', () => {
   const p = makeProject({ status: 'waiting_deposit' });
   assert.equal(withAdvancedStatus(p, 'in_progress').status, 'waiting_deposit');
+});
+
+// ── withStatusAfterDoneSession ────────────────────────────────────────────
+// Куда выполненная сессия двигает проект: обычная — «Активен», последняя —
+// сразу «Заживление» (дальше только цикл заживления).
+
+test('withStatusAfterDoneSession moves a project to «Активен» on an ordinary session', () => {
+  const p = makeProject({ status: 'waiting_deposit', sessionsPlan: 'multiple' });
+  assert.equal(withStatusAfterDoneSession(p, false).status, 'active');
+});
+
+test('withStatusAfterDoneSession moves a project to «Заживление» on the last session', () => {
+  const p = makeProject({ status: 'active', sessionsPlan: 'multiple' });
+  assert.equal(withStatusAfterDoneSession(p, true).status, 'healing');
+});
+
+// У проекта «одна встреча» единственная сессия последняя по определению —
+// подтверждение мастера там не спрашивается и на сессии не хранится.
+test('withStatusAfterDoneSession treats a single-session project as always final', () => {
+  const p = makeProject({ status: 'active', sessionsPlan: 'single' });
+  assert.equal(withStatusAfterDoneSession(p, false).status, 'healing');
+});
+
+// Старый проект без плана ведёт себя как «больше одной»: подтверждения не
+// было, значит закрывать работу нечем.
+test('withStatusAfterDoneSession treats a plan-less project as not final without confirmation', () => {
+  const p = makeProject({ status: 'active', sessionsPlan: null });
+  assert.equal(withStatusAfterDoneSession(p, false).status, 'active');
+});
+
+// Проект, у которого предоплату так и не отметили вручную, не застревает —
+// withAdvancedStatus пропускает ступень вперёд.
+test('withStatusAfterDoneSession skips straight past «Ожидает предоплаты» for a last session', () => {
+  const p = makeProject({ status: 'waiting_deposit', sessionsPlan: 'single' });
+  assert.equal(withStatusAfterDoneSession(p, true).status, 'healing');
+});
+
+test('withStatusAfterDoneSession never rolls a completed project back', () => {
+  const p = makeProject({ status: 'completed', sessionsPlan: 'multiple' });
+  assert.equal(withStatusAfterDoneSession(p, true), p, 'возвращает тот же объект, менять нечего');
 });

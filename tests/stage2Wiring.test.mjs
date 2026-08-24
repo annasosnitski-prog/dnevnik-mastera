@@ -68,13 +68,47 @@ test('статус проекта продвигается тем же сохр�
   // Отдельная запись статуса читала бы ещё не обновившийся стейт и затирала
   // только что добавленную сессию — это и был #248.
   assert.doesNotMatch(app, /const advanceProjectStage =/);
-  assert.match(app, /const advanceStatusIn = \(source: Project\[\], projectId: string \| null, target: ProjectStatus\): Project\[\] =>/);
+  assert.match(
+    app,
+    /const advanceAfterDoneSessionIn = \(source: Project\[\], projectId: string \| null, isLastSession: boolean\): Project\[\] =>/,
+  );
   const commit = app.slice(app.indexOf('const commitSession = ('), app.indexOf('const handleAddConsultation ='));
-  // Только ВЫПОЛНЕННАЯ сессия двигает проект в «Активен»: назначенная
-  // будущая встреча — это и есть окно ожидания предоплаты, снимать
-  // «Ожидает предоплаты» она не должна (см. withAdvancedStatus).
-  assert.match(commit, /saveProjects\(data\.done \? advanceStatusIn\(withConversion, projectId, 'active'\) : withConversion\)/);
+  // Только ВЫПОЛНЕННАЯ сессия двигает статус: назначенная будущая встреча —
+  // это и есть окно ожидания предоплаты, снимать «Ожидает предоплаты» она не
+  // должна. Куда именно двигает — решает withStatusAfterDoneSession
+  // («Активен» или сразу «Заживление» у последней сессии).
+  assert.match(
+    commit,
+    /saveProjects\(data\.done \? advanceAfterDoneSessionIn\(withConversion, projectId, data\.isLastSession\) : withConversion\)/,
+  );
   assert.equal((commit.match(/saveProjects\(/g) ?? []).length, 1, 'ровно одно сохранение на весь сценарий');
+});
+
+// Вход в цикл заживления обязан двигать проект в «Заживление» ТЕМ ЖЕ
+// сохранением, что и сама сессия — иначе повторится #248: вторая запись
+// прочитала бы ещё не обновившийся стейт и затёрла только что добавленную
+// сессию. И наоборот: если статус не поедет вовсе, проект останется
+// «Активным» с законченной работой.
+test('последняя выполненная сессия уводит проект в «Заживление» тем же сохранением', () => {
+  const toggle = app.slice(app.indexOf('const toggleSessionDone = ('), app.indexOf('const markEntryCancelled ='));
+  assert.match(
+    toggle,
+    /saveProjects\(session\.done \? flipped : advanceAfterDoneSessionIn\(flipped, session\.projectId, session\.isLastSession\)\)/,
+  );
+  assert.equal((toggle.match(/saveProjects\(/g) ?? []).length, 1, 'ровно одно сохранение на весь сценарий');
+});
+
+// Цикл заживления считается от проектов (там физически лежат сессии), а не
+// от клиентов — иначе он разъедется с хранилищем после Этапа 2. И deprecated
+// путь не должен остаться подключённым параллельно новому: две ленты
+// заживления показывали бы карточки на одну и ту же работу.
+test('карточки заживления строит цикл проекта, а не deprecated healingReminders', () => {
+  assert.match(app, /healingCycleReminders\(clients, projects, remindersNow\)/);
+  assert.doesNotMatch(app, /\bhealingReminders\(/);
+  assert.doesNotMatch(app, /healingReminderKey\b/);
+  assert.doesNotMatch(app, /healingReminderKeysForSession\b/);
+  // Флаг session.healed deprecated и из UI убран — монолит его не пишет.
+  assert.doesNotMatch(app, /healed: true/);
 });
 
 // Удалённый семишаговый ProjectStage не должен остаться висеть ни в одном
