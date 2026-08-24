@@ -11,7 +11,7 @@
 import type { Client } from '../domain/client';
 import type { Project } from '../domain/project';
 import { getProjectLastActivityDate, hasScheduledWork, hasOverdueWork } from '../domain/projectSelectors.js';
-import { ISO_DATE_RE, isValidISODate } from '../utils/dates.js';
+import { ISO_DATE_RE, isValidISODate, todayISO, daysSinceISO } from '../utils/dates.js';
 import type {
   OverdueItem,
   HealingItem,
@@ -22,13 +22,18 @@ import type {
   StaleProjectItem,
 } from './types';
 
-// Заживление проверяется в четыре захода вместо одной точки на 30-й день —
+// @deprecated — заменено циклом заживления на проекте, см.
+// reminders/healingCycle.ts: там цикл один на проект и считается от его
+// последней выполненной сессии, а не заводится отдельно на каждую.
+// HEALING_STAGES и healingReminders ниже физически оставлены на один релиз —
+// мастер должна убедиться, что новая логика работает на практике; удаление
+// отдельным PR после этого. Новый код их не вызывает.
+//
+// Заживление проверялось в четыре захода вместо одной точки на 30-й день —
 // у каждой стадии своё окно (minDays включительно, maxDays исключительно).
 // Окна не пересекаются, поэтому у сессии в любой момент активна максимум
-// одна стадия. Последняя (day30) без верхней границы — держится, пока
-// мастер не отметит «Зажив» (session.healed), как и раньше.
-// Экспортирован — reminderKeys.ts строит по нему healingReminderKeysForSession
-// (все ключи стадий одной сессии, для «Не напоминать больше»), см. PR M3.
+// одна стадия. Последняя (day30) без верхней границы — держалась, пока
+// мастер не отметит «Зажив» (session.healed, тоже @deprecated).
 export const HEALING_STAGES: { stage: HealingStage; minDays: number; maxDays: number | null }[] = [
   { stage: 'day1', minDays: 1, maxDays: 4 },
   { stage: 'day4', minDays: 4, maxDays: 15 },
@@ -40,19 +45,13 @@ export const SOON_REMINDER_MAX_HOURS = 48;
 
 const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
-// Local (not UTC) yyyy-mm-dd for the given moment — идентично прежнему
-// todayISO(), но от переданного `now`, а не от new Date() внутри.
-function localISO(now: Date): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
-// Whole local days between an ISO date and `now`'s local midnight, floored —
-// идентично прежнему daysSinceISO(date), но от переданного `now`.
-function daysSince(date: string, now: Date): number {
-  const then = new Date(date + 'T00:00:00');
-  const today = new Date(localISO(now) + 'T00:00:00');
-  return Math.floor((today.getTime() - then.getTime()) / 86400000);
-}
+// Обе величины считаются от переданного `now`, а не от глобальных часов —
+// ровно то, что делает функции этого модуля чистыми. Прежние локальные
+// копии localISO/daysSince переехали в utils/dates.ts под своими исходными
+// именами (todayISO/daysSinceISO, теперь с необязательным `now`), чтобы
+// healingCycle.ts считал дни той же самой реализацией, а не второй копией.
+const localISO = todayISO;
+const daysSince = daysSinceISO;
 
 // Sessions AND consultations whose date has passed while still marked
 // not-done. Sorted oldest-first, so the most overdue leads.
@@ -75,8 +74,9 @@ export function overdueEntries(clients: Client[], now: Date): OverdueItem[] {
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// Done sessions, not yet marked healed, currently inside one of the
-// HEALING_STAGES windows. Sorted oldest-first.
+// @deprecated — см. HEALING_STAGES выше; замена — healingCycleReminders в
+// reminders/healingCycle.ts. Done sessions, not yet marked healed, currently
+// inside one of the HEALING_STAGES windows. Sorted oldest-first.
 export function healingReminders(clients: Client[], now: Date): HealingItem[] {
   const result: HealingItem[] = [];
   for (const client of clients) {
