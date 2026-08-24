@@ -1,11 +1,12 @@
 // Открытая папка «Мастерской» — список проектов внутри одной клиентской
-// папки или «Проектов мастера». Переиспользует существующую карточку
-// проекта (ProjectCard) и её обработчик открытия как есть — здесь только
-// заголовок папки и «назад» на верхний уровень папок.
+// папки или «Проектов мастера». Переиспользует общую нейтральную карточку
+// проекта; цвет остаётся идентификатором клиента, а не проекта.
 import type { ProjectFolder } from '../../domain/projectSelectors';
+import { clientNameFor } from '../../domain/projectSelectors';
 import type { Client } from '../../domain/client';
 import type { Project } from '../../domain/project';
-import { COLORS, fs, ProjectCard, clientNameFor } from '../TattoDiary';
+import { COLORS, fs } from '../ui/designTokens';
+import { ProjectCard } from './ProjectCard';
 
 export function ProjectFolderView({
   folder,

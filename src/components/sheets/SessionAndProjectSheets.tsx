@@ -11,9 +11,7 @@ import {
   type ProjectState,
   PROJECT_STATES,
   type ProjectWaitingFor,
-  PROJECT_WAITING_FOR,
   type ProjectPriority,
-  PROJECT_PRIORITIES,
   type NextActionType,
   NEXT_ACTION_TYPES,
   type Project,
@@ -43,19 +41,11 @@ import {
   SessionPhotos,
   UrgencyChips,
   ProjectCategoryChips,
-  MarkerColorPalette,
   NextStepRow,
 } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton, SheetSavedCheck } from '../ui/Sheet';
 import { FieldLabel, SheetStarDivider } from '../ui/TextAtoms';
 
-// Вынесено из TattoDiary.tsx (PR 6 рефакторинга). Логика и разметка не
-// менялись — только перенос в отдельный модуль.
-
-// Собирает заметку новой сессии из полей консультации-источника (см.
-// prefillConsultation ниже) — переезжает вместе с сессией то, что не имеет
-// собственного поля в Session (чувство/ощущение, креатив, источники
-// вдохновения), а не теряется при конвертации.
 function consultationNoteSummary(consultation: Consultation | null | undefined): string {
   if (!consultation) return '';
   const parts: string[] = [];
@@ -80,30 +70,11 @@ export function NewSessionSheet({
 }: {
   open: boolean;
   clientName: string;
-  // Проекты этого клиента — для опциональной привязки сессии (Этап 2).
   clientProjects: Project[];
-  // Предзаполняет «Проект» для новой сессии, созданной из просмотра проекта
-  // (Этап 3b) — игнорируется при редактировании существующей.
   presetProjectId?: string | null;
   initial?: Session | null;
-  // Prefills the date field for a brand-new session (e.g. started from a
-  // day picked in the calendar) — ignored once `initial` is set (editing wins).
   initialDate?: string;
-  // Консультация, которую переводят в сессию («Перевести в сессию» —
-  // DetailScreen/TimelineViewSheet) — предзаполняет зону/стиль/фото/проект и
-  // собирает заметку из creative-полей консультации. Игнорируется при
-  // редактировании существующей сессии (initial имеет приоритет). Дата
-  // намеренно НЕ переносится — консультация уже прошла, а сессия это новая,
-  // ещё не назначенная встреча для работы.
   prefillConsultation?: Consultation | null;
-  // Сессия, от которой назначается следующая («Назначить следующую сессию» —
-  // DetailScreen/TimelineViewSheet, см. TattoDiary's startChainNextSession) —
-  // предзаполняет только зону/стиль/проект (продолжение той же работы);
-  // заметки/фото/статус остаются пустыми/по умолчанию — это отдельная запись,
-  // а не копия предыдущей. Игнорируется при редактировании (initial имеет
-  // приоритет) и не пересекается с prefillConsultation — это два разных
-  // источника, каждый устанавливается своим действием. Дата намеренно НЕ
-  // переносится, тем же принципом, что prefillConsultation выше.
   chainFrom?: Session | null;
   onClose: () => void;
   onAdd: (data: {
@@ -136,23 +107,13 @@ export function NewSessionSheet({
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
-  // New sessions default to «Выполнена»; editing reflects the session's
-  // status; started from a calendar date (clearly a future booking), default
-  // to «Запланирована» instead.
   const [done, setDone] = useState(true);
   const [healed, setHealed] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
-  // Briefly swaps the close «×» for a green check after saving an edit — see
-  // SheetSavedCheck — so the save reads as confirmed rather than the sheet
-  // just vanishing. Shown unconditionally on every edit-save, even when
-  // nothing in the form actually changed.
   const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
-      // Prefill from the session being edited, from the consultation being
-      // converted (prefillConsultation, ignored while editing), or start
-      // blank for a new one.
       setName(initial?.name ?? '');
       setDate(initial?.date ?? initialDate ?? '');
       setTime(initial?.time ?? '');
@@ -164,9 +125,6 @@ export function NewSessionSheet({
       setSkinReaction(initial?.skinReaction ?? '');
       setNote(initial?.note ?? consultationNoteSummary(prefillConsultation));
       setPhotos(initial?.photos ?? prefillConsultation?.photos ?? []);
-      // A converted consultation is always a future booking, not yet done —
-      // same reasoning as the initialDate case just below. A chained next
-      // session is the same: it hasn't happened yet.
       setDone(initial ? initial.done : !initialDate && !prefillConsultation && !chainFrom);
       setHealed(initial?.healed ?? false);
       setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
@@ -217,8 +175,6 @@ export function NewSessionSheet({
       </div>
 
       <div style={{ padding: '4px 24px 50px' }}>
-        {/* Photos first — same order as the consultation form (see
-            NewConsultationSheet), rather than tacked on near the end. */}
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Фото</FieldLabel>
           <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
@@ -229,26 +185,16 @@ export function NewSessionSheet({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
         </div>
 
-        {/* Поле всегда видно (даже когда у владельца ещё нет ни одного
-            проекта) — сессия больше не может остаться совсем без проекта:
-            если мастер не выбрала существующий, ensureProjectId в
-            TattoDiary.tsx молча заведёт новый под тем же владельцем при
-            сохранении (см. handleAddSession/saveSessionFromNewSessionSheet). */}
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Проект</FieldLabel>
           <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
             <option value="">— создать новый проект —</option>
             {clientProjects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title || 'Без названия'}
-              </option>
+              <option key={p.id} value={p.id}>{p.title || 'Без названия'}</option>
             ))}
           </select>
         </div>
 
-        {/* Date & time stacked full-width. Side-by-side used to overlap on
-            iOS, where the native pickers keep a large intrinsic width and
-            won't shrink into a flex half-column. */}
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Дата</FieldLabel>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
@@ -261,12 +207,8 @@ export function NewSessionSheet({
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Статус</FieldLabel>
           <div style={{ display: 'flex', gap: 6 }}>
-            <div onClick={() => setDone(true)} style={{ ...chipStyle(done, true), flex: 1, textAlign: 'center' }}>
-              Выполнена
-            </div>
-            <div onClick={() => setDone(false)} style={{ ...chipStyle(!done, true), flex: 1, textAlign: 'center' }}>
-              Запланирована
-            </div>
+            <div onClick={() => setDone(true)} style={{ ...chipStyle(done, true), flex: 1, textAlign: 'center' }}>Выполнена</div>
+            <div onClick={() => setDone(false)} style={{ ...chipStyle(!done, true), flex: 1, textAlign: 'center' }}>Запланирована</div>
           </div>
         </div>
 
@@ -274,9 +216,7 @@ export function NewSessionSheet({
           <FieldLabel>Продолжительность</FieldLabel>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {DURATIONS.map((d) => (
-              <div key={d} onClick={() => setDuration(d)} style={chipStyle(duration === d, true)}>
-                {d}
-              </div>
+              <div key={d} onClick={() => setDuration(d)} style={chipStyle(duration === d, true)}>{d}</div>
             ))}
           </div>
         </div>
@@ -284,21 +224,11 @@ export function NewSessionSheet({
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Стиль работы</FieldLabel>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            {(stylesExpanded
-              ? STYLES
-              : STYLES.slice(0, STYLES_PINNED_COUNT).concat(
-                  style && STYLES.indexOf(style) >= STYLES_PINNED_COUNT ? [style] : [],
-                )
-            ).map((s) => (
-              <div key={s} onClick={() => setStyle(s)} style={chipStyle(style === s, false)}>
-                {s}
-              </div>
+            {(stylesExpanded ? STYLES : STYLES.slice(0, STYLES_PINNED_COUNT).concat(style && STYLES.indexOf(style) >= STYLES_PINNED_COUNT ? [style] : [])).map((s) => (
+              <div key={s} onClick={() => setStyle(s)} style={chipStyle(style === s, false)}>{s}</div>
             ))}
             {!stylesExpanded && (
-              <div
-                onClick={() => setStylesExpanded(true)}
-                style={{ fontSize: fs(12), padding: '6px 11px', color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer', whiteSpace: 'nowrap' }}
-              >
+              <div onClick={() => setStylesExpanded(true)} style={{ fontSize: fs(12), padding: '6px 11px', color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 Ещё стили ▾
               </div>
             )}
@@ -322,59 +252,24 @@ export function NewSessionSheet({
 
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Реакция кожи</FieldLabel>
-          <input
-            value={skinReaction}
-            onChange={(e) => setSkinReaction(e.target.value)}
-            placeholder="Покраснение, отёк, спокойно..."
-            style={INPUT_STYLE}
-          />
+          <input value={skinReaction} onChange={(e) => setSkinReaction(e.target.value)} placeholder="Покраснение, отёк, спокойно..." style={INPUT_STYLE} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Заметки</FieldLabel>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Что делали, наблюдения..."
-            style={{ ...INPUT_STYLE, resize: 'none', height: 80 }}
-          />
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Что делали, наблюдения..." style={{ ...INPUT_STYLE, resize: 'none', height: 80 }} />
         </div>
 
-        {/* Manually ticked once a healed-skin photo has been added — drives
-            the ~30-day «напомнить о себе» reminder in Задачи/Мастер. */}
-        <div
-          onClick={() => setHealed((v) => !v)}
-          role="button"
-          aria-label="Зажив"
-          style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22, cursor: 'pointer' }}
-        >
-          <div
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 2,
-              flexShrink: 0,
-              border: healed ? '1px solid rgba(var(--gold-rgb),0.7)' : '1px solid rgba(var(--gold-rgb),0.3)',
-              background: healed ? 'rgba(var(--gold-rgb),0.15)' : 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+        <div onClick={() => setHealed((v) => !v)} role="button" aria-label="Зажив" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22, cursor: 'pointer' }}>
+          <div style={{ width: 20, height: 20, borderRadius: 2, flexShrink: 0, border: healed ? '1px solid rgba(var(--gold-rgb),0.7)' : '1px solid rgba(var(--gold-rgb),0.3)', background: healed ? 'rgba(var(--gold-rgb),0.15)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {healed && (
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                <path d="M2.5 7.3L5.5 10.3L11.5 3.7" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.3L5.5 10.3L11.5 3.7" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             )}
           </div>
           <span style={{ fontSize: fs(14), color: healed ? COLORS.gold : COLORS.textFaint }}>Зажив</span>
         </div>
 
-        <div
-          className="inka-submit"
-          onClick={handleSave}
-          style={SUBMIT_STYLE}
-        >
+        <div className="inka-submit" onClick={handleSave} style={SUBMIT_STYLE}>
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
             {isEdit ? 'Сохранить' : 'Добавить сессию'}
           </span>
@@ -396,48 +291,22 @@ export function ProjectSessionPickerSheet({
 }: {
   open: boolean;
   projects: Project[];
-  // Только для scope==='all' — имена клиентов для группировки списка.
   clients?: Client[];
-  // null (по умолчанию) — «сессия без клиента» (Мастерская), список
-  // проектов БЕЗ клиента, как раньше. Задан — список проектов ЭТОГО
-  // клиента (content-link цепочка для клиентской ContentEntry), а не
-  // клиентских по умолчанию. Игнорируется, если scope==='all'.
   clientId?: string | null;
-  // 'all' — все проекты сразу, сгруппированные по клиенту (+ «Мастерская»)
-  // — для контекста без единого явного владельца (Админка). Без этого —
-  // прежнее поведение: только clientId/client-less.
   scope?: 'all';
   onClose: () => void;
   onPick: (project: Project) => void;
   onCreateProject: () => void;
 }) {
   const eligible = clientId ? projects.filter((p) => p.clientId === clientId) : projects.filter((p) => !p.clientId);
-
-  const rowStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '11px 13px',
-    borderRadius: 2,
-    cursor: 'pointer',
-    border: '1px solid rgba(var(--gold-rgb),0.2)',
-    background: 'rgba(var(--surface-rgb),0.018)',
-  };
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '11px 13px', borderRadius: 2, cursor: 'pointer', border: '1px solid rgba(var(--gold-rgb),0.2)', background: 'rgba(var(--surface-rgb),0.018)' };
   const projectRow = (p: Project) => (
     <div key={p.id} onClick={() => onPick(p)} style={rowStyle}>
       <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-      <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {p.title || 'Без названия'}
-      </span>
+      <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Без названия'}</span>
     </div>
   );
-  const groupLabelStyle: React.CSSProperties = {
-    fontSize: fs(10),
-    color: COLORS.textGhost,
-    letterSpacing: '1.5px',
-    textTransform: 'uppercase',
-    margin: '6px 0 2px',
-  };
+  const groupLabelStyle: React.CSSProperties = { fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', margin: '6px 0 2px' };
 
   return (
     <BottomSheet open={open} heightPct={scope === 'all' ? 62 : 50}>
@@ -449,43 +318,22 @@ export function ProjectSessionPickerSheet({
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {scope === 'all' ? (
           <>
-            {projects.length === 0 && (
-              <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет ни одного проекта — создайте первый.</div>
-            )}
+            {projects.length === 0 && <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет ни одного проекта — создайте первый.</div>}
             {clients.map((c) => {
               const clientProjects = projects.filter((p) => p.clientId === c.id);
               if (clientProjects.length === 0) return null;
-              return (
-                <div key={c.id}>
-                  <div style={groupLabelStyle}>{`${c.name} ${c.surname}`.trim() || 'Клиент'}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{clientProjects.map(projectRow)}</div>
-                </div>
-              );
+              return <div key={c.id}><div style={groupLabelStyle}>{`${c.name} ${c.surname}`.trim() || 'Клиент'}</div><div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{clientProjects.map(projectRow)}</div></div>;
             })}
             {(() => {
               const clientless = projects.filter((p) => !p.clientId);
               if (clientless.length === 0) return null;
-              return (
-                <div>
-                  <div style={groupLabelStyle}>Мастерская</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{clientless.map(projectRow)}</div>
-                </div>
-              );
+              return <div><div style={groupLabelStyle}>Мастерская</div><div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{clientless.map(projectRow)}</div></div>;
             })()}
           </>
         ) : eligible.length === 0 ? (
-          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
-            {clientId ? 'Пока нет проектов у этого клиента — создайте первый.' : 'Пока нет проектов без клиента — создайте первый.'}
-          </div>
-        ) : (
-          eligible.map(projectRow)
-        )}
-        <div
-          onClick={onCreateProject}
-          style={{ textAlign: 'center', padding: '10px 0', color: COLORS.gold, fontSize: fs(13), letterSpacing: '0.5px', cursor: 'pointer', marginTop: 4 }}
-        >
-          + Новый проект
-        </div>
+          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{clientId ? 'Пока нет проектов у этого клиента — создайте первый.' : 'Пока нет проектов без клиента — создайте первый.'}</div>
+        ) : eligible.map(projectRow)}
+        <div onClick={onCreateProject} style={{ textAlign: 'center', padding: '10px 0', color: COLORS.gold, fontSize: fs(13), letterSpacing: '0.5px', cursor: 'pointer', marginTop: 4 }}>+ Новый проект</div>
       </div>
     </BottomSheet>
   );
@@ -506,22 +354,10 @@ export function NewConsultationSheet({
   open: boolean;
   clientName: string;
   client: Client | null;
-  // Проекты этого клиента — для опциональной привязки консультации (Этап 2).
   clientProjects: Project[];
-  // Предзаполняет «Проект» для новой консультации из просмотра проекта (3b).
   presetProjectId?: string | null;
   initial?: Consultation | null;
-  // Prefills the date field for a brand-new consultation (e.g. started from a
-  // day picked in the calendar) — ignored once `initial` is set.
   initialDate?: string;
-  // Консультация, от которой назначается следующая («Назначить следующую
-  // консультацию» — DetailScreen/TimelineViewSheet, см. TattoDiary's
-  // startChainNextConsultation) — предзаполняет только проект/зону/стиль
-  // (продолжение той же работы); заметки/итог остаются пустыми —
-  // это отдельная запись со своим содержанием, а не копия предыдущей.
-  // Игнорируется при редактировании существующей записи (initial имеет
-  // приоритет). Дата намеренно НЕ переносится, тем же принципом, что
-  // prefillConsultation у NewSessionSheet.
   chainFrom?: Consultation | null;
   onClose: () => void;
   onAdd: (data: {
@@ -552,8 +388,6 @@ export function NewConsultationSheet({
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
-  // See NewSessionSheet's justSaved for why this shows unconditionally on
-  // every edit-save, not just when something actually changed.
   const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
@@ -580,9 +414,7 @@ export function NewConsultationSheet({
     if (isEdit) {
       setJustSaved(true);
       setTimeout(() => onAdd(data), 700);
-    } else {
-      onAdd(data);
-    }
+    } else onAdd(data);
   };
 
   return (
@@ -590,226 +422,57 @@ export function NewConsultationSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
-        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
-          {isEdit ? 'Редактировать консультацию' : chainFrom ? 'Следующая консультация' : 'Новая консультация'}
-        </div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{isEdit ? 'Редактировать консультацию' : chainFrom ? 'Следующая консультация' : 'Новая консультация'}</div>
         <SheetStarDivider />
       </div>
 
       <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
         <div className="inka-consult-left">
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Фотографии</FieldLabel>
-            <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
-          </div>
-
-          {/* Compact, read-only — a quick reminder while browsing references,
-              not a form to fill in (that happens on the client's own Инфо
-              tab). Kept small and at the bottom so it doesn't compete with
-              the photos for attention. */}
+          <div style={{ marginBottom: 16 }}><FieldLabel>Фотографии</FieldLabel><SessionPhotos photos={photos} onChange={setPhotos} buttonFirst /></div>
           {client && (client.allergies || client.skinReactions || client.skinType || client.skinTone) && (
-            <div
-              style={{
-                border: '1px solid rgba(var(--gold-rgb),0.12)',
-                borderRadius: 2,
-                padding: '8px 10px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 3,
-              }}
-            >
-              <div style={{ fontSize: fs(9), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 2 }}>
-                Кожа клиента
-              </div>
-              {client.allergies && (
-                <div dir="auto" style={{ fontSize: fs(11), color: 'var(--text-soft)' }}>
-                  <span style={{ color: COLORS.textGhost }}>Аллергии: </span>
-                  {client.allergies}
-                </div>
-              )}
-              {client.skinReactions && (
-                <div dir="auto" style={{ fontSize: fs(11), color: 'var(--text-soft)' }}>
-                  <span style={{ color: COLORS.textGhost }}>Реакции: </span>
-                  {client.skinReactions}
-                </div>
-              )}
-              {client.skinType && (
-                <div style={{ fontSize: fs(11), color: 'var(--text-soft)' }}>
-                  <span style={{ color: COLORS.textGhost }}>Тип: </span>
-                  {SKIN_TYPES.find((s) => s.value === client.skinType)?.label}
-                </div>
-              )}
-              {client.skinTone && (
-                <div style={{ fontSize: fs(11), color: 'var(--text-soft)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ color: COLORS.textGhost }}>Тон:</span>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: client.skinTone, flexShrink: 0, border: '1px solid rgba(var(--gold-rgb),0.3)' }} />
-                </div>
-              )}
+            <div style={{ border: '1px solid rgba(var(--gold-rgb),0.12)', borderRadius: 2, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div style={{ fontSize: fs(9), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 2 }}>Кожа клиента</div>
+              {client.allergies && <div dir="auto" style={{ fontSize: fs(11), color: 'var(--text-soft)' }}><span style={{ color: COLORS.textGhost }}>Аллергии: </span>{client.allergies}</div>}
+              {client.skinReactions && <div dir="auto" style={{ fontSize: fs(11), color: 'var(--text-soft)' }}><span style={{ color: COLORS.textGhost }}>Реакции: </span>{client.skinReactions}</div>}
+              {client.skinType && <div style={{ fontSize: fs(11), color: 'var(--text-soft)' }}><span style={{ color: COLORS.textGhost }}>Тип: </span>{SKIN_TYPES.find((s) => s.value === client.skinType)?.label}</div>}
+              {client.skinTone && <div style={{ fontSize: fs(11), color: 'var(--text-soft)', display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ color: COLORS.textGhost }}>Тон:</span><span style={{ width: 10, height: 10, borderRadius: '50%', background: client.skinTone, flexShrink: 0, border: '1px solid rgba(var(--gold-rgb),0.3)' }} /></div>}
             </div>
           )}
         </div>
 
         <div className="inka-consult-right">
-          {/* Stacked full-width (see NewSessionSheet) — avoids the iOS overlap
-              of side-by-side native date/time pickers. */}
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Дата</FieldLabel>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Время</FieldLabel>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Место</FieldLabel>
-            <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
-          </div>
-
-          {/* Поле всегда видно — см. тот же комментарий у NewSessionSheet:
-              консультация тоже больше не может остаться без проекта,
-              ensureProjectId заведёт его молча при сохранении, если не
-              выбран существующий. */}
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Проект</FieldLabel>
-            <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
-              <option value="">— создать новый проект —</option>
-              {clientProjects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title || 'Без названия'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Общие заметки</FieldLabel>
-            <textarea
-              value={generalNotes}
-              onChange={(e) => setGeneralNotes(e.target.value)}
-              placeholder="Пожелания клиента, договорённости, мысли мастера..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 90 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Чувство / ощущение</FieldLabel>
-            <textarea
-              value={feeling}
-              onChange={(e) => setFeeling(e.target.value)}
-              placeholder="Какое чувство или ощущение должна передавать татуировка..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Источники вдохновения</FieldLabel>
-            <textarea
-              value={inspirationSources}
-              onChange={(e) => setInspirationSources(e.target.value)}
-              placeholder="Укажите источники, авторов, образы..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Креатив</FieldLabel>
-            <textarea
-              value={creative}
-              onChange={(e) => setCreative(e.target.value)}
-              placeholder="Смелая идея, изюминка, что-то особенное..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 70 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Техника и стиль</FieldLabel>
-            <input
-              value={style}
-              onChange={(e) => setStyle(e.target.value)}
-              placeholder="Выберите технику и стилистику работы..."
-              style={INPUT_STYLE}
-            />
-          </div>
-
-          {/* Итог — своё поле каждой консультации (см. Consultation.outcome),
-              не переносится в другую запись цепочки. Next step здесь
-              намеренно нет — единственный next step на весь проект живёт на
-              Project (nextActionText/nextActionDate/nextActionType), а не на
-              консультации. */}
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Итог</FieldLabel>
-            <textarea
-              value={outcome}
-              onChange={(e) => setOutcome(e.target.value)}
-              placeholder="Как прошла встреча, о чём договорились..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Срочность</FieldLabel>
-            <UrgencyChips value={urgency} onPick={setUrgency} />
-          </div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Дата</FieldLabel><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Время</FieldLabel><input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Место</FieldLabel><input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Проект</FieldLabel><select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}><option value="">— создать новый проект —</option>{clientProjects.map((p) => <option key={p.id} value={p.id}>{p.title || 'Без названия'}</option>)}</select></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Пожелания клиента, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Чувство / ощущение</FieldLabel><textarea value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="Какое чувство или ощущение должна передавать татуировка..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Итог</FieldLabel><textarea value={outcome} onChange={(e) => setOutcome(e.target.value)} placeholder="Как прошла встреча, о чём договорились..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Срочность</FieldLabel><UrgencyChips value={urgency} onPick={setUrgency} /></div>
         </div>
       </div>
 
-      <div style={{ padding: '0 24px 40px' }}>
-        <div
-          className="inka-submit"
-          onClick={handleSave}
-          style={SUBMIT_STYLE}
-        >
-          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
-            {isEdit ? 'Сохранить' : 'Добавить консультацию'}
-          </span>
-        </div>
-      </div>
+      <div style={{ padding: '0 24px 40px' }}><div className="inka-submit" onClick={handleSave} style={SUBMIT_STYLE}><span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>{isEdit ? 'Сохранить' : 'Добавить консультацию'}</span></div></div>
     </BottomSheet>
   );
 }
 
-// Одна строка полной последовательности проекта («Записи проекта» в
-// ProjectViewSheet ниже) — ↓-стрелка перед строкой (кроме самой первой)
-// визуализирует цепочку «Консультация 1 → 2 → 3 → Сессия 1 → 2» (milestone
-// «цепочка повторных консультаций», п. 8): ничего не исчезает и не
-// заменяется, стрелка — просто разделитель между уже существующими шагами.
-function ChainEntryRow({
-  showArrow,
-  label,
-  title,
-  date,
-  style,
-  onClick,
-}: {
-  showArrow: boolean;
-  label: string;
-  title: string;
-  date: string;
-  style: React.CSSProperties;
-  onClick: () => void;
-}) {
+function ChainEntryRow({ showArrow, label, title, date, style, onClick }: { showArrow: boolean; label: string; title: string; date: string; style: React.CSSProperties; onClick: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {showArrow && (
-        <span style={{ fontSize: fs(12), color: 'rgba(var(--gold-rgb),0.4)', lineHeight: 1, padding: '2px 0' }}>↓</span>
-      )}
+      {showArrow && <span style={{ fontSize: fs(12), color: 'rgba(var(--gold-rgb),0.4)', lineHeight: 1, padding: '2px 0' }}>↓</span>}
       <div onClick={onClick} style={{ ...style, width: '100%' }}>
         <span style={{ fontSize: fs(9), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>{label}</span>
-        <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {title}
-        </span>
+        <span style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         <span style={{ fontSize: fs(12), color: COLORS.textGhost, flexShrink: 0 }}>{date ? formatDate(date).replace(/ \d{4}$/, '') : ''}</span>
       </div>
     </div>
   );
 }
 
-// ── Read-only просмотр проекта (Этап 2) ──
-// Открывается по тапу на проект (в Мастерской или в «Активных проектах»
-// Планнера). Сверху статус, следующий шаг и записи проекта; редактирование
-// — отдельной кнопкой, а не сразу форма. Записи тапабельны — открывают
-// существующий просмотр сессии/консультации.
 export function ProjectViewSheet({
   open,
   project,
@@ -828,87 +491,37 @@ export function ProjectViewSheet({
 }: {
   open: boolean;
   project: Project | null;
-  // Полный список — resolveContentEntryProjectId (через getProjectContentEntries)
-  // должен уметь резолвить session-link на любой проект, не только текущий.
   projects: Project[];
   clients: Client[];
   contentEntries: ContentEntry[];
-  // Master's own (client-less) tasks — a project without a client draws its
-  // «Задачи» from here instead of a client's notes.
   masterNotes: ClientNote[];
   onClose: () => void;
   onEdit: (project: Project) => void;
   onOpenEntry: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
-  // Тап по «сессии без клиента» в списке записей — открыть её на
-  // редактирование. Создание новых записей теперь только через главную
-  // кнопку «Создать» (остаётся видна поверх этого просмотра — см. onCreate
-  // у NavFab), отдельных кнопок создания здесь больше нет.
   onEditProjectSession: (projectId: string, session: Session) => void;
-  // Зеркало onEditProjectSession выше, для Project.consultations.
   onEditProjectConsultation: (projectId: string, consultation: Consultation) => void;
   onToggleTaskDone: (clientId: string | null, note: ClientNote) => void;
-  // Тап по карточке контента — открыть её в уже существующем ContentINKA,
-  // без нового экрана и без изменения самого редактора.
   onOpenContentEntry: (entry: ContentEntry) => void;
-  // Единственный next step проекта (см. NextStepRow) — пишет напрямую в
-  // проект тем же saveProject, что и остальные правки, без глубокой формы.
   onSaveNextStep: (text: string, date: string | null, type: NextActionType | null) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
-  // Полная цепочка проекта («Консультация 1 → 2 → 3 → Сессия 1 → 2»,
-  // milestone «цепочка повторных консультаций») — обе части в
-  // хронологическом порядке, ничего не скрыто и не заменено: конвертированные
-  // и отменённые консультации/сессии остаются в списке наравне с активными.
-  const linkedSessions = linkedClient && project
-    ? getSessionsByProjectId(linkedClient.sessions, project.id).slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-    : [];
+  const linkedSessions = linkedClient && project ? getSessionsByProjectId(linkedClient.sessions, project.id).slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')) : [];
   const linkedConsults = linkedClient && project ? getConsultationSequence(linkedClient.consultations, project.id) : [];
-  const ownSessions = project && !linkedClient
-    ? project.sessions.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-    : [];
+  const ownSessions = project && !linkedClient ? project.sessions.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')) : [];
   const ownConsults = project && !linkedClient ? getConsultationSequence(project.consultations, project.id) : [];
-  const linkedTasks = project
-    ? linkedClient
-      ? getTasksByProjectId(linkedClient.notes, project.id)
-      : getTasksByProjectId(masterNotes, project.id)
-    : [];
-  // Вся принадлежность записи проекту (и то, как именно она связана — для
-  // подписи в карточке) — уже в getContentEntriesForProject, ничего не
-  // резолвится здесь. Только confirmed — approval flow не меняется, это
-  // фильтр чтения.
+  const linkedTasks = project ? linkedClient ? getTasksByProjectId(linkedClient.notes, project.id) : getTasksByProjectId(masterNotes, project.id) : [];
   const projectContentItems = project ? getContentEntriesForProject(contentEntries, project.id, projects, clients) : [];
-
-  const chipStyle: React.CSSProperties = {
-    fontSize: fs(11),
-    color: COLORS.textFaint,
-    border: '1px solid rgba(var(--gold-rgb),0.3)',
-    borderRadius: 2,
-    padding: '3px 9px',
-    letterSpacing: '0.5px',
-  };
-  const entryRowStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '9px 11px',
-    borderRadius: 2,
-    cursor: 'pointer',
-    border: '1px solid rgba(var(--gold-rgb),0.15)',
-    background: 'rgba(var(--surface-rgb),0.018)',
-  };
+  const chipStyle: React.CSSProperties = { fontSize: fs(11), color: COLORS.textFaint, border: '1px solid rgba(var(--gold-rgb),0.3)', borderRadius: 2, padding: '3px 9px', letterSpacing: '0.5px' };
+  const entryRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 2, cursor: 'pointer', border: '1px solid rgba(var(--gold-rgb),0.15)', background: 'rgba(var(--surface-rgb),0.018)' };
 
   return (
     <BottomSheet open={open} heightPct={90}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         {project && <SheetEditButton onClick={() => onEdit(project)} />}
         <SheetCloseButton onClose={onClose} />
-        <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>
-          {clientName ?? 'Мастерская'}
-        </div>
-        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
-          {project?.title || 'Проект'}
-        </div>
+        <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName ?? 'Мастерская'}</div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{project?.title || 'Проект'}</div>
         <SheetStarDivider />
       </div>
 
@@ -918,23 +531,10 @@ export function ProjectViewSheet({
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <span style={chipStyle}>{PROJECT_STAGES.find((s) => s.key === project.stage)?.label ?? project.stage}</span>
               <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
-              {project.waitingFor !== 'none' && (
-                <span style={chipStyle}>Ждём: {PROJECT_WAITING_FOR.find((w) => w.key === project.waitingFor)?.label}</span>
-              )}
-              {project.priority !== 'normal' && (
-                <span style={chipStyle}>{PROJECT_PRIORITIES.find((p) => p.key === project.priority)?.label}</span>
-              )}
             </div>
 
-            <NextStepRow
-              nextActionText={project.nextActionText}
-              nextActionDate={project.nextActionDate}
-              nextActionType={project.nextActionType}
-              onSave={onSaveNextStep}
-            />
-
+            <NextStepRow nextActionText={project.nextActionText} nextActionDate={project.nextActionDate} nextActionType={project.nextActionType} onSave={onSaveNextStep} />
             {project.photos.length > 0 && <SessionPhotos photos={project.photos} onChange={() => {}} allowDelete={false} readOnly />}
-
             <ViewField label="Место" value={project.area} />
             <ViewField label="Техника и стиль" value={project.style} />
             <ViewField label="Общие заметки" value={project.generalNotes} />
@@ -946,58 +546,10 @@ export function ProjectViewSheet({
               <div>
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Записи проекта</div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {/* Полная последовательность: Консультация 1 → 2 → 3 →
-                      Сессия 1 → 2 — конвертированные/отменённые записи
-                      остаются в списке, стрелка просто разделяет соседние
-                      шаги (milestone «цепочка повторных консультаций»,
-                      п. 8). Номер консультации вычисляется по позиции в
-                      linkedConsults (уже в порядке цепочки, см.
-                      getConsultationSequence), номер сессии — по позиции в
-                      этом же представлении (нигде не хранится). */}
-                  {linkedConsults.map((c, i) => (
-                    <ChainEntryRow
-                      key={`c-${c.id}`}
-                      showArrow={i > 0}
-                      label={`Консультация ${i + 1}`}
-                      title={c.area || '—'}
-                      date={c.date}
-                      style={entryRowStyle}
-                      onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'consultation', c.id)}
-                    />
-                  ))}
-                  {linkedSessions.map((s, i) => (
-                    <ChainEntryRow
-                      key={`s-${s.id}`}
-                      showArrow={i > 0 || linkedConsults.length > 0}
-                      label={`Сессия ${i + 1}`}
-                      title={s.name || s.area || '—'}
-                      date={s.date}
-                      style={entryRowStyle}
-                      onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'session', s.id)}
-                    />
-                  ))}
-                  {ownConsults.map((c, i) => (
-                    <ChainEntryRow
-                      key={`oc-${c.id}`}
-                      showArrow={i > 0}
-                      label={`Консультация ${i + 1} · без клиента`}
-                      title={c.area || '—'}
-                      date={c.date}
-                      style={entryRowStyle}
-                      onClick={() => project && onEditProjectConsultation(project.id, c)}
-                    />
-                  ))}
-                  {ownSessions.map((s, i) => (
-                    <ChainEntryRow
-                      key={`os-${s.id}`}
-                      showArrow={i > 0 || ownConsults.length > 0}
-                      label={`Сессия ${i + 1} · без клиента`}
-                      title={s.name || s.area || '—'}
-                      date={s.date}
-                      style={entryRowStyle}
-                      onClick={() => project && onEditProjectSession(project.id, s)}
-                    />
-                  ))}
+                  {linkedConsults.map((c, i) => <ChainEntryRow key={`c-${c.id}`} showArrow={i > 0} label={`Консультация ${i + 1}`} title={c.area || '—'} date={c.date} style={entryRowStyle} onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'consultation', c.id)} />)}
+                  {linkedSessions.map((s, i) => <ChainEntryRow key={`s-${s.id}`} showArrow={i > 0 || linkedConsults.length > 0} label={`Сессия ${i + 1}`} title={s.name || s.area || '—'} date={s.date} style={entryRowStyle} onClick={() => linkedClient && onOpenEntry(linkedClient.id, 'session', s.id)} />)}
+                  {ownConsults.map((c, i) => <ChainEntryRow key={`oc-${c.id}`} showArrow={i > 0} label={`Консультация ${i + 1} · без клиента`} title={c.area || '—'} date={c.date} style={entryRowStyle} onClick={() => project && onEditProjectConsultation(project.id, c)} />)}
+                  {ownSessions.map((s, i) => <ChainEntryRow key={`os-${s.id}`} showArrow={i > 0 || ownConsults.length > 0} label={`Сессия ${i + 1} · без клиента`} title={s.name || s.area || '—'} date={s.date} style={entryRowStyle} onClick={() => project && onEditProjectSession(project.id, s)} />)}
                 </div>
               </div>
             )}
@@ -1007,27 +559,9 @@ export function ProjectViewSheet({
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Задачи</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {linkedTasks.map((n) => (
-                    <div
-                      key={`t-${n.id}`}
-                      onClick={() => onToggleTaskDone(linkedClient?.id ?? null, n)}
-                      style={{ ...entryRowStyle, opacity: n.done ? 0.45 : 1 }}
-                    >
+                    <div key={`t-${n.id}`} onClick={() => onToggleTaskDone(linkedClient?.id ?? null, n)} style={{ ...entryRowStyle, opacity: n.done ? 0.45 : 1 }}>
                       <span style={{ fontSize: fs(16), lineHeight: 1.2, flexShrink: 0 }}>{n.done ? DONE_EMOJI : urgencyMeta(n.urgency).emoji}</span>
-                      <span
-                        dir="auto"
-                        style={{
-                          fontSize: fs(14),
-                          color: COLORS.textPrimary,
-                          flex: 1,
-                          minWidth: 0,
-                          textDecoration: n.done ? 'line-through' : 'none',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {n.text}
-                      </span>
+                      <span dir="auto" style={{ fontSize: fs(14), color: COLORS.textPrimary, flex: 1, minWidth: 0, textDecoration: n.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text}</span>
                     </div>
                   ))}
                 </div>
@@ -1036,17 +570,7 @@ export function ProjectViewSheet({
 
             <div>
               <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>Контент</div>
-              {projectContentItems.length === 0 ? (
-                <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>
-                  К проекту пока не привязан готовый контент
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {projectContentItems.map((item) => (
-                    <ProjectContentCard key={item.entry.id} item={item} onClick={() => onOpenContentEntry(item.entry)} />
-                  ))}
-                </div>
-              )}
+              {projectContentItems.length === 0 ? <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>К проекту пока не привязан готовый контент</div> : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{projectContentItems.map((item) => <ProjectContentCard key={item.entry.id} item={item} onClick={() => onOpenContentEntry(item.entry)} />)}</div>}
             </div>
           </>
         )}
@@ -1055,69 +579,24 @@ export function ProjectViewSheet({
   );
 }
 
-// Компактная карточка одного материала ContentINKA внутри «Контент» на
-// экране проекта — только для просмотра, без редактирования, перевода,
-// архетипов и управления фотоподборкой (см. onClick — открывает уже
-// существующий ContentINKA, а не что-то новое). Экспортирована — тот же
-// компонент переиспользует вкладка «Контент» карточки клиента
-// (ClientContentTab в DetailScreen.tsx), чтобы контент, привязанный к
-// проекту клиента напрямую (а не через сессию/консультацию), тоже было
-// видно, не только внутри самого проекта.
 export function ProjectContentCard({ item, onClick }: { item: ProjectContentItem<ContentEntry>; onClick: () => void }) {
   const { entry, link } = item;
   const firstLine = (entry.textDraft || entry.text || '').split('\n')[0].trim();
   const datePart = entry.createdDate.slice(0, 10);
   const dateLabel = ISO_DATE_RE.test(datePart) ? formatDate(datePart) : entry.createdDate;
-  // Итоговая выбранная подборка (не все исходные фото) — та же логика, что
-  // и в самой карточке ContentINKA (ContentPhotoGallery), не задублирована.
-  const selectedPhotoCount = resolveContentPhotoSelection({
-    photos: entry.photos,
-    photoIds: entry.photoIds,
-    contentDraft: entry.contentDraft,
-  }).length;
-
+  const selectedPhotoCount = resolveContentPhotoSelection({ photos: entry.photos, photoIds: entry.photoIds, contentDraft: entry.contentDraft }).length;
   return (
-    <div
-      onClick={onClick}
-      role="button"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '9px 11px',
-        borderRadius: 2,
-        cursor: 'pointer',
-        border: '1px solid rgba(var(--gold-rgb),0.15)',
-        background: 'rgba(var(--surface-rgb),0.018)',
-      }}
-    >
-      {entry.photos[0] ? (
-        <img src={entry.photos[0]} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
-      ) : (
-        <div style={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, background: 'rgba(var(--gold-rgb),0.08)' }} />
-      )}
+    <div onClick={onClick} role="button" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 2, cursor: 'pointer', border: '1px solid rgba(var(--gold-rgb),0.15)', background: 'rgba(var(--surface-rgb),0.018)' }}>
+      {entry.photos[0] ? <img src={entry.photos[0]} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} /> : <div style={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, background: 'rgba(var(--gold-rgb),0.08)' }} />}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          dir="auto"
-          style={{ fontSize: fs(13), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        >
-          {firstLine || 'Без текста'}
-        </div>
-        <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {dateLabel} · {projectContentLinkLabel(link as ResolvedContentEntryLink)}
-          {selectedPhotoCount > 0 ? ` · Фото: ${selectedPhotoCount}` : ''}
-        </div>
+        <div dir="auto" style={{ fontSize: fs(13), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{firstLine || 'Без текста'}</div>
+        <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dateLabel} · {projectContentLinkLabel(link as ResolvedContentEntryLink)}{selectedPhotoCount > 0 ? ` · Фото: ${selectedPhotoCount}` : ''}</div>
       </div>
       <span style={{ fontSize: fs(10.5), color: COLORS.gold, flexShrink: 0, letterSpacing: '0.4px' }}>Открыть в ContentINKA</span>
     </div>
   );
 }
 
-// ── Новый / редактирование проекта («Творческая мастерская») — same field
-// set as NewConsultationSheet (same kind of creative brief), minus the
-// client-skin block (there's no client) and urgency chips, plus a title and
-// a colour tag (MarkerColorPalette) since a project has no client.color to
-// borrow for its cover. ──
 export function NewProjectSheet({
   open,
   initial,
@@ -1129,8 +608,6 @@ export function NewProjectSheet({
 }: {
   open: boolean;
   initial?: Project | null;
-  // Предзаполняет клиента для НОВОГО проекта (Этап 3a, кнопка «+ Новый» во
-  // вкладке клиента) — игнорируется при редактировании существующего.
   presetClientId?: string | null;
   clients: Client[];
   onClose: () => void;
@@ -1154,21 +631,17 @@ export function NewProjectSheet({
     inspirationSources: string;
     photos: string[];
   }) => void;
-  // Present only when editing an existing project — omitted for a new one.
   onDelete?: () => void;
 }) {
   const isEdit = !!initial;
   const [title, setTitle] = useState('');
-  const [color, setColor] = useState(MARKER_COLORS[0]);
   const [category, setCategory] = useState<ProjectCategory>('tattoo');
   const [clientId, setClientId] = useState<string | null>(null);
   const [stage, setStage] = useState<ProjectStage>('idea');
   const [state, setState] = useState<ProjectState>('active');
-  const [waitingFor, setWaitingFor] = useState<ProjectWaitingFor>('none');
   const [nextActionText, setNextActionText] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
   const [nextActionType, setNextActionType] = useState<NextActionType | null>(null);
-  const [priority, setPriority] = useState<ProjectPriority>('normal');
   const [area, setArea] = useState('');
   const [style, setStyle] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
@@ -1177,23 +650,25 @@ export function NewProjectSheet({
   const [inspirationSources, setInspirationSources] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  // See NewSessionSheet's justSaved — same «крестик превращается в зелёную
-  // галочку» подтверждение, единообразно для всех форм редактирования.
   const [justSaved, setJustSaved] = useState(false);
+
+  // Deprecated UI-only project attributes stay in the domain for backwards
+  // compatibility. Editing preserves existing values; a new project gets the
+  // historical defaults without exposing controls for them.
+  const preservedColor = initial?.color ?? MARKER_COLORS[0];
+  const preservedWaitingFor: ProjectWaitingFor = initial?.waitingFor ?? 'none';
+  const preservedPriority: ProjectPriority = initial?.priority ?? 'normal';
 
   useEffect(() => {
     if (open) {
       setTitle(initial?.title ?? '');
-      setColor(initial?.color ?? MARKER_COLORS[0]);
       setCategory(initial?.category ?? 'tattoo');
       setClientId(initial?.clientId ?? presetClientId ?? null);
       setStage(initial?.stage ?? 'idea');
       setState(initial?.state ?? 'active');
-      setWaitingFor(initial?.waitingFor ?? 'none');
       setNextActionText(initial?.nextActionText ?? '');
       setNextActionDate(initial?.nextActionDate ?? '');
       setNextActionType(initial?.nextActionType ?? null);
-      setPriority(initial?.priority ?? 'normal');
       setArea(initial?.area ?? '');
       setStyle(initial?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
@@ -1212,244 +687,59 @@ export function NewProjectSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>Мастерская</div>
-        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
-          {isEdit ? 'Редактировать проект' : 'Новый проект'}
-        </div>
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{isEdit ? 'Редактировать проект' : 'Новый проект'}</div>
         <SheetStarDivider />
       </div>
 
       <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
         <div className="inka-consult-left">
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Фотографии</FieldLabel>
-            <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Цветовая метка</FieldLabel>
-            <MarkerColorPalette value={color} onPick={setColor} />
-          </div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Фотографии</FieldLabel><SessionPhotos photos={photos} onChange={setPhotos} buttonFirst /></div>
         </div>
 
         <div className="inka-consult-right">
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Название</FieldLabel>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Дракон в стиле джапан..." style={INPUT_STYLE} />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Тип</FieldLabel>
-            <ProjectCategoryChips value={category} onPick={setCategory} />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Клиент</FieldLabel>
-            <select value={clientId ?? ''} onChange={(e) => setClientId(e.target.value || null)} style={INPUT_STYLE}>
-              <option value="">Мастерская (без клиента)</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {`${c.name} ${c.surname}`.trim()}
-                </option>
-              ))}
-            </select>
-          </div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Название</FieldLabel><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Дракон в стиле джапан..." style={INPUT_STYLE} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Тип</FieldLabel><ProjectCategoryChips value={category} onPick={setCategory} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Клиент</FieldLabel><select value={clientId ?? ''} onChange={(e) => setClientId(e.target.value || null)} style={INPUT_STYLE}><option value="">Мастерская (без клиента)</option>{clients.map((c) => <option key={c.id} value={c.id}>{`${c.name} ${c.surname}`.trim()}</option>)}</select></div>
 
           <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Этап</FieldLabel>
-              <select value={stage} onChange={(e) => setStage(e.target.value as ProjectStage)} style={INPUT_STYLE}>
-                {PROJECT_STAGES.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Состояние</FieldLabel>
-              <select value={state} onChange={(e) => setState(e.target.value as ProjectState)} style={INPUT_STYLE}>
-                {PROJECT_STATES.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Ждём</FieldLabel>
-              <select value={waitingFor} onChange={(e) => setWaitingFor(e.target.value as ProjectWaitingFor)} style={INPUT_STYLE}>
-                {PROJECT_WAITING_FOR.map((w) => (
-                  <option key={w.key} value={w.key}>
-                    {w.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Приоритет</FieldLabel>
-              <select value={priority} onChange={(e) => setPriority(e.target.value as ProjectPriority)} style={INPUT_STYLE}>
-                {PROJECT_PRIORITIES.map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <div style={{ flex: 1, minWidth: 0 }}><FieldLabel>Этап</FieldLabel><select value={stage} onChange={(e) => setStage(e.target.value as ProjectStage)} style={INPUT_STYLE}>{PROJECT_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
+            <div style={{ flex: 1, minWidth: 0 }}><FieldLabel>Состояние</FieldLabel><select value={state} onChange={(e) => setState(e.target.value as ProjectState)} style={INPUT_STYLE}>{PROJECT_STATES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
           </div>
 
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Следующий шаг</FieldLabel>
-            <input
-              value={nextActionText}
-              onChange={(e) => setNextActionText(e.target.value)}
-              placeholder="Уточнить размер, получить фото спины..."
-              style={{ ...INPUT_STYLE, marginBottom: 8 }}
-            />
-            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
-              Тип действия
-            </div>
-            <select
-              value={nextActionType ?? ''}
-              onChange={(e) => setNextActionType((e.target.value || null) as NextActionType | null)}
-              style={{ ...INPUT_STYLE, marginBottom: 8 }}
-            >
-              <option value="">Не выбран</option>
-              {NEXT_ACTION_TYPES.map((t) => (
-                <option key={t.key} value={t.key}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>
-              Дата (когда сделать)
-            </div>
+            <input value={nextActionText} onChange={(e) => setNextActionText(e.target.value)} placeholder="Уточнить размер, получить фото спины..." style={{ ...INPUT_STYLE, marginBottom: 8 }} />
+            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>Тип действия</div>
+            <select value={nextActionType ?? ''} onChange={(e) => setNextActionType((e.target.value || null) as NextActionType | null)} style={{ ...INPUT_STYLE, marginBottom: 8 }}><option value="">Не выбран</option>{NEXT_ACTION_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
+            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>Дата (когда сделать)</div>
             <input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} style={INPUT_STYLE} />
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Место</FieldLabel>
-            <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Общие заметки</FieldLabel>
-            <textarea
-              value={generalNotes}
-              onChange={(e) => setGeneralNotes(e.target.value)}
-              placeholder="Идея, договорённости, мысли мастера..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 90 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Чувство / ощущение</FieldLabel>
-            <textarea
-              value={feeling}
-              onChange={(e) => setFeeling(e.target.value)}
-              placeholder="Какое чувство или ощущение должна передавать татуировка..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Источники вдохновения</FieldLabel>
-            <textarea
-              value={inspirationSources}
-              onChange={(e) => setInspirationSources(e.target.value)}
-              placeholder="Укажите источники, авторов, образы..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 60 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Креатив</FieldLabel>
-            <textarea
-              value={creative}
-              onChange={(e) => setCreative(e.target.value)}
-              placeholder="Смелая идея, изюминка, что-то особенное..."
-              style={{ ...INPUT_STYLE, resize: 'none', height: 70 }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Техника и стиль</FieldLabel>
-            <input
-              value={style}
-              onChange={(e) => setStyle(e.target.value)}
-              placeholder="Выберите технику и стилистику работы..."
-              style={INPUT_STYLE}
-            />
-          </div>
-
+          <div style={{ marginBottom: 16 }}><FieldLabel>Место</FieldLabel><input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Чувство / ощущение</FieldLabel><textarea value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="Какое чувство или ощущение должна передавать татуировка..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>
         </div>
       </div>
 
       <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div
-          className="inka-submit"
-          onClick={() => {
-            const data = {
-              title,
-              color,
-              category,
-              clientId,
-              stage,
-              state,
-              waitingFor,
-              nextActionText,
-              nextActionDate: nextActionDate || null,
-              nextActionType,
-              priority,
-              area,
-              style,
-              generalNotes,
-              feeling,
-              creative,
-              inspirationSources,
-              photos,
-            };
-            if (isEdit) {
-              setJustSaved(true);
-              setTimeout(() => onAdd(data), 700);
-            } else {
-              onAdd(data);
-            }
-          }}
-          style={SUBMIT_STYLE}
-        >
-          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
-            {isEdit ? 'Сохранить' : 'Добавить проект'}
-          </span>
+        <div className="inka-submit" onClick={() => {
+          const data = { title, color: preservedColor, category, clientId, stage, state, waitingFor: preservedWaitingFor, nextActionText, nextActionDate: nextActionDate || null, nextActionType, priority: preservedPriority, area, style, generalNotes, feeling, creative, inspirationSources, photos };
+          if (isEdit) { setJustSaved(true); setTimeout(() => onAdd(data), 700); } else onAdd(data);
+        }} style={SUBMIT_STYLE}>
+          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>{isEdit ? 'Сохранить' : 'Добавить проект'}</span>
         </div>
 
-        {onDelete && (
-          confirmingDelete ? (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div
-                onClick={() => setConfirmingDelete(false)}
-                style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}
-              >
-                Отмена
-              </div>
-              <div
-                onClick={onDelete}
-                style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}
-              >
-                Удалить проект
-              </div>
-            </div>
-          ) : (
-            <div
-              onClick={() => setConfirmingDelete(true)}
-              style={{ textAlign: 'center', padding: '10px 0', color: COLORS.textFaint, fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}
-            >
-              Удалить проект
-            </div>
-          )
-        )}
+        {onDelete && (confirmingDelete ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div onClick={() => setConfirmingDelete(false)} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Отмена</div>
+            <div onClick={onDelete} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Удалить проект</div>
+          </div>
+        ) : (
+          <div onClick={() => setConfirmingDelete(true)} style={{ textAlign: 'center', padding: '10px 0', color: COLORS.textFaint, fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Удалить проект</div>
+        ))}
       </div>
     </BottomSheet>
   );
