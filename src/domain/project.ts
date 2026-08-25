@@ -160,7 +160,7 @@ export function withAdvancedStage(project: Project, target: ProjectStage): Proje
 
 export interface Project {
   id: string;
-  title: string;
+  title: string; // project name, e.g. "Дракон в стиле джапан"
   color: string; // legacy marker colour; no longer exposed by project UI
   category: ProjectCategory;
   // null = идея без клиента ("мастерская", независимо от одноимённого
@@ -175,12 +175,12 @@ export interface Project {
   // nextActionText, задаётся мастером отдельно; null = не выбран.
   nextActionType: NextActionType | null;
   priority: ProjectPriority;
-  area: string;
-  style: string;
-  generalNotes: string;
-  feeling: string;
-  creative: string;
-  inspirationSources: string;
+  area: string; // "Место" — constrained by PROJECT_BODY_AREAS in project UI
+  style: string; // "Техника и стиль"
+  generalNotes: string; // "Общие заметки"
+  feeling: string; // "Чувство/ощущение"
+  creative: string; // "Креатив"
+  inspirationSources: string; // "Источники вдохновения"
   photos: string[];
   createdDate: string;
   // Optional at the raw/in-memory type boundary so old object literals stay
