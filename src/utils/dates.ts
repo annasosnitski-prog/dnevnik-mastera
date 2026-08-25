@@ -60,3 +60,19 @@ export function daysSinceISO(date: string, now: Date = new Date()): number {
   const today = new Date(todayISO(now) + 'T00:00:00');
   return Math.floor((today.getTime() - then.getTime()) / 86400000);
 }
+
+// Общее правило для ЛЮБЫХ напоминаний в приложении: мастер не хочет писать
+// клиентам по субботам — в этот день напоминание просто не показывается
+// (см. использование в reminders/healingCycle.ts), без переноса на
+// конкретный другой день. Каждый источник напоминаний сам отвечает за то,
+// чтобы его окна были достаточно широки и не гасли целиком из-за этой
+// проверки (см. комментарий у HEALING_CYCLE_WINDOWS).
+//
+// TODO(напоминания): сейчас применяется только в healingCycleReminders —
+// слой reminders/buildReminders.ts (overdueEntries, upcomingSoonReminders,
+// overdueProjectSessions/Consultations, staleProjects и т.д.) сломан и
+// подлежит переделке отдельным заходом; когда он будет переписан, это
+// правило должно применяться и там тоже, а не только к циклу заживления.
+export function isReminderBlackoutDay(now: Date): boolean {
+  return now.getDay() === 6; // JS: 0=вс … 6=сб
+}
