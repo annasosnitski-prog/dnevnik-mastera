@@ -18,7 +18,6 @@ interface NavFabProps {
   // выключен (см. modules/registry.ts), — веер просто заново распределяется
   // по оставшимся пунктам (radialOffset делит круг на fanEntries.length).
   moduleFlags: ModuleFlags;
-  adminBadges?: ("urgent" | "reminder")[];
   onCreate?: () => void;
 }
 
@@ -217,7 +216,7 @@ function MinimalGlyph({ id, size }: { id: NavItemId; size: number }) {
   );
 }
 
-export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate }: NavFabProps) {
+export function NavFab({ active, onNavigate, moduleFlags, onCreate }: NavFabProps) {
   const minimalism = useMinimalism();
   const [open, setOpen] = useState(false);
   const [pressedId, setPressedId] = useState<string | null>(null);
@@ -263,7 +262,6 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
     sourceIndex: start.sourceIndex,
   }));
   const rayExtent = 214;
-  const mainBadgeKind = current.screen !== "admin" ? adminBadges?.[0] : undefined;
   const mainClasses = ["nav-fab__main", minimalism ? "nav-fab__main--minimal" : "nav-fab__main--gold"];
 
   if (pressedId === "hub") mainClasses.push("nav-fab__main--pressed");
@@ -521,18 +519,6 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
                     </span>
                   </>
                 )}
-                {item.screen === "admin" &&
-                  adminBadges?.map((kind, badgeIndex) => (
-                    <span
-                      key={kind}
-                      className="nav-fab__badge"
-                      style={{
-                        top: -2 - badgeIndex * 7,
-                        right: -2 - badgeIndex * 7,
-                        background: kind === "urgent" ? "var(--urgent)" : "#e0b84a",
-                      }}
-                    />
-                  ))}
               </button>
             );
           })}
@@ -560,12 +546,6 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
                 <NaturalStoneIcon size={HUB_SIZE} plate />
               </span>
             </>
-          )}
-          {mainBadgeKind && (
-            <span
-              className="nav-fab__badge"
-              style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }}
-            />
           )}
         </button>
       </div>
