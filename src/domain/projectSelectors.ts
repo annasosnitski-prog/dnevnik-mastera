@@ -262,18 +262,36 @@ function addCalendarMonthsClamped(date: Date, months: number): Date {
   return new Date(Date.UTC(targetFirst.getUTCFullYear(), targetFirst.getUTCMonth(), Math.min(day, targetLastDay)));
 }
 
-export function getProjectPipelineSegments(project: Project): ProjectPipelineSegment[] | null {
+// Целевая дата первой сессии — либо точная дата, которую мастер указала
+// напрямую (взаимоисключающе с окном, см. Project.firstSessionExactDate),
+// либо расчёт от окна (amount+unit). Точная дата приоритетнее: если она
+// задана, это осознанный выбор мастера, а не «на всякий случай» рядом с
+// окном — обе формы ввода в форме мутуально исключают друг друга, так что
+// на практике оба сразу не заданы.
+function resolveFirstSessionTargetDate(project: Project, start: Date): Date | null {
+  if (isValidISODate(project.firstSessionExactDate)) {
+    const exact = new Date(`${project.firstSessionExactDate}T00:00:00.000Z`);
+    // Точная дата раньше даты создания проекта бессмысленна как целевая
+    // (шкала «Запрос → первая сессия» не может идти назад) — тот же принцип,
+    // что и amount<0 у окна ниже: невалидный ввод даёт «нет данных», а не
+    // отрицательный/нулевой отрезок.
+    return exact.getTime() >= start.getTime() ? exact : null;
+  }
   const amount = project.firstSessionWindowAmount;
   const unit = project.firstSessionWindowUnit;
   if (amount === null || amount === undefined || unit === null || unit === undefined) return null;
   if (!Number.isFinite(amount) || amount < 0) return null;
+  return unit === 'week'
+    ? new Date(start.getTime() + amount * 7 * 24 * 60 * 60 * 1000)
+    : addCalendarMonthsClamped(start, amount);
+}
 
+export function getProjectPipelineSegments(project: Project): ProjectPipelineSegment[] | null {
   const start = parseProjectCreatedDate(project.createdDate);
   if (!start) return null;
 
-  const target = unit === 'week'
-    ? new Date(start.getTime() + amount * 7 * 24 * 60 * 60 * 1000)
-    : addCalendarMonthsClamped(start, amount);
+  const target = resolveFirstSessionTargetDate(project, start);
+  if (!target) return null;
   const meeting = project.preSessionMeeting ?? 'consultation';
   const keys: PipelineSegmentKey[] = meeting === 'none'
     ? ['moodboard', 'sketch', 'session']

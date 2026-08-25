@@ -12,6 +12,7 @@
 
 import type { Project } from '../domain/project';
 import { HEALING_STAGES } from './buildReminders.js';
+import { HEALING_CYCLE_WINDOWS, type HealingCycleItem } from './healingCycle.js';
 import type {
   HealingStage,
   OverdueItem,
@@ -51,18 +52,39 @@ function healingKeyFor(sessionId: string, stage: HealingStage): string {
   return `healing:${sessionId}:${stage}`;
 }
 
-// Ключ включает stage — у каждой стадии заживления своя карточка, «скрыть»
-// один этап не трогает следующий (см. HealingStage/HEALING_STAGES).
+// @deprecated вместе с HealingStage/HEALING_STAGES — ключи старого пути
+// заживления. Оставлены, пока не удалён сам healingReminders; новый цикл
+// ключуется healingCycleReminderKey ниже.
 export function healingReminderKey(it: HealingItem): string {
   return healingKeyFor(it.sessionId, it.stage);
 }
 
-// Все возможные ключи заживления одной сессии (все 4 стадии), не только ту,
-// что видна сейчас — нужно для «Не напоминать больше»: окна стадий не
-// пересекаются, поэтому видна максимум одна карточка за раз, но скрыть надо
-// заранее и будущие стадии тоже, а не только текущую.
+// @deprecated — см. healingReminderKey выше. Все возможные ключи заживления
+// одной сессии (все 4 стадии), не только ту, что видна сейчас: окна стадий
+// не пересекаются, поэтому видна максимум одна карточка за раз, но скрыть
+// надо заранее и будущие стадии тоже.
 export function healingReminderKeysForSession(sessionId: string): string[] {
   return HEALING_STAGES.map((s) => healingKeyFor(sessionId, s.stage));
+}
+
+// Ключ карточки нового цикла заживления. Несёт projectId (цикл принадлежит
+// проекту, а не сессии), сессию-якорь с её датой и стадию:
+//  - стадия в ключе — «скрыть» чек первой недели не прячет развилку 21-го дня;
+//  - сессия-якорь с датой — выполненная коррекция становится новым якорем,
+//    цикл считается от её даты и получает свои, ещё не скрытые ключи. Без
+//    этого одно «скрыть» после первой итерации погасило бы и все следующие.
+export function healingCycleReminderKey(it: HealingCycleItem): string {
+  return `healing-cycle:${it.project.id}:${it.sessionId}:${it.date}:${it.stage}`;
+}
+
+// Обе стадии текущей итерации сразу — для «Не напоминать больше»: видна
+// всегда максимум одна, но скрывать надо и ещё не наступившую (тот же
+// принцип, что у healingReminderKeysForSession выше). Итерации после
+// коррекции это не трогает — у них другая дата якоря, а значит и другие
+// ключи: «не напоминать» относится к текущему заживлению, а не к проекту
+// навсегда.
+export function healingCycleReminderKeysForIteration(it: HealingCycleItem): string[] {
+  return HEALING_CYCLE_WINDOWS.map((w) => healingCycleReminderKey({ ...it, stage: w.stage }));
 }
 
 // Дата+время в ключе — те же соображения, что у overdueReminderKey, только

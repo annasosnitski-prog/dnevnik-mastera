@@ -30,7 +30,11 @@ export function makeBucketProject(id: string, title: string, color: string, clie
     color,
     category: 'tattoo',
     clientId,
-    stage: 'in_progress',
+    // Тот же дефолт, что и у любого нового проекта (см. ProjectStatus).
+    status: 'active',
+    // Бакет собирает разнородные записи, а не одну работу — сказать «одна
+    // встреча»/«больше одной» про него нечего (см. SessionsPlan).
+    sessionsPlan: null,
     state: 'active',
     waitingFor: 'none',
     nextActionText: '',
@@ -44,6 +48,7 @@ export function makeBucketProject(id: string, title: string, color: string, clie
     creative: '',
     inspirationSources: '',
     photos: [],
+    healingPhotos: [],
     createdDate: now,
     lastMeaningfulActivityAt: now,
     sessions: [],

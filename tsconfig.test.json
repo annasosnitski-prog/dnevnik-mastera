@@ -41,6 +41,7 @@
     "src/lib/normalize.ts",
     "src/lib/reminderMessages.ts",
     "src/reminders/buildReminders.ts",
+    "src/reminders/healingCycle.ts",
     "src/reminders/reminderKeys.ts",
     "src/reminders/reminderState.ts",
     "src/reminders/hiddenReminderBanners.ts",

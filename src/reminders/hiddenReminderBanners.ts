@@ -12,8 +12,9 @@
 export interface HiddenReminderBanner {
   id: string;
   // The reminder key(s) this banner's «Вернуть» restores — one for a plain
-  // «Скрыть это напоминание», four for a healing session's «Не напоминать
-  // больше» (see healingReminderKeysForSession in reminderKeys.ts).
+  // «Скрыть это напоминание», обе стадии текущей итерации цикла заживления
+  // для «Не напоминать больше» (see healingCycleReminderKeysForIteration in
+  // reminderKeys.ts).
   keys: string[];
   createdAt: number;
 }

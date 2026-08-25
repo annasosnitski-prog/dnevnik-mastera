@@ -198,7 +198,6 @@ import {
 import type { TaskReminderItem } from '../reminders/types';
 import {
   overdueEntries,
-  healingReminders,
   upcomingSoonReminders,
   overdueProjectSessions,
   upcomingSoonProjectSessions,
@@ -207,11 +206,12 @@ import {
   overdueProjects,
   staleProjects,
 } from '../reminders/buildReminders';
+import { healingCycleReminders, type HealingCycleItem } from '../reminders/healingCycle';
 import { taskReminderSources, taskReminders, filterVisibleTaskReminders } from '../reminders/buildTaskReminders';
 import {
   overdueReminderKey,
-  healingReminderKey,
-  healingReminderKeysForSession,
+  healingCycleReminderKey,
+  healingCycleReminderKeysForIteration,
   soonReminderKey,
   overdueProjectSessionReminderKey,
   soonProjectSessionReminderKey,
@@ -232,14 +232,17 @@ import {
 } from '../reminders/reminderState';
 import {
   type ProjectCategory,
-  type ProjectStage,
+  type ProjectStatus,
+  type SessionsPlan,
+  type FirstSessionWindowUnit,
   type ProjectState,
   type ProjectWaitingFor,
   type ProjectPriority,
   type NextActionType,
   type Project,
   isMeaningfulProjectChange,
-  withAdvancedStage,
+  withStatusAfterDoneSession,
+  withHealingGallery,
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
@@ -687,7 +690,8 @@ export default function TattoDiary() {
   // of the feed even though the underlying overdue/healing condition hasn't
   // changed. Keyed by a stable per-reminder string (see reminderKeys), not by
   // anything that would naturally clear this — marking done, rescheduling, or
-  // ticking «Зажив» already removes the entry from its source list regardless.
+  // добавление фото заживления already removes the entry from its source list
+  // regardless.
   // Скрытые/отложенные напоминания — см. src/reminders/reminderState.ts. На
   // старте подхватываем прежний формат (массив) и чистим истёкшие snooze.
   const [reminderState, setReminderState] = useState<ReminderState>(() => removeExpiredSnoozes(loadReminderState(), new Date()));
@@ -697,12 +701,15 @@ export default function TattoDiary() {
   const handleDismissReminder = (key: string) => setReminderState((prev) => dismissReminder(prev, key));
   const handleSnoozeReminder = (key: string, showAfter: string) => setReminderState((prev) => snoozeReminder(prev, key, showAfter));
   const handleRestoreReminder = (key: string) => setReminderState((prev) => restoreReminder(prev, key));
-  // «Не напоминать больше» на карточке заживления — скрывает разом ключи
-  // всех 4 стадий этой сессии (не только видимую сейчас), см.
-  // healingReminderKeysForSession. Окна стадий не пересекаются, так что
-  // скрытые впрок ключи будущих стадий просто не дадут им показаться позже.
-  const handleHideAllHealing = (sessionId: string) =>
-    setReminderState((prev) => healingReminderKeysForSession(sessionId).reduce((s, k) => dismissReminder(s, k), prev));
+  // «Не напоминать больше» на карточке заживления — скрывает разом обе стадии
+  // ТЕКУЩЕЙ итерации цикла (не только видимую сейчас), см.
+  // healingCycleReminderKeysForIteration. Окна стадий не пересекаются, так
+  // что скрытый впрок ключ второй стадии просто не даст ей показаться позже.
+  // Следующая итерация (после коррекции) считается от другой сессии-якоря и
+  // получает свои ключи — «не напоминать» относится к этому заживлению, а не
+  // к проекту навсегда.
+  const handleHideAllHealing = (it: HealingCycleItem) =>
+    setReminderState((prev) => healingCycleReminderKeysForIteration(it).reduce((s, k) => dismissReminder(s, k), prev));
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
   const [contentNavigation, setContentNavigation] = useState<ContentWorkspaceNavigation | null>(null);
@@ -1648,13 +1655,16 @@ export default function TattoDiary() {
   ): { projects: Project[]; projectId: string } =>
     ensureBucketProject(source, projectId, ownerClient, masterInfo.name, MARKER_COLORS[0]);
 
-  // Авто-переход этапа проекта ВНУТРИ списка (Этап 3b): создана будущая
-  // сессия → «Записан», сессия выполнена → «В работе». Только вперёд, не
-  // дальше нужного (см. withAdvancedStage). Раньше это была отдельная запись
-  // в стор — теперь этап уезжает тем же сохранением, что и сама сессия: два
-  // сохранения проектов в одном тике затирают друг друга (#248).
-  const advanceStageIn = (source: Project[], projectId: string | null, target: ProjectStage): Project[] =>
-    projectId ? source.map((p) => (p.id === projectId ? withAdvancedStage(p, target) : p)) : source;
+  // Авто-переход статуса проекта ВНУТРИ списка (Этап 3b): выполненная сессия
+  // двигает проект в «Активен», а последняя — сразу в «Заживление» (см.
+  // withStatusAfterDoneSession). Только вперёд, не дальше нужного — паузу,
+  // если проект на ней, обычная сессия не снимает (см. её место в
+  // PROJECT_STATUSES).
+  // Раньше это была отдельная запись в стор — теперь статус уезжает тем же
+  // сохранением, что и сама сессия: два сохранения проектов в одном тике
+  // затирают друг друга (#248).
+  const advanceAfterDoneSessionIn = (source: Project[], projectId: string | null, isLastSession: boolean): Project[] =>
+    projectId ? source.map((p) => (p.id === projectId ? withStatusAfterDoneSession(p, isLastSession) : p)) : source;
 
   // Стиль, введённый в форме сессии, подхватывается в список стилей клиента —
   // это единственное, что сессия меняет в самой карточке клиента (остальное
@@ -1693,7 +1703,7 @@ export default function TattoDiary() {
     const withConversion = convertingConsultation
       ? applyConsultationConversionInProjects(withSession, sessionId, convertingConsultation.id)
       : withSession;
-    saveProjects(advanceStageIn(withConversion, projectId, data.done ? 'in_progress' : 'booked'));
+    saveProjects(data.done ? advanceAfterDoneSessionIn(withConversion, projectId, data.isLastSession) : withConversion);
     mergeSessionStyleIntoClient(ownerClient, data.style);
     return sessionId;
   };
@@ -1794,7 +1804,11 @@ export default function TattoDiary() {
     color: string;
     category: ProjectCategory;
     clientId: string | null;
-    stage: ProjectStage;
+    status: ProjectStatus;
+    sessionsPlan: SessionsPlan;
+    firstSessionWindowAmount: number | null;
+    firstSessionWindowUnit: FirstSessionWindowUnit | null;
+    firstSessionExactDate: string | null;
     state: ProjectState;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
@@ -1820,7 +1834,7 @@ export default function TattoDiary() {
       saveProject({ ...editProject, ...data });
     } else {
       const newProjectId = crypto.randomUUID();
-      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], consultations: [], ...data });
+      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], consultations: [], healingPhotos: [], ...data });
       // Проект создан из ContentLinkPickerSheet «Сохранить в…».
       if (pendingContentLinkRef.current) {
         if (pendingContentLinkRef.current.target === 'project') {
@@ -1979,9 +1993,13 @@ export default function TattoDiary() {
       ?? projects.flatMap((p) => p.sessions).find((s) => s.id === sessionId);
     if (!session) return;
     const flipped = updateSessionInProjects(projects, sessionId, (s) => ({ ...s, done: !s.done }));
-    // Отметили «выполнена» (было не выполнено) → двигаем проект в «В работе».
-    // Тем же сохранением: отдельная запись этапа затёрла бы сам флаг (#248).
-    saveProjects(session.done ? flipped : advanceStageIn(flipped, session.projectId, 'in_progress'));
+    // Отметили «выполнена» (было не выполнено) → двигаем проект в «Активен»
+    // (или сразу в «Заживление», если это последняя сессия). Быстрый тумблер
+    // вопрос «последняя?» не задаёт, поэтому isLastSession берётся с самой
+    // записи — у запланированной сессии он всегда false (см. sessionFields),
+    // так что «Заживление» отсюда получает только проект «одна встреча».
+    // Тем же сохранением: отдельная запись статуса затёрла бы сам флаг (#248).
+    saveProjects(session.done ? flipped : advanceAfterDoneSessionIn(flipped, session.projectId, session.isLastSession));
   };
 
   // clientId-scoped variant of the toggle above — for the «Отменить» quick
@@ -2005,8 +2023,8 @@ export default function TattoDiary() {
 
   // Shared navigation: land on the client's own card and pop the edit form
   // open for that session/consultation — used both by the Мастер dashboard's
-  // upcoming list and the reminder quick-actions (reschedule an overdue entry,
-  // or jump into a session to tick «Зажив» once a healed photo's in).
+  // upcoming list and the reminder quick-actions (reschedule an overdue
+  // entry, mark it done, cancel it).
   const openEntryForEdit = (clientId: string, itemId: string, kind: 'session' | 'consultation') => {
     const client = clients.find((c) => c.id === clientId);
     if (!client) return;
@@ -2042,13 +2060,26 @@ export default function TattoDiary() {
     }
   };
 
-  // «Выполнено» на карточке заживления — контроль заживления для ЭТОЙ
-  // сессии закрыт (session.healed), она перестаёт участвовать в
-  // healingReminders() на всех дальнейших стадиях. Не имеет отношения к
-  // тому, отправлено ли клиенту сообщение — это отдельная ручная кнопка
-  // «Скопировать» рядом (см. RemindersSection/CopyMessageButton).
-  const markSessionHealed = (_clientId: string, sessionId: string) => {
-    updateSession(sessionId, (s) => ({ ...s, healed: true }));
+  // Развилка 21-го дня, ветка «фото» — открыть проект, где живёт галерея
+  // заживления (ProjectViewSheet). Само добавление снимка и автоматический
+  // переход проекта в «Завершён» происходят там, одним сохранением (см.
+  // withHealingGallery); здесь только навигация, ничего не пишется.
+  const openHealingGallery = (project: Project) => {
+    setViewProject(project);
+  };
+
+  // Развилка 21-го дня, ветка «коррекция» — открыть форму новой сессии в
+  // этом проекте. Дату мастер вводит вручную, как для любой другой встречи;
+  // отдельной сущности «коррекция» нет и не заводится. Когда коррекция будет
+  // отмечена выполненной и последней, она сама станет новым якорем цикла, и
+  // заживление посчитается заново от её даты (см. healingCycleReminders).
+  const startHealingCorrection = (project: Project) => {
+    setViewProject(null);
+    setEditSession(null);
+    setConvertingConsultation(null);
+    setChainFromSession(null);
+    setSessionTargetProjectId(project.id);
+    setShowNewSessionForm(true);
   };
 
   // «Открыть» — проект, если задача к нему привязана; иначе клиент (для
@@ -2161,7 +2192,15 @@ export default function TattoDiary() {
   // Возраст резервной копии — то же «состояние дневника», что и dbError выше.
   const backupState = backupStatus(lastBackupAt, remindersNow);
   const visibleOverdue = filterVisibleReminders(overdueEntries(clients, remindersNow), overdueReminderKey, reminderState, remindersNow);
-  const visibleHealing = filterVisibleReminders(healingReminders(clients, remindersNow), healingReminderKey, reminderState, remindersNow);
+  // Цикл заживления считается от проектов (там физически лежат сессии), а
+  // deprecated healingReminders — от клиентов; клиенты сюда подаются только
+  // ради имени и контактов на карточке, см. healingCycleReminders.
+  const visibleHealing = filterVisibleReminders(
+    healingCycleReminders(clients, projects, remindersNow),
+    healingCycleReminderKey,
+    reminderState,
+    remindersNow,
+  );
   const visibleSoon = filterVisibleReminders(upcomingSoonReminders(clients, remindersNow), soonReminderKey, reminderState, remindersNow);
   const visibleOverdueProjectSessions = filterVisibleReminders(
     overdueProjectSessions(projects, remindersNow),
@@ -2984,7 +3023,8 @@ export default function TattoDiary() {
               onCancelEntry={markEntryCancelled}
               onCompleteTask={completeTaskReminder}
               onOpenTask={openTaskReminder}
-              onMarkHealed={markSessionHealed}
+              onAddHealingPhoto={openHealingGallery}
+              onScheduleCorrection={startHealingCorrection}
               onHideAllHealing={handleHideAllHealing}
               onOpenNotes={(urgency) => {
                 setSummaryFilter(urgency);
@@ -3422,6 +3462,10 @@ export default function TattoDiary() {
         onSaveNextStep={(text, date, type) => {
           const current = viewProject ? getProjectById(projects, viewProject.id) : null;
           if (current) saveProject({ ...current, nextActionText: text, nextActionDate: date, nextActionType: type });
+        }}
+        onSaveHealingPhotos={(urls) => {
+          const current = viewProject ? getProjectById(projects, viewProject.id) : null;
+          if (current) saveProject(withHealingGallery(current, urls, todayISO()));
         }}
       />
 

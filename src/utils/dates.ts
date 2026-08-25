@@ -44,15 +44,35 @@ export function dateParts(value: string): { weekday: string; day: string; month:
 }
 
 // Local (not UTC) today as yyyy-mm-dd, for string-comparing against ISO dates.
-export function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+//
+// `now` — точка отсчёта. По умолчанию текущий момент (прежнее поведение всех
+// вызовов без аргумента), но строители напоминаний подают её явно: так их
+// функции остаются чистыми — одни и те же входные данные плюс один и тот же
+// `now` всегда дают один результат, без обращения к глобальным часам внутри.
+export function todayISO(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-// Whole days between an ISO date and today (local), floored — used for the
-// fixed 30-day healing check-in window.
-export function daysSinceISO(date: string): number {
+// Whole local days between an ISO date and `now`'s local midnight, floored —
+// сколько дней прошло с сессии, на этом стоят все окна напоминаний.
+export function daysSinceISO(date: string, now: Date = new Date()): number {
   const then = new Date(date + 'T00:00:00');
-  const today = new Date(todayISO() + 'T00:00:00');
+  const today = new Date(todayISO(now) + 'T00:00:00');
   return Math.floor((today.getTime() - then.getTime()) / 86400000);
+}
+
+// Общее правило для ЛЮБЫХ напоминаний в приложении: мастер не хочет писать
+// клиентам по субботам — в этот день напоминание просто не показывается
+// (см. использование в reminders/healingCycle.ts), без переноса на
+// конкретный другой день. Каждый источник напоминаний сам отвечает за то,
+// чтобы его окна были достаточно широки и не гасли целиком из-за этой
+// проверки (см. комментарий у HEALING_CYCLE_WINDOWS).
+//
+// TODO(напоминания): сейчас применяется только в healingCycleReminders —
+// слой reminders/buildReminders.ts (overdueEntries, upcomingSoonReminders,
+// overdueProjectSessions/Consultations, staleProjects и т.д.) сломан и
+// подлежит переделке отдельным заходом; когда он будет переписан, это
+// правило должно применяться и там тоже, а не только к циклу заживления.
+export function isReminderBlackoutDay(now: Date): boolean {
+  return now.getDay() === 6; // JS: 0=вс … 6=сб
 }

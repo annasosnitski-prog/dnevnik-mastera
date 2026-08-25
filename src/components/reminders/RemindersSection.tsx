@@ -4,8 +4,8 @@ import { createPortal } from 'react-dom';
 import { PLATFORM_LABELS, type Client } from '../../domain/client';
 import type { Project } from '../../domain/project';
 import {
-  healingReminderKey,
-  healingReminderKeysForSession,
+  healingCycleReminderKey,
+  healingCycleReminderKeysForIteration,
   overdueProjectSessionReminderKey,
   overdueProjectConsultationReminderKey,
   overdueReminderKey,
@@ -16,8 +16,6 @@ import {
   staleProjectReminderKey,
 } from '../../reminders/reminderKeys';
 import type {
-  HealingItem,
-  HealingStage,
   OverdueItem,
   ProjectSessionReminderItem,
   ProjectConsultationReminderItem,
@@ -25,19 +23,18 @@ import type {
   TaskReminderItem,
   UpcomingSoonItem,
 } from '../../reminders/types';
-import { healingReminderMessage, soonReminderMessage } from '../../lib/reminderMessages';
+import type { HealingCycleItem, HealingCycleStage } from '../../reminders/healingCycle';
+import { healingCycleMessage, soonReminderMessage } from '../../lib/reminderMessages';
 import { addHiddenBanner, removeHiddenBanner, type HiddenReminderBanner } from '../../reminders/hiddenReminderBanners';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
 import { buildVisibleReminderGroups, totalReminderCount, type ReminderGroupCounts } from './reminderGroups';
 
-// Короткая подпись каждой стадии заживления на карточке — что именно
-// спросить на этом заходе (см. HealingStage/HEALING_STAGES).
-const HEALING_STAGE_LABELS: Record<HealingStage, string> = {
-  day1: 'День после сеанса · самочувствие',
-  day4: '4-й день · шелушение',
-  day15: '15-й день · заживление',
-  day30: 'Узнать про заживление',
+// Короткая подпись стадии цикла заживления на карточке — что именно сделать
+// на этом шаге (см. HealingCycleStage в reminders/healingCycle.ts).
+const HEALING_CYCLE_LABELS: Record<HealingCycleStage, string> = {
+  week1_check: 'Первая неделя · как заживление',
+  day21_decision: '21-й день · фото или коррекция',
 };
 
 // Copies text to the clipboard, showing a brief «Скопировано» confirmation —
@@ -157,10 +154,11 @@ function CopyMessageButton({
 }
 // «Напоминания» — shared by both the Задачи and Мастер screens. Two kinds of
 // card: overdue (planned entry whose date has passed while still not marked
-// done — reschedule or mark done) and healing check-ins (a done session,
-// ≥30 days old, not yet ticked «Зажив» — copy the ready-made message and jump
-// to the session to tick it once the healed photo's in). Renders nothing
-// when both lists are empty, so callers can drop it in unconditionally.
+// done — reschedule or mark done) and healing check-ins (шаг цикла заживления
+// проекта — см. reminders/healingCycle.ts: чек первой недели с готовым
+// сообщением клиенту или развилка 21-го дня «фото или коррекция»). Renders
+// nothing when both lists are empty, so callers can drop it in
+// unconditionally.
 // yyyy-mm-ddThh:mm:ss местного времени начала дня через `days` суток от
 // текущего момента — момент, после которого отложенная карточка снова
 // показывается (см. snoozeReminder). Начало дня, чтобы «до завтра» означало
@@ -841,11 +839,12 @@ export function RemindersSection({
   onCancel,
   onCompleteTask,
   onOpenTask,
-  onMarkHealed,
+  onAddHealingPhoto,
+  onScheduleCorrection,
   onHideAllHealing,
 }: {
   overdue: OverdueItem[];
-  healing: HealingItem[];
+  healing: HealingCycleItem[];
   soon?: UpcomingSoonItem[];
   overdueProjectSessions?: ProjectSessionReminderItem[];
   soonProjectSessions?: ProjectSessionReminderItem[];
@@ -871,12 +870,20 @@ export function RemindersSection({
   onCancel: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onCompleteTask?: (item: TaskReminderItem) => void;
   onOpenTask?: (item: TaskReminderItem) => void;
-  // «Выполнено» на карточке заживления — сессия помечается healed, все
-  // дальнейшие стадии для неё перестают появляться (см. healingReminders).
-  onMarkHealed: (clientId: string, sessionId: string) => void;
-  // «Не напоминать больше» — скрывает разом все возможные стадии заживления
-  // этой сессии (не только видимую сейчас), см. healingReminderKeysForSession.
-  onHideAllHealing: (sessionId: string) => void;
+  // Развилка 21-го дня, ветка «фото»: открыть проект на его галерее
+  // заживления. Само добавление снимка (и автоматический переход проекта в
+  // «Завершён») происходит там, а не здесь — карточка только доводит мастера
+  // до нужного места.
+  onAddHealingPhoto: (project: Project) => void;
+  // Развилка 21-го дня, ветка «коррекция»: открыть форму новой сессии в этом
+  // проекте — дату коррекции мастер вводит вручную, как и любую другую
+  // встречу. Выполненная коррекция потом сама перезапустит цикл от своей даты
+  // (см. healingCycleReminders).
+  onScheduleCorrection: (project: Project) => void;
+  // «Не напоминать больше» — скрывает обе стадии ТЕКУЩЕЙ итерации цикла (не
+  // только видимую сейчас), см. healingCycleReminderKeysForIteration.
+  // Следующую итерацию, после коррекции, это не трогает.
+  onHideAllHealing: (it: HealingCycleItem) => void;
 }) {
   const soonList = soon ?? [];
   const overdueProjectSessionList = overdueProjectSessions ?? [];
@@ -948,9 +955,9 @@ export function RemindersSection({
     onDismiss(key);
     showHiddenBanner([key]);
   };
-  const hideAllHealing = (sessionId: string) => {
-    onHideAllHealing(sessionId);
-    showHiddenBanner(healingReminderKeysForSession(sessionId));
+  const hideAllHealing = (it: HealingCycleItem) => {
+    onHideAllHealing(it);
+    showHiddenBanner(healingCycleReminderKeysForIteration(it));
   };
   // Restores exactly this banner's own keys and removes only this banner —
   // an unrelated banner shown before or after it is untouched.
@@ -1221,7 +1228,14 @@ export function RemindersSection({
     healing: (
       <>
         {healing.map((it) => {
-          const key = healingReminderKey(it);
+          const key = healingCycleReminderKey(it);
+          // Развилка 21-го дня — единственная стадия с выбором. Чек первой
+          // недели ничего не решает: посмотрели, при желании написали
+          // клиенту, закрыли карточку.
+          const isDecision = it.stage === 'day21_decision';
+          // Сообщение клиенту есть у обеих стадий, но только если у проекта
+          // вообще есть клиент — у проекта из Мастерской писать некому.
+          const message = it.client ? healingCycleMessage(it.client, isDecision ? 'day21_photo' : 'week1_check') : null;
           const chipStyle: React.CSSProperties = {
             fontSize: fs(11),
             color: COLORS.textFaint,
@@ -1247,20 +1261,25 @@ export function RemindersSection({
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                  <div onClick={() => onOpenEntry(it.client.id, it.sessionId, 'session')} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                  {/* Цикл принадлежит проекту, поэтому тап ведёт в проект, а
+                      не в сессию: и фото, и коррекция живут там. */}
+                  <div onClick={() => onOpenProject?.(it.project)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
                     <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {it.client.name || '—'}
+                      {it.project.title || 'Проект'}
+                      {it.client?.name ? ` · ${it.client.name}` : ''}
                     </div>
                     <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
-                      {HEALING_STAGE_LABELS[it.stage]} · сессия {formatDate(it.date)}
+                      {HEALING_CYCLE_LABELS[it.stage]} · сессия {formatDate(it.date)}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <CopyMessageButton
-                      text={healingReminderMessage(it.client, it.stage)}
-                      client={it.client}
-                      onOpenChange={(open) => setRaisedKey(open ? key : null)}
-                    />
+                    {message && it.client && (
+                      <CopyMessageButton
+                        text={message}
+                        client={it.client}
+                        onOpenChange={(open) => setRaisedKey(open ? key : null)}
+                      />
+                    )}
                     <ReminderMenuButton
                       onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
                       onPickDate={(showAfter) => flyOutThen(() => onSnooze(key, showAfter))}
@@ -1269,26 +1288,58 @@ export function RemindersSection({
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
-                  {/* «Выполнено» = контроль заживления ЭТОЙ сессии закрыт
-                      (session.healed) — НЕ «сообщение клиенту отправлено»,
-                      отсюда явная подсказка в title. */}
-                  <div
-                    onClick={() => flyOutThen(() => onMarkHealed(it.client.id, it.sessionId))}
-                    role="button"
-                    aria-label="Выполнено"
-                    title="Контроль заживления для этой сессии завершён — это не означает, что сообщение отправлено клиенту"
-                    style={chipStyle}
-                  >
-                    Выполнено
-                  </div>
-                  <div
-                    onClick={() => flyOutThen(() => hideAllHealing(it.sessionId))}
-                    role="button"
-                    aria-label="Не напоминать больше"
-                    style={chipStyle}
-                  >
-                    Не напоминать больше
-                  </div>
+                  {isDecision ? (
+                    <>
+                      {/* Развилка 21-го дня. «Фото» ведёт в галерею
+                          заживления проекта — добавленный там снимок сам
+                          закрывает цикл и переводит проект в «Завершён».
+                          «Коррекция» открывает форму новой сессии: дату
+                          мастер вводит вручную, а выполненная коррекция
+                          потом перезапустит цикл от своей даты. */}
+                      <div
+                        onClick={() => flyOutThen(() => onAddHealingPhoto(it.project))}
+                        role="button"
+                        aria-label="Добавить фото заживления"
+                        title="Открыть галерею заживления проекта — фото закроет цикл и завершит проект"
+                        style={chipStyle}
+                      >
+                        Фото
+                      </div>
+                      <div
+                        onClick={() => flyOutThen(() => onScheduleCorrection(it.project))}
+                        role="button"
+                        aria-label="Назначить коррекцию"
+                        title="Назначить коррекцию — после её выполнения цикл заживления начнётся заново от её даты"
+                        style={chipStyle}
+                      >
+                        Коррекция
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Лёгкий чек ничего не решает: закрыть карточку — и
+                          есть всё «выполнено». Скрытие относится к ЭТОЙ
+                          итерации цикла, а не к проекту навсегда. */}
+                      <div
+                        onClick={() => flyOutThen(() => hideReminder(key))}
+                        role="button"
+                        aria-label="Проверила"
+                        title="Заживление проверено — это не означает, что сообщение отправлено клиенту"
+                        style={chipStyle}
+                      >
+                        Проверила
+                      </div>
+                      <div
+                        onClick={() => flyOutThen(() => hideAllHealing(it))}
+                        role="button"
+                        aria-label="Не напоминать больше"
+                        title="Скрыть оба шага текущего заживления — после коррекции цикл начнётся заново"
+                        style={chipStyle}
+                      >
+                        Не напоминать больше
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               )}

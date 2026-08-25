@@ -11,7 +11,7 @@ function makeProject(overrides = {}) {
     color: '#000000',
     category: 'tattoo',
     clientId: null,
-    stage: 'inquiry',
+    status: 'active',
     state: 'active',
     waitingFor: 'none',
     nextActionText: '',
@@ -117,4 +117,70 @@ test('normalization preserves valid pipeline configuration', () => {
   assert.equal(project.firstSessionWindowAmount, 2);
   assert.equal(project.firstSessionWindowUnit, 'month');
   assert.equal(project.preSessionMeeting, 'none');
+});
+
+// ── firstSessionExactDate — точная дата вместо окна ────────────────────────
+// Взаимоисключающая альтернатива окну (см. Project.firstSessionExactDate):
+// мастер указывает конкретный день первой сессии, а не срок.
+
+test('normalizeProject defaults firstSessionExactDate to null', () => {
+  const project = normalizeProject({ id: 'legacy', createdDate: '2026-01-01T00:00:00.000Z' }, 0);
+  assert.equal(project.firstSessionExactDate, null);
+});
+
+test('normalizeProject keeps a valid firstSessionExactDate', () => {
+  const project = normalizeProject({ createdDate: '2026-01-01T00:00:00.000Z', firstSessionExactDate: '2026-02-10' }, 0);
+  assert.equal(project.firstSessionExactDate, '2026-02-10');
+});
+
+test('normalizeProject rejects a malformed or calendar-invalid firstSessionExactDate', () => {
+  assert.equal(normalizeProject({ firstSessionExactDate: 'скоро' }, 0).firstSessionExactDate, null);
+  assert.equal(normalizeProject({ firstSessionExactDate: '2026-02-30' }, 0).firstSessionExactDate, null);
+});
+
+test('an exact date builds the same pipeline as an equivalent window would', () => {
+  const withWindow = getProjectPipelineSegments(makeProject({
+    createdDate: '2026-01-01T00:00:00.000Z',
+    firstSessionWindowAmount: 1,
+    firstSessionWindowUnit: 'week',
+  }));
+  const withExactDate = getProjectPipelineSegments(makeProject({
+    createdDate: '2026-01-01T00:00:00.000Z',
+    firstSessionWindowAmount: null,
+    firstSessionWindowUnit: null,
+    firstSessionExactDate: '2026-01-08',
+  }));
+  assert.deepEqual(withExactDate, withWindow);
+});
+
+// В форме поля взаимоисключающи (галочка «Точная дата» либо пишет
+// firstSessionExactDate, либо amount/unit, никогда оба сразу), но
+// getProjectPipelineSegments защищается на случай повреждённой/легаси
+// записи, где оба почему-то заданы: точная дата побеждает, потому что это
+// более прямой, осознанный выбор мастера.
+test('an exact date wins over a window if both are somehow set', () => {
+  const segments = getProjectPipelineSegments(makeProject({
+    createdDate: '2026-01-01T00:00:00.000Z',
+    firstSessionWindowAmount: 6,
+    firstSessionWindowUnit: 'month',
+    firstSessionExactDate: '2026-01-08',
+  }));
+  assert.equal(segments.at(-1).targetDate, '2026-01-08');
+});
+
+test('an exact date before createdDate is nonsensical and yields no pipeline', () => {
+  const segments = getProjectPipelineSegments(makeProject({
+    createdDate: '2026-01-10T00:00:00.000Z',
+    firstSessionExactDate: '2026-01-01',
+  }));
+  assert.equal(segments, null);
+});
+
+test('an exact date equal to createdDate is a valid (zero-length) pipeline', () => {
+  const segments = getProjectPipelineSegments(makeProject({
+    createdDate: '2026-01-01T00:00:00.000Z',
+    firstSessionExactDate: '2026-01-01',
+  }));
+  assert.ok(segments);
+  assert.ok(segments.every((s) => s.targetDate === '2026-01-01'));
 });

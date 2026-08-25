@@ -13,7 +13,6 @@ import {
 } from '../../lib/calendarSync';
 import { formatBookingTime, OPEN_SLOT_MARK, stripTagPrefix, tagLabel } from '../../lib/botBookingFormat';
 import type {
-  HealingItem,
   OverdueItem,
   ProjectSessionReminderItem,
   ProjectConsultationReminderItem,
@@ -21,6 +20,7 @@ import type {
   TaskReminderItem,
   UpcomingSoonItem,
 } from '../../reminders/types';
+import type { HealingCycleItem } from '../../reminders/healingCycle';
 import { todayISO } from '../../utils/dates';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
@@ -64,7 +64,8 @@ export function AdminDashboardScreen({
   onCancelEntry,
   onCompleteTask,
   onOpenTask,
-  onMarkHealed,
+  onAddHealingPhoto,
+  onScheduleCorrection,
   onHideAllHealing,
   calendarSync,
   onOpenNotes,
@@ -76,7 +77,7 @@ export function AdminDashboardScreen({
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   overdue: OverdueItem[];
-  healing: HealingItem[];
+  healing: HealingCycleItem[];
   soon: UpcomingSoonItem[];
   overdueProjectSessions: ProjectSessionReminderItem[];
   soonProjectSessions: ProjectSessionReminderItem[];
@@ -97,8 +98,9 @@ export function AdminDashboardScreen({
   onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
   onCompleteTask: (item: TaskReminderItem) => void;
   onOpenTask: (item: TaskReminderItem) => void;
-  onMarkHealed: (clientId: string, sessionId: string) => void;
-  onHideAllHealing: (sessionId: string) => void;
+  onAddHealingPhoto: (project: Project) => void;
+  onScheduleCorrection: (project: Project) => void;
+  onHideAllHealing: (it: HealingCycleItem) => void;
   calendarSync: CalendarSyncSettings;
   // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
@@ -171,7 +173,8 @@ export function AdminDashboardScreen({
           onCancel={onCancelEntry}
           onCompleteTask={onCompleteTask}
           onOpenTask={onOpenTask}
-          onMarkHealed={onMarkHealed}
+          onAddHealingPhoto={onAddHealingPhoto}
+          onScheduleCorrection={onScheduleCorrection}
           onHideAllHealing={onHideAllHealing}
         />
 

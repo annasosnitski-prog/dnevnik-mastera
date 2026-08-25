@@ -11,13 +11,15 @@ import type { UrgencyKey } from '../domain/urgency';
 // or reschedules.
 export type OverdueItem = { client: Client; kind: 'session' | 'consultation'; id: string; date: string; time: string };
 
-// Заживление проверяется в несколько заходов вместо одной точки на 30-й
-// день — каждой стадии своё окно дней-после-сессии (см. HEALING_STAGES в
-// buildReminders.ts) и свой текст (см. healingReminderMessage).
+// @deprecated вместе с HEALING_STAGES/healingReminders (buildReminders.ts) —
+// замена: HealingCycleStage/HealingCycleItem в reminders/healingCycle.ts, где
+// цикл принадлежит проекту, а не сессии. Прежняя схема: заживление
+// проверялось в несколько заходов, каждой стадии своё окно дней-после-сессии
+// и свой текст (см. healingReminderMessage).
 export type HealingStage = 'day1' | 'day4' | 'day15' | 'day30';
 
-// Done sessions, not yet marked healed, currently inside one of the
-// HEALING_STAGES windows — a nudge to check in with the client.
+// @deprecated — см. HealingStage выше. Done sessions, not yet marked healed,
+// currently inside one of the HEALING_STAGES windows.
 export type HealingItem = { client: Client; sessionId: string; date: string; stage: HealingStage };
 
 // Sessions/consultations starting 36–48 hours from now — a heads-up to prep

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const source = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8').replace(/\r\n?/g, '\n');
-const cardSource = source.slice(source.indexOf('function ClientGridCard'), source.indexOf('function ProjectCard'));
+const cardSource = source.slice(source.indexOf('function ClientGridCard'), source.indexOf('export function useSwipeToReveal'));
 
 test('client covers show only an upcoming session date', () => {
   assert.match(cardSource, /const plannedSession = nextPlannedSession\(client\)/);
