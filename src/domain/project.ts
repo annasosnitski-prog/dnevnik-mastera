@@ -83,6 +83,39 @@ export type ProjectPriority = 'urgent' | 'important' | 'normal';
 export type FirstSessionWindowUnit = 'week' | 'month';
 export type PreSessionMeeting = 'consultation' | 'none';
 
+// Фиксированный список шагов «окна на первую сессию» (§11 pipeline-документа)
+// — не дедлайн всего проекта, а срок, за который должна состояться ПЕРВАЯ
+// встреча с клиентом, отсчитанный от createdDate (см. getProjectPipelineSegments
+// в projectSelectors.ts). Список закрытый, с фиксированным шагом — не
+// свободное число. `key` — устойчивая строка для value одного <select>,
+// чтобы форме не нужно было самой кодировать пару amount+unit в строку.
+export interface FirstSessionWindowOption {
+  key: string;
+  amount: number;
+  unit: FirstSessionWindowUnit;
+  label: string;
+}
+
+function monthOption(amount: number): FirstSessionWindowOption {
+  const label = amount === 1 ? '1 месяц' : amount < 5 ? `${amount} месяца` : `${amount} месяцев`;
+  return { key: `${amount}-month`, amount, unit: 'month', label };
+}
+
+export const FIRST_SESSION_WINDOW_OPTIONS: FirstSessionWindowOption[] = [
+  { key: '1-week', amount: 1, unit: 'week', label: 'Неделя' },
+  { key: '2-week', amount: 2, unit: 'week', label: '2 недели' },
+  { key: '3-week', amount: 3, unit: 'week', label: '3 недели' },
+  ...Array.from({ length: 12 }, (_, i) => monthOption(i + 1)),
+];
+
+export function findFirstSessionWindowOption(
+  amount: number | null | undefined,
+  unit: FirstSessionWindowUnit | null | undefined,
+): FirstSessionWindowOption | null {
+  if (amount == null || unit == null) return null;
+  return FIRST_SESSION_WINDOW_OPTIONS.find((o) => o.amount === amount && o.unit === unit) ?? null;
+}
+
 // Порядок массива — это и порядок движения проекта вперёд, на него опирается
 // withAdvancedStatus ниже. Менять порядок = менять смысл «только вперёд».
 // 'paused' стоит сразу после 'active' намеренно: обычная сессия целится

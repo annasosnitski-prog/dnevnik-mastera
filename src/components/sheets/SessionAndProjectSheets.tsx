@@ -17,6 +17,9 @@ import {
   NEXT_ACTION_TYPES,
   type SessionsPlan,
   SESSIONS_PLANS,
+  type FirstSessionWindowUnit,
+  FIRST_SESSION_WINDOW_OPTIONS,
+  findFirstSessionWindowOption,
   type Project,
 } from '../../domain/project';
 import { getSessionsByProjectId, getConsultationSequence } from '../../domain/projectSelectors';
@@ -837,6 +840,8 @@ export function NewProjectSheet({
     clientId: string | null;
     status: ProjectStatus;
     sessionsPlan: SessionsPlan;
+    firstSessionWindowAmount: number | null;
+    firstSessionWindowUnit: FirstSessionWindowUnit | null;
     state: ProjectState;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
@@ -860,6 +865,12 @@ export function NewProjectSheet({
   const [clientId, setClientId] = useState<string | null>(null);
   const [status, setStatus] = useState<ProjectStatus>('active');
   const [sessionsPlan, setSessionsPlan] = useState<SessionsPlan>(null);
+  // Ключ FIRST_SESSION_WINDOW_OPTIONS, а не amount/unit по отдельности —
+  // один <select> на пару значений (см. FirstSessionWindowOption в
+  // domain/project.ts). '' — «не задано»: осознанное состояние, проект
+  // просто не участвует в отображении на таймлайне, пока мастер не выберет
+  // окно (см. getProjectPipelineSegments).
+  const [firstSessionWindowKey, setFirstSessionWindowKey] = useState('');
   const [state, setState] = useState<ProjectState>('active');
   const [nextActionText, setNextActionText] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
@@ -891,6 +902,9 @@ export function NewProjectSheet({
       setClientId(initial?.clientId ?? presetClientId ?? null);
       setStatus(initial?.status ?? 'active');
       setSessionsPlan(initial?.sessionsPlan ?? null);
+      setFirstSessionWindowKey(
+        findFirstSessionWindowOption(initial?.firstSessionWindowAmount, initial?.firstSessionWindowUnit)?.key ?? '',
+      );
       setState(initial?.state ?? 'active');
       setNextActionText(initial?.nextActionText ?? '');
       setNextActionDate(initial?.nextActionDate ?? '');
@@ -975,6 +989,27 @@ export function NewProjectSheet({
             </select>
           </div>
 
+          {/* Не дедлайн всего проекта — срок, за который должна пройти ПЕРВАЯ
+              сессия, отсчитанный от даты создания (§11). Пока не задано —
+              проект осознанно не участвует в отображении на таймлайне (см.
+              getProjectPipelineSegments), это не баг и не временное
+              состояние. */}
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Окно на первую сессию</FieldLabel>
+            <select
+              value={firstSessionWindowKey}
+              onChange={(e) => setFirstSessionWindowKey(e.target.value)}
+              style={INPUT_STYLE}
+            >
+              <option value="">Не задано</option>
+              {FIRST_SESSION_WINDOW_OPTIONS.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Следующий шаг</FieldLabel>
             <input value={nextActionText} onChange={(e) => setNextActionText(e.target.value)} placeholder="Уточнить размер, получить фото спины..." style={{ ...INPUT_STYLE, marginBottom: 8 }} />
@@ -1004,6 +1039,7 @@ export function NewProjectSheet({
         <div
           className="inka-submit"
           onClick={() => {
+            const selectedWindow = FIRST_SESSION_WINDOW_OPTIONS.find((o) => o.key === firstSessionWindowKey) ?? null;
             const data = {
               title,
               color: preservedColor,
@@ -1011,6 +1047,8 @@ export function NewProjectSheet({
               clientId,
               status,
               sessionsPlan,
+              firstSessionWindowAmount: selectedWindow?.amount ?? null,
+              firstSessionWindowUnit: selectedWindow?.unit ?? null,
               state,
               waitingFor: preservedWaitingFor,
               nextActionText,
