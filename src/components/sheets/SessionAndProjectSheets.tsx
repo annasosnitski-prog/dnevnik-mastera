@@ -770,6 +770,9 @@ export function NewProjectSheet({
   // галочку» подтверждение, единообразно для всех форм редактирования.
   const [justSaved, setJustSaved] = useState(false);
 
+  // Deprecated UI-only project attributes stay in the domain for backwards
+  // compatibility. Editing preserves existing values; a new project gets the
+  // historical defaults without exposing controls for them.
   const preservedColor = initial?.color ?? MARKER_COLORS[0];
   const preservedWaitingFor: ProjectWaitingFor = initial?.waitingFor ?? 'none';
   const preservedPriority: ProjectPriority = initial?.priority ?? 'normal';
