@@ -4,6 +4,12 @@
 import type { Session } from './session';
 import type { Consultation } from './consultation';
 
+// A standalone sketch/portfolio idea for «Творческая мастерская» — not tied
+// to any client (unlike Consultation, which lives inside a Client). Shares
+// the consultation's own field set (same brief-writing form) since it's the
+// same kind of thinking — mood, references, technique — just without a
+// person attached to it yet; the one field it adds is its own colour tag,
+// since without a client there's no `client.color` to inherit.
 export type ProjectCategory = 'tattoo' | 'drawing' | 'collab' | 'other';
 
 export const PROJECT_CATEGORIES: { key: ProjectCategory; label: string }[] = [
@@ -42,6 +48,10 @@ export const PROJECT_BODY_AREAS: { key: string; label: string }[] = [
   { key: 'Пальцы', label: 'Пальцы' },
 ];
 
+// Три независимых параметра статуса вместо одной длинной строки-enum
+// (вроде "planning_waiting_client_photo_overdue") — где проект находится,
+// может ли он сейчас двигаться, и кто должен действовать, читаются по
+// отдельности и комбинируются свободно.
 export type ProjectStage = 'idea' | 'inquiry' | 'planning' | 'booked' | 'in_progress' | 'healing' | 'completed';
 export type ProjectState = 'active' | 'paused' | 'cancelled' | 'archived';
 export type ProjectWaitingFor = 'master' | 'client' | 'external' | 'none';
@@ -79,6 +89,11 @@ export const PROJECT_PRIORITIES: { key: ProjectPriority; label: string }[] = [
   { key: 'normal', label: 'Обычный' },
 ];
 
+// Структурный тип «следующего шага» — чтобы будущая система (напоминания,
+// автоматизация) понимала СМЫСЛ действия без распознавания свободного текста
+// nextActionText. Дополняет его, не заменяет: nextActionText/nextActionDate
+// остаются как были. null = тип не выбран — это валидное, а не временное
+// состояние (не подставляется автоматически, см. normalizeProject).
 export type NextActionType =
   | 'contact_client'
   | 'collect_information'
@@ -106,6 +121,14 @@ export const NEXT_ACTION_TYPES: { key: NextActionType; label: string }[] = [
   { key: 'other', label: 'Другое' },
 ];
 
+// Приводит next-step поля к валидному сочетанию перед записью в проект:
+// пустой текст обнуляет и дату, и тип. Без этого overdueProjects
+// (reminders/buildReminders.ts) — который смотрит на nextActionDate — мог бы
+// завести пустую просроченную карточку («Следующий шаг: —») для проекта, у
+// которого текст уже стёрт, а дата/тип остались от прежнего шага
+// (overdueProjects проверяет nextActionText и сам, второй независимой
+// защитой — на случай старых/повреждённых записей, до которых эта функция
+// на сохранении не дотянулась).
 export function resolveNextStep(
   text: string,
   date: string | null,
@@ -116,6 +139,18 @@ export function resolveNextStep(
   return { nextActionText: trimmed, nextActionDate: date, nextActionType: type };
 }
 
+// Авто-переход этапа проекта — ТОЛЬКО ВПЕРЁД: создана будущая запись →
+// «Записан», выполненная сессия → «В работе». Никогда не откатывает назад
+// (не трогает, если этап уже на целевом или дальше), «Заживление»/«Завершён»
+// мастер ставит сама.
+//
+// Возвращает НОВЫЙ объект проекта, а не пишет в стор: продвижение этапа
+// должно уехать в базу тем же самым сохранением, что и сама запись. Раньше
+// это были два отдельных saveProject подряд, и второй читал projects из
+// ещё не обновившегося React-состояния — то есть перезаписывал проект
+// снимком БЕЗ только что добавленной сессии и стирал её. Для клиентских
+// сессий это не проявлялось (они лежали в другом сторе), а сессия в проекте
+// без клиента молча пропадала после сохранения.
 export function withAdvancedStage(project: Project, target: ProjectStage): Project {
   const current = PROJECT_STAGES.findIndex((s) => s.key === project.stage);
   const next = PROJECT_STAGES.findIndex((s) => s.key === target);
@@ -128,12 +163,16 @@ export interface Project {
   title: string;
   color: string; // legacy marker colour; no longer exposed by project UI
   category: ProjectCategory;
+  // null = идея без клиента ("мастерская", независимо от одноимённого
+  // clientId===null на ContentEntry — те две вещи не связаны).
   clientId: string | null;
   stage: ProjectStage;
   state: ProjectState;
   waitingFor: ProjectWaitingFor;
   nextActionText: string;
   nextActionDate: string | null;
+  // Структурный тип действия — см. NextActionType выше. Не выведен из
+  // nextActionText, задаётся мастером отдельно; null = не выбран.
   nextActionType: NextActionType | null;
   priority: ProjectPriority;
   area: string;
@@ -149,11 +188,46 @@ export interface Project {
   firstSessionWindowAmount?: number | null;
   firstSessionWindowUnit?: FirstSessionWindowUnit | null;
   preSessionMeeting?: PreSessionMeeting;
+  // «Сессии без клиента» (Этап 3b-доп.) — для проектов без clientId, живут
+  // прямо на проекте (свой стор, клиента/календарь не трогают), пока не
+  // появится клиент. При привязке клиента к проекту (см. attachClientToProject
+  // в App) переезжают в client.sessions с тем же projectId и отсюда чистятся.
   sessions: Session[];
+  // «Консультации без клиента» — тот же принцип, что у sessions выше, только
+  // для Consultation (иначе client-less проект не мог бы вообще держать
+  // консультацию). Переезжают в client.consultations тем же переносом, что
+  // и sessions, при привязке клиента к проекту.
   consultations: Consultation[];
+  // Когда мастер в последний раз реально продвинула проект (M4) — ISO
+  // timestamp. Бампается ТОЛЬКО isMeaningfulProjectChange-полями (см. ниже),
+  // не любым сохранением формы (правка текста/фото/заметок — не движение).
+  // null — «неизвестно»: новые проекты получают текущий timestamp сразу при
+  // создании (TattoDiary.tsx), но старые записи, сохранённые до появления
+  // этого поля, НЕ подставляют себе createdDate или текущую дату задним
+  // числом — реальная дата последнего движения старого проекта могла быть
+  // недавней, просто ещё до того, как это поле начали писать; выдумывать
+  // значение значит рисковать ложным «застоем» для проекта, который на
+  // самом деле недавно двигался. Первое же значимое изменение (см.
+  // isMeaningfulProjectChange) простановит настоящую дату через saveProject.
+  // Это лишь одна из нескольких дат-кандидатов: реальная «последняя
+  // активность» проекта — производная величина, см.
+  // getProjectLastActivityDate в projectSelectors.ts, которая также
+  // учитывает выполненные сессии и историю консультаций проекта — так
+  // застывание не зависит от того, что кто-то забыл прописать сюда бамп в
+  // ещё одном месте сохранения клиента.
   lastMeaningfulActivityAt: string | null;
 }
 
+// Какие именно изменения проекта считаются «движением» (M4) — единственное
+// место, отвечающее на этот вопрос, вызывается из saveProject
+// (TattoDiary.tsx), единственной точки записи в стор проектов. Осознанно
+// НЕ включает правки текстовых полей (title/notes/area/style/feeling/
+// creative/inspirationSources/photos/color/category/priority) — это
+// редактирование содержимого, а не прогресс; иначе любая опечатка сбрасывала
+// бы таймер «застывания». Включает: смену этапа/статуса/того-кто-должен-
+// действовать (реальный прогресс или явное возобновление из паузы) и любое
+// изменение «следующего шага» (текст/дата/тип — мастер осознанно
+// спланировала действие).
 export function isMeaningfulProjectChange(prev: Project, next: Project): boolean {
   return (
     prev.stage !== next.stage ||

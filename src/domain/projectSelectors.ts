@@ -357,6 +357,7 @@ export function sortProjects(
 }
 
 export interface ProjectFilters {
+  // null — «Все».
   category: ProjectCategory | null;
   state: ProjectState | null;
   area: string | null;
@@ -377,6 +378,9 @@ export function filterProjects(projects: Project[], filters: ProjectFilters): Pr
   });
 }
 
+// View-model grouping for project lists. Empty area gets a stable readable
+// bucket; project objects are reused without mutation and group order follows
+// first appearance in the input list.
 export interface ProjectAreaGroup {
   area: string;
   projects: Project[];
