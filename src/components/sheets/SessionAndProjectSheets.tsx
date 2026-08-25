@@ -214,6 +214,8 @@ export function NewSessionSheet({
       </div>
 
       <div style={{ padding: '4px 24px 50px' }}>
+        {/* Photos first — same order as the consultation form (see
+            NewConsultationSheet), rather than tacked on near the end. */}
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Фото</FieldLabel>
           <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
@@ -224,6 +226,11 @@ export function NewSessionSheet({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
         </div>
 
+        {/* Поле всегда видно (даже когда у владельца ещё нет ни одного
+            проекта) — сессия больше не может остаться совсем без проекта:
+            если мастер не выбрала существующий, ensureProjectId в
+            TattoDiary.tsx молча заведёт новый под тем же владельцем при
+            сохранении (см. handleAddSession/saveSessionFromNewSessionSheet). */}
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Проект</FieldLabel>
           <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}>
@@ -234,6 +241,9 @@ export function NewSessionSheet({
           </select>
         </div>
 
+        {/* Date & time stacked full-width. Side-by-side used to overlap on
+            iOS, where the native pickers keep a large intrinsic width and
+            won't shrink into a flex half-column. */}
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Дата</FieldLabel>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} />
@@ -490,6 +500,10 @@ export function NewConsultationSheet({
       <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
         <div className="inka-consult-left">
           <div style={{ marginBottom: 16 }}><FieldLabel>Фотографии</FieldLabel><SessionPhotos photos={photos} onChange={setPhotos} buttonFirst /></div>
+          {/* Compact, read-only — a quick reminder while browsing references,
+              not a form to fill in (that happens on the client's own Инфо
+              tab). Kept small and at the bottom so it doesn't compete with
+              the photos for attention. */}
           {client && (client.allergies || client.skinReactions || client.skinType || client.skinTone) && (
             <div style={{ border: '1px solid rgba(var(--gold-rgb),0.12)', borderRadius: 2, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
               <div style={{ fontSize: fs(9), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 2 }}>Кожа клиента</div>
@@ -590,6 +604,10 @@ export function ProjectViewSheet({
   const ownSessions = project && !linkedClient ? project.sessions.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')) : [];
   const ownConsults = project && !linkedClient ? getConsultationSequence(project.consultations, project.id) : [];
   const linkedTasks = project ? linkedClient ? getTasksByProjectId(linkedClient.notes, project.id) : getTasksByProjectId(masterNotes, project.id) : [];
+  // Вся принадлежность записи проекту (и то, как именно она связана — для
+  // подписи в карточке) — уже в getContentEntriesForProject, ничего не
+  // резолвится здесь. Только confirmed — approval flow не меняется, это
+  // фильтр чтения.
   const projectContentItems = project ? getContentEntriesForProject(contentEntries, project.id, projects, clients) : [];
   const chipStyle: React.CSSProperties = { fontSize: fs(11), color: COLORS.textFaint, border: '1px solid rgba(var(--gold-rgb),0.3)', borderRadius: 2, padding: '3px 9px', letterSpacing: '0.5px' };
   const entryRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 2, cursor: 'pointer', border: '1px solid rgba(var(--gold-rgb),0.15)', background: 'rgba(var(--surface-rgb),0.018)' };
