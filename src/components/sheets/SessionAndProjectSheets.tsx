@@ -46,6 +46,13 @@ import {
 import { BottomSheet, SheetCloseButton, SheetEditButton, SheetSavedCheck } from '../ui/Sheet';
 import { FieldLabel, SheetStarDivider } from '../ui/TextAtoms';
 
+// Вынесено из TattoDiary.tsx (PR 6 рефакторинга). Логика и разметка не
+// менялись — только перенос в отдельный модуль.
+
+// Собирает заметку новой сессии из полей консультации-источника (см.
+// prefillConsultation ниже) — переезжает вместе с сессией то, что не имеет
+// собственного поля в Session (чувство/ощущение, креатив, источники
+// вдохновения), а не теряется при конвертации.
 function consultationNoteSummary(consultation: Consultation | null | undefined): string {
   if (!consultation) return '';
   const parts: string[] = [];
@@ -70,11 +77,30 @@ export function NewSessionSheet({
 }: {
   open: boolean;
   clientName: string;
+  // Проекты этого клиента — для опциональной привязки сессии (Этап 2).
   clientProjects: Project[];
+  // Предзаполняет «Проект» для новой сессии, созданной из просмотра проекта
+  // (Этап 3b) — игнорируется при редактировании существующей.
   presetProjectId?: string | null;
   initial?: Session | null;
+  // Prefills the date field for a brand-new session (e.g. started from a
+  // day picked in the calendar) — ignored once `initial` is set (editing wins).
   initialDate?: string;
+  // Консультация, которую переводят в сессию («Перевести в сессию» —
+  // DetailScreen/TimelineViewSheet) — предзаполняет зону/стиль/фото/проект и
+  // собирает заметку из creative-полей консультации. Игнорируется при
+  // редактировании существующей сессии (initial имеет приоритет). Дата
+  // намеренно НЕ переносится — консультация уже прошла, а сессия это новая,
+  // ещё не назначенная встреча для работы.
   prefillConsultation?: Consultation | null;
+  // Сессия, от которой назначается следующая («Назначить следующую сессию» —
+  // DetailScreen/TimelineViewSheet, см. TattoDiary's startChainNextSession) —
+  // предзаполняет только зону/стиль/проект (продолжение той же работы);
+  // заметки/фото/статус остаются пустыми/по умолчанию — это отдельная запись,
+  // а не копия предыдущей. Игнорируется при редактировании (initial имеет
+  // приоритет) и не пересекается с prefillConsultation — это два разных
+  // источника, каждый устанавливается своим действием. Дата намеренно НЕ
+  // переносится, тем же принципом, что prefillConsultation выше.
   chainFrom?: Session | null;
   onClose: () => void;
   onAdd: (data: {
@@ -107,13 +133,23 @@ export function NewSessionSheet({
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
+  // New sessions default to «Выполнена»; editing reflects the session's
+  // status; started from a calendar date (clearly a future booking), default
+  // to «Запланирована» instead.
   const [done, setDone] = useState(true);
   const [healed, setHealed] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
+  // Briefly swaps the close «×» for a green check after saving an edit — see
+  // SheetSavedCheck — so the save reads as confirmed rather than the sheet
+  // just vanishing. Shown unconditionally on every edit-save, even when
+  // nothing in the form actually changed.
   const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
+      // Prefill from the session being edited, from the consultation being
+      // converted (prefillConsultation, ignored while editing), or start
+      // blank for a new one.
       setName(initial?.name ?? '');
       setDate(initial?.date ?? initialDate ?? '');
       setTime(initial?.time ?? '');
@@ -125,6 +161,9 @@ export function NewSessionSheet({
       setSkinReaction(initial?.skinReaction ?? '');
       setNote(initial?.note ?? consultationNoteSummary(prefillConsultation));
       setPhotos(initial?.photos ?? prefillConsultation?.photos ?? []);
+      // A converted consultation is always a future booking, not yet done —
+      // same reasoning as the initialDate case just below. A chained next
+      // session is the same: it hasn't happened yet.
       setDone(initial ? initial.done : !initialDate && !prefillConsultation && !chainFrom);
       setHealed(initial?.healed ?? false);
       setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
@@ -291,8 +330,16 @@ export function ProjectSessionPickerSheet({
 }: {
   open: boolean;
   projects: Project[];
+  // Только для scope==='all' — имена клиентов для группировки списка.
   clients?: Client[];
+  // null (по умолчанию) — «сессия без клиента» (Мастерская), список
+  // проектов БЕЗ клиента, как раньше. Задан — список проектов ЭТОГО
+  // клиента (content-link цепочка для клиентской ContentEntry), а не
+  // клиентских по умолчанию. Игнорируется, если scope==='all'.
   clientId?: string | null;
+  // 'all' — все проекты сразу, сгруппированные по клиенту (+ «Мастерская»)
+  // — для контекста без единого явного владельца (Админка). Без этого —
+  // прежнее поведение: только clientId/client-less.
   scope?: 'all';
   onClose: () => void;
   onPick: (project: Project) => void;
@@ -354,10 +401,22 @@ export function NewConsultationSheet({
   open: boolean;
   clientName: string;
   client: Client | null;
+  // Проекты этого клиента — для опциональной привязки консультации (Этап 2).
   clientProjects: Project[];
+  // Предзаполняет «Проект» для новой консультации из просмотра проекта (3b).
   presetProjectId?: string | null;
   initial?: Consultation | null;
+  // Prefills the date field for a brand-new consultation (e.g. started from a
+  // day picked in the calendar) — ignored once `initial` is set.
   initialDate?: string;
+  // Консультация, от которой назначается следующая («Назначить следующую
+  // консультацию» — DetailScreen/TimelineViewSheet, см. TattoDiary's
+  // startChainNextConsultation) — предзаполняет только проект/зону/стиль
+  // (продолжение той же работы); заметки/итог остаются пустыми —
+  // это отдельная запись со своим содержанием, а не копия предыдущей.
+  // Игнорируется при редактировании существующей записи (initial имеет
+  // приоритет). Дата намеренно НЕ переносится, тем же принципом, что
+  // prefillConsultation у NewSessionSheet.
   chainFrom?: Consultation | null;
   onClose: () => void;
   onAdd: (data: {
@@ -388,6 +447,8 @@ export function NewConsultationSheet({
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
+  // See NewSessionSheet's justSaved for why this shows unconditionally on
+  // every edit-save, not just when something actually changed.
   const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
@@ -473,6 +534,11 @@ function ChainEntryRow({ showArrow, label, title, date, style, onClick }: { show
   );
 }
 
+// ── Read-only просмотр проекта (Этап 2) ──
+// Открывается по тапу на проект (в Мастерской или в «Активных проектах»
+// Планнера). Сверху статус, следующий шаг и записи проекта; редактирование
+// — отдельной кнопкой, а не сразу форма. Записи тапабельны — открывают
+// существующий просмотр сессии/консультации.
 export function ProjectViewSheet({
   open,
   project,
@@ -491,17 +557,30 @@ export function ProjectViewSheet({
 }: {
   open: boolean;
   project: Project | null;
+  // Полный список — resolveContentEntryProjectId (через getProjectContentEntries)
+  // должен уметь резолвить session-link на любой проект, не только текущий.
   projects: Project[];
   clients: Client[];
   contentEntries: ContentEntry[];
+  // Master's own (client-less) tasks — a project without a client draws its
+  // «Задачи» from here instead of a client's notes.
   masterNotes: ClientNote[];
   onClose: () => void;
   onEdit: (project: Project) => void;
   onOpenEntry: (clientId: string, kind: 'session' | 'consultation', id: string) => void;
+  // Тап по «сессии без клиента» в списке записей — открыть её на
+  // редактирование. Создание новых записей теперь только через главную
+  // кнопку «Создать» (остаётся видна поверх этого просмотра — см. onCreate
+  // у NavFab), отдельных кнопок создания здесь больше нет.
   onEditProjectSession: (projectId: string, session: Session) => void;
+  // Зеркало onEditProjectSession выше, для Project.consultations.
   onEditProjectConsultation: (projectId: string, consultation: Consultation) => void;
   onToggleTaskDone: (clientId: string | null, note: ClientNote) => void;
+  // Тап по карточке контента — открыть её в уже существующем ContentINKA,
+  // без нового экрана и без изменения самого редактора.
   onOpenContentEntry: (entry: ContentEntry) => void;
+  // Единственный next step проекта (см. NextStepRow) — пишет напрямую в
+  // проект тем же saveProject, что и остальные правки, без глубокой формы.
   onSaveNextStep: (text: string, date: string | null, type: NextActionType | null) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
@@ -579,6 +658,14 @@ export function ProjectViewSheet({
   );
 }
 
+// Компактная карточка одного материала ContentINKA внутри «Контент» на
+// экране проекта — только для просмотра, без редактирования, перевода,
+// архетипов и управления фотоподборкой (см. onClick — открывает уже
+// существующий ContentINKA, а не что-то новое). Экспортирована — тот же
+// компонент переиспользует вкладка «Контент» карточки клиента
+// (ClientContentTab в DetailScreen.tsx), чтобы контент, привязанный к
+// проекту клиента напрямую (а не через сессию/консультацию), тоже было
+// видно, не только внутри самого проекта.
 export function ProjectContentCard({ item, onClick }: { item: ProjectContentItem<ContentEntry>; onClick: () => void }) {
   const { entry, link } = item;
   const firstLine = (entry.textDraft || entry.text || '').split('\n')[0].trim();
@@ -597,6 +684,11 @@ export function ProjectContentCard({ item, onClick }: { item: ProjectContentItem
   );
 }
 
+// ── Новый / редактирование проекта («Творческая мастерская») — same field
+// set as NewConsultationSheet (same kind of creative brief), minus the
+// client-skin block (there's no client) and urgency chips, plus a title and
+// a colour tag (MarkerColorPalette) since a project has no client.color to
+// borrow for its cover. ──
 export function NewProjectSheet({
   open,
   initial,
@@ -608,6 +700,8 @@ export function NewProjectSheet({
 }: {
   open: boolean;
   initial?: Project | null;
+  // Предзаполняет клиента для НОВОГО проекта (Этап 3a, кнопка «+ Новый» во
+  // вкладке клиента) — игнорируется при редактировании существующего.
   presetClientId?: string | null;
   clients: Client[];
   onClose: () => void;
@@ -631,6 +725,7 @@ export function NewProjectSheet({
     inspirationSources: string;
     photos: string[];
   }) => void;
+  // Present only when editing an existing project — omitted for a new one.
   onDelete?: () => void;
 }) {
   const isEdit = !!initial;
@@ -650,6 +745,8 @@ export function NewProjectSheet({
   const [inspirationSources, setInspirationSources] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // See NewSessionSheet's justSaved — same «крестик превращается в зелёную
+  // галочку» подтверждение, единообразно для всех форм редактирования.
   const [justSaved, setJustSaved] = useState(false);
 
   // Deprecated UI-only project attributes stay in the domain for backwards
