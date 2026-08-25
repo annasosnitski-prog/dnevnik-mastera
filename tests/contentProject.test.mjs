@@ -293,6 +293,6 @@ test('ProjectContentCard computes the photo count via resolveContentPhotoSelecti
   const source = readFileSync(new URL('../src/components/sheets/SessionAndProjectSheets.tsx', import.meta.url), 'utf8');
   const card = source.slice(source.indexOf('function ProjectContentCard('), source.length);
 
-  assert.match(card, /resolveContentPhotoSelection\(\{\s*photos: entry\.photos,\s*photoIds: entry\.photoIds,\s*contentDraft: entry\.contentDraft,\s*\}\)\.length/);
+  assert.match(card, /resolveContentPhotoSelection\(\{\s*photos: entry\.photos,\s*photoIds: entry\.photoIds,\s*contentDraft: entry\.contentDraft,?\s*\}\)\.length/);
   assert.doesNotMatch(card, /entry\.photos\.length/);
 });
