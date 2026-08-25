@@ -842,6 +842,7 @@ export function NewProjectSheet({
     sessionsPlan: SessionsPlan;
     firstSessionWindowAmount: number | null;
     firstSessionWindowUnit: FirstSessionWindowUnit | null;
+    firstSessionExactDate: string | null;
     state: ProjectState;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
@@ -871,6 +872,13 @@ export function NewProjectSheet({
   // просто не участвует в отображении на таймлайне, пока мастер не выберет
   // окно (см. getProjectPipelineSegments).
   const [firstSessionWindowKey, setFirstSessionWindowKey] = useState('');
+  // Точная дата — альтернатива окну, взаимоисключающе (см.
+  // Project.firstSessionExactDate): галочка прячет select окна и показывает
+  // date-picker вместо него. Переключение сбрасывает значение того поля,
+  // которое становится неактивным (см. onChange галочки ниже), так что в
+  // data на submit всегда уезжает ровно одно из двух, а не оба сразу.
+  const [exactDateMode, setExactDateMode] = useState(false);
+  const [firstSessionExactDate, setFirstSessionExactDate] = useState('');
   const [state, setState] = useState<ProjectState>('active');
   const [nextActionText, setNextActionText] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
@@ -905,6 +913,8 @@ export function NewProjectSheet({
       setFirstSessionWindowKey(
         findFirstSessionWindowOption(initial?.firstSessionWindowAmount, initial?.firstSessionWindowUnit)?.key ?? '',
       );
+      setExactDateMode(!!initial?.firstSessionExactDate);
+      setFirstSessionExactDate(initial?.firstSessionExactDate ?? '');
       setState(initial?.state ?? 'active');
       setNextActionText(initial?.nextActionText ?? '');
       setNextActionDate(initial?.nextActionDate ?? '');
@@ -993,21 +1003,64 @@ export function NewProjectSheet({
               сессия, отсчитанный от даты создания (§11). Пока не задано —
               проект осознанно не участвует в отображении на таймлайне (см.
               getProjectPipelineSegments), это не баг и не временное
-              состояние. */}
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Окно на первую сессию</FieldLabel>
-            <select
-              value={firstSessionWindowKey}
-              onChange={(e) => setFirstSessionWindowKey(e.target.value)}
-              style={INPUT_STYLE}
+              состояние. Точная дата — взаимоисключающая альтернатива для
+              мастера, которой удобнее сразу указать конкретный день (клиент
+              уже согласовал дату), а не прикидывать окно. */}
+          <div
+            onClick={() => {
+              setExactDateMode((v) => !v);
+              if (exactDateMode) setFirstSessionExactDate('');
+              else setFirstSessionWindowKey('');
+            }}
+            role="button"
+            aria-label="Точная дата первой сессии"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, cursor: 'pointer' }}
+          >
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 2,
+                flexShrink: 0,
+                border: exactDateMode ? '1px solid rgba(var(--gold-rgb),0.7)' : '1px solid rgba(var(--gold-rgb),0.3)',
+                background: exactDateMode ? 'rgba(var(--gold-rgb),0.15)' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <option value="">Не задано</option>
-              {FIRST_SESSION_WINDOW_OPTIONS.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              {exactDateMode && (
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                  <path d="M2.5 7.3L5.5 10.3L11.5 3.7" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </div>
+            <div style={{ fontSize: fs(14), color: exactDateMode ? COLORS.gold : COLORS.textFaint }}>Точная дата вместо окна</div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>{exactDateMode ? 'Дата первой сессии' : 'Окно на первую сессию'}</FieldLabel>
+            {exactDateMode ? (
+              <input
+                type="date"
+                value={firstSessionExactDate}
+                onChange={(e) => setFirstSessionExactDate(e.target.value)}
+                style={INPUT_STYLE}
+              />
+            ) : (
+              <select
+                value={firstSessionWindowKey}
+                onChange={(e) => setFirstSessionWindowKey(e.target.value)}
+                style={INPUT_STYLE}
+              >
+                <option value="">Не задано</option>
+                {FIRST_SESSION_WINDOW_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -1047,8 +1100,11 @@ export function NewProjectSheet({
               clientId,
               status,
               sessionsPlan,
-              firstSessionWindowAmount: selectedWindow?.amount ?? null,
-              firstSessionWindowUnit: selectedWindow?.unit ?? null,
+              // Взаимоисключающе: exactDateMode решает, какое из двух реально
+              // пишется, второе всегда уезжает null'ом.
+              firstSessionWindowAmount: exactDateMode ? null : selectedWindow?.amount ?? null,
+              firstSessionWindowUnit: exactDateMode ? null : selectedWindow?.unit ?? null,
+              firstSessionExactDate: exactDateMode ? firstSessionExactDate || null : null,
               state,
               waitingFor: preservedWaitingFor,
               nextActionText,

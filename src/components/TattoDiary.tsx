@@ -1808,6 +1808,7 @@ export default function TattoDiary() {
     sessionsPlan: SessionsPlan;
     firstSessionWindowAmount: number | null;
     firstSessionWindowUnit: FirstSessionWindowUnit | null;
+    firstSessionExactDate: string | null;
     state: ProjectState;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;

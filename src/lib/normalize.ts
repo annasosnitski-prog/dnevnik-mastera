@@ -221,6 +221,7 @@ export function normalizeProject(raw: any, index: number): Project {
   const firstSessionWindowUnit = raw?.firstSessionWindowUnit === 'week' || raw?.firstSessionWindowUnit === 'month'
     ? raw.firstSessionWindowUnit
     : null;
+  const firstSessionExactDate = isValidISODate(raw?.firstSessionExactDate) ? raw.firstSessionExactDate : null;
   const preSessionMeeting = raw?.preSessionMeeting === 'none' ? 'none' : 'consultation';
 
   return {
@@ -257,6 +258,7 @@ export function normalizeProject(raw: any, index: number): Project {
     createdDate: raw?.createdDate ?? new Date().toISOString(),
     firstSessionWindowAmount,
     firstSessionWindowUnit,
+    firstSessionExactDate,
     preSessionMeeting,
     sessions,
     consultations: Array.isArray(raw?.consultations)

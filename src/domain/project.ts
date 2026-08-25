@@ -343,6 +343,13 @@ export interface Project {
   // source-compatible. normalizeProject always materializes explicit defaults.
   firstSessionWindowAmount?: number | null;
   firstSessionWindowUnit?: FirstSessionWindowUnit | null;
+  // Точная дата первой сессии — альтернатива amount/unit выше, для мастера,
+  // которой удобнее сразу указать конкретный день, а не окно (например,
+  // клиент уже согласовал дату голосом/в переписке). Взаимоисключающе с
+  // firstSessionWindowAmount/Unit — форма пишет ровно одно из двух, никогда
+  // оба сразу (см. NewProjectSheet). getProjectPipelineSegments в
+  // projectSelectors.ts предпочитает эту дату, если она задана.
+  firstSessionExactDate?: string | null;
   preSessionMeeting?: PreSessionMeeting;
   // «Сессии без клиента» (Этап 3b-доп.) — для проектов без clientId, живут
   // прямо на проекте (свой стор, клиента/календарь не трогают), пока не
