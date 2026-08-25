@@ -147,7 +147,6 @@ export function normalizeConsultation(cn: any, i: number, sessions: Session[], i
 
 export function normalizeClient(raw: any, index: number): Client {
   const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
-
   const latestStyle = sessions.length ? sessions[sessions.length - 1].style : '';
   const styles: string[] = Array.isArray(raw?.styles)
     ? raw.styles.filter(Boolean)
@@ -187,6 +186,15 @@ export function normalizeClient(raw: any, index: number): Client {
 
 export function normalizeProject(raw: any, index: number): Project {
   const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
+  const firstSessionWindowAmount =
+    typeof raw?.firstSessionWindowAmount === 'number' && Number.isFinite(raw.firstSessionWindowAmount) && raw.firstSessionWindowAmount >= 0
+      ? raw.firstSessionWindowAmount
+      : null;
+  const firstSessionWindowUnit = raw?.firstSessionWindowUnit === 'week' || raw?.firstSessionWindowUnit === 'month'
+    ? raw.firstSessionWindowUnit
+    : null;
+  const preSessionMeeting = raw?.preSessionMeeting === 'none' ? 'none' : 'consultation';
+
   return {
     id: String(raw?.id ?? Date.now() + index),
     title: raw?.title ?? '',
@@ -211,6 +219,9 @@ export function normalizeProject(raw: any, index: number): Project {
     inspirationSources: raw?.inspirationSources ?? '',
     photos: Array.isArray(raw?.photos) ? raw.photos : [],
     createdDate: raw?.createdDate ?? new Date().toISOString(),
+    firstSessionWindowAmount,
+    firstSessionWindowUnit,
+    preSessionMeeting,
     sessions,
     consultations: Array.isArray(raw?.consultations)
       ? raw.consultations.map((cn: any, i: number) => normalizeConsultation(cn, i, sessions, 'pc'))

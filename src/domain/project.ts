@@ -56,6 +56,8 @@ export type ProjectStage = 'idea' | 'inquiry' | 'planning' | 'booked' | 'in_prog
 export type ProjectState = 'active' | 'paused' | 'cancelled' | 'archived';
 export type ProjectWaitingFor = 'master' | 'client' | 'external' | 'none';
 export type ProjectPriority = 'urgent' | 'important' | 'normal';
+export type FirstSessionWindowUnit = 'week' | 'month';
+export type PreSessionMeeting = 'consultation' | 'none';
 
 export const PROJECT_STAGES: { key: ProjectStage; label: string }[] = [
   { key: 'idea', label: 'Идея' },
@@ -168,7 +170,7 @@ export interface Project {
   state: ProjectState;
   waitingFor: ProjectWaitingFor;
   nextActionText: string;
-  nextActionDate: string | null; // ISO yyyy-mm-dd
+  nextActionDate: string | null;
   // Структурный тип действия — см. NextActionType выше. Не выведен из
   // nextActionText, задаётся мастером отдельно; null = не выбран.
   nextActionType: NextActionType | null;
@@ -181,6 +183,11 @@ export interface Project {
   inspirationSources: string; // "Источники вдохновения"
   photos: string[];
   createdDate: string;
+  // Optional at the raw/in-memory type boundary so old object literals stay
+  // source-compatible. normalizeProject always materializes explicit defaults.
+  firstSessionWindowAmount?: number | null;
+  firstSessionWindowUnit?: FirstSessionWindowUnit | null;
+  preSessionMeeting?: PreSessionMeeting;
   // «Сессии без клиента» (Этап 3b-доп.) — для проектов без clientId, живут
   // прямо на проекте (свой стор, клиента/календарь не трогают), пока не
   // появится клиент. При привязке клиента к проекту (см. attachClientToProject

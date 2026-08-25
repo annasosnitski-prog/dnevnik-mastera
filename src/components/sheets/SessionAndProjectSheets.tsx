@@ -777,6 +777,7 @@ export function NewProjectSheet({
   const preservedWaitingFor: ProjectWaitingFor = initial?.waitingFor ?? 'none';
   const preservedPriority: ProjectPriority = initial?.priority ?? 'normal';
   const legacyArea = area && !PROJECT_BODY_AREAS.some((option) => option.key === area) ? area : null;
+
   useEffect(() => {
     if (open) {
       setTitle(initial?.title ?? '');
@@ -840,7 +841,8 @@ export function NewProjectSheet({
               {legacyArea && <option value={legacyArea}>{legacyArea}</option>}
               {PROJECT_BODY_AREAS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
             </select>
-          </div>          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
+          </div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Чувство / ощущение</FieldLabel><textarea value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="Какое чувство или ощущение должна передавать татуировка..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>
