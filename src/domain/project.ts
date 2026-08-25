@@ -52,19 +52,30 @@ export const PROJECT_BODY_AREAS: { key: string; label: string }[] = [
 // (вроде "planning_waiting_client_photo_overdue") — где проект находится,
 // может ли он сейчас двигаться, и кто должен действовать, читаются по
 // отдельности и комбинируются свободно.
-export type ProjectStage = 'idea' | 'inquiry' | 'planning' | 'booked' | 'in_progress' | 'healing' | 'completed';
+//
+// ProjectStatus — общий путь проекта: ждём предоплату → работаем → заживаем →
+// закончили. Заменил прежний семишаговый ProjectStage ('idea' | 'inquiry' |
+// 'planning' | 'booked' | 'in_progress' | 'healing' | 'completed'): половина
+// тех этапов («Идея», «Запрос», «Подготовка») на практике не отличались друг
+// от друга, а «Записан»/«В работе» — это одно и то же «проект в работе».
+// Старые записи не мигрируются бережно, им проставляется разумный дефолт
+// при загрузке (см. normalizeProject в lib/normalize.ts).
+//
+// ProjectState (ниже) — ОТДЕЛЬНАЯ, не связанная с этим ось: пауза/отмена/
+// архив. Их намеренно не сливают в один enum — «проект на этапе заживления»
+// и «проект поставлен на паузу» могут быть верны одновременно.
+export type ProjectStatus = 'waiting_deposit' | 'active' | 'healing' | 'completed';
 export type ProjectState = 'active' | 'paused' | 'cancelled' | 'archived';
 export type ProjectWaitingFor = 'master' | 'client' | 'external' | 'none';
 export type ProjectPriority = 'urgent' | 'important' | 'normal';
 export type FirstSessionWindowUnit = 'week' | 'month';
 export type PreSessionMeeting = 'consultation' | 'none';
 
-export const PROJECT_STAGES: { key: ProjectStage; label: string }[] = [
-  { key: 'idea', label: 'Идея' },
-  { key: 'inquiry', label: 'Запрос' },
-  { key: 'planning', label: 'Подготовка' },
-  { key: 'booked', label: 'Записан' },
-  { key: 'in_progress', label: 'В работе' },
+// Порядок массива — это и порядок движения проекта вперёд, на него опирается
+// withAdvancedStatus ниже. Менять порядок = менять смысл «только вперёд».
+export const PROJECT_STATUSES: { key: ProjectStatus; label: string }[] = [
+  { key: 'waiting_deposit', label: 'Ожидает предоплаты' },
+  { key: 'active', label: 'Активен' },
   { key: 'healing', label: 'Заживление' },
   { key: 'completed', label: 'Завершён' },
 ];
@@ -88,6 +99,62 @@ export const PROJECT_PRIORITIES: { key: ProjectPriority; label: string }[] = [
   { key: 'important', label: 'Важно' },
   { key: 'normal', label: 'Обычный' },
 ];
+
+// Сколько встреч предполагает проект — задаётся мастером при создании.
+// Это НЕ точное количество сессий: на старте мастер часто сама не знает,
+// сколько их понадобится, но всегда знает «одна встреча» или «больше одной».
+// От этого зависит только одно — спрашивать ли при завершении сессии «это
+// последняя?»: у 'single' ответ известен заранее (единственная сессия проекта
+// по определению последняя), у 'multiple' и null его каждый раз подтверждает
+// мастер вручную (см. Session.isLastSession и reminders/healingCycle.ts).
+// null — «не задано»: так выглядят проекты, созданные до появления поля.
+export type SessionsPlan = 'single' | 'multiple' | null;
+
+export const SESSIONS_PLANS: { key: Exclude<SessionsPlan, null>; label: string }[] = [
+  { key: 'single', label: 'Одна встреча' },
+  { key: 'multiple', label: 'Больше одной' },
+];
+
+// Фото зажившей работы — живут на ПРОЕКТЕ, а не на сессии: заживает работа
+// целиком, а не каждая сессия по отдельности, и снимок нужен один на проект
+// (портфолио), даже если сессий было пять. Заменяет прежний флаг
+// Session.healed, см. его @deprecated-пометку в domain/session.ts.
+export interface HealingPhoto {
+  id: string;
+  url: string; // data URL, как в остальных *.photos полях
+  addedDate: string; // ISO yyyy-mm-dd
+  // Обложка проекта среди фото заживления. Не более одной — за инвариант
+  // отвечает withHealingPhoto/withHealingCover ниже, а не вызывающий код.
+  isCover: boolean;
+}
+
+// Галерея редактируется тем же SessionPhotos, что и остальные фото в
+// приложении, а он знает только про массив data-URL. Эта функция — мост
+// обратно: сопоставляет присланный список url с уже существующими
+// HealingPhoto, чтобы у переживших правку снимков сохранились их id и дата
+// добавления, а новым завелись свои.
+//
+// Совпадение ищется по url и КОНСЬЮМИТСЯ (каждый существующий снимок
+// сопоставляется не больше одного раза): если мастер добавит второй раз
+// ровно тот же файл, второй экземпляр получит собственный id, а не станет
+// дублем чужого — иначе в галерее оказались бы две записи с одним id.
+//
+// Обложка нормализуется тут же, одним инвариантом на всю модель: ровно одна,
+// и если после правки не осталось ни одной помеченной — ею становится первый
+// снимок. Так галерея из одного фото не остаётся без обложки, а удаление
+// обложки не оставляет галерею без неё.
+export function reconcileHealingPhotos(existing: HealingPhoto[], urls: string[], today: string): HealingPhoto[] {
+  const remaining = [...existing];
+  const next = urls.map((url) => {
+    const i = remaining.findIndex((p) => p.url === url);
+    if (i !== -1) return remaining.splice(i, 1)[0];
+    return { id: crypto.randomUUID(), url, addedDate: today, isCover: false };
+  });
+  if (!next.length) return next;
+  const coverIndex = next.findIndex((p) => p.isCover);
+  const cover = coverIndex === -1 ? 0 : coverIndex;
+  return next.map((p, i) => ({ ...p, isCover: i === cover }));
+}
 
 // Структурный тип «следующего шага» — чтобы будущая система (напоминания,
 // автоматизация) понимала СМЫСЛ действия без распознавания свободного текста
@@ -139,23 +206,56 @@ export function resolveNextStep(
   return { nextActionText: trimmed, nextActionDate: date, nextActionType: type };
 }
 
-// Авто-переход этапа проекта — ТОЛЬКО ВПЕРЁД: создана будущая запись →
-// «Записан», выполненная сессия → «В работе». Никогда не откатывает назад
-// (не трогает, если этап уже на целевом или дальше), «Заживление»/«Завершён»
-// мастер ставит сама.
+// Авто-переход статуса проекта — ТОЛЬКО ВПЕРЁД по порядку PROJECT_STATUSES.
+// Никогда не откатывает назад (не трогает, если статус уже на целевом или
+// дальше). Кто и куда двигает проект автоматически:
+//  - выполненная сессия → 'active' (см. commitSession/toggleSessionDone в
+//    TattoDiary.tsx);
+//  - вход в цикл заживления после последней сессии → 'healing';
+//  - первое фото в галерее заживления проекта → 'completed'.
+// Переход 'waiting_deposit' → 'active' по факту предоплаты автоматики НЕ
+// имеет: отдельного поля «предоплата получена» в модели нет (есть только
+// next-action-тип 'receive_deposit' — это план, а не зафиксированный факт),
+// поэтому мастер ставит 'active' вручную в форме проекта.
 //
-// Возвращает НОВЫЙ объект проекта, а не пишет в стор: продвижение этапа
+// Возвращает НОВЫЙ объект проекта, а не пишет в стор: продвижение статуса
 // должно уехать в базу тем же самым сохранением, что и сама запись. Раньше
 // это были два отдельных saveProject подряд, и второй читал projects из
 // ещё не обновившегося React-состояния — то есть перезаписывал проект
 // снимком БЕЗ только что добавленной сессии и стирал её. Для клиентских
 // сессий это не проявлялось (они лежали в другом сторе), а сессия в проекте
 // без клиента молча пропадала после сохранения.
-export function withAdvancedStage(project: Project, target: ProjectStage): Project {
-  const current = PROJECT_STAGES.findIndex((s) => s.key === project.stage);
-  const next = PROJECT_STAGES.findIndex((s) => s.key === target);
+export function withAdvancedStatus(project: Project, target: ProjectStatus): Project {
+  const current = PROJECT_STATUSES.findIndex((s) => s.key === project.status);
+  const next = PROJECT_STATUSES.findIndex((s) => s.key === target);
   if (next < 0 || next <= current) return project;
-  return { ...project, stage: target };
+  return { ...project, status: target };
+}
+
+// Куда выполненная сессия двигает проект. Последняя — в «Заживление»: работа
+// закончена, дальше только цикл заживления (см. reminders/healingCycle.ts).
+// Любая другая — в «Активен»: проект в работе, впереди ещё сессии.
+//
+// «Последняя» определяется тем же правилом, что и в самом цикле: у проекта
+// «одна встреча» единственная сессия последняя по определению, у остальных
+// это подтверждение мастера на сессии (см. Session.isLastSession).
+export function withStatusAfterDoneSession(project: Project, isLastSession: boolean): Project {
+  return withAdvancedStatus(project, project.sessionsPlan === 'single' || isLastSession ? 'healing' : 'active');
+}
+
+// Правка галереи заживления вместе с автопереходом статуса — единственная
+// точка, где эти две вещи связаны, чтобы «добавила фото» и «проект завершён»
+// не разъезжались по разным местам сохранения.
+//
+// Первое фото закрывает цикл заживления: работа зажила, снимок для портфолио
+// есть, двигаться проекту больше некуда → 'completed'. Опустевшая галерея
+// статус НЕ откатывает — withAdvancedStatus ходит только вперёд, и удаление
+// неудачного кадра не должно «расзавершать» проект (мастер вправе вернуть
+// его вручную, как и любой другой откат статуса).
+export function withHealingGallery(project: Project, urls: string[], today: string): Project {
+  const healingPhotos = reconcileHealingPhotos(project.healingPhotos, urls, today);
+  const next = { ...project, healingPhotos };
+  return healingPhotos.length > 0 ? withAdvancedStatus(next, 'completed') : next;
 }
 
 export interface Project {
@@ -166,7 +266,9 @@ export interface Project {
   // null = идея без клиента ("мастерская", независимо от одноимённого
   // clientId===null на ContentEntry — те две вещи не связаны).
   clientId: string | null;
-  stage: ProjectStage;
+  status: ProjectStatus;
+  // «Одна встреча» / «больше одной» — не точное число сессий, см. SessionsPlan.
+  sessionsPlan: SessionsPlan;
   state: ProjectState;
   waitingFor: ProjectWaitingFor;
   nextActionText: string;
@@ -182,6 +284,10 @@ export interface Project {
   creative: string;
   inspirationSources: string;
   photos: string[];
+  // Галерея заживления — фото зажившей работы (см. HealingPhoto выше).
+  // Первое добавленное фото закрывает цикл заживления и переводит проект в
+  // 'completed' (см. reminders/healingCycle.ts).
+  healingPhotos: HealingPhoto[];
   createdDate: string;
   // Optional at the raw/in-memory type boundary so old object literals stay
   // source-compatible. normalizeProject always materializes explicit defaults.
@@ -224,13 +330,13 @@ export interface Project {
 // НЕ включает правки текстовых полей (title/notes/area/style/feeling/
 // creative/inspirationSources/photos/color/category/priority) — это
 // редактирование содержимого, а не прогресс; иначе любая опечатка сбрасывала
-// бы таймер «застывания». Включает: смену этапа/статуса/того-кто-должен-
+// бы таймер «застывания». Включает: смену статуса/состояния/того-кто-должен-
 // действовать (реальный прогресс или явное возобновление из паузы) и любое
 // изменение «следующего шага» (текст/дата/тип — мастер осознанно
 // спланировала действие).
 export function isMeaningfulProjectChange(prev: Project, next: Project): boolean {
   return (
-    prev.stage !== next.stage ||
+    prev.status !== next.status ||
     prev.state !== next.state ||
     prev.waitingFor !== next.waitingFor ||
     prev.nextActionText !== next.nextActionText ||

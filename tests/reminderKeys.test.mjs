@@ -64,6 +64,8 @@ test('soonProjectConsultationReminderKey carries date and time', () => {
   assert.notEqual(key, soonProjectConsultationReminderKey({ ...base, time: '15:00' }));
 });
 
+// @deprecated-ключи старого пути заживления (см. tests/healingReminders.test.mjs).
+// Ключи нового цикла проверяются в tests/healingCycle.test.mjs.
 test('healingReminderKey stays per-stage (unchanged shape)', () => {
   const key = healingReminderKey({ client, sessionId: 'session-9', date: '2026-01-01', stage: 'day4' });
   assert.equal(key, healingReminderKey({ client, sessionId: 'session-9', date: '2099-12-31', stage: 'day4' }));

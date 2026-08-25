@@ -10,12 +10,13 @@ import { isValidISODate } from '../utils/dates.js';
 import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, MARKER_COLORS, type Client } from '../domain/client.js';
 import {
   PROJECT_CATEGORIES,
-  PROJECT_STAGES,
+  PROJECT_STATUSES,
   PROJECT_STATES,
   PROJECT_WAITING_FOR,
   PROJECT_PRIORITIES,
   NEXT_ACTION_TYPES,
   type Project,
+  type HealingPhoto,
 } from '../domain/project.js';
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
@@ -37,7 +38,13 @@ export function normalizeSession(s: any, i: number): Session {
     note: s?.note ?? s?.notes ?? '',
     photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
     done: s?.done ?? true,
+    // @deprecated (см. Session.healed) — не читается новой логикой заживления,
+    // но переносится как есть, чтобы старый бэкап пережил импорт-экспорт.
     healed: s?.healed ?? false,
+    // Отсутствует у записей до цикла заживления → false: «не последняя»
+    // безопаснее, чем «последняя» — лёгкий чек лучше, чем выдуманная
+    // развилка фото/коррекция по проекту, которого мастер не закрывала.
+    isLastSession: Boolean(s?.isLastSession),
     cancelled: s?.cancelled ?? false,
     projectId: s?.projectId ?? null,
     sourceConsultationId: s?.sourceConsultationId ?? null,
@@ -184,6 +191,27 @@ export function normalizeClient(raw: any, index: number): Client {
   };
 }
 
+// Галерея заживления проекта (см. HealingPhoto в domain/project.ts).
+// Записи без url отбрасываются — пустая карточка в галерее хуже, чем её
+// отсутствие; тот же принцип, что у normalizeConsultationHistory выше.
+// Обложка приводится к инварианту «не больше одной»: первая помеченная
+// побеждает, а если не помечена ни одна — обложкой становится первое фото.
+function normalizeHealingPhotos(raw: any): HealingPhoto[] {
+  if (!Array.isArray(raw)) return [];
+  const photos = raw
+    .filter((p) => p && typeof p.url === 'string' && p.url)
+    .map((p: any, i: number) => ({
+      id: String(p?.id ?? `${Date.now()}-hp${i}`),
+      url: p.url,
+      addedDate: isValidISODate(p?.addedDate) ? p.addedDate : '',
+      isCover: Boolean(p?.isCover),
+    }));
+  if (!photos.length) return photos;
+  const coverIndex = photos.findIndex((p) => p.isCover);
+  const cover = coverIndex === -1 ? 0 : coverIndex;
+  return photos.map((p, i) => ({ ...p, isCover: i === cover }));
+}
+
 export function normalizeProject(raw: any, index: number): Project {
   const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
   const firstSessionWindowAmount =
@@ -201,7 +229,19 @@ export function normalizeProject(raw: any, index: number): Project {
     color: raw?.color ?? MARKER_COLORS[index % MARKER_COLORS.length],
     category: PROJECT_CATEGORIES.some((c) => c.key === raw?.category) ? raw.category : 'tattoo',
     clientId: raw?.clientId ?? null,
-    stage: PROJECT_STAGES.some((s) => s.key === raw?.stage) ? raw.stage : 'idea',
+    // Проекты до появления поля не знают, одна встреча или больше — null и
+    // есть это «не задано», угадывать по числу сессий нельзя: две сессии
+    // могли быть двумя разными работами в одном проекте-«отстойнике».
+    sessionsPlan: raw?.sessionsPlan === 'single' || raw?.sessionsPlan === 'multiple' ? raw.sessionsPlan : null,
+    // Прежний семишаговый `stage` не мигрируется бережно (см. ProjectStatus в
+    // domain/project.ts) — старая запись просто получает разумный дефолт:
+    // 'active', если у проекта уже есть выполненная сессия (работа шла, ждать
+    // предоплату поздно), иначе 'waiting_deposit' — начало пути.
+    status: PROJECT_STATUSES.some((s) => s.key === raw?.status)
+      ? raw.status
+      : sessions.some((s) => s.done)
+      ? 'active'
+      : 'waiting_deposit',
     state: PROJECT_STATES.some((s) => s.key === raw?.state) ? raw.state : 'active',
     waitingFor: PROJECT_WAITING_FOR.some((w) => w.key === raw?.waitingFor) ? raw.waitingFor : 'none',
     nextActionText: raw?.nextActionText ?? '',
@@ -218,6 +258,7 @@ export function normalizeProject(raw: any, index: number): Project {
     creative: raw?.creative ?? '',
     inspirationSources: raw?.inspirationSources ?? '',
     photos: Array.isArray(raw?.photos) ? raw.photos : [],
+    healingPhotos: normalizeHealingPhotos(raw?.healingPhotos),
     createdDate: raw?.createdDate ?? new Date().toISOString(),
     firstSessionWindowAmount,
     firstSessionWindowUnit,

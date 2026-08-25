@@ -20,7 +20,7 @@ function makeProject(overrides = {}) {
     color: '#B0413E',
     category: 'tattoo',
     clientId: 'c1',
-    stage: 'idea',
+    status: 'waiting_deposit',
     state: 'active',
     waitingFor: 'none',
     nextActionText: '',
@@ -57,7 +57,8 @@ function makeSession(overrides = {}) {
     note: '',
     photos: [],
     done: false,
-    healed: false,
+    healed: false, // @deprecated, см. Session.healed — остаётся на хранимой записи
+    isLastSession: false,
     cancelled: false,
     projectId: 'project-1',
     sourceConsultationId: null,
@@ -108,7 +109,7 @@ function sessionForm(overrides = {}) {
     note: '',
     photos: [],
     done: false,
-    healed: false,
+    isLastSession: false,
     projectId: null,
     ...overrides,
   };
@@ -481,4 +482,56 @@ test('восстановление консультации не трогает 
   const c = consultationIn(projects, 'c1');
   assert.equal(c.previousConsultationId, 'c0');
   assert.equal(c.nextConsultationId, 'c2');
+});
+
+// ── Форма сессии больше не пишет deprecated `healed` ──────────────────────
+// Флаг заменён галереей заживления на проекте (Project.healingPhotos), убран
+// из UI и не должен перезаписываться формой: старое значение на записи
+// остаётся нетронутым, чтобы бэкапы и импорт не теряли его молча.
+
+test('новая сессия рождается с healed:false и не тянет его из формы', () => {
+  const projects = [makeProject({ id: 'project-1' })];
+  const { projects: next, sessionId } = upsertSessionInProjects(projects, 'project-1', sessionForm(), null);
+  const created = next[0].sessions.find((s) => s.id === sessionId);
+  assert.equal(created.healed, false);
+});
+
+test('правка сессии не сбрасывает уже записанный healed', () => {
+  const projects = [makeProject({ id: 'project-1', sessions: [makeSession({ id: 's1', healed: true })] })];
+  const { projects: next } = upsertSessionInProjects(projects, 'project-1', sessionForm({ note: 'правка' }), 's1');
+  const edited = next[0].sessions.find((s) => s.id === 's1');
+  assert.equal(edited.healed, true, 'deprecated-поле переживает сохранение формы');
+  assert.equal(edited.note, 'правка');
+});
+
+// ── isLastSession ─────────────────────────────────────────────────────────
+
+test('форма проносит isLastSession в выполненную сессию', () => {
+  const projects = [makeProject({ id: 'project-1' })];
+  const { projects: next, sessionId } = upsertSessionInProjects(
+    projects,
+    'project-1',
+    sessionForm({ done: true, isLastSession: true }),
+    null,
+  );
+  assert.equal(next[0].sessions.find((s) => s.id === sessionId).isLastSession, true);
+});
+
+// Незавершённая встреча ничего не закрывает: держать «да» на будущей сессии
+// значило бы запустить цикл заживления от даты, которой ещё не было.
+test('невыполненная сессия не может быть последней, даже если форма это просит', () => {
+  const projects = [makeProject({ id: 'project-1' })];
+  const { projects: next, sessionId } = upsertSessionInProjects(
+    projects,
+    'project-1',
+    sessionForm({ done: false, isLastSession: true }),
+    null,
+  );
+  assert.equal(next[0].sessions.find((s) => s.id === sessionId).isLastSession, false);
+});
+
+test('снятие «выполнена» при правке снимает и «последняя»', () => {
+  const projects = [makeProject({ id: 'project-1', sessions: [makeSession({ id: 's1', done: true, isLastSession: true })] })];
+  const { projects: next } = upsertSessionInProjects(projects, 'project-1', sessionForm({ done: false, isLastSession: true }), 's1');
+  assert.equal(next[0].sessions.find((s) => s.id === 's1').isLastSession, false);
 });

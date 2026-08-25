@@ -1,3 +1,8 @@
+// @deprecated-путь заживления: HEALING_STAGES/healingReminders/
+// healingReminderMessage. Из UI он больше не вызывается — карточки строит
+// healingCycleReminders (тесты в tests/healingCycle.test.mjs). Эти тесты
+// оставлены вместе с самим кодом на один релиз, пока мастер не убедится, что
+// новая логика работает на практике; удаляются тем же PR, что и код.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 

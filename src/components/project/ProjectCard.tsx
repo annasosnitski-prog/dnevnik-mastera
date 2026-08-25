@@ -1,5 +1,5 @@
 import { DROP_CAP_FONT } from '../InkaLogo';
-import { type Project, PROJECT_CATEGORIES, PROJECT_STAGES } from '../../domain/project';
+import { type Project, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../../domain/project';
 import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
 import { COLORS, fs } from '../ui/designTokens';
 
@@ -128,7 +128,7 @@ export function ProjectCard({
               letterSpacing: '0.5px',
             }}
           >
-            {PROJECT_STAGES.find((s) => s.key === project.stage)?.label ?? project.stage}
+            {PROJECT_STATUSES.find((s) => s.key === project.status)?.label ?? project.status}
           </span>
           {clientName && (
             <span style={{ fontSize: fs(11), color: COLORS.textSecondary, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

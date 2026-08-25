@@ -7,14 +7,16 @@ import { type Client } from '../../domain/client';
 import {
   type ProjectCategory,
   PROJECT_BODY_AREAS,
-  PROJECT_STAGES,
-  type ProjectStage,
+  PROJECT_STATUSES,
+  type ProjectStatus,
   type ProjectState,
   PROJECT_STATES,
   type ProjectWaitingFor,
   type ProjectPriority,
   type NextActionType,
   NEXT_ACTION_TYPES,
+  type SessionsPlan,
+  SESSIONS_PLANS,
   type Project,
 } from '../../domain/project';
 import { getSessionsByProjectId, getConsultationSequence } from '../../domain/projectSelectors';
@@ -117,7 +119,7 @@ export function NewSessionSheet({
     note: string;
     photos: string[];
     done: boolean;
-    healed: boolean;
+    isLastSession: boolean;
     projectId: string | null;
   }) => void;
 }) {
@@ -138,7 +140,10 @@ export function NewSessionSheet({
   // status; started from a calendar date (clearly a future booking), default
   // to «Запланирована» instead.
   const [done, setDone] = useState(true);
-  const [healed, setHealed] = useState(false);
+  // «Это последняя сессия проекта?» — см. Session.isLastSession. Прежний
+  // тумблер «Зажив» (session.healed) отсюда убран: флаг deprecated, заменён
+  // галереей заживления на проекте (Project.healingPhotos).
+  const [isLastSession, setIsLastSession] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
   // Briefly swaps the close «×» for a green check after saving an edit — see
   // SheetSavedCheck — so the save reads as confirmed rather than the sheet
@@ -166,15 +171,42 @@ export function NewSessionSheet({
       // same reasoning as the initialDate case just below. A chained next
       // session is the same: it hasn't happened yet.
       setDone(initial ? initial.done : !initialDate && !prefillConsultation && !chainFrom);
-      setHealed(initial?.healed ?? false);
+      setIsLastSession(initial?.isLastSession ?? false);
       setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Проект, в который уйдёт сессия — нужен, чтобы понять, спрашивать ли «это
+  // последняя сессия?». У проекта с sessionsPlan==='single' ответ известен
+  // заранее (единственная сессия по определению последняя), поэтому вопрос не
+  // показывается, а `true` подставляется молча. Проект может быть ещё не
+  // выбран (мастер оставила «— создать новый —»): тогда плана нет, и вопрос
+  // показывается, как для 'multiple'/null.
+  const targetProject = projectId ? clientProjects.find((p) => p.id === projectId) ?? null : null;
+  const singleSessionProject = targetProject?.sessionsPlan === 'single';
+  // Вопрос имеет смысл только у выполненной сессии: пока встреча не
+  // состоялась, закрывать ею проект нечего (см. sessionFields).
+  const asksLastSession = done && !singleSessionProject;
+
   const handleSave = () => {
-    const data = { name, date, time, duration, style, area, colors, needles, skinReaction, note, photos, done, healed, projectId };
+    const data = {
+      name,
+      date,
+      time,
+      duration,
+      style,
+      area,
+      colors,
+      needles,
+      skinReaction,
+      note,
+      photos,
+      done,
+      isLastSession: singleSessionProject ? true : isLastSession,
+      projectId,
+    };
     if (isEdit) {
       setJustSaved(true);
       setTimeout(() => onAdd(data), 700);
@@ -311,14 +343,47 @@ export function NewSessionSheet({
           <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Что делали, наблюдения..." style={{ ...INPUT_STYLE, resize: 'none', height: 80 }} />
         </div>
 
-        <div onClick={() => setHealed((v) => !v)} role="button" aria-label="Зажив" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22, cursor: 'pointer' }}>
-          <div style={{ width: 20, height: 20, borderRadius: 2, flexShrink: 0, border: healed ? '1px solid rgba(var(--gold-rgb),0.7)' : '1px solid rgba(var(--gold-rgb),0.3)', background: healed ? 'rgba(var(--gold-rgb),0.15)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {healed && (
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.3L5.5 10.3L11.5 3.7" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            )}
+        {/* «Это последняя сессия проекта?» — точное число сессий заранее не
+            известно, поэтому оно не вычисляется, а подтверждается мастером на
+            каждой выполненной сессии. От ответа зависит цикл заживления: «да»
+            запускает полный (неделя 1 → день 21, развилка фото/коррекция),
+            «нет» — один лёгкий чек и переход к следующей сессии (см.
+            reminders/healingCycle.ts). У проекта «одна встреча» вопрос не
+            задаётся — там ответ известен заранее. */}
+        {asksLastSession && (
+          <div
+            onClick={() => setIsLastSession((v) => !v)}
+            role="button"
+            aria-label="Последняя сессия проекта"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22, cursor: 'pointer' }}
+          >
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 2,
+                flexShrink: 0,
+                border: isLastSession ? '1px solid rgba(var(--gold-rgb),0.7)' : '1px solid rgba(var(--gold-rgb),0.3)',
+                background: isLastSession ? 'rgba(var(--gold-rgb),0.15)' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {isLastSession && (
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                  <path d="M2.5 7.3L5.5 10.3L11.5 3.7" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: fs(14), color: isLastSession ? COLORS.gold : COLORS.textFaint }}>Последняя сессия проекта</div>
+              <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
+                Работа закончена — дальше только заживление
+              </div>
+            </div>
           </div>
-          <span style={{ fontSize: fs(14), color: healed ? COLORS.gold : COLORS.textFaint }}>Зажив</span>
-        </div>
+        )}
 
         <div className="inka-submit" onClick={handleSave} style={SUBMIT_STYLE}>
           <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
@@ -571,6 +636,7 @@ export function ProjectViewSheet({
   onToggleTaskDone,
   onOpenContentEntry,
   onSaveNextStep,
+  onSaveHealingPhotos,
 }: {
   open: boolean;
   project: Project | null;
@@ -599,6 +665,10 @@ export function ProjectViewSheet({
   // Единственный next step проекта (см. NextStepRow) — пишет напрямую в
   // проект тем же saveProject, что и остальные правки, без глубокой формы.
   onSaveNextStep: (text: string, date: string | null, type: NextActionType | null) => void;
+  // Галерея заживления (Project.healingPhotos) — пишет напрямую в проект, как
+  // и onSaveNextStep. Первое фото закрывает цикл заживления и переводит
+  // проект в «Завершён» (решает вызывающий код, а не эта форма).
+  onSaveHealingPhotos: (urls: string[]) => void;
 }) {
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
@@ -629,12 +699,46 @@ export function ProjectViewSheet({
         {project && (
           <>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              <span style={chipStyle}>{PROJECT_STAGES.find((s) => s.key === project.stage)?.label ?? project.stage}</span>
-              <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
+              <span style={chipStyle}>{PROJECT_STATUSES.find((s) => s.key === project.status)?.label ?? project.status}</span>
+              {/* Состояние показывается, только когда оно НЕ 'active': у
+                  ProjectStatus теперь есть собственный 'active' с той же
+                  подписью, и пара по умолчанию читалась как «Активен ·
+                  Активен». Пауза/отмена/архив — та информация, ради которой
+                  чип и нужен, — по-прежнему видна. */}
+              {project.state !== 'active' && (
+                <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
+              )}
             </div>
 
             <NextStepRow nextActionText={project.nextActionText} nextActionDate={project.nextActionDate} nextActionType={project.nextActionType} onSave={onSaveNextStep} />
             {project.photos.length > 0 && <SessionPhotos photos={project.photos} onChange={() => {}} allowDelete={false} readOnly />}
+
+            {/* Галерея заживления — фото зажившей работы, одна на проект (см.
+                Project.healingPhotos). В отличие от «Фотографий» выше она
+                редактируемая прямо здесь: добавить снимок — это и есть
+                финальное действие цикла заживления (развилка «фото или
+                коррекция» на 21-й день), ради него незачем открывать форму
+                редактирования проекта. */}
+            <div>
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
+                Заживление
+              </div>
+              <SessionPhotos
+                photos={project.healingPhotos.map((p) => p.url)}
+                onChange={onSaveHealingPhotos}
+                buttonFirst
+              />
+              {project.healingPhotos.length === 0 ? (
+                <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                  Фото зажившей работы ещё нет
+                </div>
+              ) : (
+                <div style={{ fontSize: fs(11), color: COLORS.textGhost }}>
+                  Обложка — первое фото
+                </div>
+              )}
+            </div>
+
             <ViewField label="Место" value={project.area} />
             <ViewField label="Техника и стиль" value={project.style} />
             <ViewField label="Общие заметки" value={project.generalNotes} />
@@ -731,7 +835,8 @@ export function NewProjectSheet({
     color: string;
     category: ProjectCategory;
     clientId: string | null;
-    stage: ProjectStage;
+    status: ProjectStatus;
+    sessionsPlan: SessionsPlan;
     state: ProjectState;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
@@ -753,7 +858,8 @@ export function NewProjectSheet({
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ProjectCategory>('tattoo');
   const [clientId, setClientId] = useState<string | null>(null);
-  const [stage, setStage] = useState<ProjectStage>('idea');
+  const [status, setStatus] = useState<ProjectStatus>('waiting_deposit');
+  const [sessionsPlan, setSessionsPlan] = useState<SessionsPlan>(null);
   const [state, setState] = useState<ProjectState>('active');
   const [nextActionText, setNextActionText] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
@@ -783,7 +889,8 @@ export function NewProjectSheet({
       setTitle(initial?.title ?? '');
       setCategory(initial?.category ?? 'tattoo');
       setClientId(initial?.clientId ?? presetClientId ?? null);
-      setStage(initial?.stage ?? 'idea');
+      setStatus(initial?.status ?? 'waiting_deposit');
+      setSessionsPlan(initial?.sessionsPlan ?? null);
       setState(initial?.state ?? 'active');
       setNextActionText(initial?.nextActionText ?? '');
       setNextActionDate(initial?.nextActionDate ?? '');
@@ -821,8 +928,51 @@ export function NewProjectSheet({
           <div style={{ marginBottom: 16 }}><FieldLabel>Клиент</FieldLabel><select value={clientId ?? ''} onChange={(e) => setClientId(e.target.value || null)} style={INPUT_STYLE}><option value="">Мастерская (без клиента)</option>{clients.map((c) => <option key={c.id} value={c.id}>{`${c.name} ${c.surname}`.trim()}</option>)}</select></div>
 
           <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}><FieldLabel>Этап</FieldLabel><select value={stage} onChange={(e) => setStage(e.target.value as ProjectStage)} style={INPUT_STYLE}>{PROJECT_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
-            <div style={{ flex: 1, minWidth: 0 }}><FieldLabel>Состояние</FieldLabel><select value={state} onChange={(e) => setState(e.target.value as ProjectState)} style={INPUT_STYLE}>{PROJECT_STATES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FieldLabel>Статус</FieldLabel>
+              {/* Мастер ставит статус вручную только там, где автоматики
+                  нет — прежде всего «Ожидает предоплаты» → «Активен» (факт
+                  предоплаты в модели не хранится, см. withAdvancedStatus).
+                  Остальные переходы проставляются сами. */}
+              <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} style={INPUT_STYLE}>
+                {PROJECT_STATUSES.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FieldLabel>Состояние</FieldLabel>
+              <select value={state} onChange={(e) => setState(e.target.value as ProjectState)} style={INPUT_STYLE}>
+                {PROJECT_STATES.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Не точное количество сессий — мастер на старте часто сама не
+              знает, сколько понадобится, но знает «одна встреча» или «больше
+              одной». Отсюда всего два значения плюс «пока не знаю» (см.
+              SessionsPlan). Влияет ровно на одно: спрашивать ли при
+              завершении сессии «это последняя?». */}
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Сессий в проекте</FieldLabel>
+            <select
+              value={sessionsPlan ?? ''}
+              onChange={(e) => setSessionsPlan((e.target.value || null) as SessionsPlan)}
+              style={INPUT_STYLE}
+            >
+              <option value="">Пока не знаю</option>
+              {SESSIONS_PLANS.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -851,11 +1001,42 @@ export function NewProjectSheet({
       </div>
 
       <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div className="inka-submit" onClick={() => {
-          const data = { title, color: preservedColor, category, clientId, stage, state, waitingFor: preservedWaitingFor, nextActionText, nextActionDate: nextActionDate || null, nextActionType, priority: preservedPriority, area, style, generalNotes, feeling, creative, inspirationSources, photos };
-          if (isEdit) { setJustSaved(true); setTimeout(() => onAdd(data), 700); } else onAdd(data);
-        }} style={SUBMIT_STYLE}>
-          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>{isEdit ? 'Сохранить' : 'Добавить проект'}</span>
+        <div
+          className="inka-submit"
+          onClick={() => {
+            const data = {
+              title,
+              color: preservedColor,
+              category,
+              clientId,
+              status,
+              sessionsPlan,
+              state,
+              waitingFor: preservedWaitingFor,
+              nextActionText,
+              nextActionDate: nextActionDate || null,
+              nextActionType,
+              priority: preservedPriority,
+              area,
+              style,
+              generalNotes,
+              feeling,
+              creative,
+              inspirationSources,
+              photos,
+            };
+            if (isEdit) {
+              setJustSaved(true);
+              setTimeout(() => onAdd(data), 700);
+            } else {
+              onAdd(data);
+            }
+          }}
+          style={SUBMIT_STYLE}
+        >
+          <span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>
+            {isEdit ? 'Сохранить' : 'Добавить проект'}
+          </span>
         </div>
 
         {onDelete && (confirmingDelete ? (

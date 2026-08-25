@@ -158,6 +158,9 @@ export function upsertSessionInProjects(
   const newSession: Session = {
     id: sessionId,
     cancelled: false,
+    // @deprecated (см. Session.healed) — форма его больше не задаёт, новая
+    // запись просто рождается с false и никогда его не меняет.
+    healed: false,
     sourceConsultationId: null,
     previousSessionId,
     nextSessionId: null,

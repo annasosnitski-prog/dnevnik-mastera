@@ -11,7 +11,7 @@ function makeProject(overrides = {}) {
     color: '#000000',
     category: 'tattoo',
     clientId: null,
-    stage: 'inquiry',
+    status: 'active',
     state: 'active',
     waitingFor: 'none',
     nextActionText: '',

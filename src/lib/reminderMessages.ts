@@ -10,9 +10,10 @@ import type { HealingStage, UpcomingSoonItem } from '../reminders/types';
 // here rather than adding a new bare Russian string elsewhere.
 const CLIENT_LOCALE: Record<ClientLanguage, string> = { ru: 'ru-RU', en: 'en-US', he: 'he-IL' };
 
-// Один текст на каждую стадию заживления (см. HealingStage/HEALING_STAGES в
-// buildReminders.ts) — day1 про самочувствие/кожу/уход, day4 про шелушение,
-// day15 промежуточный, day30 — прежний финальный «как зажило».
+// @deprecated вместе с HealingStage/HEALING_STAGES (buildReminders.ts) —
+// замена ниже, HEALING_CYCLE_TEXTS. Один текст на каждую из прежних четырёх
+// стадий: day1 про самочувствие/кожу/уход, day4 про шелушение, day15
+// промежуточный, day30 — финальный «как зажило».
 const HEALING_TEXTS: Record<ClientLanguage, Record<HealingStage, string>> = {
   ru: {
     day1:
@@ -58,12 +59,60 @@ const HEALING_TEXTS: Record<ClientLanguage, Record<HealingStage, string>> = {
   },
 };
 
+// Тексты нового цикла заживления (см. HealingCycleStage в
+// reminders/healingCycle.ts). Стадий две вместо четырёх, поэтому и текстов
+// два, а не четыре:
+//  - week1_check — обычный «как заживление?» в первую неделю, вобрал в себя
+//    прежние day1 (уход и запреты) и day4 (шелушение): окно одно, значит и
+//    сообщение должно закрывать всю неделю сразу;
+//  - day21_photo — то, что мастер отправляет, ВЫБРАВ на развилке 21-го дня
+//    «фото» (прямой наследник прежнего day30). Второй половине развилки —
+//    «коррекции» — своего сообщения клиенту не полагается: там мастер
+//    назначает встречу, а не пишет.
+const HEALING_CYCLE_TEXTS: Record<ClientLanguage, Record<HealingCycleMessage, string>> = {
+  ru: {
+    week1_check:
+      'Привет! Как ты, какое самочувствие? Как выглядит тату — нет сильного отёка или покраснения, началось ли шелушение?\n\n' +
+      'Про уход: очищай тату 2 раза в день тёплой водой (можно с жидким мылом), промакивай насухо чистым полотенцем — чтобы не оставалось сукровицы, — и наноси тонкий слой Бепантена. Когда появятся корочки, не срывай их.\n\n' +
+      'Чего нельзя: чесать и сдирать корочки или шелушащуюся кожу — может выпасть цвет; распаривать тату — бани, сауны, горячие ванны и бассейн под запретом на 2–3 недели; загорать и ходить в солярий; носить тесную синтетическую одежду, которая трёт рисунок',
+    day21_photo:
+      'Привет! Как ты, уже всё зажило? Если да — было бы здорово встретиться и сфотографировать зажившую работу для портфолио, если тебе будет удобно',
+  },
+  en: {
+    week1_check:
+      "Hi! How are you feeling? How does the tattoo look — any strong swelling or redness, has the peeling started?\n\n" +
+      "Aftercare: clean the tattoo twice a day with warm water (a mild liquid soap is fine), pat it dry with a clean towel — so no plasma residue is left — and apply a thin layer of Bepanthen. Once scabs form, don't pick at them.\n\n" +
+      "What not to do: don't scratch or pick at scabs or peeling skin — the color can fall out; don't steam the tattoo — no baths, saunas, hot tubs or pools for 2–3 weeks; don't sunbathe or use tanning beds; avoid tight synthetic clothing that rubs against the piece",
+    day21_photo:
+      "Hi! How are you, has everything healed up? If so, it'd be lovely to meet up and take a photo of the healed piece for my portfolio, whenever suits you",
+  },
+  he: {
+    week1_check:
+      'היי! מה שלומך? איך הקעקוע נראה - יש נפיחות או אדמומיות חזקה, הקילוף כבר התחיל?\n\n' +
+      'טיפול: לנקות את הקעקוע פעמיים ביום במים פושרים (אפשר עם סבון נוזלי עדין), לייבש בעדינות במגבת נקייה - כדי שלא יישארו הפרשות - ולמרוח שכבה דקה של בפנטן. כשנוצרים גלדים - לא לקלף אותם.\n\n' +
+      'מה אסור: לגרד או לקלף גלדים או עור מתקלף - הצבע עלול לדהות; לא סאונה, ג\'קוזי, אמבטיה חמה או בריכה למשך 2-3 שבועות; לא להשתזף בשמש או בסולריום; להימנע מבגדים צמודים וסינתטיים שמשפשפים את האזור',
+    day21_photo:
+      'היי! מה שלומך, הכל הגליד כבר? אם כן, יהיה נחמד להיפגש ולצלם את העבודה המחלימה לפורטפוליו, מתי שיהיה נוח לך',
+  },
+};
+
+// Не совпадает один-в-один с HealingCycleStage: у развилки 21-го дня есть
+// сообщение только для ветки «фото» (см. комментарий к HEALING_CYCLE_TEXTS).
+export type HealingCycleMessage = 'week1_check' | 'day21_photo';
+
+// Сообщение цикла заживления — тот же принцип, что у healingReminderMessage:
+// на языке клиента и без подстановки имени (предпочтение мастера).
+export function healingCycleMessage(client: Client, kind: HealingCycleMessage): string {
+  return HEALING_CYCLE_TEXTS[client.language][kind];
+}
+
 const REMINDER_TEXTS: Record<ClientLanguage, { soon: (when: string) => string }> = {
   ru: { soon: (when) => `Привет! Как дела? Напоминаю о нашей встрече «${when}»` },
   en: { soon: (when) => `Hi! How are you? Just a reminder about our appointment: ${when}` },
   he: { soon: (when) => `היי! מה שלומך? רק תזכורת לפגישה שלנו: ${when}` },
 };
 
+// @deprecated — см. HEALING_TEXTS выше; замена — healingCycleMessage.
 // The message offered for copying on a healing check-in — deliberately not
 // personalised with the client's name (master's preference).
 export function healingReminderMessage(client: Client, stage: HealingStage): string {
