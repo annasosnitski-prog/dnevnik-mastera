@@ -310,7 +310,7 @@ export function withHealingGallery(project: Project, urls: string[], today: stri
 
 export interface Project {
   id: string;
-  title: string;
+  title: string; // project name, e.g. "Дракон в стиле джапан"
   color: string; // legacy marker colour; no longer exposed by project UI
   category: ProjectCategory;
   // null = идея без клиента ("мастерская", независимо от одноимённого
@@ -327,12 +327,12 @@ export interface Project {
   // nextActionText, задаётся мастером отдельно; null = не выбран.
   nextActionType: NextActionType | null;
   priority: ProjectPriority;
-  area: string;
-  style: string;
-  generalNotes: string;
-  feeling: string;
-  creative: string;
-  inspirationSources: string;
+  area: string; // "Место" — constrained by PROJECT_BODY_AREAS in project UI
+  style: string; // "Техника и стиль"
+  generalNotes: string; // "Общие заметки"
+  feeling: string; // "Чувство/ощущение"
+  creative: string; // "Креатив"
+  inspirationSources: string; // "Источники вдохновения"
   photos: string[];
   // Галерея заживления — фото зажившей работы (см. HealingPhoto выше).
   // Первое добавленное фото закрывает цикл заживления и переводит проект в
