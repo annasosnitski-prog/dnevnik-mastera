@@ -46,10 +46,10 @@ import {
   SKIN_TYPES,
   INPUT_STYLE,
   ContentPanel,
-  ProjectCard,
   useSwipeToReveal,
   shareOrDownloadJSON,
 } from '../TattoDiary';
+import { ProjectCard } from '../project/ProjectCard';
 import { ProjectContentCard } from '../sheets/SessionAndProjectSheets';
 import { SessionPhotos, SkinTonePalette, UrgencyChips, AddChatLinkForm, NoteComposer } from '../client/ClientControls';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
