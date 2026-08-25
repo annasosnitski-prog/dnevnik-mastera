@@ -10,6 +10,9 @@ import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { todayISO } from '../../utils/dates';
 import { COLORS, fs, INPUT_STYLE } from '../TattoDiary';
 
+// Вынесено из TattoDiary.tsx (PR 8 рефакторинга). Логика и разметка не
+// менялись — только перенос в отдельный модуль. Экран полностью
+// prop-driven, состояние (фильтр по типу, открытая папка) — локальное.
 export function WorkshopScreen({
   projects,
   projectsLoaded,
@@ -33,6 +36,10 @@ export function WorkshopScreen({
     if (areaFilter !== 'all' && project.area !== areaFilter) return false;
     return true;
   });
+  // Пустая папка (клиент вообще без проектов) видна всегда — но фильтр по
+  // типу не должен превращать «есть проекты, просто не этого типа» в такую
+  // же пустую карточку: trueEmptyClientIds считается по НЕотфильтрованным
+  // projects, чтобы отличить эти два случая друг от друга.
   const trueEmptyClientIds = new Set(clients.filter((c) => !projects.some((p) => p.clientId === c.id)).map((c) => c.id));
   const allFolders = buildProjectFolders(filtered, clients, todayISO());
   const folders = filtersActive
@@ -54,6 +61,10 @@ export function WorkshopScreen({
   return (
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+      {/* zIndex 2 (not 1, like the grid below) — otherwise, at equal
+          z-index, the later-in-DOM grid's own stacking context (each card
+          establishes one via its hover/press transform) paints over the
+          filter dropdown regardless of the dropdown's own z-index. */}
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 2 }}>
         <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
@@ -62,6 +73,12 @@ export function WorkshopScreen({
         <StarDivider />
       </div>
 
+      {/* Same funnel-toggle + floating chip panel pattern as the client
+          list's «Фильтры» — «Все» plus the same category set used when
+          creating a project. Own row below the divider, in normal flow next
+          to the «сегодня» calendar badge, rather than each absolutely
+          overlaid on the header — two absolute buttons in the same corner
+          used to bury one under the other. */}
       <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
         <TodayDateBadge onOpen={onOpenCalendar} />
         <div style={{ position: 'relative' }}>
