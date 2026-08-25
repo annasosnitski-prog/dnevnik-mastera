@@ -6,6 +6,7 @@ import { type UrgencyKey } from '../../domain/urgency';
 import { type Client } from '../../domain/client';
 import {
   type ProjectCategory,
+  PROJECT_BODY_AREAS,
   PROJECT_STAGES,
   type ProjectStage,
   type ProjectState,
@@ -284,6 +285,7 @@ export function NewSessionSheet({
           </div>
         </div>
 
+        {/* Session.area remains free text by design. */}
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>Зона работы</FieldLabel>
           <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
@@ -518,6 +520,7 @@ export function NewConsultationSheet({
         <div className="inka-consult-right">
           <div style={{ marginBottom: 16 }}><FieldLabel>Дата</FieldLabel><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Время</FieldLabel><input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(15) }} /></div>
+          {/* Consultation.area remains free text by design. */}
           <div style={{ marginBottom: 16 }}><FieldLabel>Место</FieldLabel><input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Проект</FieldLabel><select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}><option value="">— создать новый проект —</option>{clientProjects.map((p) => <option key={p.id} value={p.id}>{p.title || 'Без названия'}</option>)}</select></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Пожелания клиента, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
@@ -773,7 +776,7 @@ export function NewProjectSheet({
   const preservedColor = initial?.color ?? MARKER_COLORS[0];
   const preservedWaitingFor: ProjectWaitingFor = initial?.waitingFor ?? 'none';
   const preservedPriority: ProjectPriority = initial?.priority ?? 'normal';
-
+  const legacyArea = area && !PROJECT_BODY_AREAS.some((option) => option.key === area) ? area : null;
   useEffect(() => {
     if (open) {
       setTitle(initial?.title ?? '');
@@ -830,8 +833,14 @@ export function NewProjectSheet({
             <input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} style={INPUT_STYLE} />
           </div>
 
-          <div style={{ marginBottom: 16 }}><FieldLabel>Место</FieldLabel><input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Место</FieldLabel>
+            <select value={area} onChange={(e) => setArea(e.target.value)} style={INPUT_STYLE}>
+              <option value="">Не задано</option>
+              {legacyArea && <option value={legacyArea}>{legacyArea}</option>}
+              {PROJECT_BODY_AREAS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+            </select>
+          </div>          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Чувство / ощущение</FieldLabel><textarea value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="Какое чувство или ощущение должна передавать татуировка..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>

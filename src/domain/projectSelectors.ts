@@ -240,10 +240,6 @@ export function hasOverdueWork(project: Project, sessions: Session[], consultati
 }
 
 // ===================== ФИЛЬТРЫ И СОРТИРОВКА ПРОЕКТОВ =====================
-// То же, что «Сортировка/Фильтры» на экране клиентов, но для списка проектов
-// (вкладка «Проекты» в карточке клиента). Чистые функции — состояние
-// (что выбрано) живёт в компоненте.
-
 export type ProjectSortMode = 'lastActive' | 'added' | 'name';
 
 export const PROJECT_SORT_MODES: { key: ProjectSortMode; label: string }[] = [
@@ -259,7 +255,7 @@ export const PROJECT_SORT_MODES: { key: ProjectSortMode; label: string }[] = [
 export interface ProjectActivityContext {
   sessions: Session[];
   consultations: Consultation[];
-  today: string; // yyyy-mm-dd
+  today: string;
 }
 
 // «Последний активный» — по getProjectLastActivityDate выше, то есть по той
@@ -315,33 +311,48 @@ export interface ProjectFilters {
   // null — «Все».
   category: ProjectCategory | null;
   state: ProjectState | null;
+  area: string | null;
 }
 
-export const EMPTY_PROJECT_FILTERS: ProjectFilters = { category: null, state: null };
+export const EMPTY_PROJECT_FILTERS: ProjectFilters = { category: null, state: null, area: null };
 
 export function projectFiltersActive(filters: ProjectFilters): boolean {
-  return filters.category !== null || filters.state !== null;
+  return filters.category !== null || filters.state !== null || filters.area !== null;
 }
 
 export function filterProjects(projects: Project[], filters: ProjectFilters): Project[] {
   return projects.filter((p) => {
     if (filters.category && p.category !== filters.category) return false;
     if (filters.state && p.state !== filters.state) return false;
+    if (filters.area && p.area !== filters.area) return false;
     return true;
   });
 }
 
+// View-model grouping for project lists. Empty area gets a stable readable
+// bucket; project objects are reused without mutation and group order follows
+// first appearance in the input list.
+export interface ProjectAreaGroup {
+  area: string;
+  projects: Project[];
+}
+
+export function groupProjectsByArea(projects: Project[]): ProjectAreaGroup[] {
+  const groups = new Map<string, Project[]>();
+  for (const project of projects) {
+    const area = project.area || 'Не задано';
+    const bucket = groups.get(area);
+    if (bucket) bucket.push(project);
+    else groups.set(area, [project]);
+  }
+  return Array.from(groups, ([area, groupedProjects]) => ({ area, projects: groupedProjects }));
+}
+
 // ===================== ПАПКИ ПРОЕКТОВ (view-model) =====================
-// Чистая группировка Project[] по клиенту для верхнего уровня экрана
-// «Мастерская» — не доменная и не persisted-сущность, пересчитывается на
-// каждый рендер из текущих projects/clients. Один клиент = одна папка (даже
-// с одним проектом), все clientId===null — в «Проекты мастера». Ничего не
-// мутирует: собирает новые Map/массивы, объекты Project переиспользуются как
-// есть (не копируются).
 export type ProjectFolderType = 'client' | 'master';
 
 export interface ProjectFolder {
-  id: string; // 'client:<clientId>' | 'master'
+  id: string;
   title: string;
   type: ProjectFolderType;
   clientId: string | null;
@@ -372,17 +383,12 @@ export function buildProjectFolders(projects: Project[], clients: Client[], toda
 
     const clientId = project.clientId;
     const bucket = projectsByClientId.get(clientId);
-    if (bucket) {
-      bucket.push(project);
-    } else {
-      projectsByClientId.set(clientId, [project]);
-    }
+    if (bucket) bucket.push(project);
+    else projectsByClientId.set(clientId, [project]);
 
     if (!seenClientIds.has(clientId)) {
       seenClientIds.add(clientId);
-      if (!clients.some((c) => c.id === clientId)) {
-        unknownClientIdsInFirstAppearanceOrder.push(clientId);
-      }
+      if (!clients.some((c) => c.id === clientId)) unknownClientIdsInFirstAppearanceOrder.push(clientId);
     }
   }
 
@@ -441,7 +447,6 @@ export function buildProjectFolders(projects: Project[], clients: Client[], toda
     .map(({ folder }) => folder);
 
   const folders: ProjectFolder[] = [...sortedClientFolders];
-
   // «Проекты мастера» — всегда последняя, визуально равноправная папка
   // (не участвует в сортировке по активности выше — это не «клиент без
   // проекта», а агрегат всех client-less проектов, его место в конце —

@@ -1,8 +1,7 @@
 // Открытая папка «Мастерской» — список проектов внутри одной клиентской
-// папки или «Проектов мастера». Переиспользует общую нейтральную карточку
-// проекта; цвет остаётся идентификатором клиента, а не проекта.
+// папки или «Проектов мастера». Проекты внутри папки сгруппированы по месту.
 import type { ProjectFolder } from '../../domain/projectSelectors';
-import { clientNameFor } from '../../domain/projectSelectors';
+import { clientNameFor, groupProjectsByArea } from '../../domain/projectSelectors';
 import type { Client } from '../../domain/client';
 import type { Project } from '../../domain/project';
 import { COLORS, fs } from '../ui/designTokens';
@@ -19,6 +18,8 @@ export function ProjectFolderView({
   onOpenProject: (project: Project) => void;
   onBack: () => void;
 }) {
+  const areaGroups = groupProjectsByArea(folder.projects);
+
   return (
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
@@ -38,31 +39,28 @@ export function ProjectFolderView({
         </div>
       </div>
 
-      <div
-        className="inka-client-grid"
-        style={{
-          padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)',
-          display: 'grid',
-          gap: 10,
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
-        {folder.projects.map((project) => (
-          <ProjectCard key={project.id} project={project} clientName={clientNameFor(clients, project.clientId)} onClick={() => onOpenProject(project)} />
+      <div style={{ padding: '2px 16px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1 }}>
+        {areaGroups.map((group) => (
+          <section key={group.area} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.6px', textTransform: 'uppercase', margin: '0 2px 7px' }}>
+              {group.area}
+            </div>
+            <div className="inka-client-grid" style={{ display: 'grid', gap: 10 }}>
+              {group.projects.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  clientName={clientNameFor(clients, project.clientId)}
+                  onClick={() => onOpenProject(project)}
+                />
+              ))}
+            </div>
+          </section>
         ))}
       </div>
 
       {folder.projects.length === 0 && (
-        <div
-          style={{
-            textAlign: 'center',
-            fontSize: fs(14),
-            fontStyle: 'italic',
-            color: COLORS.textGhost,
-            padding: '40px 40px 0',
-          }}
-        >
+        <div style={{ textAlign: 'center', fontSize: fs(14), fontStyle: 'italic', color: COLORS.textGhost, padding: '40px 40px 0' }}>
           Пока нет проектов — нажмите «+» внизу, чтобы добавить первый
         </div>
       )}

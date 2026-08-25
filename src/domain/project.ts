@@ -19,6 +19,35 @@ export const PROJECT_CATEGORIES: { key: ProjectCategory; label: string }[] = [
   { key: 'other', label: 'Другое' },
 ];
 
+// Project.area remains a plain string for backwards compatibility. This list
+// constrains only the project editor/filter UI; Session.area and
+// Consultation.area remain free text.
+export const PROJECT_BODY_AREAS: { key: string; label: string }[] = [
+  { key: 'Спина', label: 'Спина' },
+  { key: 'Нога', label: 'Нога' },
+  { key: 'Рука', label: 'Рука' },
+  { key: 'Грудь', label: 'Грудь' },
+  { key: 'Живот', label: 'Живот' },
+  { key: 'Рёбра', label: 'Рёбра' },
+  { key: 'Лобок', label: 'Лобок' },
+  { key: 'Солнечное сплетение', label: 'Солнечное сплетение' },
+  { key: 'Лопатка', label: 'Лопатка' },
+  { key: 'Трапеция', label: 'Трапеция' },
+  { key: 'Кисть', label: 'Кисть' },
+  { key: 'Стопа', label: 'Стопа' },
+  { key: 'Голень', label: 'Голень' },
+  { key: 'Икра', label: 'Икра' },
+  { key: 'Плечо', label: 'Плечо' },
+  { key: 'Предплечье', label: 'Предплечье' },
+  { key: 'Бедро', label: 'Бедро' },
+  { key: 'Поясница', label: 'Поясница' },
+  { key: 'Колено', label: 'Колено' },
+  { key: 'Лодыжка', label: 'Лодыжка' },
+  { key: 'Локоть', label: 'Локоть' },
+  { key: 'Пах', label: 'Пах' },
+  { key: 'Пальцы', label: 'Пальцы' },
+];
+
 // Три независимых параметра статуса вместо одной длинной строки-enum
 // (вроде "planning_waiting_client_photo_overdue") — где проект находится,
 // может ли он сейчас двигаться, и кто должен действовать, читаются по
@@ -130,7 +159,7 @@ export function withAdvancedStage(project: Project, target: ProjectStage): Proje
 export interface Project {
   id: string;
   title: string; // project name, e.g. "Дракон в стиле джапан"
-  color: string; // marker colour, chosen at creation — see MarkerColorPalette
+  color: string; // legacy marker colour; no longer exposed by project UI
   category: ProjectCategory;
   // null = идея без клиента ("мастерская", независимо от одноимённого
   // clientId===null на ContentEntry — те две вещи не связаны).
@@ -144,7 +173,7 @@ export interface Project {
   // nextActionText, задаётся мастером отдельно; null = не выбран.
   nextActionType: NextActionType | null;
   priority: ProjectPriority;
-  area: string; // "Место" — intended placement, if already decided
+  area: string; // "Место" — constrained by PROJECT_BODY_AREAS in project UI
   style: string; // "Техника и стиль"
   generalNotes: string; // "Общие заметки"
   feeling: string; // "Чувство/ощущение"
