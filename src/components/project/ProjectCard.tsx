@@ -117,27 +117,11 @@ export function ProjectCard({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-          <span
-            style={{
-              fontSize: fs(10.5),
-              color: COLORS.textFaint,
-              border: '0.5px solid rgba(var(--gold-rgb),0.3)',
-              padding: '2px 7px',
-              borderRadius: 1,
-              letterSpacing: '0.5px',
-            }}
-          >
-            {PROJECT_STATUSES.find((s) => s.key === project.status)?.label ?? project.status}
-          </span>
-          {clientName && (
-            <span style={{ fontSize: fs(11), color: COLORS.textSecondary, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {clientName}
-            </span>
-          )}
-        </div>
-
-        {project.nextActionText && (
+        {/* Обложка несёт ровно две метки — см. §10: клиент видит статус,
+            КРОМЕ статуса 'active', где вместо него транслируется next step
+            (тот же next step, что и на шкале таймлайна). Пустой next step
+            на активном проекте — тоже статус, а не пустая обложка. */}
+        {project.status === 'active' && project.nextActionText ? (
           <div style={{ marginBottom: 6, minWidth: 0 }}>
             <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Следующий шаг</div>
             <div
@@ -153,6 +137,29 @@ export function ProjectCard({
               {project.nextActionText}
               {project.nextActionDate ? ` · ${project.nextActionDate}` : ''}
             </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+            <span
+              style={{
+                fontSize: fs(10.5),
+                color: COLORS.textFaint,
+                border: '0.5px solid rgba(var(--gold-rgb),0.3)',
+                padding: '2px 7px',
+                borderRadius: 1,
+                letterSpacing: '0.5px',
+              }}
+            >
+              {PROJECT_STATUSES.find((s) => s.key === project.status)?.label ?? project.status}
+            </span>
+          </div>
+        )}
+
+        {clientName && (
+          <div style={{ marginBottom: 6, minWidth: 0 }}>
+            <span style={{ fontSize: fs(11), color: COLORS.textSecondary, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {clientName}
+            </span>
           </div>
         )}
 
