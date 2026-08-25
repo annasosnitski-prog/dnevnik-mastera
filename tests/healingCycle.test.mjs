@@ -24,7 +24,7 @@ function makeSession(overrides = {}) {
   return {
     id: 'session-1',
     name: '',
-    date: daysBeforeNow(3),
+    date: daysBeforeNow(6), // середина окна week1_check (5–7 дней)
     time: '',
     duration: '',
     style: '',
@@ -120,7 +120,7 @@ function stageAfter(days, projectOverrides = {}, sessionOverrides = {}) {
 // ── Не последняя сессия: только лёгкий чек ────────────────────────────────
 
 test('не последняя сессия → чек первой недели, без развилки 21-го дня', () => {
-  assert.equal(stageAfter(3), 'week1_check');
+  assert.equal(stageAfter(6), 'week1_check');
   assert.equal(stageAfter(21), null, 'развилка «фото или коррекция» тут не появляется');
   assert.equal(stageAfter(60), null);
 });
@@ -128,7 +128,7 @@ test('не последняя сессия → чек первой недели,
 // «Не знаю, сколько сессий» ведёт себя как «больше одной»: подтверждения от
 // мастера не было, значит закрывать проект нечем.
 test('старый проект без плана сессий ведёт себя как «больше одной»', () => {
-  assert.equal(stageAfter(3, { sessionsPlan: null }), 'week1_check');
+  assert.equal(stageAfter(6, { sessionsPlan: null }), 'week1_check');
   assert.equal(stageAfter(21, { sessionsPlan: null }), null);
 });
 
@@ -137,7 +137,7 @@ test('старый проект без плана сессий ведёт себ
 test('назначенная следующая сессия не гасит чек первой недели', () => {
   const project = makeProject({
     sessions: [
-      makeSession({ id: 's1', date: daysBeforeNow(3) }),
+      makeSession({ id: 's1', date: daysBeforeNow(6) }),
       makeSession({ id: 's2', date: '2026-07-01', done: false }),
     ],
   });
@@ -147,12 +147,17 @@ test('назначенная следующая сессия не гасит ч�
 
 // ── Последняя сессия: полный цикл ─────────────────────────────────────────
 
-test('последняя сессия, до первой недели → ничего', () => {
+// Дни 0–4 после сессии — окно ещё не открылось (см. HEALING_CYCLE_WINDOWS):
+// на следующий день после тату оценивать заживление ещё нечего.
+test('последняя сессия, дни 0–4 после неё → ничего', () => {
   assert.equal(stageAfter(0, {}, { isLastSession: true }), null);
+  assert.equal(stageAfter(1, {}, { isLastSession: true }), null);
+  assert.equal(stageAfter(4, {}, { isLastSession: true }), null);
 });
 
-test('последняя сессия, первая неделя → чек', () => {
-  assert.equal(stageAfter(1, {}, { isLastSession: true }), 'week1_check');
+test('последняя сессия, дни 5–7 → чек первой недели', () => {
+  assert.equal(stageAfter(5, {}, { isLastSession: true }), 'week1_check');
+  assert.equal(stageAfter(6, {}, { isLastSession: true }), 'week1_check');
   assert.equal(stageAfter(7, {}, { isLastSession: true }), 'week1_check');
 });
 
@@ -176,7 +181,7 @@ test('развилка держится и после 21-го дня, пока �
 // Проект «одна встреча»: единственная сессия по определению последняя,
 // подтверждение мастера не спрашивается и на сессии не хранится.
 test('проект «одна встреча» проходит полный цикл без флага на сессии', () => {
-  assert.equal(stageAfter(3, { sessionsPlan: 'single' }), 'week1_check');
+  assert.equal(stageAfter(6, { sessionsPlan: 'single' }), 'week1_check');
   assert.equal(stageAfter(21, { sessionsPlan: 'single' }), 'day21_decision');
 });
 
@@ -243,11 +248,11 @@ test('отменённая сессия не считается назначен
 
 test('выполненная коррекция перезапускает цикл от своей даты', () => {
   // Первая сессия была 60 дней назад (её собственная развилка давно прошла),
-  // коррекция выполнена 3 дня назад — открыт чек первой недели по коррекции.
+  // коррекция выполнена 6 дней назад — открыт чек первой недели по коррекции.
   const project = makeProject({
     sessions: [
       makeSession({ id: 's1', date: daysBeforeNow(60), isLastSession: true }),
-      makeSession({ id: 'fix1', date: daysBeforeNow(3), isLastSession: true }),
+      makeSession({ id: 'fix1', date: daysBeforeNow(6), isLastSession: true }),
     ],
   });
   const result = healingCycleReminders([], [project], NOW);
@@ -271,7 +276,7 @@ test('несколько коррекций подряд: якорем всег�
       makeSession({ id: 's1', date: daysBeforeNow(120), isLastSession: true }),
       makeSession({ id: 'fix1', date: daysBeforeNow(70), isLastSession: true }),
       makeSession({ id: 'fix2', date: daysBeforeNow(30), isLastSession: true }),
-      makeSession({ id: 'fix3', date: daysBeforeNow(2), isLastSession: true }),
+      makeSession({ id: 'fix3', date: daysBeforeNow(6), isLastSession: true }),
     ],
   });
   const result = healingCycleReminders([], [project], NOW);
@@ -282,7 +287,7 @@ test('несколько коррекций подряд: якорем всег�
 test('якорь ищется по дате, а не по позиции в списке сессий', () => {
   const project = makeProject({
     sessions: [
-      makeSession({ id: 'fix1', date: daysBeforeNow(3), isLastSession: true }),
+      makeSession({ id: 'fix1', date: daysBeforeNow(6), isLastSession: true }),
       makeSession({ id: 's1', date: daysBeforeNow(60), isLastSession: true }),
     ],
   });
@@ -347,9 +352,9 @@ test('несуществующий клиент не роняет карточк
 
 test('карточки отсортированы от самой давней сессии-якоря', () => {
   const projects = [
-    makeProject({ id: 'p-fresh', sessions: [makeSession({ id: 'a', date: daysBeforeNow(1) })] }),
-    makeProject({ id: 'p-old', sessions: [makeSession({ id: 'b', date: daysBeforeNow(6) })] }),
-    makeProject({ id: 'p-mid', sessions: [makeSession({ id: 'c', date: daysBeforeNow(4) })] }),
+    makeProject({ id: 'p-fresh', sessions: [makeSession({ id: 'a', date: daysBeforeNow(5) })] }),
+    makeProject({ id: 'p-old', sessions: [makeSession({ id: 'b', date: daysBeforeNow(7) })] }),
+    makeProject({ id: 'p-mid', sessions: [makeSession({ id: 'c', date: daysBeforeNow(6) })] }),
   ];
   assert.deepEqual(
     healingCycleReminders([], projects, NOW).map((it) => it.project.id),
@@ -367,6 +372,31 @@ test('healingCycleReminders не мутирует входные массивы'
 test('один и тот же вход и тот же now всегда дают один результат', () => {
   const projects = [makeProject({ sessions: [makeSession()] })];
   assert.deepEqual(healingCycleReminders([], projects, NOW), healingCycleReminders([], projects, NOW));
+});
+
+// ── Суббота без напоминаний ────────────────────────────────────────────────
+// Мастер не хочет писать клиентам по субботам — карточка в этот день просто
+// не показывается (см. isSkippedDay в healingCycle.ts), а не переносится на
+// конкретный другой день: у week1_check и так остаётся минимум два других
+// дня внутри окна (5–7), у day21_decision верхней границы нет вовсе.
+
+test('week1_check не показывается, если сегодня суббота, но раньше/позже — показывается', () => {
+  // 2026-05-31 (session date) — since=6 от субботы 2026-06-06 и since=7 от
+  // воскресенья 2026-06-07, оба дня внутри окна 5–7.
+  const project = makeProject({ sessions: [makeSession({ date: '2026-05-31' })] });
+  const saturday = new Date('2026-06-06T12:00:00'); // суббота
+  const sunday = new Date('2026-06-07T12:00:00'); // воскресенье, since=7 — всё ещё в окне
+  assert.deepEqual(healingCycleReminders([], [project], saturday), []);
+  assert.equal(healingCycleReminders([], [project], sunday)[0]?.stage, 'week1_check');
+});
+
+test('day21_decision не показывается по субботам, но держится и на следующий день', () => {
+  // 2026-05-16 (session date) — since=21 от субботы 2026-06-06.
+  const project = makeProject({ sessions: [makeSession({ date: '2026-05-16', isLastSession: true })] });
+  const saturday = new Date('2026-06-06T12:00:00');
+  const sunday = new Date('2026-06-07T12:00:00');
+  assert.deepEqual(healingCycleReminders([], [project], saturday), []);
+  assert.equal(healingCycleReminders([], [project], sunday)[0]?.stage, 'day21_decision');
 });
 
 // ── Ключи карточек ────────────────────────────────────────────────────────

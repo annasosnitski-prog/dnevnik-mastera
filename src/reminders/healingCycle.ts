@@ -22,10 +22,12 @@ import { isValidISODate, daysSinceISO } from '../utils/dates.js';
 
 // Две точки на весь цикл вместо прежних четырёх (day1/day4/day15/day30):
 //
-//  - week1_check — обычный «как заживление?» в первую неделю после сессии.
-//    Показывается ПОСЛЕ ЛЮБОЙ выполненной сессии, последняя она или нет: у
-//    не-последней это единственный контакт по заживлению, дальше проект
-//    просто идёт к следующей сессии своим next step'ом.
+//  - week1_check — обычный «как заживление?» ближе к концу первой недели
+//    после сессии (дни 5–7, а не с 1-го — на следующий день после тату
+//    оценивать ещё нечего). Показывается ПОСЛЕ ЛЮБОЙ выполненной сессии,
+//    последняя она или нет: у не-последней это единственный контакт по
+//    заживлению, дальше проект просто идёт к следующей сессии своим next
+//    step'ом.
 //  - day21_decision — вопрос мастеру «фото или коррекция», только у
 //    последней сессии. 21-й день, а не 28-й — согласовано с мастером.
 //
@@ -34,10 +36,24 @@ import { isValidISODate, daysSinceISO } from '../utils/dates.js';
 // пока мастер не выберет одно из двух (см. «Что закрывает цикл» ниже).
 export type HealingCycleStage = 'week1_check' | 'day21_decision';
 
+// week1_check — окно в 3 дня (5,6,7), а не одна точка, намеренно: см.
+// isReminderDaySkipped ниже — суббота из напоминаний исключена, и узкий
+// диапазон гарантирует, что исключение никогда не гасит чек целиком (в трёх
+// подряд идущих днях суббота максимум одна, остаются как минимум два дня,
+// когда карточка всё равно покажется).
 export const HEALING_CYCLE_WINDOWS: { stage: HealingCycleStage; minDays: number; maxDays: number | null }[] = [
-  { stage: 'week1_check', minDays: 1, maxDays: 8 },
+  { stage: 'week1_check', minDays: 5, maxDays: 8 },
   { stage: 'day21_decision', minDays: 21, maxDays: null },
 ];
+
+// Новое правило: мастер не хочет писать клиентам по субботам — карточка в
+// этот день просто не показывается, без специального переноса на «до» или
+// «после»: у week1_check и так остаётся минимум два других дня внутри окна
+// (см. комментарий выше), а у day21_decision верхней границы нет вовсе,
+// развилка просто подождёт до следующего дня, когда её откроют.
+function isSkippedDay(now: Date): boolean {
+  return now.getDay() === 6; // JS: 0=вс … 6=сб
+}
 
 // `client` — null для проекта без клиента: писать некому, карточка покажется
 // без кнопки «Скопировать сообщение». Тип осознанно несёт и проект, и
@@ -102,6 +118,7 @@ function hasPlannedSession(project: Project): boolean {
 // (getClientSessions). `clients` нужен здесь единственно для того, чтобы
 // приложить к карточке владельца — для сообщения и контактов.
 export function healingCycleReminders(clients: Client[], projects: Project[], now: Date): HealingCycleItem[] {
+  if (isSkippedDay(now)) return [];
   const clientById = new Map(clients.map((c) => [c.id, c]));
   const result: HealingCycleItem[] = [];
   for (const project of projects) {
