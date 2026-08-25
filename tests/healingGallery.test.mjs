@@ -136,7 +136,7 @@ test('withHealingGallery completes the project as soon as the first photo lands'
 });
 
 test('withHealingGallery completes a project even from an earlier status', () => {
-  const p = makeProject({ status: 'waiting_deposit' });
+  const p = makeProject({ status: 'active' });
   assert.equal(withHealingGallery(p, ['a'], TODAY).status, 'completed');
 });
 

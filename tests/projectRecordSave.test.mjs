@@ -20,7 +20,7 @@ function makeProject(overrides = {}) {
     color: '#B0413E',
     category: 'tattoo',
     clientId: 'c1',
-    status: 'waiting_deposit',
+    status: 'active',
     state: 'active',
     waitingFor: 'none',
     nextActionText: '',

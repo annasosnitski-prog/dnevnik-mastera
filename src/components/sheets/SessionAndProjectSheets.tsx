@@ -858,7 +858,7 @@ export function NewProjectSheet({
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ProjectCategory>('tattoo');
   const [clientId, setClientId] = useState<string | null>(null);
-  const [status, setStatus] = useState<ProjectStatus>('waiting_deposit');
+  const [status, setStatus] = useState<ProjectStatus>('active');
   const [sessionsPlan, setSessionsPlan] = useState<SessionsPlan>(null);
   const [state, setState] = useState<ProjectState>('active');
   const [nextActionText, setNextActionText] = useState('');
@@ -889,7 +889,7 @@ export function NewProjectSheet({
       setTitle(initial?.title ?? '');
       setCategory(initial?.category ?? 'tattoo');
       setClientId(initial?.clientId ?? presetClientId ?? null);
-      setStatus(initial?.status ?? 'waiting_deposit');
+      setStatus(initial?.status ?? 'active');
       setSessionsPlan(initial?.sessionsPlan ?? null);
       setState(initial?.state ?? 'active');
       setNextActionText(initial?.nextActionText ?? '');
@@ -930,10 +930,10 @@ export function NewProjectSheet({
           <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <FieldLabel>Статус</FieldLabel>
-              {/* Мастер ставит статус вручную только там, где автоматики
-                  нет — прежде всего «Ожидает предоплаты» → «Активен» (факт
-                  предоплаты в модели не хранится, см. withAdvancedStatus).
-                  Остальные переходы проставляются сами. */}
+              {/* Мастер ставит статус вручную там, где автоматики нет —
+                  «Пауза» и снятие с неё (см. withAdvancedStatus про то, как
+                  пауза сочетается с «только вперёд»). Остальные переходы
+                  (заживление, завершение) проставляются сами. */}
               <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} style={INPUT_STYLE}>
                 {PROJECT_STATUSES.map((s) => (
                   <option key={s.key} value={s.key}>

@@ -30,8 +30,7 @@ export function makeBucketProject(id: string, title: string, color: string, clie
     color,
     category: 'tattoo',
     clientId,
-    // Бакет заводится ровно потому, что в него прямо сейчас кладут запись —
-    // работа уже идёт, ждать предоплату не о чем (см. ProjectStatus).
+    // Тот же дефолт, что и у любого нового проекта (см. ProjectStatus).
     status: 'active',
     // Бакет собирает разнородные записи, а не одну работу — сказать «одна
     // встреча»/«больше одной» про него нечего (см. SessionsPlan).
