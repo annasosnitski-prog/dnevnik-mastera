@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type * as React from 'react';
 import type { Client } from '../../domain/client';
-import type { Project } from '../../domain/project';
 import type { ClientNote } from '../../domain/task';
 import type { UrgencyKey } from '../../domain/urgency';
 import { upcomingItems } from '../../domain/plannerSelectors';
@@ -12,19 +11,9 @@ import {
   type CalendarSyncSettings,
 } from '../../lib/calendarSync';
 import { formatBookingTime, OPEN_SLOT_MARK, stripTagPrefix, tagLabel } from '../../lib/botBookingFormat';
-import type {
-  HealingItem,
-  OverdueItem,
-  ProjectSessionReminderItem,
-  ProjectConsultationReminderItem,
-  StaleProjectItem,
-  TaskReminderItem,
-  UpcomingSoonItem,
-} from '../../reminders/types';
 import { todayISO } from '../../utils/dates';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
-import { RemindersSection } from '../reminders/RemindersSection';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs } from '../ui/designTokens';
@@ -35,7 +24,7 @@ import { buildUpcomingSchedule } from './upcomingSchedule';
 import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 
 // ===================== ADMIN DASHBOARD =====================
-// The control panel: every reminder, the upcoming-sessions lookahead, and the
+// The control panel: the upcoming-sessions lookahead and the
 // client/session/consultation stats (minus «Частый стиль», which stays a
 // personal Мастер stat) — everything that's about running the practice day
 // to day. Backup (export/import) and record organization moved to Настройки
@@ -46,26 +35,6 @@ export function AdminDashboardScreen({
   prefs,
   onChangePrefs,
   onOpenSession,
-  overdue,
-  healing,
-  soon,
-  overdueProjectSessions,
-  soonProjectSessions,
-  overdueProjectConsultations,
-  soonProjectConsultations,
-  dueProjects,
-  staleProjects,
-  tasks,
-  onOpenProject,
-  onOpenEntry,
-  onDismissReminder,
-  onSnoozeReminder,
-  onRestoreReminder,
-  onCancelEntry,
-  onCompleteTask,
-  onOpenTask,
-  onMarkHealed,
-  onHideAllHealing,
   calendarSync,
   onOpenNotes,
   onOpenCalendar,
@@ -75,30 +44,6 @@ export function AdminDashboardScreen({
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
-  overdue: OverdueItem[];
-  healing: HealingItem[];
-  soon: UpcomingSoonItem[];
-  overdueProjectSessions: ProjectSessionReminderItem[];
-  soonProjectSessions: ProjectSessionReminderItem[];
-  overdueProjectConsultations: ProjectConsultationReminderItem[];
-  soonProjectConsultations: ProjectConsultationReminderItem[];
-  // Проекты с просроченным «следующим шагом» — в напоминания (Этап 3b).
-  dueProjects: Project[];
-  // Активные проекты без значимого движения дольше порога (M4) — «мягкое»
-  // напоминание, отдельное от dueProjects.
-  staleProjects: StaleProjectItem[];
-  // Task-напоминания (ClientNote.dueDate) — поверх того же engine.
-  tasks: TaskReminderItem[];
-  onOpenProject: (project: Project) => void;
-  onOpenEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
-  onDismissReminder: (key: string) => void;
-  onSnoozeReminder: (key: string, showAfter: string) => void;
-  onRestoreReminder: (key: string) => void;
-  onCancelEntry: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
-  onCompleteTask: (item: TaskReminderItem) => void;
-  onOpenTask: (item: TaskReminderItem) => void;
-  onMarkHealed: (clientId: string, sessionId: string) => void;
-  onHideAllHealing: (sessionId: string) => void;
   calendarSync: CalendarSyncSettings;
   // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
@@ -149,37 +94,11 @@ export function AdminDashboardScreen({
             create button (same calendar-driven creation walk) — this screen
             no longer duplicates it as its own standalone button. */}
 
-        {/* Уведомления и напоминания идут наверх, над блоком предстоящих
-            сессий — это то, что требует внимания мастера в первую очередь. */}
-        <RemindersSection
-          overdue={overdue}
-          healing={healing}
-          soon={soon}
-          overdueProjectSessions={overdueProjectSessions}
-          soonProjectSessions={soonProjectSessions}
-          overdueProjectConsultations={overdueProjectConsultations}
-          soonProjectConsultations={soonProjectConsultations}
-          dueProjects={dueProjects}
-          staleProjects={staleProjects}
-          tasks={tasks}
-          clients={clients}
-          onOpenProject={onOpenProject}
-          onOpenEntry={onOpenEntry}
-          onDismiss={onDismissReminder}
-          onSnooze={onSnoozeReminder}
-          onRestore={onRestoreReminder}
-          onCancel={onCancelEntry}
-          onCompleteTask={onCompleteTask}
-          onOpenTask={onOpenTask}
-          onMarkHealed={onMarkHealed}
-          onHideAllHealing={onHideAllHealing}
-        />
-
         {/* Предстоящие записи (M5C) — компактно, без внешней GoldFrame, та же
-            визуальная логика, что у групп напоминаний и «Рабочей сводки».
-            upcomingItems по-прежнему единственный источник того, какие
-            записи попадают в список и в каком порядке — группировка по дням
-            только раскладывает уже готовый результат. */}
+            визуальная логика, что у «Рабочей сводки». upcomingItems
+            по-прежнему единственный источник того, какие записи попадают в
+            список и в каком порядке — группировка по дням только раскладывает
+            уже готовый результат. */}
         <UpcomingScheduleSection
           groups={upcomingSchedule}
           selectedWindowDays={prefs.upcomingWindowDays}

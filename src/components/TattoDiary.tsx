@@ -85,7 +85,6 @@ import {
   upsertSessionInProjects,
   upsertConsultationInProjects,
   updateSessionInProjects,
-  updateConsultationInProjects,
   moveSessionToProject,
   moveConsultationToProject,
   applyConsultationConversionInProjects,
@@ -193,43 +192,6 @@ import {
   sortClients,
   upcomingItems,
 } from '../domain/plannerSelectors';
-// Логика напоминаний вынесена в src/reminders/* (PR 4 рефакторинга). Строители
-// теперь получают `now` аргументом; ключ проекта исправлен (см. reminderKeys).
-import type { TaskReminderItem } from '../reminders/types';
-import {
-  overdueEntries,
-  healingReminders,
-  upcomingSoonReminders,
-  overdueProjectSessions,
-  upcomingSoonProjectSessions,
-  overdueProjectConsultations,
-  upcomingSoonProjectConsultations,
-  overdueProjects,
-  staleProjects,
-} from '../reminders/buildReminders';
-import { taskReminderSources, taskReminders, filterVisibleTaskReminders } from '../reminders/buildTaskReminders';
-import {
-  overdueReminderKey,
-  healingReminderKey,
-  healingReminderKeysForSession,
-  soonReminderKey,
-  overdueProjectSessionReminderKey,
-  soonProjectSessionReminderKey,
-  overdueProjectConsultationReminderKey,
-  soonProjectConsultationReminderKey,
-  projectReminderKey,
-  staleProjectReminderKey,
-} from '../reminders/reminderKeys';
-import {
-  type ReminderState,
-  loadReminderState,
-  saveReminderState,
-  filterVisibleReminders,
-  dismissReminder,
-  snoozeReminder,
-  restoreReminder,
-  removeExpiredSnoozes,
-} from '../reminders/reminderState';
 import {
   type ProjectCategory,
   PROJECT_CATEGORIES,
@@ -683,28 +645,6 @@ export default function TattoDiary() {
     setConflictHandler(setSyncWarning);
     return () => setConflictHandler(null);
   }, []);
-
-  // Reminder cards (see RemindersSection) the master has deleted (via the «⋯»
-  // menu's «Удалить», or a swipe) or snoozed («Отложить …») — so they stay out
-  // of the feed even though the underlying overdue/healing condition hasn't
-  // changed. Keyed by a stable per-reminder string (see reminderKeys), not by
-  // anything that would naturally clear this — marking done, rescheduling, or
-  // ticking «Зажив» already removes the entry from its source list regardless.
-  // Скрытые/отложенные напоминания — см. src/reminders/reminderState.ts. На
-  // старте подхватываем прежний формат (массив) и чистим истёкшие snooze.
-  const [reminderState, setReminderState] = useState<ReminderState>(() => removeExpiredSnoozes(loadReminderState(), new Date()));
-  useEffect(() => {
-    saveReminderState(reminderState);
-  }, [reminderState]);
-  const handleDismissReminder = (key: string) => setReminderState((prev) => dismissReminder(prev, key));
-  const handleSnoozeReminder = (key: string, showAfter: string) => setReminderState((prev) => snoozeReminder(prev, key, showAfter));
-  const handleRestoreReminder = (key: string) => setReminderState((prev) => restoreReminder(prev, key));
-  // «Не напоминать больше» на карточке заживления — скрывает разом ключи
-  // всех 4 стадий этой сессии (не только видимую сейчас), см.
-  // healingReminderKeysForSession. Окна стадий не пересекаются, так что
-  // скрытые впрок ключи будущих стадий просто не дадут им показаться позже.
-  const handleHideAllHealing = (sessionId: string) =>
-    setReminderState((prev) => healingReminderKeysForSession(sessionId).reduce((s, k) => dismissReminder(s, k), prev));
 
   const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
   const [contentNavigation, setContentNavigation] = useState<ContentWorkspaceNavigation | null>(null);
@@ -1622,10 +1562,6 @@ export default function TattoDiary() {
     saveProjects(updateSessionInProjects(projects, sessionId, update));
   };
 
-  const updateConsultation = (consultationId: string, update: (consultation: Consultation) => Consultation) => {
-    saveProjects(updateConsultationInProjects(projects, consultationId, update));
-  };
-
   // Session created via «Перевести в сессию» — restore the consultation it
   // came from first, so deleting the session doesn't leave the consultation
   // pointing at a session that no longer exists. No-op for a session with no
@@ -1986,29 +1922,9 @@ export default function TattoDiary() {
     saveProjects(session.done ? flipped : advanceStageIn(flipped, session.projectId, 'in_progress'));
   };
 
-  // clientId-scoped variant of the toggle above — for the «Отменить» quick
-  // action fired from the Задачи/Мастер screens' «Напоминания» section,
-  // which acts on overdue entries across every client, not just whichever
-  // one happens to be open (selectedClient may well be null there).
-  // Overdue reminder's «Отменить» — this planned entry won't happen and
-  // won't be rescheduled, distinct from done. Drops out of upcoming/overdue
-  // everywhere; stays visible in the timeline tagged «Отменена».
-  const markEntryCancelled = (_clientId: string, itemId: string, kind: 'session' | 'consultation') => {
-    if (kind === 'session') {
-      updateSession(itemId, (s) => ({ ...s, cancelled: true }));
-    } else {
-      updateConsultation(itemId, (cn) => ({
-        ...cn,
-        cancelled: true,
-        history: [...cn.history, { id: crypto.randomUUID(), date: new Date().toISOString(), note: 'Отменена' }],
-      }));
-    }
-  };
-
   // Shared navigation: land on the client's own card and pop the edit form
-  // open for that session/consultation — used both by the Мастер dashboard's
-  // upcoming list and the reminder quick-actions (reschedule an overdue entry,
-  // or jump into a session to tick «Зажив» once a healed photo's in).
+  // open for that session/consultation — used by the Мастер dashboard's
+  // upcoming list to reschedule an entry.
   const openEntryForEdit = (clientId: string, itemId: string, kind: 'session' | 'consultation') => {
     const client = clients.find((c) => c.id === clientId);
     if (!client) return;
@@ -2027,50 +1943,6 @@ export default function TattoDiary() {
     setActiveTab('projects');
     setEditSession(session);
     setShowNewSessionForm(true);
-  };
-
-  // «Выполнить» на Task-напоминании — ставит done в ТОМ хранилище, откуда
-  // задача пришла (scope), не трогая одноимённую задачу в другом. Само
-  // напоминание после этого уходит через фильтр done в taskReminders(), без
-  // отдельной записи в dismissedIds.
-  const completeTaskReminder = (item: TaskReminderItem) => {
-    if (item.scope === 'client') {
-      const client = clients.find((c) => c.id === item.clientId);
-      const task = client?.notes.find((n) => n.id === item.taskId);
-      if (!client || !task) return;
-      upsertNote(client.id, { ...task, done: true });
-    } else {
-      setMasterInfo({ ...masterInfo, notes: masterInfo.notes.map((n) => (n.id === item.taskId ? { ...n, done: true } : n)) });
-    }
-  };
-
-  // «Выполнено» на карточке заживления — контроль заживления для ЭТОЙ
-  // сессии закрыт (session.healed), она перестаёт участвовать в
-  // healingReminders() на всех дальнейших стадиях. Не имеет отношения к
-  // тому, отправлено ли клиенту сообщение — это отдельная ручная кнопка
-  // «Скопировать» рядом (см. RemindersSection/CopyMessageButton).
-  const markSessionHealed = (_clientId: string, sessionId: string) => {
-    updateSession(sessionId, (s) => ({ ...s, healed: true }));
-  };
-
-  // «Открыть» — проект, если задача к нему привязана; иначе клиент (для
-  // клиентской задачи) или существующий экран «Сводка» с мастерскими
-  // задачами (для задачи без клиента) — новый экран не заводим.
-  const openTaskReminder = (item: TaskReminderItem) => {
-    if (item.projectId) {
-      const project = projects.find((p) => p.id === item.projectId);
-      if (project) {
-        setViewProject(project);
-        return;
-      }
-    }
-    if (item.scope === 'client' && item.clientId) {
-      setSelectedId(item.clientId);
-      setActiveTab('extra');
-      setScreen('detail');
-      return;
-    }
-    setScreen('summary');
   };
 
   const handleCreateClient = (data: {
@@ -2155,56 +2027,8 @@ export default function TattoDiary() {
   const viewedSession = viewEntry?.kind === 'session' ? viewClient?.sessions.find((s) => s.id === viewEntry.id) ?? null : null;
   const viewedConsultation = viewEntry?.kind === 'consultation' ? viewClient?.consultations.find((c) => c.id === viewEntry.id) ?? null : null;
 
-  // Reminders (see RemindersSection), minus whatever the master has closed —
-  // computed once and shared by the toolbar badge, «Задачи», and «Мастер».
-  // Один снимок времени на все четыре ленты — раньше каждая читала часы сама
-  // (todayISO()/Date.now()); поведение то же, но теперь оно детерминировано.
-  const remindersNow = new Date();
   // Возраст резервной копии — то же «состояние дневника», что и dbError выше.
-  const backupState = backupStatus(lastBackupAt, remindersNow);
-  const visibleOverdue = filterVisibleReminders(overdueEntries(clients, remindersNow), overdueReminderKey, reminderState, remindersNow);
-  const visibleHealing = filterVisibleReminders(healingReminders(clients, remindersNow), healingReminderKey, reminderState, remindersNow);
-  const visibleSoon = filterVisibleReminders(upcomingSoonReminders(clients, remindersNow), soonReminderKey, reminderState, remindersNow);
-  const visibleOverdueProjectSessions = filterVisibleReminders(
-    overdueProjectSessions(projects, remindersNow),
-    overdueProjectSessionReminderKey,
-    reminderState,
-    remindersNow,
-  );
-  const visibleSoonProjectSessions = filterVisibleReminders(
-    upcomingSoonProjectSessions(projects, remindersNow),
-    soonProjectSessionReminderKey,
-    reminderState,
-    remindersNow,
-  );
-  const visibleOverdueProjectConsultations = filterVisibleReminders(
-    overdueProjectConsultations(projects, remindersNow),
-    overdueProjectConsultationReminderKey,
-    reminderState,
-    remindersNow,
-  );
-  const visibleSoonProjectConsultations = filterVisibleReminders(
-    upcomingSoonProjectConsultations(projects, remindersNow),
-    soonProjectConsultationReminderKey,
-    reminderState,
-    remindersNow,
-  );
-  // Проекты с просроченным «следующим шагом» (Этап 3b) — в те же напоминания.
-  const visibleDueProjects = filterVisibleReminders(overdueProjects(projects, remindersNow), projectReminderKey, reminderState, remindersNow);
-  // Активные проекты без значимого движения дольше порога (M4) — мягкое
-  // напоминание «застыл», отдельное от visibleDueProjects (там — конкретный
-  // просроченный next step, здесь — просто долгое отсутствие движения).
-  const visibleStaleProjects = filterVisibleReminders(staleProjects(projects, clients, remindersNow), staleProjectReminderKey, reminderState, remindersNow);
-  // Task-напоминания (ClientNote.dueDate) — поверх того же engine, оба
-  // источника задач (client.notes + masterInfo.notes), не объединяя их.
-  // Свой фильтр видимости: скрытие ключуется по reminder.id (с rule),
-  // откладывание — по устойчивому actionKey (без rule), см.
-  // filterVisibleTaskReminders.
-  const visibleTaskReminders = filterVisibleTaskReminders(
-    taskReminders(taskReminderSources(clients, masterInfo.notes), remindersNow),
-    reminderState,
-    remindersNow,
-  );
+  const backupState = backupStatus(lastBackupAt, new Date());
 
   // Set the text-size multiplier for this render pass before any child renders.
   setTextScale(prefs.textScale);
@@ -2754,16 +2578,6 @@ export default function TattoDiary() {
           active={screen}
           onNavigate={(s) => setScreen(s)}
           moduleFlags={masterInfo.modules}
-          adminBadges={[
-            // Просроченная задача (task_overdue) — как urgent; задача на
-            // сегодня (task_due) — как reminder, рядом с healing/soon/проекты.
-            ...(visibleOverdue.length > 0 || visibleOverdueProjectSessions.length > 0 || visibleOverdueProjectConsultations.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_overdue')
-              ? (['urgent'] as const)
-              : []),
-            ...(visibleHealing.length > 0 || visibleSoon.length > 0 || visibleSoonProjectSessions.length > 0 || visibleSoonProjectConsultations.length > 0 || visibleDueProjects.length > 0 || visibleTaskReminders.some((t) => t.rule === 'task_due')
-              ? (['reminder'] as const)
-              : []),
-          ]}
           // Contextual create — открывает единую CreateChoiceSheet с нужным
           // контекстом; сам выбор внутри неё см. в её onPick ниже. Открытый
           // просмотр проекта (viewProject) переопределяет экранную логику —
@@ -2968,26 +2782,6 @@ export default function TattoDiary() {
               onChangePrefs={setPrefs}
               onOpenSession={openEntryForEdit}
               calendarSync={calendarSync}
-              overdue={visibleOverdue}
-              healing={visibleHealing}
-              soon={visibleSoon}
-              overdueProjectSessions={visibleOverdueProjectSessions}
-              soonProjectSessions={visibleSoonProjectSessions}
-              overdueProjectConsultations={visibleOverdueProjectConsultations}
-              soonProjectConsultations={visibleSoonProjectConsultations}
-              dueProjects={visibleDueProjects}
-              staleProjects={visibleStaleProjects}
-              tasks={visibleTaskReminders}
-              onOpenProject={(project) => setViewProject(project)}
-              onOpenEntry={openEntryForEdit}
-              onDismissReminder={handleDismissReminder}
-              onSnoozeReminder={handleSnoozeReminder}
-              onRestoreReminder={handleRestoreReminder}
-              onCancelEntry={markEntryCancelled}
-              onCompleteTask={completeTaskReminder}
-              onOpenTask={openTaskReminder}
-              onMarkHealed={markSessionHealed}
-              onHideAllHealing={handleHideAllHealing}
               onOpenNotes={(urgency) => {
                 setSummaryFilter(urgency);
                 setScreen('summary');

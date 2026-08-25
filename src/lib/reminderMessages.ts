@@ -2,7 +2,13 @@
 // только перенос.
 import { type ClientLanguage, type Client } from '../domain/client';
 import { ISO_DATE_RE } from '../utils/dates.js';
-import type { HealingStage, UpcomingSoonItem } from '../reminders/types';
+
+// Стадии заживления, для которых есть готовый текст (см. HEALING_TEXTS ниже).
+export type HealingStage = 'day1' | 'day4' | 'day15' | 'day30';
+
+// Минимум, нужный soonReminderMessage — не завязан на конкретный тип
+// напоминания-источника (session/consultation), только на сами поля.
+export type UpcomingSoonLike = { client: Client; date: string; time: string };
 
 // Every client-facing auto-message (healing check-in, upcoming-booking
 // reminder, and whatever gets added next) is written in the client's own
@@ -10,9 +16,9 @@ import type { HealingStage, UpcomingSoonItem } from '../reminders/types';
 // here rather than adding a new bare Russian string elsewhere.
 const CLIENT_LOCALE: Record<ClientLanguage, string> = { ru: 'ru-RU', en: 'en-US', he: 'he-IL' };
 
-// Один текст на каждую стадию заживления (см. HealingStage/HEALING_STAGES в
-// buildReminders.ts) — day1 про самочувствие/кожу/уход, day4 про шелушение,
-// day15 промежуточный, day30 — прежний финальный «как зажило».
+// Один текст на каждую стадию заживления (см. HealingStage выше) — day1 про
+// самочувствие/кожу/уход, day4 про шелушение, day15 промежуточный, day30 —
+// прежний финальный «как зажило».
 const HEALING_TEXTS: Record<ClientLanguage, Record<HealingStage, string>> = {
   ru: {
     day1:
@@ -88,7 +94,7 @@ export function localizedWhen(dateIso: string, time: string, language: ClientLan
 
 // Auto-message for the 36–48h heads-up — master copies it to nudge the
 // client about the upcoming booking, same pattern as healingReminderMessage.
-export function soonReminderMessage(it: UpcomingSoonItem): string {
+export function soonReminderMessage(it: UpcomingSoonLike): string {
   const { language } = it.client;
   return REMINDER_TEXTS[language].soon(localizedWhen(it.date, it.time, language));
 }
