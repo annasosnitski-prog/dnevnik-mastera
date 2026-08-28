@@ -3000,6 +3000,7 @@ export default function TattoDiary() {
           <Suspense fallback={null}>
             <AdminDashboardScreen
               clients={clients}
+              projects={projects}
               masterNotes={masterInfo.notes}
               prefs={prefs}
               onChangePrefs={setPrefs}
