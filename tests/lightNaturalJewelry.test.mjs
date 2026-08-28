@@ -79,12 +79,18 @@ test('concavity is reinforced by a bright upper inner wall, dark lower wall and 
   assert.match(stoneSource, /fill=\{`url\(#\$\{floorLightId\}\)`\}/);
 });
 
+// tabSource's light-theme stone used to pass kind={GEM_NATURAL_STONE[kind]}
+// (its own mineral per tab); it now renders one shared gold rhombus instead
+// via a dedicated opt-in prop, so NavFab's own NaturalStoneIcon calls (which
+// never pass it) keep their per-route mineral colours untouched.
 test('the light material layer swaps visually without duplicating navigation logic', () => {
   assert.match(css, /:root\[data-theme='light'\] \.theme-dark-jewel/);
   assert.match(css, /:root\[data-theme='light'\] \.theme-light-jewel/);
   assert.match(navSource, /<PendantIcon/);
   assert.match(navSource, /<NaturalStoneIcon/);
-  assert.match(tabSource, /<NaturalStoneIcon kind=\{GEM_NATURAL_STONE\[kind\]\}/);
+  assert.doesNotMatch(navSource, /goldDiamond/);
+  assert.match(tabSource, /<NaturalStoneIcon size=\{GEM_SIZE\} medallion goldDiamond \/>/);
+  assert.match(stoneSource, /goldDiamond\?:\s*boolean/);
 });
 
 test('light toolbar stones carry no navigation glyphs', () => {

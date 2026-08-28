@@ -76,6 +76,7 @@ export function NaturalStoneIcon({
   size,
   plate = false,
   medallion = false,
+  goldDiamond = false,
   shineDelay = '0s',
   children,
 }: {
@@ -83,6 +84,11 @@ export function NaturalStoneIcon({
   size: number;
   plate?: boolean;
   medallion?: boolean;
+  // Swaps the raster mineral cabochon for a flat gold rhombus, ignoring
+  // `kind` entirely — used by ClientCardTabBar's light-theme gems now that
+  // every tab shares one gold cut instead of a colour per kind. NavFab's own
+  // calls never pass this, so its per-route stone colours are untouched.
+  goldDiamond?: boolean;
   // Delay before the plate-relief shine sweep starts — only rendered for the
   // engraved plate (currently «Создать»), so this is meaningless elsewhere.
   shineDelay?: string;
@@ -148,7 +154,7 @@ export function NaturalStoneIcon({
         <path d="M13 17a25 25 0 0 1 12-8M48 48a24 24 0 0 1-14 8" fill="none" stroke="var(--bronze-highlight)" strokeWidth=".72" strokeLinecap="round" opacity=".34" />
         <path d="M50 18a24 24 0 0 1 5 13M9 37a24 24 0 0 1 3-12" fill="none" stroke="var(--bronze-shadow)" strokeWidth=".78" strokeLinecap="round" opacity=".38" />
 
-        {plate || !kind ? (
+        {plate || (!kind && !goldDiamond) ? (
           <>
             <circle cx="32" cy="32" r={outerR - 5.2} fill={`url(#${flatId})`} stroke="var(--bronze-light)" strokeWidth=".62" />
             <circle cx="32" cy="32" r={outerR - 8.2} fill="none" stroke="var(--bronze-face-shadow)" strokeWidth=".68" opacity=".6" />
@@ -158,15 +164,41 @@ export function NaturalStoneIcon({
           <>
             <circle cx="32" cy="32" r={stoneR + (medallion ? 2.2 : 1.6)} fill="var(--bronze-recess)" stroke={`url(#${edgeId})`} strokeWidth={medallion ? 1.1 : 1.25} />
             <path d={medallion ? 'M27 30a6 6 0 0 1 4-4M36 37a6 6 0 0 1-4 1' : 'M14 26a21 21 0 0 1 13-13M49 45a21 21 0 0 1-13 6'} fill="none" stroke="var(--bronze-light)" strokeWidth={medallion ? '.46' : '.72'} strokeLinecap="round" opacity=".34" />
-            <g className="natural-stone-cabochon natural-stone-cabochon--concave" filter={`url(#${insetId})`}>
-              <circle cx="32" cy="32" r={stoneR} fill={stoneColor} />
-              <image href="/mineral-cabochons.webp" x={32 - stoneR - spriteIndex * stoneDiameter} y={32 - stoneR} width={stoneDiameter * 6} height={stoneDiameter} preserveAspectRatio="none" clipPath={`url(#${clipId})`} filter={`url(#${stoneToneId})`} />
-              <circle cx="32" cy="32" r={stoneR} fill={`url(#${wallShadeId})`} opacity=".98" />
-              <circle cx="32" cy="32" r={stoneR} fill={`url(#${depthId})`} opacity="1" />
-              <circle cx="32" cy="32" r={stoneR} fill={`url(#${floorLightId})`} opacity="1" />
-              <StoneSurfaceLight medallion={medallion} clipId={clipId} glossId={glossId} softGlossId={softGlossId} rimColor={material?.rim ?? stoneColor} deepColor={material?.deep ?? '#4B2C25'} stoneR={stoneR} />
-              <circle cx="32" cy="32" r={stoneR - (medallion ? .25 : .5)} fill="none" stroke={material?.rim ?? stoneColor} strokeWidth={medallion ? '.42' : '.7'} opacity=".52" />
-            </g>
+            {goldDiamond ? (
+              // A flat gold rhombus set in the same bronze bezel, in place of
+              // the raster mineral cabochon — ClientCardTabBar's tabs now
+              // share one gold cut instead of a colour/texture per kind (see
+              // its own comment). Point spacing reuses stoneR so the shape
+              // fills exactly the socket the round cabochon used to occupy.
+              <g className="natural-stone-cabochon natural-stone-cabochon--concave" filter={`url(#${insetId})`}>
+                <polygon points={`32,${32 - stoneR} ${32 + stoneR},32 32,${32 + stoneR} ${32 - stoneR},32`} fill="var(--bronze-recess)" />
+                <polygon
+                  points={`32,${32 - stoneR * 0.86} ${32 + stoneR * 0.86},32 32,${32 + stoneR * 0.86} ${32 - stoneR * 0.86},32`}
+                  fill="#D8A94A"
+                />
+                <path d={`M32 ${32 - stoneR * 0.86}L${32 + stoneR * 0.86} 32L32 32Z`} fill="#FFF8D7" opacity=".55" />
+                <path d={`M${32 + stoneR * 0.86} 32L32 ${32 + stoneR * 0.86}L32 32Z`} fill="#6E4A16" opacity=".45" />
+                <path d={`M32 ${32 + stoneR * 0.86}L${32 - stoneR * 0.86} 32L32 32Z`} fill="#431A00" opacity=".55" />
+                <path d={`M${32 - stoneR * 0.86} 32L32 ${32 - stoneR * 0.86}L32 32Z`} fill="#FFF8D7" opacity=".28" />
+                <polygon
+                  points={`32,${32 - stoneR * 0.86} ${32 + stoneR * 0.86},32 32,${32 + stoneR * 0.86} ${32 - stoneR * 0.86},32`}
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeOpacity=".3"
+                  strokeWidth=".22"
+                />
+              </g>
+            ) : (
+              <g className="natural-stone-cabochon natural-stone-cabochon--concave" filter={`url(#${insetId})`}>
+                <circle cx="32" cy="32" r={stoneR} fill={stoneColor} />
+                <image href="/mineral-cabochons.webp" x={32 - stoneR - spriteIndex * stoneDiameter} y={32 - stoneR} width={stoneDiameter * 6} height={stoneDiameter} preserveAspectRatio="none" clipPath={`url(#${clipId})`} filter={`url(#${stoneToneId})`} />
+                <circle cx="32" cy="32" r={stoneR} fill={`url(#${wallShadeId})`} opacity=".98" />
+                <circle cx="32" cy="32" r={stoneR} fill={`url(#${depthId})`} opacity="1" />
+                <circle cx="32" cy="32" r={stoneR} fill={`url(#${floorLightId})`} opacity="1" />
+                <StoneSurfaceLight medallion={medallion} clipId={clipId} glossId={glossId} softGlossId={softGlossId} rimColor={material?.rim ?? stoneColor} deepColor={material?.deep ?? '#4B2C25'} stoneR={stoneR} />
+                <circle cx="32" cy="32" r={stoneR - (medallion ? .25 : .5)} fill="none" stroke={material?.rim ?? stoneColor} strokeWidth={medallion ? '.42' : '.7'} opacity=".52" />
+              </g>
+            )}
           </>
         )}
 
