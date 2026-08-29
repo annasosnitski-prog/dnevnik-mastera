@@ -46,8 +46,9 @@ test('every tab keeps its own gem — no client-card-only Инфо/Проект�
   // Никакого спец-кейса по ariaLabel: каркас одинаков для карточки клиента
   // и Личного кабинета.
   assert.doesNotMatch(tabBarModule, /ariaLabel === 'Разделы клиента'/);
-  // Цвет и Минимализм-иконка по-прежнему ключуются от kind.
-  assert.match(tabBarModule, /const color = GEM_COLOR\[kind\];/);
+  // Минимализм-иконка по-прежнему ключуется от kind; цвет — единый золотой
+  // для всех вкладок (см. следующий тест — палитру по территориям убрали).
+  assert.match(tabBarModule, /const color = GEM_GOLD;/);
   assert.match(tabBarModule, /<ClientTabIcon name=\{kind\} size=\{26\} \/>/);
 });
 
@@ -66,7 +67,12 @@ test('all six tabs keep the same order as the six tiles in gem-icons.svg', () =>
   assert.match(gemSprite, /id="projects-icon"[\s\S]*transform="translate\(320 0\)"/);
 });
 
-test('toolbar and client tabs share one semantic colour palette', () => {
+// Раньше вкладки карточки клиента/Личного кабинета красились по той же
+// территориальной палитре, что и радиальный хаб (NavFab) — своя монета на
+// каждый смысл вкладки. По просьбе Ани эту палитру там убрали: все вкладки
+// делят один золотой ромб, так что от территориальной раскраски остался
+// только сам хаб (NavFab), который не трогали.
+test('the radial hub keeps its territory palette; client tabs no longer key colour off it', () => {
   assert.match(designTokens, /clients: '#008A5A'/);
   assert.match(designTokens, /personal: '#C99516'/);
   assert.match(designTokens, /content: '#7935B2'/);
@@ -75,10 +81,8 @@ test('toolbar and client tabs share one semantic colour palette', () => {
   assert.match(designTokens, /admin: '#B01236'/);
 
   assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
-  assert.match(tabBarModule, /sessions: TERRITORY_COLORS\.admin/);
-  assert.match(tabBarModule, /consultations: TERRITORY_COLORS\.clients/);
-  assert.match(tabBarModule, /info: TERRITORY_COLORS\.personal/);
-  assert.match(tabBarModule, /projects: TERRITORY_COLORS\.projects/);
+  assert.doesNotMatch(tabBarModule, /TERRITORY_COLORS/);
+  assert.match(tabBarModule, /const GEM_GOLD = COLORS\.gold;/);
   assert.doesNotMatch(tabBarModule, /clientOrnateGemKind|gemKind/);
 });
 
@@ -94,17 +98,27 @@ test('toolbar stones render optical depth below the crown without extra blur fil
   assert.match(pendantIcon, /id=\{depthCaustic\}[\s\S]*crisp vector caustic|crisp vector caustic[\s\S]*id=\{depthCaustic\}/);
 });
 
-test('ornate tabs use the main-button gold material and a one-sixth centre stone', () => {
+// Камень в центре медальона раньше был кругом, покрашенным per-tile через
+// `color="..."` + currentColor (шесть разных территориальных цветов). Теперь
+// это ромб (полигон с вершинами на том же радиусе — 26.667/37.333, т.е.
+// прежние 32±5.333333), залитый одним общим золотым градиентом, и одинаков
+// на всех шести плитках спрайта — ни один `<g id="...-icon">` больше не
+// задаёт свой `color`. Сама подвеска (gold-medallion) тоже стала ромбом —
+// не только камень внутри неё: каждое кольцо, что раньше было кругом радиуса
+// R, теперь полигон с вершинами на 32±R по осям.
+test('ornate tabs use the main-button gold material, and the whole pendant is a rhombus', () => {
   assert.match(gemSprite, /id="gold-face"[\s\S]*stop-color="#FFF8D7"[\s\S]*stop-color="#B88B32"[\s\S]*stop-color="#E2B655"[\s\S]*stop-color="#431A00"/);
   assert.doesNotMatch(pendantIcon, /#C77A14|#EFAD3C|#B45F0B|#F1B54A/);
   assert.doesNotMatch(gemSprite, /#C77A14|#EFAD3C|#B45F0B|#F1B54A/);
-  assert.match(gemSprite, /id="gold-medallion"[\s\S]*scale\(\.724138\)[\s\S]*r="29" fill="url\(#gold-face\)"/);
-  assert.equal((gemSprite.match(/r="5\.333333"/g) ?? []).length, 3);
-  assert.match(gemSprite, /id="sessions-icon" color="#B01236"/);
-  assert.match(gemSprite, /id="consultations-icon" color="#008A5A"/);
-  assert.match(gemSprite, /id="info-icon" color="#C99516"/);
-  assert.match(gemSprite, /id="content-icon" color="#7935B2"/);
-  assert.match(gemSprite, /id="projects-icon" color="#1448A7"/);
+  assert.match(gemSprite, /id="gold-medallion"[\s\S]*scale\(\.724138\)[\s\S]*polygon points="32,3 61,32 32,61 3,32" fill="url\(#gold-face\)"/);
+  assert.doesNotMatch(gemSprite, /id="gold-medallion"[\s\S]{0,400}<circle/);
+  assert.match(gemSprite, /id="rhombus-gold"/);
+  assert.match(gemSprite, /id="centre-stone">\s*<polygon points="32,25\.85 38\.15,32 32,38\.15 25\.85,32"/);
+  assert.doesNotMatch(gemSprite, /r="5\.333333"/);
+  for (const iconId of ['sessions-icon', 'consultations-icon', 'content-icon', 'notes-icon', 'info-icon', 'projects-icon']) {
+    assert.doesNotMatch(gemSprite, new RegExp(`id="${iconId}" color="`));
+    assert.match(gemSprite, new RegExp(`<g id="${iconId}"[^>]*filter="url\\(#medallion-shadow\\)">`));
+  }
 });
 
 test('tab names stay accessible without browser-native tooltip boxes', () => {

@@ -25,6 +25,8 @@ import { todayISO } from '../../utils/dates';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
+import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
+import { ProjectTimelineList } from '../project/ProjectTimelineList';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs } from '../ui/designTokens';
@@ -34,6 +36,19 @@ import { AdminWorkSummary } from './AdminWorkSummary';
 import { buildUpcomingSchedule } from './upcomingSchedule';
 import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 
+// «Оформим по форме как карточка клиента» (см. ClientCardTabBar) — те же
+// геммы-иконки, что уже использует Личный кабинет (info/projects), плюс
+// sessions/notes: своих гемм под админ-вкладки нет, а заводить новые ради
+// одного экрана — лишняя работа под прототип. Порядок — от «требует
+// внимания прямо сейчас» к «справочному»: Напоминания первыми, Таймлайн
+// последним, он самый «посмотреть, а не подействовать».
+const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'summary' | 'timeline'>[] = [
+  { id: 'reminders', kind: 'notes', label: 'Напоминания' },
+  { id: 'schedule', kind: 'sessions', label: 'Расписание' },
+  { id: 'summary', kind: 'info', label: 'Сводка' },
+  { id: 'timeline', kind: 'projects', label: 'Таймлайн' },
+];
+
 // ===================== ADMIN DASHBOARD =====================
 // The control panel: every reminder, the upcoming-sessions lookahead, and the
 // client/session/consultation stats (minus «Частый стиль», which stays a
@@ -42,6 +57,7 @@ import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 // — they're one-off maintenance, not something to trip over here.
 export function AdminDashboardScreen({
   clients,
+  projects,
   masterNotes,
   prefs,
   onChangePrefs,
@@ -72,6 +88,7 @@ export function AdminDashboardScreen({
   onOpenCalendar,
 }: {
   clients: Client[];
+  projects: Project[];
   masterNotes: ClientNote[];
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
@@ -107,6 +124,7 @@ export function AdminDashboardScreen({
   onOpenNotes: (urgency: UrgencyKey) => void;
   onOpenCalendar: () => void;
 }) {
+  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('reminders');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
   const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.statsWindowDays);
@@ -146,74 +164,87 @@ export function AdminDashboardScreen({
         <TodayDateBadge onOpen={onOpenCalendar} />
       </div>
 
+      {/* Та же строка вкладок-самоцветов, что у карточки клиента и личного
+          кабинета (см. ClientCardTabBar) — «оформим админку по форме как
+          карточка клиента»: 4 вкладки вместо одной длинной прокрутки. */}
+      <ClientCardTabBar tabs={ADMIN_TABS} activeTab={tab} onTab={setTab} ariaLabel="Разделы админки" />
+
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* «Запланировать» now lives only behind the nav FAB's contextual
             create button (same calendar-driven creation walk) — this screen
             no longer duplicates it as its own standalone button. */}
 
-        {/* Уведомления и напоминания идут наверх, над блоком предстоящих
-            сессий — это то, что требует внимания мастера в первую очередь. */}
-        <RemindersSection
-          overdue={overdue}
-          healing={healing}
-          soon={soon}
-          overdueProjectSessions={overdueProjectSessions}
-          soonProjectSessions={soonProjectSessions}
-          overdueProjectConsultations={overdueProjectConsultations}
-          soonProjectConsultations={soonProjectConsultations}
-          dueProjects={dueProjects}
-          staleProjects={staleProjects}
-          tasks={tasks}
-          clients={clients}
-          onOpenProject={onOpenProject}
-          onOpenEntry={onOpenEntry}
-          onDismiss={onDismissReminder}
-          onSnooze={onSnoozeReminder}
-          onRestore={onRestoreReminder}
-          onCancel={onCancelEntry}
-          onCompleteTask={onCompleteTask}
-          onOpenTask={onOpenTask}
-          onAddHealingPhoto={onAddHealingPhoto}
-          onScheduleCorrection={onScheduleCorrection}
-          onHideAllHealing={onHideAllHealing}
-        />
-
-        {/* Предстоящие записи (M5C) — компактно, без внешней GoldFrame, та же
-            визуальная логика, что у групп напоминаний и «Рабочей сводки».
-            upcomingItems по-прежнему единственный источник того, какие
-            записи попадают в список и в каком порядке — группировка по дням
-            только раскладывает уже готовый результат. */}
-        <UpcomingScheduleSection
-          groups={upcomingSchedule}
-          selectedWindowDays={prefs.upcomingWindowDays}
-          onChangeWindowDays={(days) => onChangePrefs({ ...prefs, upcomingWindowDays: days })}
-          onOpenSession={onOpenSession}
-        />
-
-        {/* Обратный поток: брони от бота отдельным блоком (любой тег —
-            бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
-            [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
-            справочный список, карточку мастер заводит в Дневнике сама
-            (см. calendarSync.ts). Сгруппирован с «Предстоящие записи» —
-            оба про то, что запланировано впереди. */}
-        {syncActive(calendarSync) && (
-          <GoldFrame style={{ padding: '14px 16px' }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
-            <div style={{ marginTop: 8 }}>
-              <BotBookingsList settings={calendarSync} />
-            </div>
-          </GoldFrame>
+        {tab === 'reminders' && (
+          <RemindersSection
+            overdue={overdue}
+            healing={healing}
+            soon={soon}
+            overdueProjectSessions={overdueProjectSessions}
+            soonProjectSessions={soonProjectSessions}
+            overdueProjectConsultations={overdueProjectConsultations}
+            soonProjectConsultations={soonProjectConsultations}
+            dueProjects={dueProjects}
+            staleProjects={staleProjects}
+            tasks={tasks}
+            clients={clients}
+            onOpenProject={onOpenProject}
+            onOpenEntry={onOpenEntry}
+            onDismiss={onDismissReminder}
+            onSnooze={onSnoozeReminder}
+            onRestore={onRestoreReminder}
+            onCancel={onCancelEntry}
+            onCompleteTask={onCompleteTask}
+            onOpenTask={onOpenTask}
+            onAddHealingPhoto={onAddHealingPhoto}
+            onScheduleCorrection={onScheduleCorrection}
+            onHideAllHealing={onHideAllHealing}
+          />
         )}
 
-        {/* Рабочая сводка (M5B) — компактная замена прежней россыпи рамок:
-            тумблер периода статистики + карточка «Клиентов» + два
-            SplitStatBlock. Все семь чисел прежние, посчитаны снаружи. */}
-        <AdminWorkSummary
-          model={workSummary}
-          selectedWindowDays={prefs.statsWindowDays}
-          onChangeWindowDays={(days) => onChangePrefs({ ...prefs, statsWindowDays: days })}
-          onOpenNotes={onOpenNotes}
-        />
+        {tab === 'schedule' && (
+          <>
+            {/* Предстоящие записи (M5C) — компактно, без внешней GoldFrame, та же
+                визуальная логика, что у групп напоминаний и «Рабочей сводки».
+                upcomingItems по-прежнему единственный источник того, какие
+                записи попадают в список и в каком порядке — группировка по дням
+                только раскладывает уже готовый результат. */}
+            <UpcomingScheduleSection
+              groups={upcomingSchedule}
+              selectedWindowDays={prefs.upcomingWindowDays}
+              onChangeWindowDays={(days) => onChangePrefs({ ...prefs, upcomingWindowDays: days })}
+              onOpenSession={onOpenSession}
+            />
+
+            {/* Обратный поток: брони от бота отдельным блоком (любой тег —
+                бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
+                [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
+                справочный список, карточку мастер заводит в Дневнике сама
+                (см. calendarSync.ts). Сгруппирован с «Предстоящие записи» —
+                оба про то, что запланировано впереди. */}
+            {syncActive(calendarSync) && (
+              <GoldFrame style={{ padding: '14px 16px' }}>
+                <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
+                <div style={{ marginTop: 8 }}>
+                  <BotBookingsList settings={calendarSync} />
+                </div>
+              </GoldFrame>
+            )}
+          </>
+        )}
+
+        {tab === 'summary' && (
+          /* Рабочая сводка (M5B) — компактная замена прежней россыпи рамок:
+             тумблер периода статистики + карточка «Клиентов» + два
+             SplitStatBlock. Все семь чисел прежние, посчитаны снаружи. */
+          <AdminWorkSummary
+            model={workSummary}
+            selectedWindowDays={prefs.statsWindowDays}
+            onChangeWindowDays={(days) => onChangePrefs({ ...prefs, statsWindowDays: days })}
+            onOpenNotes={onOpenNotes}
+          />
+        )}
+
+        {tab === 'timeline' && <ProjectTimelineList projects={projects} clients={clients} />}
       </div>
     </div>
   );

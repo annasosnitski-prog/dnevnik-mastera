@@ -1,8 +1,8 @@
 import { useId, type CSSProperties } from 'react';
 import { useMinimalism } from '../ui/minimalism';
-import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
+import { COLORS } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
-import { NaturalStoneIcon, type NaturalStoneKind } from '../navigation/NaturalStoneIcon';
+import { NaturalStoneIcon } from '../navigation/NaturalStoneIcon';
 import './ClientCardTabBar.css';
 
 // Разделяемый каркас вкладок «карточки клиента» (подвеска-самоцвет + строка
@@ -24,25 +24,13 @@ const GEM_INDEX: Record<ClientTabIconName, number> = {
   projects: 5,
 };
 
-// The client tabs map their meanings onto the same territory palette as the
-// radial toolbar. Ornate and minimal skins therefore keep one colour contract.
-const GEM_COLOR: Record<ClientTabIconName, string> = {
-  sessions: TERRITORY_COLORS.admin,
-  consultations: TERRITORY_COLORS.clients,
-  content: TERRITORY_COLORS.content,
-  notes: TERRITORY_COLORS.notes,
-  info: TERRITORY_COLORS.personal,
-  projects: TERRITORY_COLORS.projects,
-};
-
-const GEM_NATURAL_STONE: Record<ClientTabIconName, NaturalStoneKind> = {
-  sessions: 'rhodonite',
-  consultations: 'malachite',
-  content: 'star-sapphire',
-  notes: 'fire-opal',
-  info: 'honey-jadeite',
-  projects: 'turquoise',
-};
+// Every tab's stone used to be keyed off the same territory palette as the
+// radial toolbar (its own colour per kind, dark-theme sprite tile and
+// light-theme mineral alike) — retired per Anna's direction: every tab now
+// shares one gold rhombus cut instead, so a single accent colour covers the
+// halo/glow and the Минимализм skin's icon tint everywhere a stone used to
+// carry its own hue.
+const GEM_GOLD = COLORS.gold;
 
 const TABLIST_STYLE: CSSProperties = {
   display: 'flex',
@@ -148,7 +136,7 @@ function GemTabMarker({
   active: boolean;
 }) {
   const minimalism = useMinimalism();
-  const color = GEM_COLOR[kind];
+  const color = GEM_GOLD;
 
   if (minimalism) {
     return (
@@ -245,7 +233,7 @@ function GemTabMarker({
             zIndex: 2,
           }}
         >
-          <NaturalStoneIcon kind={GEM_NATURAL_STONE[kind]} size={GEM_SIZE} medallion />
+          <NaturalStoneIcon size={GEM_SIZE} medallion goldDiamond />
         </span>
       </span>
     </span>

@@ -6,8 +6,8 @@
      viewBox="0 0 384 64"
      role="img"
      aria-labelledby="title desc">
-  <title id="title">Round gold medallion navigation icons</title>
-  <desc id="desc">Six round gold medallions matching the radial toolbar hub, each with a centre stone one sixth of the sprite diameter: ruby sessions, emerald consultations, amethyst content, fire-opal notes, citrine info, and dark-sapphire projects.</desc>
+  <title id="title">Gold rhombus navigation icons</title>
+  <desc id="desc">Six gold rhombus medallions — pendant body and centre stone alike, both a rhombus cut, identical across all six tiles (previously a round medallion with a colour-coded round stone per tile; unified per Anna's direction).</desc>
 
   <view id="sessions" viewBox="0 0 64 64"/>
   <view id="consultations" viewBox="64 0 64 64"/>
@@ -48,6 +48,14 @@
       <stop offset=".82" stop-color="#FFFFFF"/>
       <stop offset="1" stop-color="#929DAA"/>
     </radialGradient>
+    <!-- The centre stone's own gold tone — same warm ratios as gold-face,
+         just linear instead of radial since the stone is a flat rhombus,
+         not a domed disc. -->
+    <linearGradient id="rhombus-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF8D7"/>
+      <stop offset=".4" stop-color="#FFD777"/>
+      <stop offset="1" stop-color="#B88B32"/>
+    </linearGradient>
 
     <filter id="medallion-shadow" x="-20%" y="-20%" width="140%" height="150%">
       <feGaussianBlur in="SourceAlpha" stdDeviation="1.1" result="blur"/>
@@ -75,15 +83,21 @@
     </g>
 
     <!-- The 64px tile stays fixed. The visible gold body loses 16px of its
-         diameter (one quarter of the tile): 58px becomes exactly 42px. -->
+         diameter (one quarter of the tile): 58px becomes exactly 42px. The
+         pendant itself is a rhombus now too (not just the centre stone, see
+         centre-stone below) — every ring that used to be a circle at radius
+         R is the same rhombus, vertices at 32±R along each axis. The eight
+         pavé diamonds still ring the true outline: four sit on the sharp
+         points (unchanged, they were already there), the other four moved
+         off the old circle onto the rhombus edges' midpoints. -->
     <g id="gold-medallion">
       <g transform="translate(32 32) scale(.724138) translate(-32 -32)">
-        <circle cx="32" cy="32" r="29" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".7"/>
-        <circle cx="32" cy="32" r="28" fill="none" stroke="url(#gold-edge)" stroke-width=".95"/>
-        <circle cx="32" cy="32" r="24.5" fill="#2C0A00" stroke="#FFCF68" stroke-width=".8"/>
-        <circle cx="32" cy="32" r="23.65" fill="none" stroke="#6A2702" stroke-width=".4"/>
-        <circle cx="32" cy="32" r="23" fill="url(#plate-face)" stroke="#4B1A00" stroke-width=".5"/>
-        <circle cx="32" cy="32" r="20" fill="none" stroke="url(#gold-edge)" stroke-width=".5"/>
+        <polygon points="32,3 61,32 32,61 3,32" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".7"/>
+        <polygon points="32,4 60,32 32,60 4,32" fill="none" stroke="url(#gold-edge)" stroke-width=".95"/>
+        <polygon points="32,7.5 56.5,32 32,56.5 7.5,32" fill="#2C0A00" stroke="#FFCF68" stroke-width=".8"/>
+        <polygon points="32,8.35 55.65,32 32,55.65 8.35,32" fill="none" stroke="#6A2702" stroke-width=".4"/>
+        <polygon points="32,9 55,32 32,55 9,32" fill="url(#plate-face)" stroke="#4B1A00" stroke-width=".5"/>
+        <polygon points="32,12 52,32 32,52 12,32" fill="none" stroke="url(#gold-edge)" stroke-width=".5"/>
         <!-- The tube sits directly above the pendant. Its light lands on the
              upper crown as a soft gold wash with a narrower hot reflection. -->
         <path data-tube-reflection="ambient" d="M13.5 26 C20 12.5 44 12.5 50.5 26" fill="none" stroke="#FFD777" stroke-width="4.2" stroke-linecap="round" opacity=".15"/>
@@ -91,52 +105,55 @@
         <path d="M22 20 30 15" stroke="#FFF0B3" stroke-width="1.2" stroke-linecap="round" opacity=".4"/>
 
         <use href="#pave" xlink:href="#pave" transform="translate(32 5.2)"/>
-        <use href="#pave" xlink:href="#pave" transform="translate(50.95 13.05)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(45.4 18.6)"/>
         <use href="#pave" xlink:href="#pave" transform="translate(58.8 32)"/>
-        <use href="#pave" xlink:href="#pave" transform="translate(50.95 50.95)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(45.4 45.4)"/>
         <use href="#pave" xlink:href="#pave" transform="translate(32 58.8)"/>
-        <use href="#pave" xlink:href="#pave" transform="translate(13.05 50.95)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(18.6 45.4)"/>
         <use href="#pave" xlink:href="#pave" transform="translate(5.2 32)"/>
-        <use href="#pave" xlink:href="#pave" transform="translate(13.05 13.05)"/>
+        <use href="#pave" xlink:href="#pave" transform="translate(18.6 18.6)"/>
       </g>
     </g>
 
-    <!-- The coloured face is exactly 10.666666px across: 64px / 6. -->
+    <!-- The stone's own footprint is exactly 10.666666px across: 64px / 6 —
+         a true rhombus silhouette now (four points, not a circle dressed up
+         with diamond shading), so every tab shares one identical gold cut
+         instead of a colour keyed off `color`/currentColor. -->
     <g id="centre-stone">
-      <circle cx="32" cy="32" r="6.15" fill="#2C0A00" stroke="url(#gold-edge)" stroke-width=".7"/>
-      <circle cx="32" cy="32" r="5.333333" fill="currentColor" opacity=".38" filter="url(#stone-glow)"/>
-      <circle cx="32" cy="32" r="5.333333" fill="currentColor" stroke="#160800" stroke-opacity=".7" stroke-width=".35"/>
+      <polygon points="32,25.85 38.15,32 32,38.15 25.85,32" fill="#2C0A00" stroke="url(#gold-edge)" stroke-width=".7"/>
+      <polygon points="32,26.667 37.333,32 32,37.333 26.667,32" fill="url(#rhombus-gold)" opacity=".4" filter="url(#stone-glow)"/>
+      <polygon points="32,26.667 37.333,32 32,37.333 26.667,32" fill="url(#rhombus-gold)" stroke="#160800" stroke-opacity=".7" stroke-width=".35"/>
       <path d="M32 26.667 37.333 32 32 32Z" fill="#FFFFFF" opacity=".34"/>
       <path d="M37.333 32 32 37.333 32 32Z" fill="#000000" opacity=".23"/>
       <path d="M32 37.333 26.667 32 32 32Z" fill="#000000" opacity=".38"/>
       <path d="M26.667 32 32 26.667 32 32Z" fill="#FFFFFF" opacity=".12"/>
       <circle cx="32" cy="32" r="2.25" fill="#FFFFFF" opacity=".1"/>
       <path d="M29.25 29.35 31.2 27.9" stroke="#FFFFFF" stroke-width=".75" stroke-linecap="round" opacity=".9"/>
-      <circle cx="32" cy="32" r="5.333333" fill="none" stroke="#FFFFFF" stroke-opacity=".25" stroke-width=".25"/>
+      <polygon points="32,26.667 37.333,32 32,37.333 26.667,32" fill="none" stroke="#FFFFFF" stroke-opacity=".25" stroke-width=".25"/>
     </g>
   </defs>
 
-  <g id="sessions-icon" color="#B01236" filter="url(#medallion-shadow)">
+  <g id="sessions-icon" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="consultations-icon" color="#008A5A" transform="translate(64 0)" filter="url(#medallion-shadow)">
+  <g id="consultations-icon" transform="translate(64 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="content-icon" color="#7935B2" transform="translate(128 0)" filter="url(#medallion-shadow)">
+  <g id="content-icon" transform="translate(128 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="notes-icon" color="#D45A1F" transform="translate(192 0)" filter="url(#medallion-shadow)">
+  <g id="notes-icon" transform="translate(192 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="info-icon" color="#C99516" transform="translate(256 0)" filter="url(#medallion-shadow)">
+  <g id="info-icon" transform="translate(256 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
-  <g id="projects-icon" color="#1448A7" transform="translate(320 0)" filter="url(#medallion-shadow)">
+  <g id="projects-icon" transform="translate(320 0)" filter="url(#medallion-shadow)">
     <use href="#gold-medallion" xlink:href="#gold-medallion"/>
     <use href="#centre-stone" xlink:href="#centre-stone"/>
   </g>
