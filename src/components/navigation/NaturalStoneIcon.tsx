@@ -27,6 +27,15 @@ const STONE_SPRITE_INDEX: Record<NaturalStoneKind, number> = {
   turquoise: 5,
 };
 
+// The `goldDiamond` skin swaps every ring that would otherwise be a circle
+// at radius r, centred on this icon's fixed (32,32) origin, for a rhombus of
+// the same radius — used for both the outer bronze body and the stone's own
+// bezel so the whole pendant reads as one diamond, not a round coin with a
+// diamond stone set in it.
+function rhombusPoints(r: number): string {
+  return `32,${32 - r} ${32 + r},32 32,${32 + r} ${32 - r},32`;
+}
+
 function StoneSurfaceLight({
   medallion,
   clipId,
@@ -148,9 +157,19 @@ export function NaturalStoneIcon({
       </defs>
 
       <g filter={`url(#${shadowId})`}>
-        <circle cx="32" cy="32" r={outerR} fill={`url(#${metalId})`} stroke="var(--bronze-edge-shadow)" strokeWidth="1.15" />
-        <circle cx="32" cy="32" r={outerR - 1.8} fill="none" stroke={`url(#${edgeId})`} strokeWidth="1.05" />
-        <circle cx="32" cy="32" r={outerR - 3.8} fill="none" stroke="var(--bronze-recess)" strokeWidth="1" opacity=".92" />
+        {goldDiamond ? (
+          <>
+            <polygon points={rhombusPoints(outerR)} fill={`url(#${metalId})`} stroke="var(--bronze-edge-shadow)" strokeWidth="1.15" />
+            <polygon points={rhombusPoints(outerR - 1.8)} fill="none" stroke={`url(#${edgeId})`} strokeWidth="1.05" />
+            <polygon points={rhombusPoints(outerR - 3.8)} fill="none" stroke="var(--bronze-recess)" strokeWidth="1" opacity=".92" />
+          </>
+        ) : (
+          <>
+            <circle cx="32" cy="32" r={outerR} fill={`url(#${metalId})`} stroke="var(--bronze-edge-shadow)" strokeWidth="1.15" />
+            <circle cx="32" cy="32" r={outerR - 1.8} fill="none" stroke={`url(#${edgeId})`} strokeWidth="1.05" />
+            <circle cx="32" cy="32" r={outerR - 3.8} fill="none" stroke="var(--bronze-recess)" strokeWidth="1" opacity=".92" />
+          </>
+        )}
         <path d="M13 17a25 25 0 0 1 12-8M48 48a24 24 0 0 1-14 8" fill="none" stroke="var(--bronze-highlight)" strokeWidth=".72" strokeLinecap="round" opacity=".34" />
         <path d="M50 18a24 24 0 0 1 5 13M9 37a24 24 0 0 1 3-12" fill="none" stroke="var(--bronze-shadow)" strokeWidth=".78" strokeLinecap="round" opacity=".38" />
 
@@ -162,7 +181,11 @@ export function NaturalStoneIcon({
           </>
         ) : (
           <>
-            <circle cx="32" cy="32" r={stoneR + (medallion ? 2.2 : 1.6)} fill="var(--bronze-recess)" stroke={`url(#${edgeId})`} strokeWidth={medallion ? 1.1 : 1.25} />
+            {goldDiamond ? (
+              <polygon points={rhombusPoints(stoneR + (medallion ? 2.2 : 1.6))} fill="var(--bronze-recess)" stroke={`url(#${edgeId})`} strokeWidth={medallion ? 1.1 : 1.25} />
+            ) : (
+              <circle cx="32" cy="32" r={stoneR + (medallion ? 2.2 : 1.6)} fill="var(--bronze-recess)" stroke={`url(#${edgeId})`} strokeWidth={medallion ? 1.1 : 1.25} />
+            )}
             <path d={medallion ? 'M27 30a6 6 0 0 1 4-4M36 37a6 6 0 0 1-4 1' : 'M14 26a21 21 0 0 1 13-13M49 45a21 21 0 0 1-13 6'} fill="none" stroke="var(--bronze-light)" strokeWidth={medallion ? '.46' : '.72'} strokeLinecap="round" opacity=".34" />
             {goldDiamond ? (
               // A flat gold rhombus set in the same bronze bezel, in place of

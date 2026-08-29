@@ -103,12 +103,15 @@ test('toolbar stones render optical depth below the crown without extra blur fil
 // это ромб (полигон с вершинами на том же радиусе — 26.667/37.333, т.е.
 // прежние 32±5.333333), залитый одним общим золотым градиентом, и одинаков
 // на всех шести плитках спрайта — ни один `<g id="...-icon">` больше не
-// задаёт свой `color`.
-test('ornate tabs use the main-button gold material and one shared rhombus centre stone', () => {
+// задаёт свой `color`. Сама подвеска (gold-medallion) тоже стала ромбом —
+// не только камень внутри неё: каждое кольцо, что раньше было кругом радиуса
+// R, теперь полигон с вершинами на 32±R по осям.
+test('ornate tabs use the main-button gold material, and the whole pendant is a rhombus', () => {
   assert.match(gemSprite, /id="gold-face"[\s\S]*stop-color="#FFF8D7"[\s\S]*stop-color="#B88B32"[\s\S]*stop-color="#E2B655"[\s\S]*stop-color="#431A00"/);
   assert.doesNotMatch(pendantIcon, /#C77A14|#EFAD3C|#B45F0B|#F1B54A/);
   assert.doesNotMatch(gemSprite, /#C77A14|#EFAD3C|#B45F0B|#F1B54A/);
-  assert.match(gemSprite, /id="gold-medallion"[\s\S]*scale\(\.724138\)[\s\S]*r="29" fill="url\(#gold-face\)"/);
+  assert.match(gemSprite, /id="gold-medallion"[\s\S]*scale\(\.724138\)[\s\S]*polygon points="32,3 61,32 32,61 3,32" fill="url\(#gold-face\)"/);
+  assert.doesNotMatch(gemSprite, /id="gold-medallion"[\s\S]{0,400}<circle/);
   assert.match(gemSprite, /id="rhombus-gold"/);
   assert.match(gemSprite, /id="centre-stone">\s*<polygon points="32,25\.85 38\.15,32 32,38\.15 25\.85,32"/);
   assert.doesNotMatch(gemSprite, /r="5\.333333"/);
