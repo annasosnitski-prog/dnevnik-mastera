@@ -985,6 +985,19 @@ export default function TattoDiary() {
   // честный статус в Настройках (см. persistenceText в lib/storageHealth.ts).
   const [persistence, setPersistence] = useState<PersistenceState>('unsupported');
   const [storageEstimate, setStorageEstimate] = useState<{ usage?: number; quota?: number } | null>(null);
+  // Отдельно от эффекта ниже: цифру «занято» нужно уметь переспросить и
+  // после запуска — например, когда уборка черновиков копии только что
+  // освободила место, и показанное значение стало неправдой.
+  const refreshStorageEstimate = () => {
+    const storage = navigator.storage as StorageManager | undefined;
+    if (!storage?.estimate) return;
+    storage
+      .estimate()
+      .then((estimate) => setStorageEstimate({ usage: estimate.usage, quota: estimate.quota }))
+      .catch(() => {
+        /* оценка объёма необязательна */
+      });
+  };
   useEffect(() => {
     let cancelled = false;
     const check = async () => {
@@ -1158,6 +1171,48 @@ export default function TattoDiary() {
   useEffect(() => {
     connectDb();
     return () => clearTimeout(reconnectTimerRef.current);
+  }, []);
+
+  // Подметаем черновики прошлых сборок копии ПРИ КАЖДОМ ЗАПУСКЕ.
+  //
+  // Раньше уборка жила только внутри самой сборки, и это оставляло мастера
+  // запертой: сборку копии обрывает снятая браузером вкладка, после неё в
+  // OPFS остаётся архив целиком, следующая сборка считает требование
+  // свободного места от раздутого мусором usage — и отказывается работать.
+  // Убрать мусор могла только сборка, а сборка не запускалась из-за мусора.
+  // У мастера так накопилось 71 ГБ при 473 МБ настоящих данных, и копию
+  // стало нельзя сделать вообще.
+  //
+  // Поэтому уборка переехала туда, где ей ничто не мешает: в запуск. Страница
+  // только что загрузилась, ни одна копия не может быть «в пути», удалять
+  // безопасно. Отдельный модуль без zip.js — чтобы не тянуть архиватор
+  // (139 кБ) в основной бандл ради нескольких строк.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { sweepBackupScratch } = await import('../lib/backupScratch');
+        const swept = await sweepBackupScratch();
+        if (cancelled || swept.removed === 0) return;
+        // В журнал, а не плашкой: мастеру эта уборка ничего не сообщает и
+        // ничего от неё не требует. А вот разбирать «куда делись гигабайты»
+        // по журналу — единственный способ.
+        logError(
+          'storage',
+          'уборка черновиков копии',
+          `удалено файлов: ${swept.removed}, освобождено байт: ${swept.bytes}`,
+        );
+        // Цифра «занято» в Настройках посчитана до уборки — просим заново,
+        // иначе мастер увидит старое значение до перезапуска.
+        refreshStorageEstimate();
+      } catch {
+        // OPFS может не поддерживаться или быть недоступна — дневник от
+        // этого не зависит.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Возвращение в приложение — главный момент, когда соединения уже нет:

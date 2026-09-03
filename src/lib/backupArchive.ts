@@ -14,6 +14,7 @@ import { normalizeContentEntry } from './contentApproval.js';
 import type { BackupSourceIdentity } from './backupIdentity.js';
 import { MASTER_INFO_RECORD_ID, MASTER_INFO_STORE, normalizeMasterInfo, type MasterInfo } from './masterInfoStore.js';
 import { normalizeClient, normalizeProject } from './normalize.js';
+import { BACKUP_SCRATCH_DIRECTORY, sweepBackupScratch } from './backupScratch.js';
 
 const BACKUP_FORMAT = 'inka-backup';
 export const BACKUP_ARCHIVE_VERSION = 6;
@@ -21,7 +22,6 @@ export const BACKUP_ARCHIVE_VERSION = 6;
 // (см. shareOrDownloadFile): предмет без типа окно «Поделиться» отдать не
 // может, и вместо файла уезжает что угодно другое.
 export const BACKUP_ARCHIVE_MIME = 'application/zip';
-const BACKUP_DIRECTORY = 'inka-prepared-backups';
 const MANIFEST_PATH = 'manifest.json';
 const ERROR_LOG_PATH = 'diagnostics/errorLog.json';
 const MAX_JSON_ENTRY_BYTES = 64 * 1024 * 1024;
@@ -380,6 +380,11 @@ async function checkFreeSpace(): Promise<void> {
     // size). 0.8 leaves a little room for JSON and ZIP headers. The origin is
     // dedicated to the diary, so current usage is a useful conservative
     // estimate of the archive's upper bound.
+    //
+    // Это верно ровно до тех пор, пока в хранилище нет ЧУЖОГО веса. Черновики
+    // прошлых сборок как раз такой вес: они не источник копии, но лежат в том
+    // же usage. Отсюда правило — звать эту проверку только после
+    // sweepBackupScratch(), иначе оценка меряет мусор и запрещает копию.
     const required = Math.max(MIN_FREE_SPACE_BYTES, estimate.usage * 0.8);
     const available = estimate.quota - estimate.usage;
     if (available < required) throw new BackupArchiveSpaceError(required, available);
@@ -446,12 +451,24 @@ export async function prepareBackupArchive(
   if (!getDirectory) throw new BackupArchiveUnsupportedError();
   throwIfAborted(options.signal);
   const root = await getDirectory.call(navigator.storage);
-  const directory = await root.getDirectoryHandle(BACKUP_DIRECTORY, { create: true });
+  const directory = await root.getDirectoryHandle(BACKUP_SCRATCH_DIRECTORY, { create: true });
   const now = options.now ?? new Date();
   const filename = archiveFilename(now, options.source.ownerName);
-  // A prepared-but-not-shared copy from an interrupted attempt must not make
-  // the quota preflight count that same output twice.
-  await directory.removeEntry(filename).catch(() => undefined);
+  // Выметаем ВЕСЬ каталог, а не файл с сегодняшним именем.
+  //
+  // Раньше здесь стоял removeEntry(filename) — то есть удалялся ровно тот
+  // архив, который мы собираемся писать сейчас. Имя содержит дату, поэтому
+  // вчерашняя неудачная попытка так и оставалась лежать; а главное — при
+  // обрыве сборки вкладку обычно СНИМАЕТ браузер (это самый тяжёлый момент в
+  // жизни дневника), и тогда не выполняется никакой JS: ни catch ниже, ни
+  // finally. Каталог превращался в свалку из архивов и файлов подкачки.
+  //
+  // Это не только место: требование свободного места ниже считается от
+  // общего usage хранилища, в расчёте на то, что источник в нём один — сам
+  // дневник. Свалка это ломала, и дневник отказывался собирать копию,
+  // требуя десятки гигабайт свободного места. Поэтому уборка ОБЯЗАНА идти
+  // до checkFreeSpace: иначе мусор считает сам себя.
+  await sweepBackupScratch();
   await checkFreeSpace();
   const fileHandle = await directory.getFileHandle(filename, { create: true });
   const writable = await fileHandle.createWritable();
