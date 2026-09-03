@@ -1308,6 +1308,41 @@ export default function TattoDiary() {
     }
   };
 
+  // Стирает легаси-массивы sessions/consultations во ВСЕХ карточках клиентов
+  // — вызывается вручную из Настроек, кнопкой «Освободить» под разбором
+  // занятого места (см. lib/storageBreakdown.ts, раздел legacy). Дневник эти
+  // массивы не читает вообще — они страховка на случай, если перенос записей
+  // на проекты (Этап 2, см. миграцию выше) что-то положил неверно; удалить
+  // их можно, ничего не потеряв.
+  //
+  // Не через withStorage: это не «мастер поправила карточку», а разовая
+  // массовая операция по явному нажатию, клиентов может быть под сотню —
+  // копится, как миграция выше, одной транзакцией, без очереди отложенных
+  // записей.
+  //
+  // null — сбой (тот же контракт, что у measureStorageUse, и то же
+  // сообщение в Настройках); 0 — очищать было нечего.
+  const clearLegacyClientRecords = (): Promise<number | null> => {
+    const database = dbRef.current ?? db;
+    if (!database) return Promise.resolve(null);
+    const changed = storedClients.filter((c) => c.sessions.length > 0 || c.consultations.length > 0);
+    if (changed.length === 0) return Promise.resolve(0);
+    const tx = openWriteTx('clients', database, STORAGE_ACTIONS.clearLegacyRecords);
+    if (!tx) return Promise.resolve(null);
+    const store = tx.objectStore('clients');
+    for (const client of changed) store.put({ ...client, sessions: [], consultations: [] });
+    return new Promise<number | null>((resolve) => {
+      tx.oncomplete = () => {
+        loadClients(database);
+        resolve(changed.length);
+      };
+      tx.onerror = () => {
+        reportStorageFailure('write', STORAGE_ACTIONS.clearLegacyRecords);
+        resolve(null);
+      };
+    });
+  };
+
   const prepareFullBackup = async (options: PrepareBackupArchiveOptions): Promise<PreparedBackupArchive> => {
     if (!db) return Promise.reject(new Error('Хранилище сейчас недоступно. Нажмите «Повторить» и попробуйте снова.'));
     const { prepareBackupArchive } = await import('../lib/backupArchive');
@@ -3437,6 +3472,7 @@ export default function TattoDiary() {
               minimalism={minimalism}
               onChangeMinimalism={setMinimalism}
               onMeasureStorage={measureStorageUse}
+              onClearLegacyRecords={clearLegacyClientRecords}
               prefs={prefs}
               onChange={setPrefs}
               onBack={() => setScreen('master')}

@@ -117,6 +117,7 @@ export function SettingsScreen({
   onImportArchive,
   onOpenCalendar,
   onMeasureStorage,
+  onClearLegacyRecords,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -152,6 +153,11 @@ export function SettingsScreen({
   // Настроек значило бы платить за него постоянно ради цифры, которая нужна
   // раз в месяц. Возвращает null, если хранилище сейчас недоступно.
   onMeasureStorage: () => Promise<StorageBreakdown | null>;
+  // Стирает легаси-массивы sessions/consultations во всех карточках клиентов
+  // (см. lib/storageBreakdown.ts, раздел legacy) — только когда мастер сама
+  // нажала «Освободить» под разбором места. null — сбой, тот же контракт,
+  // что у onMeasureStorage; 0 — очищать было нечего.
+  onClearLegacyRecords: () => Promise<number | null>;
   lastBackupAt: string | null;
   // Вызывается ТОЛЬКО когда копия реально уехала из телефона: отмена и сбой
   // копией не считаются, иначе напоминание замолчало бы, ничего не защитив.
@@ -242,6 +248,37 @@ export function SettingsScreen({
     } finally {
       setMeasuring(false);
     }
+  };
+
+  // Освободить легаси-копии — трёхшаговое подтверждение (кнопка → «Удалить»/
+  // «Отмена» → результат), тем же приёмом, что и «Заменить» у импорта ниже:
+  // удаление без возврата не должно случаться от одного случайного тапа.
+  //
+  // 'done' хранит freedBytes ИЗ ТЕКУЩЕГО breakdown, снятого ДО очистки: сам
+  // акт удаления освобождает место в браузере не мгновенно и не выдаёт
+  // точную цифру, а breakdown после переизмерения покажет уже 0 — сказать
+  // мастеру, сколько было, можно только запомнив это заранее.
+  const [legacyClearState, setLegacyClearState] = useState<
+    | { kind: 'idle' }
+    | { kind: 'confirm' }
+    | { kind: 'clearing' }
+    | { kind: 'done'; freedBytes: number; clientsChanged: number }
+    | { kind: 'error' }
+  >({ kind: 'idle' });
+  const handleClearLegacy = async () => {
+    if (!breakdown) return;
+    const freedBytes = breakdown.legacy.bytes;
+    setLegacyClearState({ kind: 'clearing' });
+    const changed = await onClearLegacyRecords();
+    if (changed === null) {
+      setLegacyClearState({ kind: 'error' });
+      return;
+    }
+    setLegacyClearState({ kind: 'done', freedBytes, clientsChanged: changed });
+    // Переизмеряем: раздел «Старые копии» в таблице ниже обязан пропасть
+    // сам, а не висеть с прежней цифрой до следующего ручного нажатия.
+    const result = await onMeasureStorage();
+    if (result) setBreakdown(result);
   };
   const archiveSourceRelation =
     pendingImport?.kind === 'archive'
@@ -810,10 +847,62 @@ export function SettingsScreen({
                     </div>
                   ))}
               </div>
-              {reclaimableBytes(breakdown) > 0 && (
+              {/* Успех показываем ОТДЕЛЬНО от «можно освободить»: после
+                  очистки breakdown переизмеряется, раздел legacy пропадает
+                  из таблицы выше и reclaimableBytes падает до нуля — если бы
+                  сообщение об успехе висело в том же условии, оно исчезло бы
+                  вместе с ним, не успев показаться. */}
+              {legacyClearState.kind === 'done' && (
                 <div style={{ marginTop: 10, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', lineHeight: 1.5 }}>
-                  Можно освободить {formatMegabytes(reclaimableBytes(breakdown))}, ничего не потеряв — это старые
-                  копии после переноса записей на проекты.
+                  Освобождено {formatMegabytes(legacyClearState.freedBytes)} — очищено {legacyClearState.clientsChanged}{' '}
+                  карточ{legacyClearState.clientsChanged === 1 ? 'ка' : 'ек'} клиентов.
+                </div>
+              )}
+              {reclaimableBytes(breakdown) > 0 && legacyClearState.kind !== 'done' && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', lineHeight: 1.5 }}>
+                    Можно освободить {formatMegabytes(reclaimableBytes(breakdown))}, ничего не потеряв — это старые
+                    копии после переноса записей на проекты.
+                  </div>
+                  {legacyClearState.kind === 'confirm' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                      <span style={{ fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', flex: 1, minWidth: 160 }}>
+                        Удалить без возврата? Дневник их не читает — терять нечего.
+                      </span>
+                      <span
+                        onClick={handleClearLegacy}
+                        style={{ fontSize: fs(12), color: 'var(--urgent)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
+                      >
+                        Удалить
+                      </span>
+                      <span
+                        onClick={() => setLegacyClearState({ kind: 'idle' })}
+                        style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}
+                      >
+                        Отмена
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={legacyClearState.kind === 'clearing' ? undefined : () => setLegacyClearState({ kind: 'confirm' })}
+                      role="button"
+                      style={{
+                        ...actionButtonStyle,
+                        marginTop: 8,
+                        padding: '8px 0',
+                        fontSize: fs(12),
+                        opacity: legacyClearState.kind === 'clearing' ? 0.6 : 1,
+                        cursor: legacyClearState.kind === 'clearing' ? 'default' : 'pointer',
+                      }}
+                    >
+                      {legacyClearState.kind === 'clearing' ? 'Удаляем…' : 'Освободить'}
+                    </div>
+                  )}
+                  {legacyClearState.kind === 'error' && (
+                    <div style={{ marginTop: 8, fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic' }}>
+                      Не удалось очистить — хранилище сейчас недоступно. Попробуйте ещё раз.
+                    </div>
+                  )}
                 </div>
               )}
               {breakdown.records === 0 && (
