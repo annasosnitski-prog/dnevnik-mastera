@@ -44,6 +44,7 @@ export const STORAGE_ACTIONS = {
   migrateMasterInfo: 'перенос личного кабинета',
   importData: 'импорт данных',
   readBackup: 'чтение данных для копии',
+  measureStorage: 'подсчёт занятого места',
   open: 'подключение к хранилищу',
 } as const;
 

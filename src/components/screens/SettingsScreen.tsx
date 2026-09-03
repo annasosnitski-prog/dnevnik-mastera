@@ -36,6 +36,12 @@ import {
   formatMegabytes,
   type PersistenceState,
 } from '../../lib/storageHealth';
+import {
+  breakdownLines,
+  reclaimableBytes,
+  totalPhotoBytes,
+  type StorageBreakdown,
+} from '../../lib/storageBreakdown';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
@@ -110,6 +116,7 @@ export function SettingsScreen({
   onImport,
   onImportArchive,
   onOpenCalendar,
+  onMeasureStorage,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -140,6 +147,11 @@ export function SettingsScreen({
   // том числе когда браузер вообще не умеет отвечать на этот вопрос.
   persistence: PersistenceState;
   storageEstimate: { usage?: number; quota?: number } | null;
+  // Разбор занятого места по смыслу (см. lib/storageBreakdown.ts). Считается
+  // ТОЛЬКО по нажатию: это обход всей базы, и делать его на каждом открытии
+  // Настроек значило бы платить за него постоянно ради цифры, которая нужна
+  // раз в месяц. Возвращает null, если хранилище сейчас недоступно.
+  onMeasureStorage: () => Promise<StorageBreakdown | null>;
   lastBackupAt: string | null;
   // Вызывается ТОЛЬКО когда копия реально уехала из телефона: отмена и сбой
   // копией не считаются, иначе напоминание замолчало бы, ничего не защитив.
@@ -210,6 +222,27 @@ export function SettingsScreen({
   const [logCopied, setLogCopied] = useState<string | null>(null);
   const backup = backupStatus(lastBackupAt, new Date());
   const storageUsedText = formatMegabytes(storageEstimate?.usage);
+
+  // Разбор занятого места. Три состояния вместо одного флага: пока не
+  // считали — предложение посчитать; считаем — надпись (обход базы на
+  // большой библиотеке занимает секунды); посчитали — таблица.
+  const [breakdown, setBreakdown] = useState<StorageBreakdown | null>(null);
+  const [measuring, setMeasuring] = useState(false);
+  const [measureFailed, setMeasureFailed] = useState(false);
+  const measureStorage = async () => {
+    if (measuring) return;
+    setMeasuring(true);
+    setMeasureFailed(false);
+    try {
+      const result = await onMeasureStorage();
+      if (result) setBreakdown(result);
+      else setMeasureFailed(true);
+    } catch {
+      setMeasureFailed(true);
+    } finally {
+      setMeasuring(false);
+    }
+  };
   const archiveSourceRelation =
     pendingImport?.kind === 'archive'
       ? compareBackupSource(pendingImport.summary.source, {
@@ -718,6 +751,76 @@ export function SettingsScreen({
           {persistence === 'not-persisted' && (
             <div style={{ marginTop: 8, fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic', lineHeight: 1.5 }}>
               Держите копию вне телефона — это единственная защита, если браузер всё-таки почистит данные.
+            </div>
+          )}
+
+          {/* «Занято N МБ» не отвечает на главный вопрос: что удалить, чтобы
+              дневник перестал спотыкаться. Фото лежат внутри записей, и у
+              одного снимка бывает до трёх копий в разных местах — на глаз
+              этого не видно. Здесь они разложены по смыслу, и отдельно
+              показано, сколько можно освободить, ничего не потеряв.
+
+              Считается по нажатию: это обход всей базы. */}
+          {breakdown === null ? (
+            <div style={{ marginTop: 12 }}>
+              <div
+                onClick={measureStorage}
+                role="button"
+                style={{
+                  ...actionButtonStyle,
+                  padding: '8px 0',
+                  fontSize: fs(12),
+                  opacity: measuring ? 0.6 : 1,
+                  cursor: measuring ? 'default' : 'pointer',
+                }}
+              >
+                {measuring ? 'Считаем…' : 'Куда ушло место'}
+              </div>
+              {measureFailed && (
+                <div style={{ marginTop: 8, fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic' }}>
+                  Не удалось посчитать — хранилище сейчас недоступно. Попробуйте ещё раз.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic', marginBottom: 8 }}>
+                Фото занимают {formatMegabytes(totalPhotoBytes(breakdown)) ?? 'меньше 0,1 МБ'} — примерно, по весу
+                самих снимков.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Пустые разделы не показываем: у мастера, начавшей дневник
+                    после переезда записей, легаси-копий нет вовсе, и строка
+                    «0 МБ» только пугала бы разговором о потерянном месте. */}
+                {breakdownLines(breakdown)
+                  .filter((line) => line.bucket.count > 0)
+                  .map((line) => (
+                    <div key={line.label}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: fs(13) }}>
+                        <span style={{ color: COLORS.textSecondary }}>{line.label}</span>
+                        <span style={{ color: COLORS.gold, flexShrink: 0 }}>
+                          {formatMegabytes(line.bucket.bytes) ?? '—'} · {line.bucket.count} фото
+                        </span>
+                      </div>
+                      {line.hint && (
+                        <div style={{ fontSize: fs(11), color: COLORS.textFaint, fontStyle: 'italic', lineHeight: 1.45, marginTop: 2 }}>
+                          {line.hint}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+              {reclaimableBytes(breakdown) > 0 && (
+                <div style={{ marginTop: 10, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', lineHeight: 1.5 }}>
+                  Можно освободить {formatMegabytes(reclaimableBytes(breakdown))}, ничего не потеряв — это старые
+                  копии после переноса записей на проекты.
+                </div>
+              )}
+              {breakdown.records === 0 && (
+                <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic' }}>
+                  В дневнике пока нет записей.
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -118,7 +118,7 @@ test('full import clears technical jobs but backup props do not expose them', ()
 });
 
 test('deleting an entry also removes its queued refresh jobs', () => {
-  assert.match(diary, /deleteContentEntryAndRefreshJobs\(db, id\)/);
+  assert.match(diary, /deleteContentEntryAndRefreshJobs\(database, id\)/);
 });
 
 test('hidden documents pause polling and visible, focus, online wake it', () => {

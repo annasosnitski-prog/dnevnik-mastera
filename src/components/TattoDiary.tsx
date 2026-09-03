@@ -56,6 +56,15 @@ import {
   type StorageFailureKind,
 } from '../lib/storageMessages';
 import {
+  enqueuePendingWrite,
+  isConnectionStable,
+  pendingWriteSummary,
+  reconnectDelayMs,
+  type PendingWrite,
+  type StoragePhase,
+} from '../lib/storageRecovery';
+import { BUSY_ATTRIBUTE } from '../lib/appUpdate';
+import {
   MASTER_INFO_STORE,
   MASTER_INFO_RECORD_ID,
   MASTER_INFO_LOCAL_KEY,
@@ -503,6 +512,34 @@ export default function TattoDiary() {
   // (см. storageFailureNeedsReconnect в lib/storageMessages.ts).
   const [dbErrorKind, setDbErrorKind] = useState<StorageFailureKind | null>(null);
 
+  // ── Связь с хранилищем ───────────────────────────────────────────────────
+  // Соединение с IndexedDB рвётся штатно: iOS закрывает его, пока приложение
+  // спит на домашнем экране, браузер — под нехваткой памяти (а память
+  // кончается там же, где фото). Раньше каждый такой обрыв означал красную
+  // плашку и кнопку «Повторить» под пальцем мастера — то самое «мигает».
+  // Теперь дневник сначала чинится сам и молча (см. lib/storageRecovery.ts),
+  // а мастера беспокоит, только если у него не вышло.
+  const [storagePhase, setStoragePhase] = useState<StoragePhase>('connecting');
+  // Ссылки, а не состояние: восстановление живёт в обработчиках событий и в
+  // таймерах, которым нужно ТЕКУЩЕЕ значение, а не то, что было на рендере,
+  // где обработчик подписался.
+  const dbRef = useRef<IDBDatabase | null>(null);
+  const recoveringRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Когда соединение открылось. Нужно, чтобы отличить «связь была и
+  // оборвалась» от «открывается и тут же падает» — см. isConnectionStable.
+  const connectedAtRef = useRef<number | null>(null);
+  // Открытие базы уже идёт. Без этого флага запись, сделанная в первые
+  // миллисекунды запуска (или обрыв, замеченный во время переподключения),
+  // заводила бы ВТОРОЕ параллельное открытие поверх первого — а очередь
+  // отложенных записей и так будет разобрана тем открытием, что уже в пути.
+  const openInFlightRef = useRef(false);
+  // Записи, не попавшие в базу из-за оборвавшейся связи. Дожидаются
+  // восстановления и повторяются — вместо того чтобы пропасть вместе с тем,
+  // что мастер только что ввела.
+  const pendingWritesRef = useRef<PendingWrite[]>([]);
+
   // ── Журнал сбоев ─────────────────────────────────────────────────────────
   // Консоль браузера на телефоне не открыть, поэтому раньше сбой не оставлял
   // следа вообще и разобрать «у меня что-то упало» было нечем. Журнал живёт
@@ -544,10 +581,24 @@ export default function TattoDiary() {
   // здесь было двадцать разных формулировок про одно и то же — теперь текст
   // собирается из состояния и названия операции, и та же пара уходит в
   // журнал.
-  const reportStorageFailure = (kind: StorageFailureKind, action: string, error?: unknown) => {
-    setDbErrorKind(kind);
-    setDbError(storageFailureMessage(kind, action));
+  // extra — приписка к сообщению (что именно осталось незаписанным). Она
+  // собирается ЗДЕСЬ, а не на месте вызова, чтобы текст плашки по-прежнему
+  // рождался ровно в одной точке: расползание формулировок по коду и было
+  // тем, от чего избавлялись, заводя storageMessages.ts.
+  const reportStorageFailure = (kind: StorageFailureKind, action: string, error?: unknown, extra?: string | null) => {
     logError('storage', action, error ?? kind);
+    // Пока дневник чинит связь сам, плашек не показываем ВООБЩЕ. Иначе
+    // мастер видит череду разных красных сообщений («не удалось прочитать»,
+    // «не удалось сохранить») об одном и том же обрыве, который через
+    // полсекунды починится. В журнале сбоев запись при этом остаётся —
+    // разбирать потом есть по чему.
+    //
+    // Исключение — 'conflicting': вторая вкладка обновляет схему, и это
+    // единственный случай, который дневник САМ починить не может, потому что
+    // чинится он закрытием той вкладки.
+    if (recoveringRef.current && kind !== 'conflicting') return;
+    setDbErrorKind(kind);
+    setDbError(extra ? `${storageFailureMessage(kind, action)} ${extra}` : storageFailureMessage(kind, action));
   };
   const clearStorageFailure = () => {
     setDbError(null);
@@ -934,6 +985,19 @@ export default function TattoDiary() {
   // честный статус в Настройках (см. persistenceText в lib/storageHealth.ts).
   const [persistence, setPersistence] = useState<PersistenceState>('unsupported');
   const [storageEstimate, setStorageEstimate] = useState<{ usage?: number; quota?: number } | null>(null);
+  // Отдельно от эффекта ниже: цифру «занято» нужно уметь переспросить и
+  // после запуска — например, когда уборка черновиков копии только что
+  // освободила место, и показанное значение стало неправдой.
+  const refreshStorageEstimate = () => {
+    const storage = navigator.storage as StorageManager | undefined;
+    if (!storage?.estimate) return;
+    storage
+      .estimate()
+      .then((estimate) => setStorageEstimate({ usage: estimate.usage, quota: estimate.quota }))
+      .catch(() => {
+        /* оценка объёма необязательна */
+      });
+  };
   useEffect(() => {
     let cancelled = false;
     const check = async () => {
@@ -984,38 +1048,193 @@ export default function TattoDiary() {
     setLastBackupAt(now);
   };
 
-  const connectDb = () => {
+  // Отложенные записи ложатся в базу в том же порядке, в каком мастер их
+  // сделала. Падение одной не должно съесть остальные — поэтому каждая в
+  // своём try.
+  const flushPendingWrites = (database: IDBDatabase) => {
+    const queued = pendingWritesRef.current;
+    if (queued.length === 0) return;
+    pendingWritesRef.current = [];
+    queued.forEach((item) => {
+      try {
+        item.run(database);
+      } catch (err) {
+        logError('storage', item.action, err);
+      }
+    });
+  };
+
+  const connectDb = (options?: { manual?: boolean }) => {
+    // «Повторить» руками — это всегда новая серия попыток, даже если
+    // автоматические уже исчерпаны.
+    if (options?.manual) reconnectAttemptRef.current = 0;
+    clearTimeout(reconnectTimerRef.current);
+    openInFlightRef.current = true;
     initDBWithRetry()
       .then((database) => {
+        openInFlightRef.current = false;
+        recoveringRef.current = false;
+        reconnectAttemptRef.current = 0;
+        connectedAtRef.current = Date.now();
+        setStoragePhase('ready');
         clearStorageFailure();
+        dbRef.current = database;
         setDb(database);
         // Браузер может закрыть соединение сам (нехватка памяти — вероятнее
         // всего на больших фото), а другая вкладка — начать обновление схемы.
-        // Раньше об этом узнавали только при следующей записи, то есть уже
-        // потеряв действие мастера; теперь плашка с «Повторить» появляется
-        // сразу, как только соединение исчезло.
-        database.onclose = () => {
-          setDb(null);
-          reportStorageFailure('lost', STORAGE_ACTIONS.open);
-        };
+        // Первое дневник чинит сам; второе — единственный случай, где без
+        // мастера не обойтись (закрыть лишнюю вкладку).
+        database.onclose = () => handleConnectionLost(STORAGE_ACTIONS.open);
         database.onversionchange = () => {
           database.close();
+          dbRef.current = null;
           setDb(null);
+          recoveringRef.current = false;
+          setStoragePhase('failed');
           reportStorageFailure('conflicting', STORAGE_ACTIONS.open);
         };
         loadClients(database);
         loadProjects(database);
         loadContentEntries(database);
         reloadContentIngestJobs(database);
+        // Записи, сделанные, пока связи не было, — последним делом, уже по
+        // живому соединению.
+        flushPendingWrites(database);
       })
       .catch((err) => {
+        openInFlightRef.current = false;
         console.error('IndexedDB init failed:', err);
-        reportStorageFailure('lost', STORAGE_ACTIONS.open);
+        scheduleReconnect(err);
       });
   };
 
+  // Следующая тихая попытка — или признание, что сами не справились.
+  const scheduleReconnect = (error?: unknown) => {
+    const attempt = reconnectAttemptRef.current + 1;
+    const delay = reconnectDelayMs(attempt);
+    if (delay === null) {
+      recoveringRef.current = false;
+      setStoragePhase('failed');
+      // Сообщение о потере связи + приписка о том, что именно не легло в
+      // базу: мастер должна понимать, повторять ли ей действие.
+      reportStorageFailure('lost', STORAGE_ACTIONS.open, error, pendingWriteSummary(pendingWritesRef.current));
+      return;
+    }
+    reconnectAttemptRef.current = attempt;
+    recoveringRef.current = true;
+    setStoragePhase('recovering');
+    clearTimeout(reconnectTimerRef.current);
+    reconnectTimerRef.current = setTimeout(() => connectDbRef.current(), delay);
+  };
+
+  // Связь пропала посреди работы. Никаких плашек: помечаем и чиним.
+  const handleConnectionLost = (action: string, error?: unknown) => {
+    dbRef.current = null;
+    setDb(null);
+    logError('storage', action, error ?? 'соединение с хранилищем закрыто');
+    if (recoveringRef.current || openInFlightRef.current) return;
+    recoveringRef.current = true;
+    setStoragePhase('recovering');
+    // Обрыв после нормально прожившего соединения — повод начать серию
+    // заново. А вот соединение, рухнувшее сразу после открытия, серию НЕ
+    // обнуляет: иначе дневник вечно крутил бы «открылись — упали».
+    if (isConnectionStable(connectedAtRef.current, Date.now())) reconnectAttemptRef.current = 0;
+    connectedAtRef.current = null;
+    scheduleReconnect(error);
+  };
+
+  // Единственный вход для любой записи. Есть связь — пишем; нет — откладываем
+  // и чиним. Ключ нужен, чтобы повторная правка того же объекта заменяла
+  // прежнюю, а не копилась (см. enqueuePendingWrite).
+  const withStorage = (key: string, action: string, run: (database: IDBDatabase) => void) => {
+    const database = dbRef.current ?? db;
+    if (database) {
+      run(database);
+      return;
+    }
+    pendingWritesRef.current = enqueuePendingWrite(pendingWritesRef.current, { key, action, run });
+    if (!recoveringRef.current && !openInFlightRef.current) {
+      recoveringRef.current = true;
+      setStoragePhase('recovering');
+      reconnectAttemptRef.current = 0;
+      scheduleReconnect();
+    }
+  };
+
+  // Обработчики ниже подписываются один раз, а connectDb пересоздаётся на
+  // каждом рендере — ссылка держит для них свежую версию.
+  const connectDbRef = useRef(connectDb);
+  useEffect(() => {
+    connectDbRef.current = connectDb;
+  });
+
   useEffect(() => {
     connectDb();
+    return () => clearTimeout(reconnectTimerRef.current);
+  }, []);
+
+  // Подметаем черновики прошлых сборок копии ПРИ КАЖДОМ ЗАПУСКЕ.
+  //
+  // Раньше уборка жила только внутри самой сборки, и это оставляло мастера
+  // запертой: сборку копии обрывает снятая браузером вкладка, после неё в
+  // OPFS остаётся архив целиком, следующая сборка считает требование
+  // свободного места от раздутого мусором usage — и отказывается работать.
+  // Убрать мусор могла только сборка, а сборка не запускалась из-за мусора.
+  // У мастера так накопилось 71 ГБ при 473 МБ настоящих данных, и копию
+  // стало нельзя сделать вообще.
+  //
+  // Поэтому уборка переехала туда, где ей ничто не мешает: в запуск. Страница
+  // только что загрузилась, ни одна копия не может быть «в пути», удалять
+  // безопасно. Отдельный модуль без zip.js — чтобы не тянуть архиватор
+  // (139 кБ) в основной бандл ради нескольких строк.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { sweepBackupScratch } = await import('../lib/backupScratch');
+        const swept = await sweepBackupScratch();
+        if (cancelled || swept.removed === 0) return;
+        // В журнал, а не плашкой: мастеру эта уборка ничего не сообщает и
+        // ничего от неё не требует. А вот разбирать «куда делись гигабайты»
+        // по журналу — единственный способ.
+        logError(
+          'storage',
+          'уборка черновиков копии',
+          `удалено файлов: ${swept.removed}, освобождено байт: ${swept.bytes}`,
+        );
+        // Цифра «занято» в Настройках посчитана до уборки — просим заново,
+        // иначе мастер увидит старое значение до перезапуска.
+        refreshStorageEstimate();
+      } catch {
+        // OPFS может не поддерживаться или быть недоступна — дневник от
+        // этого не зависит.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Возвращение в приложение — главный момент, когда соединения уже нет:
+  // пока дневник висел в фоне, iOS его закрыл. Раньше мастер узнавала об
+  // этом красной плашкой (в лучшем случае) или потерянной записью (в худшем);
+  // теперь связь восстанавливается к тому мгновению, когда она успевает
+  // что-то нажать.
+  useEffect(() => {
+    const onResume = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (dbRef.current || openInFlightRef.current) return;
+      reconnectAttemptRef.current = 0;
+      recoveringRef.current = true;
+      setStoragePhase('recovering');
+      connectDbRef.current();
+    };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('pageshow', onResume);
+    return () => {
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('pageshow', onResume);
+    };
   }, []);
 
   // db.transaction() бросает исключение синхронно, если соединение уже
@@ -1029,8 +1248,7 @@ export default function TattoDiary() {
     try {
       return database.transaction(storeNames, mode);
     } catch (err) {
-      setDb(null);
-      reportStorageFailure('lost', action, err);
+      handleConnectionLost(action, err);
       return null;
     }
   };
@@ -1072,6 +1290,24 @@ export default function TattoDiary() {
   // ZIP v6 is written to OPFS record-by-record. In contrast to the old
   // getAll()+monolithic JSON path, export no longer materializes a second
   // copy of the entire photo library in page memory.
+  // Разбор занятого места — по требованию из Настроек. Модуль грузится
+  // лениво, как backupArchive: обычному запуску дневника он не нужен.
+  //
+  // null вместо ошибки, когда связи с базой нет: Настройки скажут «попробуйте
+  // ещё раз», а не превратят любопытство мастера в красную плашку. Если связь
+  // как раз восстанавливается, к повторному нажатию она уже вернётся.
+  const measureStorageUse = async () => {
+    const database = dbRef.current ?? db;
+    if (!database) return null;
+    const { measureStorageBreakdown } = await import('../lib/storageBreakdown');
+    try {
+      return await measureStorageBreakdown(database);
+    } catch (err) {
+      logError('storage', STORAGE_ACTIONS.measureStorage, err);
+      return null;
+    }
+  };
+
   const prepareFullBackup = async (options: PrepareBackupArchiveOptions): Promise<PreparedBackupArchive> => {
     if (!db) return Promise.reject(new Error('Хранилище сейчас недоступно. Нажмите «Повторить» и попробуйте снова.'));
     const { prepareBackupArchive } = await import('../lib/backupArchive');
@@ -1159,13 +1395,23 @@ export default function TattoDiary() {
   // переезда всех записей на проекты этот же сценарий задевал бы уже каждую
   // связанную пару (запись + обратная ссылка цепочки, запись + автопроект).
   const saveProjects = (nextProjects: Project[]) => {
-    if (!db) {
-      reportStorageFailure('lost', STORAGE_ACTIONS.saveClient);
-      return;
-    }
     const beforeById = new Map(projects.map((p) => [p.id, p]));
     const changed = nextProjects.filter((p) => beforeById.get(p.id) !== p);
     if (changed.length === 0) return;
+    // Ключ один на весь стор проектов: запись здесь всегда «положить целиком
+    // то, что изменилось», и повторный вызов, пока связи нет, отменяет
+    // предыдущий — иначе в очереди копились бы промежуточные состояния.
+    withStorage('projects', STORAGE_ACTIONS.saveProject, (database) =>
+      writeProjects(database, nextProjects, beforeById, changed),
+    );
+  };
+
+  const writeProjects = (
+    db: IDBDatabase,
+    nextProjects: Project[],
+    beforeById: Map<string, Project>,
+    changed: Project[],
+  ) => {
     const tx = openWriteTx('projects', db, STORAGE_ACTIONS.saveProject);
     if (!tx) return;
     const store = tx.objectStore('projects');
@@ -1182,11 +1428,37 @@ export default function TattoDiary() {
       return next;
     });
     tx.oncomplete = () => {
-      loadProjects(db);
       const writtenById = new Map(written.map((p) => [p.id, p]));
-      syncCalendarAfterProjectsSave(projects, nextProjects.map((p) => writtenById.get(p.id) ?? p));
+      const saved = nextProjects.map((p) => writtenById.get(p.id) ?? p);
+      // ЗДЕСЬ БЫЛ loadProjects(db) — getAll по всему стору после каждой
+      // записи. Фото лежат base64-строками внутри самих записей, поэтому
+      // «сохранить одну заметку» означало поднять в память все проекты со
+      // всеми фото всех клиентов: в пике одновременно старая копия
+      // библиотеки в состоянии, новая прочитанная и буфер распаковки. На
+      // iPhone это и есть тот момент, когда браузер закрывает соединение —
+      // отсюда «хранилище недоступно», которое становилось чаще с каждой
+      // новой сессией просто потому, что библиотека росла.
+      //
+      // Перечитывать нечего: мы только что сами положили `written` и знаем
+      // ровно то, что лежит в базе. Состояние ставится из него.
+      //
+      // Полное чтение остаётся там, где действительно изменилось всё:
+      // подключение к базе, импорт копии, разовый перенос записей.
+      // normalizeProject — не перестраховка, а сохранение прежней семантики:
+      // раньше состояние приходило из loadProjects, то есть ВСЕГДА через
+      // нормализацию. Форма могла положить запись без поля, которое
+      // нормализация заполняет по умолчанию, и весь код ниже (селекторы,
+      // напоминания, планнер) рассчитывает на заполненную форму. В базу при
+      // этом по-прежнему ложится то же, что и раньше, — нормализация только
+      // для показа, и она идемпотентна.
+      setProjects(saved.map(normalizeProject));
+      syncCalendarAfterProjectsSave(projects, saved);
     };
-    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.saveClient);
+    // Название операции — «сохранение проекта», а не «сохранение клиента»:
+    // мастер, сохранившая проект, читала «Не удалось сохранить: сохранение
+    // клиента» и шла проверять карточку клиента, с которой ничего не
+    // случилось. Та же подпись уходит и в журнал сбоев.
+    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.saveProject);
   };
 
   // Записать один проект — та же запись, просто вход поудобнее для мест, где
@@ -1197,19 +1469,19 @@ export default function TattoDiary() {
   };
 
   const deleteProject = (id: string) => {
-    if (!db) {
-      reportStorageFailure('lost', STORAGE_ACTIONS.deleteProject);
-      return;
-    }
-    const tx = openWriteTx('projects', db, STORAGE_ACTIONS.deleteProject);
-    if (!tx) return;
-    tx.objectStore('projects').delete(id);
-    tx.oncomplete = () => {
-      loadProjects(db);
-      setEditProject(null);
-      setShowNewProjectForm(false);
-    };
-    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.deleteProject);
+    withStorage(`project-delete:${id}`, STORAGE_ACTIONS.deleteProject, (database) => {
+      const tx = openWriteTx('projects', database, STORAGE_ACTIONS.deleteProject);
+      if (!tx) return;
+      tx.objectStore('projects').delete(id);
+      tx.oncomplete = () => {
+        // Удалили один проект — незачем перечитывать все остальные с их фото
+        // (см. saveProjects выше о том, почему это дорого).
+        setProjects((current) => current.filter((p) => p.id !== id));
+        setEditProject(null);
+        setShowNewProjectForm(false);
+      };
+      tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.deleteProject);
+    });
   };
 
   // ── Перенос записей клиента на проекты (Этап 2) ──
@@ -1270,8 +1542,7 @@ export default function TattoDiary() {
   // `db` looking fine while every next attempt fails the same way.
   const handleContentJobDbError = (err: unknown, action: string): boolean => {
     if (!(err instanceof ContentJobDbUnavailableError)) return false;
-    setDb(null);
-    reportStorageFailure('lost', action, err);
+    handleConnectionLost(action, err);
     return true;
   };
 
@@ -1319,29 +1590,52 @@ export default function TattoDiary() {
   // saveClient. Апсерт по id: запись с тем же id перезаписывается
   // (перегенерация текста), иначе создаётся новая.
   const saveContentEntry = (entry: ContentEntry) => {
-    if (!db) {
-      reportStorageFailure('lost', STORAGE_ACTIONS.saveClient);
-      return;
-    }
-    setContentEntries((current) => [entry, ...current.filter((candidate) => candidate.id !== entry.id)]);
-    const tx = openWriteTx('contentEntries', db, STORAGE_ACTIONS.saveContent);
-    if (!tx) return;
-    tx.objectStore('contentEntries').put(entry);
-    tx.oncomplete = () => loadContentEntries(db);
-    tx.onerror = () => {
-      reportStorageFailure('write', STORAGE_ACTIONS.saveContent);
-      loadContentEntries(db);
-    };
+    // Экранное состояние обновляем сразу, до записи: черновик виден мастеру
+    // даже пока связь восстанавливается, а в базу он ляжет сам, как только
+    // соединение вернётся.
+    // Та же нормализация, что делало чтение из базы: без неё запись,
+    // показанная сразу, отличалась бы формой от неё же после перезапуска.
+    // Порядок в массиве на показ не влияет — ContentINKA сортирует по дате
+    // создания (см. selectContentWorkspaceEntries).
+    const shown = normalizeContentEntryLink(normalizeContentEntry(entry));
+    setContentEntries((current) => [shown, ...current.filter((candidate) => candidate.id !== shown.id)]);
+    withStorage(`content:${entry.id}`, STORAGE_ACTIONS.saveContent, (database) => {
+      const tx = openWriteTx('contentEntries', database, STORAGE_ACTIONS.saveContent);
+      if (!tx) return;
+      tx.objectStore('contentEntries').put(entry);
+      // Успех перечитывать нечего: состояние выставлено выше ровно тем же
+      // `entry`, что лёг в базу. Раньше здесь стоял getAll по всему стору
+      // контента — а он держит ВТОРЫЕ копии фото (см. ContentEntry.photos),
+      // то есть был самым дорогим чтением в дневнике.
+      //
+      // А вот на ошибке перечитать обязательно: состояние ушло вперёд базы,
+      // и мастер должна видеть то, что в дневнике на самом деле.
+      tx.onerror = () => {
+        reportStorageFailure('write', STORAGE_ACTIONS.saveContent);
+        loadContentEntries(database);
+      };
+    });
   };
 
+  // Раньше при оборванной связи здесь стоял молчаливый `return`: мастер
+  // нажимала «Удалить», запись оставалась на месте, и никакого объяснения
+  // не появлялось нигде. Теперь удаление ждёт восстановления связи, как и
+  // любая другая запись.
   const deleteContentEntry = (id: string) => {
-    if (!db) return;
-    deleteContentEntryAndRefreshJobs(db, id)
-      .then(() => {
-        loadContentEntries(db);
-        reloadContentIngestJobs(db);
-      })
-      .catch(() => reportStorageFailure('write', STORAGE_ACTIONS.deleteContent));
+    withStorage(`content-delete:${id}`, STORAGE_ACTIONS.deleteContent, (database) => {
+      deleteContentEntryAndRefreshJobs(database, id)
+        .then(() => {
+          setContentEntries((current) => current.filter((entry) => entry.id !== id));
+          // Фоновые задачи перечитываем: удаление записи снимает и её
+          // задачи обновления, а сколько их было — знает только база.
+          reloadContentIngestJobs(database);
+        })
+        .catch((err) => {
+          if (!handleContentJobDbError(err, STORAGE_ACTIONS.deleteContent)) {
+            reportStorageFailure('write', STORAGE_ACTIONS.deleteContent, err);
+          }
+        });
+    });
   };
 
   useEffect(() => {
@@ -1367,10 +1661,6 @@ export default function TattoDiary() {
   // идут через saveProject — синк по ним переехал туда (см. syncClientRecords
   // ниже), а здесь остаётся дифф остальной карточки.
   const saveClient = (client: Client) => {
-    if (!db) {
-      reportStorageFailure('lost', STORAGE_ACTIONS.saveClient);
-      return;
-    }
     const stored = storedClients.find((c) => c.id === client.id);
     const record: Client = {
       ...client,
@@ -1378,37 +1668,52 @@ export default function TattoDiary() {
       consultations: stored?.consultations ?? [],
     };
     const prevClient = clients.find((c) => c.id === client.id) ?? null;
-    const tx = openWriteTx('clients', db, STORAGE_ACTIONS.saveClient);
-    if (!tx) return;
-    tx.objectStore('clients').put(record);
-    tx.oncomplete = () => {
-      loadClients(db);
-      // client (а не record) — с актуальной проекцией записей, чтобы дифф
-      // сравнивал одинаковые по природе снимки.
-      diffAndSync(prevClient, client, calendarSync);
-    };
-    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.saveClient);
+    withStorage(`client:${client.id}`, STORAGE_ACTIONS.saveClient, (database) => {
+      const tx = openWriteTx('clients', database, STORAGE_ACTIONS.saveClient);
+      if (!tx) return;
+      tx.objectStore('clients').put(record);
+      tx.oncomplete = () => {
+        // Записали ровно `record` — его и ставим в состояние, вместо getAll
+        // по всему стору клиентов (см. saveProjects о цене такого чтения).
+        // Апсерт: новый клиент добавляется в конец, существующий заменяется.
+        // В базу лёг `record` (с легаси-массивами ровно как были — они
+        // страховка после переноса), а в состояние идёт нормализованная его
+        // копия: именно это и делал loadClients. Легаси-массивы поэтому
+        // нормализация НЕ переписывает в базе, только в показываемой копии.
+        // Позиция в списке — второй аргумент normalizeClient: из неё
+        // достраиваются id заметок, у которых их почему-то нет. При чтении
+        // её давал .map(), здесь считаем сами, чтобы форма записи в
+        // состоянии не расходилась с формой после перезапуска.
+        setStoredClients((current) => {
+          const at = current.findIndex((c) => c.id === record.id);
+          const shown = normalizeClient(record, at === -1 ? current.length : at);
+          return at === -1 ? [...current, shown] : current.map((c, i) => (i === at ? shown : c));
+        });
+        // client (а не record) — с актуальной проекцией записей, чтобы дифф
+        // сравнивал одинаковые по природе снимки.
+        diffAndSync(prevClient, client, calendarSync);
+      };
+      tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.saveClient);
+    });
   };
 
   const deleteClient = (id: string) => {
-    if (!db) {
-      reportStorageFailure('lost', STORAGE_ACTIONS.deleteClient);
-      return;
-    }
     // Удаление клиента убирает из календаря и все его синхронизированные
     // записи (diffAndSync со "старое есть, нового нет" шлёт delete).
     const prevClient = clients.find((c) => c.id === id) ?? null;
-    const tx = openWriteTx('clients', db, STORAGE_ACTIONS.deleteClient);
-    if (!tx) return;
-    tx.objectStore('clients').delete(id);
-    tx.oncomplete = () => {
-      loadClients(db);
-      diffAndSync(prevClient, null, calendarSync);
-      setScreen('list');
-      setSelectedId(null);
-      setShowEditClientForm(false);
-    };
-    tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.deleteClient);
+    withStorage(`client-delete:${id}`, STORAGE_ACTIONS.deleteClient, (database) => {
+      const tx = openWriteTx('clients', database, STORAGE_ACTIONS.deleteClient);
+      if (!tx) return;
+      tx.objectStore('clients').delete(id);
+      tx.oncomplete = () => {
+        setStoredClients((current) => current.filter((c) => c.id !== id));
+        diffAndSync(prevClient, null, calendarSync);
+        setScreen('list');
+        setSelectedId(null);
+        setShowEditClientForm(false);
+      };
+      tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.deleteClient);
+    });
   };
 
   // Импорт полного бэкапа: clients + опционально projects/contentEntries и
@@ -2172,6 +2477,32 @@ export default function TattoDiary() {
     showCalendar ||
     !!calendarWalkStep;
 
+  // Тихая строка «восстанавливаем связь» — НЕ сразу. Обычное восстановление
+  // укладывается в доли секунды, и надпись, мелькнувшая на 150 мс, была бы
+  // ровно тем миганием, от которого мы уходим. Показываем, только если
+  // починка затянулась настолько, что мастер уже заметила паузу.
+  const [recoveryVisible, setRecoveryVisible] = useState(false);
+  useEffect(() => {
+    if (storagePhase !== 'recovering') {
+      setRecoveryVisible(false);
+      return;
+    }
+    const timer = setTimeout(() => setRecoveryVisible(true), 2000);
+    return () => clearTimeout(timer);
+  }, [storagePhase]);
+
+  // Сообщаем коду обновления (main.tsx), что мастер сейчас что-то заполняет.
+  // Перезагрузка под новую версию посреди открытой формы стирает введённое —
+  // и выглядит это не как обновление, а как «дневник выбросил мой текст».
+  // Через атрибут на <html>, а не через контекст: читающий код живёт вне
+  // дерева React (см. lib/appUpdate.ts).
+  useEffect(() => {
+    const root = document.documentElement;
+    if (sheetOpen) root.setAttribute(BUSY_ATTRIBUTE, '1');
+    else root.removeAttribute(BUSY_ATTRIBUTE);
+    return () => root.removeAttribute(BUSY_ATTRIBUTE);
+  }, [sheetOpen]);
+
   // Просмотр проекта — единственная шторка, поверх которой остаётся видна
   // главная кнопка «Создать»: она же и есть точка входа для «+ Сессия» /
   // «+ Консультация» в открытом проекте (см. onCreate у NavFab ниже), так
@@ -2303,7 +2634,7 @@ export default function TattoDiary() {
               действие, и лишняя кнопка сбивала бы с толку. */}
           {!db && dbErrorKind !== null && storageFailureNeedsReconnect(dbErrorKind) && (
             <button
-              onClick={connectDb}
+              onClick={() => connectDb({ manual: true })}
               style={{
                 background: 'none',
                 border: '1px solid rgba(201,153,153,0.5)',
@@ -2327,6 +2658,30 @@ export default function TattoDiary() {
         </div>
       )}
 
+      {/* Затянувшееся восстановление связи. Намеренно не красное и без
+          кнопок: чинить нечего, дневник занят этим сам, а мастеру нужно
+          понимать, почему записи на секунду «задумались». Пропадает само. */}
+      {!dbError && recoveryVisible && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top) + 12px)',
+            left: 16,
+            right: 16,
+            padding: '8px 14px',
+            borderRadius: 3,
+            border: '1px solid rgba(var(--gold-rgb),0.22)',
+            background: 'rgba(var(--gold-rgb),0.06)',
+            fontSize: fs(14),
+            fontStyle: 'italic',
+            color: COLORS.textSecondary,
+            zIndex: 50,
+          }}
+        >
+          Восстанавливаем связь с хранилищем — записи сохранятся сами.
+        </div>
+      )}
+
       {/* Копии давно не было. Намеренно НЕ карточка в «Напоминаниях»: те про
           работу с клиентами, а это про состояние самого дневника — как и
           плашка хранилища выше, и по той же причине видна на всех экранах.
@@ -2334,7 +2689,7 @@ export default function TattoDiary() {
           показывается ошибка хранилища — там сообщение важнее.
           Закрывается на сессию: настойчивость здесь уместнее вежливости,
           но не до степени, когда её нечем убрать. */}
-      {!dbError && !sheetOpen && !backupNoticeHidden && backupState.kind !== 'fresh' && (
+      {!dbError && !recoveryVisible && !sheetOpen && !backupNoticeHidden && backupState.kind !== 'fresh' && (
         <div
           style={{
             position: 'absolute',
@@ -3081,6 +3436,7 @@ export default function TattoDiary() {
               onToggleTheme={toggleTheme}
               minimalism={minimalism}
               onChangeMinimalism={setMinimalism}
+              onMeasureStorage={measureStorageUse}
               prefs={prefs}
               onChange={setPrefs}
               onBack={() => setScreen('master')}
