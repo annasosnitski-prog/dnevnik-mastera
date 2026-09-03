@@ -3078,6 +3078,27 @@ export default function TattoDiary() {
               </div>
             </div>
           </div>
+
+          {/* Shared backdrop — closes whichever of Поиск/Фильтры/Сортировка is
+              open on an outside tap. Lives inside this header's own
+              position:relative/zIndex:10 wrapper (not as a sibling of the
+              whole screen) so it competes against the dropdown panels
+              (zIndex:17) within THIS stacking context — a root-level sibling
+              would out-rank the header's local context entirely regardless
+              of any zIndex inside it, silently swallowing every real pointer
+              tap on the panels while still letting a JS-dispatched click
+              (which skips hit-testing) go through, which is exactly the bug
+              this fixes: filters/sort taps did nothing on a real device. */}
+          {(sortOpen || filtersOpen || searchOpen) && (
+            <div
+              onClick={() => {
+                setSortOpen(false);
+                setFiltersOpen(false);
+                setSearchOpen(false);
+              }}
+              style={{ position: 'fixed', inset: 0, zIndex: 15 }}
+            />
+          )}
         </div>
 
         {/* Пересечение в Инка-календаре — янтарное предупреждение (не ошибка:
@@ -3216,19 +3237,6 @@ export default function TattoDiary() {
                       ? () => setCreateChoiceContext('workshop')
                       : undefined
           }
-        />
-      )}
-
-      {/* Shared backdrop — closes whichever of Поиск/Фильтры/Сортировка is
-          open on an outside tap. */}
-      {(sortOpen || filtersOpen || searchOpen) && (
-        <div
-          onClick={() => {
-            setSortOpen(false);
-            setFiltersOpen(false);
-            setSearchOpen(false);
-          }}
-          style={{ position: 'fixed', inset: 0, zIndex: 15 }}
         />
       )}
 
