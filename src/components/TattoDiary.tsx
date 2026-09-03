@@ -2538,11 +2538,14 @@ export default function TattoDiary() {
     return () => root.removeAttribute(BUSY_ATTRIBUTE);
   }, [sheetOpen]);
 
-  // Просмотр проекта — единственная шторка, поверх которой остаётся видна
-  // главная кнопка «Создать»: она же и есть точка входа для «+ Сессия» /
-  // «+ Консультация» в открытом проекте (см. onCreate у NavFab ниже), так
-  // что отдельных кнопок создания внутри самого просмотра не нужно.
-  const navFabHidden = sheetOpen && !viewProject;
+  // Краеугольный принцип ИНКИ: мастер никогда не должна упираться в тупик —
+  // кнопка доступа к остальной экосистеме (навигация/«Создать») обязана
+  // оставаться на виду на любой детальной шторке-просмотре (проект, сессия,
+  // консультация), а не только на самой верхней. viewProject/viewEntry —
+  // именно такие шторки-просмотры (в отличие от форм создания/редактирования
+  // ниже в sheetOpen, где NavFab по-прежнему прячется, чтобы не перекрывать
+  // поля формы и кнопки сохранения).
+  const navFabHidden = sheetOpen && !viewProject && !viewEntry;
 
   // Resolve the entry being viewed to its latest stored copy (so an edit made
   // from the viewer is reflected if it reopens).

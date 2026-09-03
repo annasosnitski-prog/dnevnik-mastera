@@ -176,13 +176,22 @@
    zero-size anchor point, not a box — .nav-fab__main/.nav-fab__item are
    positioned absolutely from its top-left corner. */
 .nav-fab {
-  position: absolute;
+  /* Fixed, not absolute: detail-view sheets (BottomSheet, z-index:950) are
+     portaled straight to document.body, escaping .app-shell's own stacking
+     context entirely — an absolutely-positioned descendant of .app-shell
+     can never out-rank them no matter its own z-index (56 was dead code in
+     that sense). Fixed positioning is the same escape hatch BottomSheet
+     itself uses, and the one .nav-fab--open below already relies on — so
+     the hub stays reachable over every "просмотр" sheet (project/session/
+     consultation), the whole point of it being exempted from navFabHidden
+     in TattoDiary.tsx. */
+  position: fixed;
   left: 50%;
   /* Dropped to the very bottom of the screen — just enough clearance for the
      closed hub's own 27px radius plus its glow, and the device's safe area
      (home indicator / gesture bar) on top of that. */
   bottom: calc(34px + env(safe-area-inset-bottom, 0px));
-  z-index: 56;
+  z-index: 951;
   width: 0;
   height: 0;
 }
