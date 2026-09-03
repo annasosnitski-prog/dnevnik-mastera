@@ -45,6 +45,7 @@ export const STORAGE_ACTIONS = {
   importData: 'импорт данных',
   readBackup: 'чтение данных для копии',
   measureStorage: 'подсчёт занятого места',
+  clearLegacyRecords: 'очистка старых копий',
   open: 'подключение к хранилищу',
 } as const;
 
