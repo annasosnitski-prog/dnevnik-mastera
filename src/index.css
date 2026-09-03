@@ -1706,13 +1706,13 @@ input[type='date'] {
   transform: perspective(80px) rotateY(58deg) rotateZ(-7deg);
   transform-origin: 50% 48%;
   transform-style: preserve-3d;
-  filter: drop-shadow(0 -1px 1px rgba(255, 215, 119, 0.58));
+  filter: drop-shadow(0 -1px 1px rgba(224, 181, 105, 0.58));
 }
 .client-card-tabbar__bail {
-  filter: drop-shadow(0 -1px 0.8px rgba(255, 240, 179, 0.42));
+  filter: drop-shadow(0 -1px 0.8px rgba(234, 209, 160, 0.42));
 }
 .client-card-tabbar__medallion {
-  filter: drop-shadow(0 -1px 1.2px rgba(255, 215, 119, 0.24));
+  filter: drop-shadow(0 -1px 1.2px rgba(224, 181, 105, 0.24));
 }
 
 /* The light-theme tab bar is a single patinated-copper object: one narrow rod
@@ -1921,8 +1921,8 @@ input[type='date'] {
     ),
     radial-gradient(
       ellipse 13px 39px at 50% 0%,
-      rgba(255, 248, 215, 0.22) 0%,
-      rgba(255, 215, 119, 0.14) 34%,
+      rgba(245, 227, 184, 0.22) 0%,
+      rgba(224, 181, 105, 0.14) 34%,
       rgba(226, 182, 85, 0.05) 60%,
       transparent 84%
     );
