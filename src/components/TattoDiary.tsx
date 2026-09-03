@@ -1355,9 +1355,31 @@ export default function TattoDiary() {
       return next;
     });
     tx.oncomplete = () => {
-      loadProjects(db);
       const writtenById = new Map(written.map((p) => [p.id, p]));
-      syncCalendarAfterProjectsSave(projects, nextProjects.map((p) => writtenById.get(p.id) ?? p));
+      const saved = nextProjects.map((p) => writtenById.get(p.id) ?? p);
+      // ЗДЕСЬ БЫЛ loadProjects(db) — getAll по всему стору после каждой
+      // записи. Фото лежат base64-строками внутри самих записей, поэтому
+      // «сохранить одну заметку» означало поднять в память все проекты со
+      // всеми фото всех клиентов: в пике одновременно старая копия
+      // библиотеки в состоянии, новая прочитанная и буфер распаковки. На
+      // iPhone это и есть тот момент, когда браузер закрывает соединение —
+      // отсюда «хранилище недоступно», которое становилось чаще с каждой
+      // новой сессией просто потому, что библиотека росла.
+      //
+      // Перечитывать нечего: мы только что сами положили `written` и знаем
+      // ровно то, что лежит в базе. Состояние ставится из него.
+      //
+      // Полное чтение остаётся там, где действительно изменилось всё:
+      // подключение к базе, импорт копии, разовый перенос записей.
+      // normalizeProject — не перестраховка, а сохранение прежней семантики:
+      // раньше состояние приходило из loadProjects, то есть ВСЕГДА через
+      // нормализацию. Форма могла положить запись без поля, которое
+      // нормализация заполняет по умолчанию, и весь код ниже (селекторы,
+      // напоминания, планнер) рассчитывает на заполненную форму. В базу при
+      // этом по-прежнему ложится то же, что и раньше, — нормализация только
+      // для показа, и она идемпотентна.
+      setProjects(saved.map(normalizeProject));
+      syncCalendarAfterProjectsSave(projects, saved);
     };
     // Название операции — «сохранение проекта», а не «сохранение клиента»:
     // мастер, сохранившая проект, читала «Не удалось сохранить: сохранение
@@ -1379,7 +1401,9 @@ export default function TattoDiary() {
       if (!tx) return;
       tx.objectStore('projects').delete(id);
       tx.oncomplete = () => {
-        loadProjects(database);
+        // Удалили один проект — незачем перечитывать все остальные с их фото
+        // (см. saveProjects выше о том, почему это дорого).
+        setProjects((current) => current.filter((p) => p.id !== id));
         setEditProject(null);
         setShowNewProjectForm(false);
       };
@@ -1496,12 +1520,23 @@ export default function TattoDiary() {
     // Экранное состояние обновляем сразу, до записи: черновик виден мастеру
     // даже пока связь восстанавливается, а в базу он ляжет сам, как только
     // соединение вернётся.
-    setContentEntries((current) => [entry, ...current.filter((candidate) => candidate.id !== entry.id)]);
+    // Та же нормализация, что делало чтение из базы: без неё запись,
+    // показанная сразу, отличалась бы формой от неё же после перезапуска.
+    // Порядок в массиве на показ не влияет — ContentINKA сортирует по дате
+    // создания (см. selectContentWorkspaceEntries).
+    const shown = normalizeContentEntryLink(normalizeContentEntry(entry));
+    setContentEntries((current) => [shown, ...current.filter((candidate) => candidate.id !== shown.id)]);
     withStorage(`content:${entry.id}`, STORAGE_ACTIONS.saveContent, (database) => {
       const tx = openWriteTx('contentEntries', database, STORAGE_ACTIONS.saveContent);
       if (!tx) return;
       tx.objectStore('contentEntries').put(entry);
-      tx.oncomplete = () => loadContentEntries(database);
+      // Успех перечитывать нечего: состояние выставлено выше ровно тем же
+      // `entry`, что лёг в базу. Раньше здесь стоял getAll по всему стору
+      // контента — а он держит ВТОРЫЕ копии фото (см. ContentEntry.photos),
+      // то есть был самым дорогим чтением в дневнике.
+      //
+      // А вот на ошибке перечитать обязательно: состояние ушло вперёд базы,
+      // и мастер должна видеть то, что в дневнике на самом деле.
       tx.onerror = () => {
         reportStorageFailure('write', STORAGE_ACTIONS.saveContent);
         loadContentEntries(database);
@@ -1517,7 +1552,9 @@ export default function TattoDiary() {
     withStorage(`content-delete:${id}`, STORAGE_ACTIONS.deleteContent, (database) => {
       deleteContentEntryAndRefreshJobs(database, id)
         .then(() => {
-          loadContentEntries(database);
+          setContentEntries((current) => current.filter((entry) => entry.id !== id));
+          // Фоновые задачи перечитываем: удаление записи снимает и её
+          // задачи обновления, а сколько их было — знает только база.
           reloadContentIngestJobs(database);
         })
         .catch((err) => {
@@ -1563,7 +1600,22 @@ export default function TattoDiary() {
       if (!tx) return;
       tx.objectStore('clients').put(record);
       tx.oncomplete = () => {
-        loadClients(database);
+        // Записали ровно `record` — его и ставим в состояние, вместо getAll
+        // по всему стору клиентов (см. saveProjects о цене такого чтения).
+        // Апсерт: новый клиент добавляется в конец, существующий заменяется.
+        // В базу лёг `record` (с легаси-массивами ровно как были — они
+        // страховка после переноса), а в состояние идёт нормализованная его
+        // копия: именно это и делал loadClients. Легаси-массивы поэтому
+        // нормализация НЕ переписывает в базе, только в показываемой копии.
+        // Позиция в списке — второй аргумент normalizeClient: из неё
+        // достраиваются id заметок, у которых их почему-то нет. При чтении
+        // её давал .map(), здесь считаем сами, чтобы форма записи в
+        // состоянии не расходилась с формой после перезапуска.
+        setStoredClients((current) => {
+          const at = current.findIndex((c) => c.id === record.id);
+          const shown = normalizeClient(record, at === -1 ? current.length : at);
+          return at === -1 ? [...current, shown] : current.map((c, i) => (i === at ? shown : c));
+        });
         // client (а не record) — с актуальной проекцией записей, чтобы дифф
         // сравнивал одинаковые по природе снимки.
         diffAndSync(prevClient, client, calendarSync);
@@ -1581,7 +1633,7 @@ export default function TattoDiary() {
       if (!tx) return;
       tx.objectStore('clients').delete(id);
       tx.oncomplete = () => {
-        loadClients(database);
+        setStoredClients((current) => current.filter((c) => c.id !== id));
         diffAndSync(prevClient, null, calendarSync);
         setScreen('list');
         setSelectedId(null);

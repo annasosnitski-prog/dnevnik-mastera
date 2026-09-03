@@ -56,7 +56,11 @@ test('запись проектов идёт одной транзакцией �
 // проектов, иначе события просто перестанут появляться в Инка-календаре.
 test('календарь синхронизируется после записи проектов, а не только клиента', () => {
   const saveProjects = app.slice(app.indexOf('const saveProjects = (nextProjects: Project[]) => {'), app.indexOf('const saveProject = (project: Project) => {'));
-  assert.match(saveProjects, /syncCalendarAfterProjectsSave\(projects, nextProjects\.map/);
+  // Синк получает снимок ПОСЛЕ записи (`saved` — nextProjects с наложенными
+  // записанными версиями), а не сырой nextProjects: в записанных стоит
+  // проставленный только что lastMeaningfulActivityAt.
+  assert.match(saveProjects, /const saved = nextProjects\.map\(\(p\) => writtenById\.get\(p\.id\) \?\? p\);/);
+  assert.match(saveProjects, /syncCalendarAfterProjectsSave\(projects, saved\)/);
   const sync = app.slice(app.indexOf('const syncCalendarAfterProjectsSave ='), app.indexOf('// Единственная точка записи в стор проектов.'));
   assert.match(sync, /diffAndSync\(asSyncClient\(before\), asSyncClient\(after\), calendarSync\)/);
   // Клиент прежнего владельца тоже затронут — иначе привязка проекта к
