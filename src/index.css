@@ -2306,14 +2306,18 @@ input[type='date'] {
   border-color: transparent !important;
 }
 
-/* Card frames are drawn as an inset-ring box-shadow, not a border — strip the
-   ring, keep the elevation/glow part of the shadow. */
+/* Card frames were drawn as an inset-ring box-shadow, not a border — the ring
+   read as a hard edged line, same as any border, so it's replaced (not just
+   stripped) with a soft outward gold glow: always on, no hard edge. */
 :root,
 :root[data-theme='dark'] {
-  --card-hover-shadow: 0 10px 36px rgba(var(--gold-rgb), 0.16), 0 3px 10px rgba(0, 0, 0, 0.6);
-  --card-rest-shadow: none;
+  --card-hover-shadow: 0 0 22px rgba(var(--gold-rgb), 0.32), 0 10px 36px rgba(var(--gold-rgb), 0.16),
+    0 3px 10px rgba(0, 0, 0, 0.6);
+  --card-rest-shadow: 0 0 14px rgba(var(--gold-rgb), 0.16);
 }
 :root[data-theme='light'] {
-  --card-hover-shadow: 0 10px 30px rgba(var(--gold-rgb), 0.18), 0 3px 10px rgba(80, 60, 20, 0.12);
-  --card-rest-shadow: 0 1px 2px rgba(80, 60, 20, 0.06), 0 6px 18px rgba(80, 60, 20, 0.07);
+  --card-hover-shadow: 0 0 20px rgba(var(--gold-rgb), 0.28), 0 10px 30px rgba(var(--gold-rgb), 0.18),
+    0 3px 10px rgba(80, 60, 20, 0.12);
+  --card-rest-shadow: 0 0 12px rgba(var(--gold-rgb), 0.14), 0 1px 2px rgba(80, 60, 20, 0.06),
+    0 6px 18px rgba(80, 60, 20, 0.07);
 }

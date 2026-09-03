@@ -144,7 +144,7 @@ export function ProjectCard({
               style={{
                 fontSize: fs(10.5),
                 color: COLORS.textFaint,
-                border: '0.5px solid rgba(var(--gold-rgb),0.3)',
+                background: 'rgba(var(--gold-rgb),0.1)',
                 padding: '2px 7px',
                 borderRadius: 1,
                 letterSpacing: '0.5px',
@@ -169,7 +169,7 @@ export function ProjectCard({
               style={{
                 fontSize: fs(11),
                 color: COLORS.textFaint,
-                border: '0.5px solid rgba(var(--gold-rgb),0.3)',
+                background: 'rgba(var(--gold-rgb),0.1)',
                 padding: '2px 7px',
                 borderRadius: 1,
                 letterSpacing: '1px',
