@@ -32,6 +32,7 @@
     "src/lib/errorLog.ts",
     "src/lib/storageMessages.ts",
     "src/lib/storageRecovery.ts",
+    "src/lib/storageBreakdown.ts",
     "src/lib/appUpdate.ts",
     "src/lib/chatLink.ts",
     "src/lib/backupSerialize.ts",

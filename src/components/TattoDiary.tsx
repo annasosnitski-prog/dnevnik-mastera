@@ -1235,6 +1235,24 @@ export default function TattoDiary() {
   // ZIP v6 is written to OPFS record-by-record. In contrast to the old
   // getAll()+monolithic JSON path, export no longer materializes a second
   // copy of the entire photo library in page memory.
+  // Разбор занятого места — по требованию из Настроек. Модуль грузится
+  // лениво, как backupArchive: обычному запуску дневника он не нужен.
+  //
+  // null вместо ошибки, когда связи с базой нет: Настройки скажут «попробуйте
+  // ещё раз», а не превратят любопытство мастера в красную плашку. Если связь
+  // как раз восстанавливается, к повторному нажатию она уже вернётся.
+  const measureStorageUse = async () => {
+    const database = dbRef.current ?? db;
+    if (!database) return null;
+    const { measureStorageBreakdown } = await import('../lib/storageBreakdown');
+    try {
+      return await measureStorageBreakdown(database);
+    } catch (err) {
+      logError('storage', STORAGE_ACTIONS.measureStorage, err);
+      return null;
+    }
+  };
+
   const prepareFullBackup = async (options: PrepareBackupArchiveOptions): Promise<PreparedBackupArchive> => {
     if (!db) return Promise.reject(new Error('Хранилище сейчас недоступно. Нажмите «Повторить» и попробуйте снова.'));
     const { prepareBackupArchive } = await import('../lib/backupArchive');
@@ -3363,6 +3381,7 @@ export default function TattoDiary() {
               onToggleTheme={toggleTheme}
               minimalism={minimalism}
               onChangeMinimalism={setMinimalism}
+              onMeasureStorage={measureStorageUse}
               prefs={prefs}
               onChange={setPrefs}
               onBack={() => setScreen('master')}
