@@ -41,12 +41,13 @@ test('отметка о копии ставится только на реаль
 });
 
 test('напоминание о копии видно на всех экранах, но не спорит с другими', () => {
-  const banner = app.slice(app.indexOf('{!dbError && !sheetOpen && !backupNoticeHidden'), app.indexOf('{/* ═══════════ LIST SCREEN ═══════════ */}'));
+  const banner = app.slice(app.indexOf('{!dbError && !recoveryVisible && !sheetOpen && !backupNoticeHidden'), app.indexOf('{/* ═══════════ LIST SCREEN ═══════════ */}'));
   // Не карточка в «Напоминаниях»: те про работу с клиентами, это про дневник.
   assert.match(banner, /position: 'absolute'/);
   assert.match(banner, /данные есть только в этом телефоне/);
-  // Уступает ошибке хранилища и не лезет поверх открытой формы.
-  assert.match(app, /\{!dbError && !sheetOpen && !backupNoticeHidden && backupState\.kind !== 'fresh' && \(/);
+  // Уступает и ошибке хранилища, и строке восстановления связи (обе рисуются
+  // в том же углу), и не лезет поверх открытой формы.
+  assert.match(app, /\{!dbError && !recoveryVisible && !sheetOpen && !backupNoticeHidden && backupState\.kind !== 'fresh' && \(/);
 });
 
 test('закрыть напоминание можно только до перезапуска', () => {
@@ -57,7 +58,7 @@ test('закрыть напоминание можно только до пер�
 });
 
 test('«Сделать» ведёт в Настройки, а не просто прячет плашку', () => {
-  const banner = app.slice(app.indexOf('{!dbError && !sheetOpen && !backupNoticeHidden'), app.indexOf('{/* ═══════════ LIST SCREEN ═══════════ */}'));
+  const banner = app.slice(app.indexOf('{!dbError && !recoveryVisible && !sheetOpen && !backupNoticeHidden'), app.indexOf('{/* ═══════════ LIST SCREEN ═══════════ */}'));
   assert.match(banner, /setScreen\('settings'\)/);
 });
 

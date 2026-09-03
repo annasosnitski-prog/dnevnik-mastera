@@ -20,10 +20,15 @@ test('a connection that arrives after the timeout is closed, not left dangling',
   assert.match(initDb, /if \(settled\) \{\s*request\.result\.close\(\);/);
 });
 
-test('a connection lost mid-session surfaces the recoverable banner immediately', () => {
-  const connect = diary.slice(diary.indexOf('const connectDb = ()'), diary.indexOf('useEffect(() => {\n    connectDb();'));
+test('a connection lost mid-session is noticed at once, not at the next write', () => {
+  const connect = diary.slice(diary.indexOf('const connectDb = ('), diary.indexOf('const scheduleReconnect'));
   assert.match(connect, /database\.onclose = \(\)/);
   assert.match(connect, /database\.onversionchange = \(\)/);
-  // Сброс db — то, что показывает кнопку «Повторить» в плашке.
-  assert.equal((connect.match(/setDb\(null\)/g) ?? []).length, 2);
+  // Разница между двумя обрывами теперь принципиальная, и она здесь видна:
+  // закрытое браузером соединение дневник чинит сам (handleConnectionLost →
+  // тихие попытки), а обновление схемы из второй вкладки — единственный
+  // случай, где без мастера не обойтись, и только он даёт плашку.
+  assert.match(connect, /database\.onclose = \(\) => handleConnectionLost\(/);
+  assert.match(connect, /reportStorageFailure\('conflicting'/);
+  assert.equal((connect.match(/setDb\(null\)/g) ?? []).length, 1);
 });

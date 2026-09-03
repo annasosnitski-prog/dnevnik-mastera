@@ -42,7 +42,11 @@ test('version check bypasses the service worker so it always sees the server', (
 test('app falls back to a version check that does not depend on the service worker', () => {
   assert.match(main, /\/version\.json/);
   assert.match(main, /cache: 'no-store'/);
-  assert.match(main, /deployed !== __BUILD_ID__/);
+  // Сравнение версий и решение «перезагружаться ли сейчас» переехали в
+  // lib/appUpdate.ts — там их можно проверить тестом, а не на живом
+  // телефоне; см. tests/appUpdateTiming.test.mjs.
+  assert.match(main, /currentBuildId: __BUILD_ID__/);
+  assert.match(main, /deployedBuildId: deployed/);
   // Проверка должна висеть на возврате из фона, иначе фоновое приложение
   // никогда о новой версии не узнает.
   assert.match(main, /addEventListener\('visibilitychange', onResume\)/);
@@ -50,7 +54,7 @@ test('app falls back to a version check that does not depend on the service work
 });
 
 test('reload is guarded against loops and against firing on first install', () => {
-  assert.match(main, /RELOAD_GUARD_MS/);
+  assert.match(main, /parseReloadGuard/);
   assert.match(main, /reloadRequested/);
   // controllerchange срабатывает и при самой первой установке воркера —
   // перезагружаться там незачем, код и так свежий.

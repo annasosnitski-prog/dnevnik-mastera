@@ -103,6 +103,25 @@ export function parseErrorLog(raw: string | null): DiaryErrorEntry[] {
   }
 }
 
+// Записать сбой в журнал ИЗВНЕ дерева React — из ErrorBoundary, которая
+// живёт выше всякого состояния и по определению работает тогда, когда
+// состояние уже упало. Читает, дописывает, кладёт обратно; никогда не
+// бросает сама (журнал не имеет права быть второй причиной падения).
+export function recordErrorEntry(source: DiaryErrorSource, action: string, error: unknown): void {
+  try {
+    const current = parseErrorLog(localStorage.getItem(ERROR_LOG_KEY));
+    const next = appendErrorEntry(current, {
+      at: new Date().toISOString(),
+      source,
+      action,
+      message: describeError(error),
+    });
+    localStorage.setItem(ERROR_LOG_KEY, JSON.stringify(next));
+  } catch {
+    /* журнал недоступен — показ ошибки мастеру всё равно состоится */
+  }
+}
+
 const SOURCE_LABELS: Record<DiaryErrorSource, string> = {
   storage: 'хранилище',
   crash: 'сбой приложения',

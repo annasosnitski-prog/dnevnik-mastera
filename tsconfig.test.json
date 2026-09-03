@@ -31,6 +31,8 @@
     "src/modules/registry.ts",
     "src/lib/errorLog.ts",
     "src/lib/storageMessages.ts",
+    "src/lib/storageRecovery.ts",
+    "src/lib/appUpdate.ts",
     "src/lib/chatLink.ts",
     "src/lib/backupSerialize.ts",
     "src/lib/backupArchive.ts",

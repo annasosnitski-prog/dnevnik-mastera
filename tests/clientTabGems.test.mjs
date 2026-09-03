@@ -152,7 +152,7 @@ test('gold tube separators stay centred between neighbouring medallions at any t
 
 test('tube light falls onto the pendant hardware and upper crown', () => {
   assert.match(tabBarModule, /className="client-card-tabbar__bail"/);
-  assert.match(tabBarModule, /className="client-card-tabbar__medallion"/);
+  assert.match(tabBarModule, /className="client-card-tabbar__medallion theme-\w+-jewel"/);
   assert.match(indexCss, /\.client-card-tabbar__jump-ring[\s\S]*drop-shadow\(0 -1px 1px rgba\(255, 215, 119, 0\.58\)\)/);
   assert.match(indexCss, /\.client-card-tabbar__bail[\s\S]*drop-shadow\(0 -1px 0\.8px rgba\(255, 240, 179, 0\.42\)\)/);
   assert.match(gemSprite, /data-tube-reflection="ambient"[\s\S]*data-tube-reflection="highlight"/);

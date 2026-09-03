@@ -21,8 +21,8 @@ test('о сбое хранилища сообщает ровно одно мес
   const helpers = app.slice(app.indexOf('const reportStorageFailure ='), app.indexOf('// Падения, до которых не дотягивается'));
   assert.equal([...app.matchAll(/setDbError\(/g)].length, 2);
   assert.equal([...helpers.matchAll(/setDbError\(/g)].length, 2, 'setDbError вызывается вне выделенных функций');
-  assert.match(app, /const reportStorageFailure = \(kind: StorageFailureKind, action: string, error\?: unknown\) => \{/);
-  assert.match(app, /setDbError\(storageFailureMessage\(kind, action\)\);/);
+  assert.match(app, /const reportStorageFailure = \(kind: StorageFailureKind, action: string, error\?: unknown, extra\?: string \| null\) => \{/);
+  assert.match(app, /setDbError\(extra \? `\$\{storageFailureMessage\(kind, action\)\} \$\{extra\}` : storageFailureMessage\(kind, action\)\);/);
 });
 
 test('каждый сбой хранилища попадает в журнал тем же вызовом', () => {
