@@ -66,16 +66,16 @@
 
   /* Nav FAB icons — muted gold against the starfield directly (no plate). */
   --toolbar-icon: #a77a31;
-  --toolbar-icon-active: #e2b85e;
+  --toolbar-icon-active: #D9A94E;
   --nav-metal: var(--gold);
   --nav-metal-highlight: var(--gold);
-  --nav-metal-point: #f7cf69;
-  --two-pendant-ray-highlight: #FFF0B3;
-  --two-pendant-ray-light: #E2B655;
+  --nav-metal-point: #E0B563;
+  --two-pendant-ray-highlight: #EAD1A0;
+  --two-pendant-ray-light: #C9A24E;
   --two-pendant-ray-mid: #A87522;
   --two-pendant-ray-recess: #5B3B10;
   --two-pendant-ray-shadow: #211406;
-  --two-pendant-ray-sheen: #FFF6CE;
+  --two-pendant-ray-sheen: #F2E6CC;
 }
 
 /* ── Light (warm parchment / "Casa di Vetro") ── */
