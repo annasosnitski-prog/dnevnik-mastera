@@ -729,6 +729,119 @@ function ProjectConsultationReminderCard({
   );
 }
 
+// Компактная плитка в 3-колоночной сетке (M6 — редизайн «Напоминаний» из
+// полноширинных карточек в грид). Показывает только заголовок + короткую
+// подпись срочности/даты; полная карточка со свайпом/меню/кнопками —
+// прежний JSX каждого типа напоминания — переезжает без изменений в
+// деталь-оверлей, открывающийся по тапу (см. ReminderDetailOverlay ниже).
+// Три собственных цвета акцента вместо произвольных строк — их всего три
+// смысла (просрочено / скоро-действие / мягкий сигнал), и они переиспользуют
+// уже принятую в приложении палитру (var(--urgent), COLORS.gold, textFaint).
+type ReminderTileAccent = 'urgent' | 'gold' | 'faint';
+function ReminderTile({
+  title,
+  subtitle,
+  accent,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  accent: ReminderTileAccent;
+  onClick: () => void;
+}) {
+  const accentColor = accent === 'urgent' ? 'var(--urgent)' : accent === 'gold' ? COLORS.gold : COLORS.textFaint;
+  return (
+    <div
+      className="inka-static"
+      onClick={onClick}
+      role="button"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        gap: 4,
+        minHeight: 74,
+        padding: '9px 8px',
+        borderRadius: 3,
+        background: accent === 'urgent' ? 'rgba(224,102,90,0.06)' : 'rgba(var(--surface-rgb),0.018)',
+        boxShadow: accent === 'urgent' ? 'var(--card-rest-shadow), inset 0 0 0 1px rgba(224,102,90,0.35)' : undefined,
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          fontSize: fs(11.5),
+          color: COLORS.textPrimary,
+          lineHeight: 1.3,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ fontSize: fs(9.5), color: accentColor, letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {subtitle}
+      </div>
+    </div>
+  );
+}
+
+// 3-колоночная сетка тайлов одной группы — переиспользуется всеми пятью
+// секциями (M6), сама раскладка не знает о содержимом карточек.
+function ReminderTileGrid({ children }: { children: React.ReactNode }) {
+  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>{children}</div>;
+}
+
+// Деталь-оверлей — та же карточка (со свайпом/меню/кнопками), что раньше
+// рендерилась прямо в списке, теперь открывается по тапу на плитке. Портал в
+// body — тот же приём, что уже использует ReminderMenuButton — снимает
+// вопросы с transform/overflow предков.
+function ReminderDetailOverlay({ node, onClose }: { node: React.ReactNode; onClose: () => void }) {
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 300,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        padding: '20px 14px calc(14px + env(safe-area-inset-bottom))',
+        background: 'rgba(8,7,6,0.64)',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 'min(100%, 440px)',
+          maxHeight: '80vh',
+          overflowY: 'auto',
+          padding: 14,
+          borderRadius: 12,
+          background: COLORS.sheet,
+          boxShadow: '0 18px 60px rgba(0,0,0,0.42)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+          <span
+            onClick={onClose}
+            role="button"
+            aria-label="Закрыть"
+            style={{ cursor: 'pointer', color: COLORS.textFaint, fontSize: fs(20), lineHeight: 1, padding: 4 }}
+          >
+            ×
+          </span>
+        </div>
+        {node}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // Раскрываемая секция одной приоритетной группы (M5A) — заголовок с
 // количеством, полноценная фокусируемая <button> (клавиатура работает
 // «из коробки», aria-expanded для скринридеров), тонкий разделитель вместо
@@ -920,7 +1033,11 @@ export function RemindersSection({
   // Which card's CopyMessageButton contacts popover is open, if any — that
   // card gets `raised` so its popover isn't trapped behind a later sibling's
   // own stacking context (see SwipeDismissCard's `raised` doc comment).
-  const [raisedKey, setRaisedKey] = useState<string | null>(null);
+  // Какая плитка сейчас открыта в деталь-оверлее (M6) — key плитки + уже
+  // построенный JSX полной карточки для неё (raised/меню-поповеры внутри
+  // оверлея работают как обычно, т.к. это тот же компонент, что раньше жил
+  // прямо в списке).
+  const [openDetail, setOpenDetail] = useState<{ key: string; node: React.ReactNode } | null>(null);
   // Временные баннеры «Напоминание скрыто · Вернуть» после «Скрыть это
   // напоминание» (одна карточка) или «Не напоминать больше» (все стадии
   // заживления одной сессии сразу — keys.length > 1) — сама скрытая сущность
@@ -989,407 +1106,452 @@ export function RemindersSection({
   // раскрывает уже смонтированную секцию, когда сосед опустел, а не только
   // секцию, которая монтируется впервые уже единственной.
   const forceOpen = visibleGroups.length === 1;
-  const groupContentById: Record<string, React.ReactNode> = {
-    action: (
-      <>
-        {overdueFeed.map((entry) => {
-          if (entry.source === 'client') {
-            const it = entry.item;
-            const key = overdueReminderKey(it);
-            return (
-              <OverdueReminderCard
-                key={key}
-                item={it}
-                onReschedule={() => onOpenEntry(it.client.id, it.id, it.kind)}
-                onHide={() => hideReminder(key)}
-                onSnooze={(showAfter) => onSnooze(key, showAfter)}
-                onCancel={() => onCancel(it.client.id, it.id, it.kind)}
-              />
-            );
-          }
-          if (entry.source === 'project-consultation') {
-            const it = entry.item;
-            const key = overdueProjectConsultationReminderKey(it);
-            return (
-              <ProjectConsultationReminderCard
-                key={key}
-                item={it}
-                rule="overdue"
-                onOpenProject={() => onOpenProject?.(it.project)}
-                onHide={() => hideReminder(key)}
-                onSnooze={(showAfter) => onSnooze(key, showAfter)}
-              />
-            );
-          }
-          const it = entry.item;
-          const key = overdueProjectSessionReminderKey(it);
-          return (
-            <ProjectSessionReminderCard
-              key={key}
-              item={it}
-              rule="overdue"
-              onOpenProject={() => onOpenProject?.(it.project)}
-              onHide={() => hideReminder(key)}
-              onSnooze={(showAfter) => onSnooze(key, showAfter)}
-            />
-          );
-        })}
-        {dueProjectsList.map((p) => {
-          const key = projectReminderKey(p);
-          return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onSnooze(key, snoozeShowAfter(3))} revealLabel="Отложить на 3 дня" raised={raisedKey === key}>
-              {(flyOutThen) => (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    padding: '9px 10px',
-                    borderRadius: 2,
-                    border: '1px solid rgba(var(--gold-rgb),0.2)',
-                    background: 'rgba(var(--surface-rgb),0.018)',
-                  }}
-                >
-                  <div onClick={() => onOpenProject?.(p)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-                    <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {p.title || 'Проект'}
-                    </div>
-                    <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      Следующий шаг: {p.nextActionText || '—'}
-                      {p.nextActionDate ? ` · ${formatDate(p.nextActionDate)}` : ''}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <ReminderMenuButton
-                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
-                      onPickDate={(showAfter) => flyOutThen(() => onSnooze(key, showAfter))}
-                      onHide={() => flyOutThen(() => hideReminder(key))}
-                    />
-                  </div>
-                </div>
-              )}
-            </SwipeDismissCard>
-          );
-        })}
-      </>
-    ),
-    tasks: (
-      <>
-        {taskList.map((it) => {
-          // Скрыть → reminder.id (с rule, hideReminder); отложить/свайп →
-          // actionKey (без rule), чтобы откладывание пережило переход
-          // due→overdue (см. reminderKeys) — свайп ключуется ИМЕННО им, не
-          // dismissKey, иначе «отложить» на самом деле скрывало бы карточку
-          // без возможности вернуться свежим напоминанием после overdue.
-          const dismissKey = it.id;
-          const snoozeKey = it.actionKey;
-          const chipStyle: React.CSSProperties = {
-            fontSize: fs(11),
-            color: COLORS.textFaint,
-            border: '1px solid rgba(var(--gold-rgb),0.2)',
-            borderRadius: 2,
-            padding: '4px 9px',
-            letterSpacing: '0.6px',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          };
-          return (
-            <SwipeDismissCard
-              key={it.id}
-              onSwipeComplete={() => onSnooze(snoozeKey, snoozeShowAfter(3))}
-              revealLabel="Отложить на 3 дня"
-              raised={raisedKey === it.id}
+  // Тайлы каждой группы — { key, tile, detail }. tile — компактная плитка в
+  // сетке; detail — прежний полноразмерный JSX карточки (свайп/меню/кнопки
+  // не изменились), открывается по тапу через openDetail (M6).
+  const actionTiles: { key: string; tile: React.ReactNode; detail: React.ReactNode }[] = [
+    ...overdueFeed.map((entry) => {
+      if (entry.source === 'client') {
+        const it = entry.item;
+        const key = overdueReminderKey(it);
+        const detail = (
+          <OverdueReminderCard
+            item={it}
+            onReschedule={() => onOpenEntry(it.client.id, it.id, it.kind)}
+            onHide={() => { setOpenDetail(null); hideReminder(key); }}
+            onSnooze={(showAfter) => { setOpenDetail(null); onSnooze(key, showAfter); }}
+            onCancel={() => { setOpenDetail(null); onCancel(it.client.id, it.id, it.kind); }}
+          />
+        );
+        return {
+          key,
+          tile: <ReminderTile title={it.client.name || '—'} subtitle={`Просрочена · ${formatDate(it.date)}`} accent="urgent" onClick={() => setOpenDetail({ key, node: detail })} />,
+          detail,
+        };
+      }
+      if (entry.source === 'project-consultation') {
+        const it = entry.item;
+        const key = overdueProjectConsultationReminderKey(it);
+        const detail = (
+          <ProjectConsultationReminderCard
+            item={it}
+            rule="overdue"
+            onOpenProject={() => { setOpenDetail(null); onOpenProject?.(it.project); }}
+            onHide={() => { setOpenDetail(null); hideReminder(key); }}
+            onSnooze={(showAfter) => { setOpenDetail(null); onSnooze(key, showAfter); }}
+          />
+        );
+        return {
+          key,
+          tile: <ReminderTile title={it.project.title || 'Проект'} subtitle={`Просрочена · ${formatDate(it.date)}`} accent="urgent" onClick={() => setOpenDetail({ key, node: detail })} />,
+          detail,
+        };
+      }
+      const it = entry.item;
+      const key = overdueProjectSessionReminderKey(it);
+      const detail = (
+        <ProjectSessionReminderCard
+          item={it}
+          rule="overdue"
+          onOpenProject={() => { setOpenDetail(null); onOpenProject?.(it.project); }}
+          onHide={() => { setOpenDetail(null); hideReminder(key); }}
+          onSnooze={(showAfter) => { setOpenDetail(null); onSnooze(key, showAfter); }}
+        />
+      );
+      return {
+        key,
+        tile: <ReminderTile title={it.project.title || 'Проект'} subtitle={`Просрочена · ${formatDate(it.date)}`} accent="urgent" onClick={() => setOpenDetail({ key, node: detail })} />,
+        detail,
+      };
+    }),
+    ...dueProjectsList.map((p) => {
+      const key = projectReminderKey(p);
+      const detail = (
+        <SwipeDismissCard onSwipeComplete={() => { setOpenDetail(null); onSnooze(key, snoozeShowAfter(3)); }} revealLabel="Отложить на 3 дня">
+          {(flyOutThen) => (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                padding: '9px 10px',
+                borderRadius: 2,
+                background: 'rgba(var(--surface-rgb),0.018)',
+              }}
             >
-              {(flyOutThen) => (
-                <div
-                  style={{
-                    padding: '9px 10px',
-                    borderRadius: 2,
-                    border: it.rule === 'task_overdue' ? '1px solid rgba(224,102,90,0.35)' : '1px solid rgba(var(--gold-rgb),0.2)',
-                    background: it.rule === 'task_overdue' ? 'rgba(224,102,90,0.06)' : 'rgba(var(--surface-rgb),0.018)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                    <div onClick={() => onOpenTask?.(it)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-                      <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {it.text || 'Задача'}
-                      </div>
-                      <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {taskOwnerLabel(it)}
-                      </div>
-                      <div style={{ fontSize: fs(11), color: it.rule === 'task_overdue' ? 'var(--urgent)' : COLORS.gold, marginTop: 2 }}>
-                        {it.rule === 'task_overdue' ? 'Просрочена' : 'Срок сегодня'} · {formatDate(it.dueDate)}
-                      </div>
-                    </div>
-                    <ReminderMenuButton
-                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(snoozeKey, snoozeShowAfter(1)))}
-                      onPickDate={(showAfter) => flyOutThen(() => onSnooze(snoozeKey, showAfter))}
-                      onHide={() => flyOutThen(() => hideReminder(dismissKey))}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
-                    <div onClick={() => flyOutThen(() => onCompleteTask?.(it))} role="button" aria-label="Выполнить" style={chipStyle}>
-                      Выполнить
-                    </div>
-                    <div
-                      onClick={() => onOpenTask?.(it)}
-                      role="button"
-                      aria-label="Открыть"
-                      style={{ ...chipStyle, color: COLORS.gold, border: '1px solid rgba(var(--gold-rgb),0.4)' }}
-                    >
-                      Открыть
-                    </div>
-                  </div>
+              <div onClick={() => { setOpenDetail(null); onOpenProject?.(p); }} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {p.title || 'Проект'}
                 </div>
-              )}
-            </SwipeDismissCard>
-          );
-        })}
-      </>
-    ),
-    soon: (
-      <>
-        {soonFeed.map((entry) => {
-          if (entry.source === 'project-session') {
-            const it = entry.item;
-            const key = soonProjectSessionReminderKey(it);
-            return (
-              <ProjectSessionReminderCard
-                key={key}
-                item={it}
-                rule="soon"
-                onOpenProject={() => onOpenProject?.(it.project)}
-                onHide={() => hideReminder(key)}
-                onSnooze={(showAfter) => onSnooze(key, showAfter)}
-              />
-            );
-          }
-          if (entry.source === 'project-consultation') {
-            const it = entry.item;
-            const key = soonProjectConsultationReminderKey(it);
-            return (
-              <ProjectConsultationReminderCard
-                key={key}
-                item={it}
-                rule="soon"
-                onOpenProject={() => onOpenProject?.(it.project)}
-                onHide={() => hideReminder(key)}
-                onSnooze={(showAfter) => onSnooze(key, showAfter)}
-              />
-            );
-          }
-          const it = entry.item;
-          const key = soonReminderKey(it);
-          return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onSnooze(key, snoozeShowAfter(3))} revealLabel="Отложить на 3 дня" raised={raisedKey === key}>
-              {(flyOutThen) => (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    padding: '9px 10px',
-                    borderRadius: 2,
-                    border: '1px solid rgba(var(--gold-rgb),0.2)',
-                    background: 'rgba(var(--surface-rgb),0.018)',
-                  }}
-                >
-                  <div onClick={() => onOpenEntry(it.client.id, it.id, it.kind)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-                    <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {it.client.name || '—'}
-                    </div>
-                    <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2 }}>
-                      Скоро: {it.kind === 'session' ? 'сессия' : 'консультация'} · {formatDate(it.date)}
-                      {it.time && ` · ${it.time}`}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <CopyMessageButton
-                      text={soonReminderMessage(it)}
-                      client={it.client}
-                      onOpenChange={(open) => setRaisedKey(open ? key : null)}
-                    />
-                    <ReminderMenuButton
-                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
-                      onPickDate={(showAfter) => flyOutThen(() => onSnooze(key, showAfter))}
-                      onHide={() => flyOutThen(() => hideReminder(key))}
-                    />
-                  </div>
-                </div>
-              )}
-            </SwipeDismissCard>
-          );
-        })}
-      </>
-    ),
-    healing: (
-      <>
-        {healing.map((it) => {
-          const key = healingCycleReminderKey(it);
-          // Развилка 21-го дня — единственная стадия с выбором. Чек первой
-          // недели ничего не решает: посмотрели, при желании написали
-          // клиенту, закрыли карточку.
-          const isDecision = it.stage === 'day21_decision';
-          // Сообщение клиенту есть у обеих стадий, но только если у проекта
-          // вообще есть клиент — у проекта из Мастерской писать некому.
-          const message = it.client ? healingCycleMessage(it.client, isDecision ? 'day21_photo' : 'week1_check') : null;
-          const chipStyle: React.CSSProperties = {
-            fontSize: fs(11),
-            color: COLORS.textFaint,
-            border: '1px solid rgba(var(--gold-rgb),0.2)',
-            borderRadius: 2,
-            padding: '4px 9px',
-            letterSpacing: '0.6px',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            flex: '1 1 auto',
-            textAlign: 'center',
-          };
-          return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onSnooze(key, snoozeShowAfter(3))} revealLabel="Отложить на 3 дня" raised={raisedKey === key}>
-              {(flyOutThen) => (
-              <div
-                style={{
-                  padding: '9px 10px',
-                  borderRadius: 2,
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  background: 'rgba(var(--surface-rgb),0.018)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                  {/* Цикл принадлежит проекту, поэтому тап ведёт в проект, а
-                      не в сессию: и фото, и коррекция живут там. */}
-                  <div onClick={() => onOpenProject?.(it.project)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-                    <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {it.project.title || 'Проект'}
-                      {it.client?.name ? ` · ${it.client.name}` : ''}
-                    </div>
-                    <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
-                      {HEALING_CYCLE_LABELS[it.stage]} · сессия {formatDate(it.date)}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    {message && it.client && (
-                      <CopyMessageButton
-                        text={message}
-                        client={it.client}
-                        onOpenChange={(open) => setRaisedKey(open ? key : null)}
-                      />
-                    )}
-                    <ReminderMenuButton
-                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
-                      onPickDate={(showAfter) => flyOutThen(() => onSnooze(key, showAfter))}
-                      onHide={() => flyOutThen(() => hideReminder(key))}
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
-                  {isDecision ? (
-                    <>
-                      {/* Развилка 21-го дня. «Фото» ведёт в галерею
-                          заживления проекта — добавленный там снимок сам
-                          закрывает цикл и переводит проект в «Завершён».
-                          «Коррекция» открывает форму новой сессии: дату
-                          мастер вводит вручную, а выполненная коррекция
-                          потом перезапустит цикл от своей даты. */}
-                      <div
-                        onClick={() => flyOutThen(() => onAddHealingPhoto(it.project))}
-                        role="button"
-                        aria-label="Добавить фото заживления"
-                        title="Открыть галерею заживления проекта — фото закроет цикл и завершит проект"
-                        style={chipStyle}
-                      >
-                        Фото
-                      </div>
-                      <div
-                        onClick={() => flyOutThen(() => onScheduleCorrection(it.project))}
-                        role="button"
-                        aria-label="Назначить коррекцию"
-                        title="Назначить коррекцию — после её выполнения цикл заживления начнётся заново от её даты"
-                        style={chipStyle}
-                      >
-                        Коррекция
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Лёгкий чек ничего не решает: закрыть карточку — и
-                          есть всё «выполнено». Скрытие относится к ЭТОЙ
-                          итерации цикла, а не к проекту навсегда. */}
-                      <div
-                        onClick={() => flyOutThen(() => hideReminder(key))}
-                        role="button"
-                        aria-label="Проверила"
-                        title="Заживление проверено — это не означает, что сообщение отправлено клиенту"
-                        style={chipStyle}
-                      >
-                        Проверила
-                      </div>
-                      <div
-                        onClick={() => flyOutThen(() => hideAllHealing(it))}
-                        role="button"
-                        aria-label="Не напоминать больше"
-                        title="Скрыть оба шага текущего заживления — после коррекции цикл начнётся заново"
-                        style={chipStyle}
-                      >
-                        Не напоминать больше
-                      </div>
-                    </>
-                  )}
+                <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  Следующий шаг: {p.nextActionText || '—'}
+                  {p.nextActionDate ? ` · ${formatDate(p.nextActionDate)}` : ''}
                 </div>
               </div>
-              )}
-            </SwipeDismissCard>
-          );
-        })}
-      </>
-    ),
-    stale: (
-      <>
-        {staleProjectsList.map((it) => {
-          const key = staleProjectReminderKey(it);
-          const { project: p } = it;
-          return (
-            <SwipeDismissCard key={key} onSwipeComplete={() => onSnooze(key, snoozeShowAfter(3))} revealLabel="Отложить на 3 дня" raised={raisedKey === key}>
-              {(flyOutThen) => (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    padding: '9px 10px',
-                    borderRadius: 2,
-                    border: '1px solid rgba(var(--gold-rgb),0.2)',
-                    background: 'rgba(var(--surface-rgb),0.018)',
-                  }}
-                >
-                  <div onClick={() => onOpenProject?.(p)} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
-                    <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {p.title || 'Проект'}
-                    </div>
-                    <div style={{ fontSize: fs(11), color: COLORS.textFaint, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      Давно не двигался · {it.daysSince} {daysWord(it.daysSince)} без активности
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <ReminderMenuButton
-                      onSnoozeTomorrow={() => flyOutThen(() => onSnooze(key, snoozeShowAfter(1)))}
-                      onPickDate={(showAfter) => flyOutThen(() => onSnooze(key, showAfter))}
-                      onHide={() => flyOutThen(() => hideReminder(key))}
-                    />
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <ReminderMenuButton
+                  onSnoozeTomorrow={() => flyOutThen(() => { setOpenDetail(null); onSnooze(key, snoozeShowAfter(1)); })}
+                  onPickDate={(showAfter) => flyOutThen(() => { setOpenDetail(null); onSnooze(key, showAfter); })}
+                  onHide={() => flyOutThen(() => { setOpenDetail(null); hideReminder(key); })}
+                />
+              </div>
+            </div>
+          )}
+        </SwipeDismissCard>
+      );
+      return {
+        key,
+        tile: <ReminderTile title={p.title || 'Проект'} subtitle={p.nextActionText || 'Следующий шаг'} accent="gold" onClick={() => setOpenDetail({ key, node: detail })} />,
+        detail,
+      };
+    }),
+  ];
+  const taskTiles: { key: string; tile: React.ReactNode; detail: React.ReactNode }[] = taskList.map((it) => {
+    // Скрыть → reminder.id (с rule, hideReminder); отложить/свайп →
+    // actionKey (без rule), чтобы откладывание пережило переход due→overdue
+    // (см. reminderKeys) — свайп ключуется ИМЕННО им, не dismissKey, иначе
+    // «отложить» на самом деле скрывало бы карточку без возможности
+    // вернуться свежим напоминанием после overdue.
+    const dismissKey = it.id;
+    const snoozeKey = it.actionKey;
+    const chipStyle: React.CSSProperties = {
+      fontSize: fs(11),
+      color: COLORS.textFaint,
+      borderRadius: 2,
+      padding: '4px 9px',
+      letterSpacing: '0.6px',
+      textTransform: 'uppercase',
+      cursor: 'pointer',
+      whiteSpace: 'nowrap',
+      background: 'rgba(var(--gold-rgb),0.06)',
+    };
+    const detail = (
+      <SwipeDismissCard onSwipeComplete={() => { setOpenDetail(null); onSnooze(snoozeKey, snoozeShowAfter(3)); }} revealLabel="Отложить на 3 дня">
+        {(flyOutThen) => (
+          <div
+            style={{
+              padding: '9px 10px',
+              borderRadius: 2,
+              background: it.rule === 'task_overdue' ? 'rgba(224,102,90,0.06)' : 'rgba(var(--surface-rgb),0.018)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+              <div onClick={() => { setOpenDetail(null); onOpenTask?.(it); }} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {it.text || 'Задача'}
                 </div>
+                <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {taskOwnerLabel(it)}
+                </div>
+                <div style={{ fontSize: fs(11), color: it.rule === 'task_overdue' ? 'var(--urgent)' : COLORS.gold, marginTop: 2 }}>
+                  {it.rule === 'task_overdue' ? 'Просрочена' : 'Срок сегодня'} · {formatDate(it.dueDate)}
+                </div>
+              </div>
+              <ReminderMenuButton
+                onSnoozeTomorrow={() => flyOutThen(() => { setOpenDetail(null); onSnooze(snoozeKey, snoozeShowAfter(1)); })}
+                onPickDate={(showAfter) => flyOutThen(() => { setOpenDetail(null); onSnooze(snoozeKey, showAfter); })}
+                onHide={() => flyOutThen(() => { setOpenDetail(null); hideReminder(dismissKey); })}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+              <div onClick={() => flyOutThen(() => { setOpenDetail(null); onCompleteTask?.(it); })} role="button" aria-label="Выполнить" style={chipStyle}>
+                Выполнить
+              </div>
+              <div
+                onClick={() => { setOpenDetail(null); onOpenTask?.(it); }}
+                role="button"
+                aria-label="Открыть"
+                style={{ ...chipStyle, color: COLORS.gold, background: 'rgba(var(--gold-rgb),0.12)' }}
+              >
+                Открыть
+              </div>
+            </div>
+          </div>
+        )}
+      </SwipeDismissCard>
+    );
+    return {
+      key: dismissKey,
+      tile: (
+        <ReminderTile
+          title={it.text || 'Задача'}
+          subtitle={`${it.rule === 'task_overdue' ? 'Просрочена' : 'Срок сегодня'} · ${formatDate(it.dueDate)}`}
+          accent={it.rule === 'task_overdue' ? 'urgent' : 'gold'}
+          onClick={() => setOpenDetail({ key: dismissKey, node: detail })}
+        />
+      ),
+      detail,
+    };
+  });
+  const soonTiles: { key: string; tile: React.ReactNode; detail: React.ReactNode }[] = soonFeed.map((entry) => {
+    if (entry.source === 'project-session') {
+      const it = entry.item;
+      const key = soonProjectSessionReminderKey(it);
+      const detail = (
+        <ProjectSessionReminderCard
+          item={it}
+          rule="soon"
+          onOpenProject={() => { setOpenDetail(null); onOpenProject?.(it.project); }}
+          onHide={() => { setOpenDetail(null); hideReminder(key); }}
+          onSnooze={(showAfter) => { setOpenDetail(null); onSnooze(key, showAfter); }}
+        />
+      );
+      return {
+        key,
+        tile: <ReminderTile title={it.project.title || 'Проект'} subtitle={`Скоро · ${formatDate(it.date)}`} accent="gold" onClick={() => setOpenDetail({ key, node: detail })} />,
+        detail,
+      };
+    }
+    if (entry.source === 'project-consultation') {
+      const it = entry.item;
+      const key = soonProjectConsultationReminderKey(it);
+      const detail = (
+        <ProjectConsultationReminderCard
+          item={it}
+          rule="soon"
+          onOpenProject={() => { setOpenDetail(null); onOpenProject?.(it.project); }}
+          onHide={() => { setOpenDetail(null); hideReminder(key); }}
+          onSnooze={(showAfter) => { setOpenDetail(null); onSnooze(key, showAfter); }}
+        />
+      );
+      return {
+        key,
+        tile: <ReminderTile title={it.project.title || 'Проект'} subtitle={`Скоро · ${formatDate(it.date)}`} accent="gold" onClick={() => setOpenDetail({ key, node: detail })} />,
+        detail,
+      };
+    }
+    const it = entry.item;
+    const key = soonReminderKey(it);
+    const detail = (
+      <SwipeDismissCard onSwipeComplete={() => { setOpenDetail(null); onSnooze(key, snoozeShowAfter(3)); }} revealLabel="Отложить на 3 дня">
+        {(flyOutThen) => (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '9px 10px',
+              borderRadius: 2,
+              background: 'rgba(var(--surface-rgb),0.018)',
+            }}
+          >
+            <div onClick={() => { setOpenDetail(null); onOpenEntry(it.client.id, it.id, it.kind); }} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {it.client.name || '—'}
+              </div>
+              <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2 }}>
+                Скоро: {it.kind === 'session' ? 'сессия' : 'консультация'} · {formatDate(it.date)}
+                {it.time && ` · ${it.time}`}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <CopyMessageButton text={soonReminderMessage(it)} client={it.client} />
+              <ReminderMenuButton
+                onSnoozeTomorrow={() => flyOutThen(() => { setOpenDetail(null); onSnooze(key, snoozeShowAfter(1)); })}
+                onPickDate={(showAfter) => flyOutThen(() => { setOpenDetail(null); onSnooze(key, showAfter); })}
+                onHide={() => flyOutThen(() => { setOpenDetail(null); hideReminder(key); })}
+              />
+            </div>
+          </div>
+        )}
+      </SwipeDismissCard>
+    );
+    return {
+      key,
+      tile: (
+        <ReminderTile
+          title={it.client.name || '—'}
+          subtitle={`Скоро · ${formatDate(it.date)}${it.time ? ` · ${it.time}` : ''}`}
+          accent="gold"
+          onClick={() => setOpenDetail({ key, node: detail })}
+        />
+      ),
+      detail,
+    };
+  });
+  const healingTiles: { key: string; tile: React.ReactNode; detail: React.ReactNode }[] = healing.map((it) => {
+    const key = healingCycleReminderKey(it);
+    // Развилка 21-го дня — единственная стадия с выбором. Чек первой недели
+    // ничего не решает: посмотрели, при желании написали клиенту, закрыли
+    // карточку.
+    const isDecision = it.stage === 'day21_decision';
+    // Сообщение клиенту есть у обеих стадий, но только если у проекта вообще
+    // есть клиент — у проекта из Мастерской писать некому.
+    const message = it.client ? healingCycleMessage(it.client, isDecision ? 'day21_photo' : 'week1_check') : null;
+    const chipStyle: React.CSSProperties = {
+      fontSize: fs(11),
+      color: COLORS.textFaint,
+      borderRadius: 2,
+      padding: '4px 9px',
+      letterSpacing: '0.6px',
+      textTransform: 'uppercase',
+      cursor: 'pointer',
+      whiteSpace: 'nowrap',
+      flex: '1 1 auto',
+      textAlign: 'center',
+      background: 'rgba(var(--gold-rgb),0.06)',
+    };
+    const detail = (
+      <SwipeDismissCard onSwipeComplete={() => { setOpenDetail(null); onSnooze(key, snoozeShowAfter(3)); }} revealLabel="Отложить на 3 дня">
+        {(flyOutThen) => (
+          <div
+            style={{
+              padding: '9px 10px',
+              borderRadius: 2,
+              background: 'rgba(var(--surface-rgb),0.018)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+              {/* Цикл принадлежит проекту, поэтому тап ведёт в проект, а не
+                  в сессию: и фото, и коррекция живут там. */}
+              <div onClick={() => { setOpenDetail(null); onOpenProject?.(it.project); }} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+                <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {it.project.title || 'Проект'}
+                  {it.client?.name ? ` · ${it.client.name}` : ''}
+                </div>
+                <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
+                  {HEALING_CYCLE_LABELS[it.stage]} · сессия {formatDate(it.date)}
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                {message && it.client && (
+                  <CopyMessageButton text={message} client={it.client} />
+                )}
+                <ReminderMenuButton
+                  onSnoozeTomorrow={() => flyOutThen(() => { setOpenDetail(null); onSnooze(key, snoozeShowAfter(1)); })}
+                  onPickDate={(showAfter) => flyOutThen(() => { setOpenDetail(null); onSnooze(key, showAfter); })}
+                  onHide={() => flyOutThen(() => { setOpenDetail(null); hideReminder(key); })}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+              {isDecision ? (
+                <>
+                  {/* Развилка 21-го дня. «Фото» ведёт в галерею заживления
+                      проекта — добавленный там снимок сам закрывает цикл и
+                      переводит проект в «Завершён». «Коррекция» открывает
+                      форму новой сессии: дату мастер вводит вручную, а
+                      выполненная коррекция потом перезапустит цикл от своей
+                      даты. */}
+                  <div
+                    onClick={() => flyOutThen(() => { setOpenDetail(null); onAddHealingPhoto(it.project); })}
+                    role="button"
+                    aria-label="Добавить фото заживления"
+                    title="Открыть галерею заживления проекта — фото закроет цикл и завершит проект"
+                    style={chipStyle}
+                  >
+                    Фото
+                  </div>
+                  <div
+                    onClick={() => flyOutThen(() => { setOpenDetail(null); onScheduleCorrection(it.project); })}
+                    role="button"
+                    aria-label="Назначить коррекцию"
+                    title="Назначить коррекцию — после её выполнения цикл заживления начнётся заново от её даты"
+                    style={chipStyle}
+                  >
+                    Коррекция
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Лёгкий чек ничего не решает: закрыть карточку — и есть
+                      всё «выполнено». Скрытие относится к ЭТОЙ итерации
+                      цикла, а не к проекту навсегда. */}
+                  <div
+                    onClick={() => flyOutThen(() => { setOpenDetail(null); hideReminder(key); })}
+                    role="button"
+                    aria-label="Проверила"
+                    title="Заживление проверено — это не означает, что сообщение отправлено клиенту"
+                    style={chipStyle}
+                  >
+                    Проверила
+                  </div>
+                  <div
+                    onClick={() => flyOutThen(() => { setOpenDetail(null); hideAllHealing(it); })}
+                    role="button"
+                    aria-label="Не напоминать больше"
+                    title="Скрыть оба шага текущего заживления — после коррекции цикл начнётся заново"
+                    style={chipStyle}
+                  >
+                    Не напоминать больше
+                  </div>
+                </>
               )}
-            </SwipeDismissCard>
-          );
-        })}
-      </>
-    ),
+            </div>
+          </div>
+        )}
+      </SwipeDismissCard>
+    );
+    return {
+      key,
+      tile: (
+        <ReminderTile
+          title={`${it.project.title || 'Проект'}${it.client?.name ? ` · ${it.client.name}` : ''}`}
+          subtitle={HEALING_CYCLE_LABELS[it.stage]}
+          accent="gold"
+          onClick={() => setOpenDetail({ key, node: detail })}
+        />
+      ),
+      detail,
+    };
+  });
+  const staleTiles: { key: string; tile: React.ReactNode; detail: React.ReactNode }[] = staleProjectsList.map((it) => {
+    const key = staleProjectReminderKey(it);
+    const { project: p } = it;
+    const detail = (
+      <SwipeDismissCard onSwipeComplete={() => { setOpenDetail(null); onSnooze(key, snoozeShowAfter(3)); }} revealLabel="Отложить на 3 дня">
+        {(flyOutThen) => (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '9px 10px',
+              borderRadius: 2,
+              background: 'rgba(var(--surface-rgb),0.018)',
+            }}
+          >
+            <div onClick={() => { setOpenDetail(null); onOpenProject?.(p); }} style={{ minWidth: 0, cursor: 'pointer', flex: 1 }}>
+              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {p.title || 'Проект'}
+              </div>
+              <div style={{ fontSize: fs(11), color: COLORS.textFaint, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                Давно не двигался · {it.daysSince} {daysWord(it.daysSince)} без активности
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <ReminderMenuButton
+                onSnoozeTomorrow={() => flyOutThen(() => { setOpenDetail(null); onSnooze(key, snoozeShowAfter(1)); })}
+                onPickDate={(showAfter) => flyOutThen(() => { setOpenDetail(null); onSnooze(key, showAfter); })}
+                onHide={() => flyOutThen(() => { setOpenDetail(null); hideReminder(key); })}
+              />
+            </div>
+          </div>
+        )}
+      </SwipeDismissCard>
+    );
+    return {
+      key,
+      tile: (
+        <ReminderTile
+          title={p.title || 'Проект'}
+          subtitle={`${it.daysSince} ${daysWord(it.daysSince)} без активности`}
+          accent="faint"
+          onClick={() => setOpenDetail({ key, node: detail })}
+        />
+      ),
+      detail,
+    };
+  });
+  const groupContentById: Record<string, React.ReactNode> = {
+    action: <ReminderTileGrid>{actionTiles.map((t) => <div key={t.key}>{t.tile}</div>)}</ReminderTileGrid>,
+    tasks: <ReminderTileGrid>{taskTiles.map((t) => <div key={t.key}>{t.tile}</div>)}</ReminderTileGrid>,
+    soon: <ReminderTileGrid>{soonTiles.map((t) => <div key={t.key}>{t.tile}</div>)}</ReminderTileGrid>,
+    healing: <ReminderTileGrid>{healingTiles.map((t) => <div key={t.key}>{t.tile}</div>)}</ReminderTileGrid>,
+    stale: <ReminderTileGrid>{staleTiles.map((t) => <div key={t.key}>{t.tile}</div>)}</ReminderTileGrid>,
   };
   return (
     <div>
@@ -1433,6 +1595,7 @@ export function RemindersSection({
           </div>
         )}
       </div>
+      {openDetail && <ReminderDetailOverlay node={openDetail.node} onClose={() => setOpenDetail(null)} />}
     </div>
   );
 }
