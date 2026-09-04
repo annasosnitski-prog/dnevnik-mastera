@@ -253,6 +253,58 @@ function isMasterDashboardPair<T extends string>(tabs: ClientCardTabDef<T>[]) {
   return tabs.length === 2 && tabs[0]?.kind === 'info' && tabs[1]?.kind === 'projects';
 }
 
+// The same raised gold beads the client card's tube carries at each tab
+// boundary (see DetailScreen's data-tube-dividers) — plain HTML circles, not
+// SVG, so they stay round instead of being squashed by the rays' non-uniform
+// viewBox scaling.
+function TubeDividerBeads({ count }: { count: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-tube-dividers
+      className="client-card-tabbar__tube-dividers"
+      style={{
+        position: 'absolute',
+        left: 8,
+        right: 8,
+        top: 4,
+        height: 0,
+        pointerEvents: 'none',
+        zIndex: 1,
+      }}
+    >
+      {Array.from({ length: count - 1 }, (_, index) => (
+        <span
+          key={index}
+          data-tube-divider={index + 1}
+          style={{
+            position: 'absolute',
+            left: `${((index + 1) / count) * 100}%`,
+            top: 0,
+            width: 5.5,
+            height: 5.5,
+            transform: 'translate(-50%, -50%)',
+            borderRadius: '50%',
+            border: '0.5px solid rgba(255,240,179,.82)',
+            background: `radial-gradient(circle at 34% 28%,
+              #F5E3B8 0%,
+              #EAD1A0 16%,
+              #E0B569 34%,
+              #C8943A 63%,
+              #5C4014 82%,
+              #4A3313 100%)`,
+            boxShadow: `
+              0 0 1.5px rgba(255,240,179,.78),
+              0 0 4px rgba(224, 181, 105,.36),
+              0 0 7px rgba(226,182,85,.14),
+              0 1px 1px rgba(0,0,0,.45)`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 // Keeping the approved rays as SVG, rather than three bordered divs, lets the
 // inner ends taper to a genuinely narrow neck while both outer ends leave the
 // viewport square. IDs are per-instance so two tab bars cannot cross-reference
@@ -323,6 +375,7 @@ export function ClientCardTabBar<T extends string>({
       style={{ ...TABLIST_STYLE, paddingBottom: hasTwoPendantRays && !minimalism ? 11 : undefined }}
     >
       {hasTwoPendantRays && <TwoPendantRays />}
+      {hasTwoPendantRays && <TubeDividerBeads count={tabs.length} />}
       {tabs.map((tab) => (
         <button
           key={tab.id}

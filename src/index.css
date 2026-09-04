@@ -1813,6 +1813,12 @@ input[type='date'] {
   display: none;
 }
 
+[data-minimalism='true']
+  .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar__tube-dividers {
+  display: none;
+}
+
 :root[data-theme='light'] .client-card-tabbar__jump-ring {
   filter: drop-shadow(0 -1px 0.9px rgba(204, 157, 117, 0.44));
 }
