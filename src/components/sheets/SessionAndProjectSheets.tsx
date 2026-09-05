@@ -80,6 +80,7 @@ export function NewSessionSheet({
   chainFrom,
   onClose,
   onAdd,
+  onDelete,
 }: {
   open: boolean;
   clientName: string;
@@ -125,8 +126,11 @@ export function NewSessionSheet({
     isLastSession: boolean;
     projectId: string | null;
   }) => void;
+  // Present only when editing an existing session — omitted for a new one.
+  onDelete?: () => void;
 }) {
   const isEdit = !!initial;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -393,6 +397,15 @@ export function NewSessionSheet({
             {isEdit ? 'Сохранить' : 'Добавить сессию'}
           </span>
         </div>
+
+        {onDelete && (confirmingDelete ? (
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div onClick={() => setConfirmingDelete(false)} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Отмена</div>
+            <div onClick={onDelete} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Удалить сессию</div>
+          </div>
+        ) : (
+          <div onClick={() => setConfirmingDelete(true)} style={{ textAlign: 'center', padding: '10px 0', marginTop: 12, color: COLORS.textFaint, fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Удалить сессию</div>
+        ))}
       </div>
     </BottomSheet>
   );
@@ -477,6 +490,7 @@ export function NewConsultationSheet({
   chainFrom,
   onClose,
   onAdd,
+  onDelete,
 }: {
   open: boolean;
   clientName: string;
@@ -513,8 +527,11 @@ export function NewConsultationSheet({
     photos: string[];
     projectId: string | null;
   }) => void;
+  // Present only when editing an existing consultation — omitted for a new one.
+  onDelete?: () => void;
 }) {
   const isEdit = !!initial;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [area, setArea] = useState('');
@@ -601,7 +618,17 @@ export function NewConsultationSheet({
         </div>
       </div>
 
-      <div style={{ padding: '0 24px 40px' }}><div className="inka-submit" onClick={handleSave} style={SUBMIT_STYLE}><span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>{isEdit ? 'Сохранить' : 'Добавить консультацию'}</span></div></div>
+      <div style={{ padding: '0 24px 40px' }}>
+        <div className="inka-submit" onClick={handleSave} style={SUBMIT_STYLE}><span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>{isEdit ? 'Сохранить' : 'Добавить консультацию'}</span></div>
+        {onDelete && (confirmingDelete ? (
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div onClick={() => setConfirmingDelete(false)} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Отмена</div>
+            <div onClick={onDelete} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Удалить консультацию</div>
+          </div>
+        ) : (
+          <div onClick={() => setConfirmingDelete(true)} style={{ textAlign: 'center', padding: '10px 0', marginTop: 12, color: COLORS.textFaint, fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Удалить консультацию</div>
+        ))}
+      </div>
     </BottomSheet>
   );
 }

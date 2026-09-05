@@ -3624,6 +3624,7 @@ export default function TattoDiary() {
         chainFrom={chainFromSession}
         onClose={closeNewSession}
         onAdd={saveSessionFromNewSessionSheet}
+        onDelete={editSession ? () => { deleteSession(editSession.id); closeNewSession(); } : undefined}
       />
 
       {/* ═══════════ CREATE CHOICE (карточка клиента / мастера, «Мастерская», открытый проект) ═══════════ */}
@@ -3789,6 +3790,11 @@ export default function TattoDiary() {
         chainFrom={chainFromConsultation}
         onClose={closeNewConsultation}
         onAdd={saveConsultationFromNewConsultationSheet}
+        onDelete={
+          editConsultation && (!selectedClient || isConsultationDeletable(editConsultation, selectedClient.sessions))
+            ? () => { deleteConsultation(editConsultation.id); closeNewConsultation(); }
+            : undefined
+        }
       />
 
       {/* ═══════════ NEW / EDIT PROJECT SHEET (Творческая мастерская) ═══════════ */}
