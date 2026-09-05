@@ -1787,7 +1787,7 @@ input[type='date'] {
    placing the upper inside edge of each jump ring on the ray join. */
 .client-card-tabbar[data-two-pendant-rays='true']
   .client-card-tabbar__marker--ornate {
-  transform: translateY(4px);
+  transform: translateY(9px);
 }
 
 .client-card-tabbar__ray-metal {
