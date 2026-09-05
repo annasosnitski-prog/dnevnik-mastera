@@ -124,7 +124,7 @@ export function AdminDashboardScreen({
   onOpenNotes: (urgency: UrgencyKey) => void;
   onOpenCalendar: () => void;
 }) {
-  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('reminders');
+  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('schedule');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
   const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.statsWindowDays);
