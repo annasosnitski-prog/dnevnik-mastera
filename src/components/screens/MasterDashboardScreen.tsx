@@ -8,7 +8,7 @@ import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTab
 import { AddChatLinkForm, AddMasterLinkForm } from '../client/ClientControls';
 import { GoldFrame } from '../ui/Stripes';
 import { StatBlock } from '../ui/StatBlocks';
-import { COLORS, fs } from '../ui/designTokens';
+import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
 import { INPUT_STYLE } from '../TattoDiary';
 import { ProjectCard } from '../project/ProjectCard';
 import { buildChatLink } from '../../lib/chatLink';
@@ -232,7 +232,13 @@ export function MasterDashboardScreen({
           личный кабинет по форме как карточка клиента»: Инфо — весь прежний
           профиль ниже, Проекты — «Проекты мастера» (без клиента), раньше
           жившие только в общей Мастерской. */}
-      <ClientCardTabBar tabs={MASTER_TABS} activeTab={tab} onTab={setTab} ariaLabel="Разделы личного кабинета" />
+      <ClientCardTabBar
+        tabs={MASTER_TABS}
+        activeTab={tab}
+        onTab={setTab}
+        ariaLabel="Разделы личного кабинета"
+        accentColor={TERRITORY_COLORS.personal}
+      />
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {tab === 'info' && (

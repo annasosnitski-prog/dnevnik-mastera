@@ -1760,14 +1760,18 @@ input[type='date'] {
   display: none;
 }
 
-:root[data-theme='light'] .client-card-tabbar[data-two-pendant-rays='true']::before,
-:root[data-theme='light'] .client-card-tabbar[data-two-pendant-rays='true']
+/* data-pendant-rail is the same hardware generalised to any tab count (see
+   PendantRail) — the master dashboard's two-pendant case stays its own
+   attribute for the tests that pin its exact geometry, but every rule below
+   is identical for both, so they share one selector via :is(). */
+:root[data-theme='light'] .client-card-tabbar:is([data-two-pendant-rays='true'], [data-pendant-rail='true'])::before,
+:root[data-theme='light'] .client-card-tabbar:is([data-two-pendant-rays='true'], [data-pendant-rail='true'])
   .client-card-tabbar__tab::after {
   content: none;
   display: none;
 }
 
-.client-card-tabbar[data-two-pendant-rays='true']
+.client-card-tabbar:is([data-two-pendant-rays='true'], [data-pendant-rail='true'])
   .client-card-tabbar__two-pendant-rays {
   display: block;
   position: absolute;
@@ -1785,7 +1789,7 @@ input[type='date'] {
 
 /* Keep the approved rays fixed. The complete pendant assembly moves instead,
    placing the upper inside edge of each jump ring on the ray join. */
-.client-card-tabbar[data-two-pendant-rays='true']
+.client-card-tabbar:is([data-two-pendant-rays='true'], [data-pendant-rail='true'])
   .client-card-tabbar__marker--ornate {
   transform: translateY(9px);
 }
@@ -1800,21 +1804,21 @@ input[type='date'] {
 }
 
 :root[data-theme='light']
-  .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar:is([data-two-pendant-rays='true'], [data-pendant-rail='true'])
   .client-card-tabbar__two-pendant-rays {
   filter: drop-shadow(0 1px 2px rgba(84, 51, 35, 0.22));
 }
 
 /* Minimalism owns a separate flat tab treatment; jewellery hardware must not
-   leak through merely because the master dashboard happens to have two tabs. */
+   leak through merely because a tab bar happens to carry a built-in tube. */
 [data-minimalism='true']
-  .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar:is([data-two-pendant-rays='true'], [data-pendant-rail='true'])
   .client-card-tabbar__two-pendant-rays {
   display: none;
 }
 
 [data-minimalism='true']
-  .client-card-tabbar[data-two-pendant-rays='true']
+  .client-card-tabbar:is([data-two-pendant-rays='true'], [data-pendant-rail='true'])
   .client-card-tabbar__tube-dividers {
   display: none;
 }

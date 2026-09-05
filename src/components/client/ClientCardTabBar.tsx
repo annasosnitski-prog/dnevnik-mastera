@@ -135,12 +135,14 @@ function GemBail() {
 function GemTabMarker({
   kind,
   active,
+  accentColor,
 }: {
   kind: ClientTabIconName;
   active: boolean;
+  accentColor?: string;
 }) {
   const minimalism = useMinimalism();
-  const color = GEM_GOLD;
+  const color = accentColor ?? GEM_GOLD;
 
   if (minimalism) {
     return (
@@ -239,6 +241,25 @@ function GemTabMarker({
         >
           <NaturalStoneIcon size={GEM_SIZE} medallion goldDiamond />
         </span>
+        {accentColor && (
+          // Screens that opt into a territory colour (see accentColor above)
+          // get it on the stone itself, not just the surrounding glow — a
+          // rhombus-clipped colour wash blended over the shared gold cut,
+          // so Админка reads red without needing its own sprite tile.
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 3,
+              clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+              background: accentColor,
+              mixBlendMode: 'color',
+              opacity: 0.65,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
       </span>
     </span>
   );
@@ -309,14 +330,31 @@ function TubeDividerBeads({ count }: { count: number }) {
   );
 }
 
-// Keeping the approved rays as SVG, rather than three bordered divs, lets the
-// inner ends taper to a genuinely narrow neck while both outer ends leave the
-// viewport square. IDs are per-instance so two tab bars cannot cross-reference
-// each other's gradients in the DOM.
-function TwoPendantRays() {
+// Keeping the approved rays as SVG, rather than bordered divs, lets the inner
+// ends taper to a genuinely narrow neck at every pendant while both outer
+// ends leave the viewport square. Generalised from the original two-pendant
+// build: N pendants sit at N evenly-spaced joins: the tube tapers thin at
+// each join and bulges back out at the midpoint between neighbours (where
+// TubeDividerBeads sits its bead). IDs are per-instance so two tab bars
+// cannot cross-reference each other's gradients in the DOM.
+function PendantRail({ count }: { count: number }) {
   const rawId = useId().replace(/:/g, '');
   const metalId = `two-pendant-ray-metal-${rawId}`;
   const sheenId = `two-pendant-ray-sheen-${rawId}`;
+
+  const joins = Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 1000);
+  const metalPaths = [`M0 5 L0 7 L${joins[0]} 6.3 L${joins[0]} 5.7 Z`];
+  const sheenPaths = [`M0 5.35 L0 5.8 L${joins[0]} 5.92 L${joins[0]} 5.78 Z`];
+  for (let i = 0; i < joins.length - 1; i++) {
+    const a = joins[i];
+    const b = joins[i + 1];
+    const mid = (a + b) / 2;
+    metalPaths.push(`M${a} 5.7 Q${mid} 4.6 ${b} 5.7 L${b} 6.3 Q${mid} 7.4 ${a} 6.3 Z`);
+    sheenPaths.push(`M${a} 5.78 Q${mid} 5.2 ${b} 5.78 L${b} 5.92 Q${mid} 5.5 ${a} 5.92 Z`);
+  }
+  const last = joins[joins.length - 1];
+  metalPaths.push(`M${last} 5.7 L${last} 6.3 L1000 7 L1000 5 Z`);
+  sheenPaths.push(`M${last} 5.78 L${last} 5.92 L1000 5.8 L1000 5.35 Z`);
 
   return (
     <svg
@@ -341,17 +379,19 @@ function TwoPendantRays() {
       </defs>
 
       <g className="client-card-tabbar__ray-metal" style={{ fill: `url(#${metalId})` }}>
-        <path d="M0 5 L0 7 L250 6.3 L250 5.7 Z" />
-        <path d="M250 5.7 Q500 4.6 750 5.7 L750 6.3 Q500 7.4 250 6.3 Z" />
-        <path d="M750 5.7 L750 6.3 L1000 7 L1000 5 Z" />
+        {metalPaths.map((d, i) => <path key={i} d={d} />)}
       </g>
       <g className="client-card-tabbar__ray-sheen" style={{ fill: `url(#${sheenId})` }}>
-        <path d="M0 5.35 L0 5.8 L250 5.92 L250 5.78 Z" />
-        <path d="M250 5.78 Q500 5.2 750 5.78 L750 5.92 Q500 5.5 250 5.92 Z" />
-        <path d="M750 5.78 L750 5.92 L1000 5.8 L1000 5.35 Z" />
+        {sheenPaths.map((d, i) => <path key={i} d={d} />)}
       </g>
     </svg>
   );
+}
+
+// The master dashboard's original two-pendant build, now a thin wrapper over
+// the generalised rail (count=2 reproduces the exact original geometry).
+function TwoPendantRays() {
+  return <PendantRail count={2} />;
 }
 
 // One large gemstone per tab; labels stay available to assistive technology
@@ -361,25 +401,38 @@ export function ClientCardTabBar<T extends string>({
   activeTab,
   onTab,
   ariaLabel,
+  accentColor,
+  showTube = true,
 }: {
   tabs: ClientCardTabDef<T>[];
   activeTab: T;
   onTab: (tab: T) => void;
   ariaLabel: string;
+  // Lets a screen tint every gem with its own nav territory colour (e.g.
+  // Админка in red) instead of the shared gold — omit for the plain gold cut.
+  accentColor?: string;
+  // DetailScreen draws its own gold tube (with the client-colour reflection)
+  // above this tab bar, so it opts out of the built-in one to avoid a second,
+  // redundant tube.
+  showTube?: boolean;
 }) {
   const minimalism = useMinimalism();
   const hasTwoPendantRays = isMasterDashboardPair(tabs);
+  const showPendantRail = !hasTwoPendantRays && showTube && tabs.length >= 2;
+  const showBuiltInTube = hasTwoPendantRays || showPendantRail;
 
   return (
     <div
       className="client-card-tabbar"
       data-two-pendant-rays={hasTwoPendantRays ? 'true' : undefined}
+      data-pendant-rail={showPendantRail ? 'true' : undefined}
       role="tablist"
       aria-label={ariaLabel}
-      style={{ ...TABLIST_STYLE, paddingBottom: hasTwoPendantRays && !minimalism ? 11 : undefined }}
+      style={{ ...TABLIST_STYLE, paddingBottom: showBuiltInTube && !minimalism ? 11 : undefined }}
     >
       {hasTwoPendantRays && <TwoPendantRays />}
-      {hasTwoPendantRays && <TubeDividerBeads count={tabs.length} />}
+      {showPendantRail && <PendantRail count={tabs.length} />}
+      {showBuiltInTube && <TubeDividerBeads count={tabs.length} />}
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -394,6 +447,7 @@ export function ClientCardTabBar<T extends string>({
           <GemTabMarker
             kind={tab.kind}
             active={activeTab === tab.id}
+            accentColor={accentColor}
           />
         </button>
       ))}

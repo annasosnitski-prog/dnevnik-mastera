@@ -19,6 +19,10 @@ const masterDashboardScreen = readFileSync(
   new URL('../src/components/screens/MasterDashboardScreen.tsx', import.meta.url),
   'utf8',
 );
+const adminDashboardScreen = readFileSync(
+  new URL('../src/components/screens/AdminDashboardScreen.tsx', import.meta.url),
+  'utf8',
+);
 const gemSprite = readFileSync(new URL('../public/gem-icons.svg', import.meta.url), 'utf8');
 const navFab = readFileSync(new URL('../src/components/navigation/NavFab.tsx', import.meta.url), 'utf8');
 const pendantIcon = readFileSync(new URL('../src/components/navigation/PendantIcon.tsx', import.meta.url), 'utf8');
@@ -46,9 +50,10 @@ test('every tab keeps its own gem — no client-card-only Инфо/Проект�
   // Никакого спец-кейса по ariaLabel: каркас одинаков для карточки клиента
   // и Личного кабинета.
   assert.doesNotMatch(tabBarModule, /ariaLabel === 'Разделы клиента'/);
-  // Минимализм-иконка по-прежнему ключуется от kind; цвет — единый золотой
-  // для всех вкладок (см. следующий тест — палитру по территориям убрали).
-  assert.match(tabBarModule, /const color = GEM_GOLD;/);
+  // Минимализм-иконка по-прежнему ключуется от kind; цвет по умолчанию —
+  // золотой, если экран не передал свой accentColor (см. следующий тест —
+  // территориальную палитру вернули по просьбе Ани).
+  assert.match(tabBarModule, /const color = accentColor \?\? GEM_GOLD;/);
   assert.match(tabBarModule, /<ClientTabIcon name=\{kind\} size=\{26\} \/>/);
 });
 
@@ -67,12 +72,14 @@ test('all six tabs keep the same order as the six tiles in gem-icons.svg', () =>
   assert.match(gemSprite, /id="projects-icon"[\s\S]*transform="translate\(320 0\)"/);
 });
 
-// Раньше вкладки карточки клиента/Личного кабинета красились по той же
+// Вкладки карточки клиента/Личного кабинета раньше красились по той же
 // территориальной палитре, что и радиальный хаб (NavFab) — своя монета на
-// каждый смысл вкладки. По просьбе Ани эту палитру там убрали: все вкладки
-// делят один золотой ромб, так что от территориальной раскраски остался
-// только сам хаб (NavFab), который не трогали.
-test('the radial hub keeps its territory palette; client tabs no longer key colour off it', () => {
+// каждый смысл вкладки; затем эту палитру убрали в пользу единого золота
+// (#243/#244). По новой просьбе Ани территориальный цвет вернули — но не
+// внутрь ClientCardTabBar (он остаётся золотым и территориально-нейтральным
+// по умолчанию), а как опциональный `accentColor`, который передаёт каждый
+// экран сам: Админка красная, Личный кабинет — цвета «личное».
+test('the radial hub keeps its territory palette; screens opt their own gems into it via accentColor', () => {
   assert.match(designTokens, /clients: '#008A5A'/);
   assert.match(designTokens, /personal: '#C99516'/);
   assert.match(designTokens, /content: '#7935B2'/);
@@ -81,9 +88,13 @@ test('the radial hub keeps its territory palette; client tabs no longer key colo
   assert.match(designTokens, /admin: '#B01236'/);
 
   assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
+  // The shared tab bar itself stays generic — no territory import, gold by default.
   assert.doesNotMatch(tabBarModule, /TERRITORY_COLORS/);
   assert.match(tabBarModule, /const GEM_GOLD = COLORS\.gold;/);
   assert.doesNotMatch(tabBarModule, /clientOrnateGemKind|gemKind/);
+  // Each screen that wants its own territory colour passes it in explicitly.
+  assert.match(adminDashboardScreen, /accentColor=\{TERRITORY_COLORS\.admin\}/);
+  assert.match(masterDashboardScreen, /accentColor=\{TERRITORY_COLORS\.personal\}/);
 });
 
 test('toolbar stones render optical depth below the crown without extra blur filters', () => {
@@ -211,7 +222,7 @@ test('the client card wires its four tabs, Проекты first, via the shared 
 });
 
 test('Личный кабинет мастера reuses the same shared tab bar (Инфо/Проекты)', () => {
-  assert.match(masterDashboardScreen, /<ClientCardTabBar tabs=\{MASTER_TABS\} activeTab=\{tab\} onTab=\{setTab\}/);
+  assert.match(masterDashboardScreen, /<ClientCardTabBar[\s\S]*?tabs=\{MASTER_TABS\}[\s\S]*?activeTab=\{tab\}[\s\S]*?onTab=\{setTab\}/);
   const listMatch = masterDashboardScreen.match(/const MASTER_TABS: ClientCardTabDef<[^>]+>\[\] = \[([\s\S]*?)\];/);
   assert.ok(listMatch, 'MASTER_TABS array not found');
   const ids = [...listMatch[1].matchAll(/\{ id: '([^']+)', kind: '([^']+)'/g)].map(([, id, kind]) => [id, kind]);
