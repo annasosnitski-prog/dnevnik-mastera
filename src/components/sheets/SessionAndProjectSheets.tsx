@@ -879,7 +879,6 @@ export function NewProjectSheet({
   // data на submit всегда уезжает ровно одно из двух, а не оба сразу.
   const [exactDateMode, setExactDateMode] = useState(false);
   const [firstSessionExactDate, setFirstSessionExactDate] = useState('');
-  const [state, setState] = useState<ProjectState>('active');
   const [nextActionText, setNextActionText] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
   const [nextActionType, setNextActionType] = useState<NextActionType | null>(null);
@@ -901,6 +900,11 @@ export function NewProjectSheet({
   const preservedColor = initial?.color ?? MARKER_COLORS[0];
   const preservedWaitingFor: ProjectWaitingFor = initial?.waitingFor ?? 'none';
   const preservedPriority: ProjectPriority = initial?.priority ?? 'normal';
+  // ProjectState duplicated ProjectStatus in the form (both showed "Активен"
+  // side by side) — see ProjectState's own comment in domain/project.ts:
+  // it should no longer control UI, so it's preserved like the other
+  // deprecated attributes above rather than exposed as a second select.
+  const preservedState: ProjectState = initial?.state ?? 'active';
   const legacyArea = area && !PROJECT_BODY_AREAS.some((option) => option.key === area) ? area : null;
 
   useEffect(() => {
@@ -915,7 +919,6 @@ export function NewProjectSheet({
       );
       setExactDateMode(!!initial?.firstSessionExactDate);
       setFirstSessionExactDate(initial?.firstSessionExactDate ?? '');
-      setState(initial?.state ?? 'active');
       setNextActionText(initial?.nextActionText ?? '');
       setNextActionDate(initial?.nextActionDate ?? '');
       setNextActionType(initial?.nextActionType ?? null);
@@ -951,31 +954,24 @@ export function NewProjectSheet({
           <div style={{ marginBottom: 16 }}><FieldLabel>Тип</FieldLabel><ProjectCategoryChips value={category} onPick={setCategory} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Клиент</FieldLabel><select value={clientId ?? ''} onChange={(e) => setClientId(e.target.value || null)} style={INPUT_STYLE}><option value="">Мастерская (без клиента)</option>{clients.map((c) => <option key={c.id} value={c.id}>{`${c.name} ${c.surname}`.trim()}</option>)}</select></div>
 
-          <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Статус</FieldLabel>
-              {/* Мастер ставит статус вручную там, где автоматики нет —
-                  «Пауза» и снятие с неё (см. withAdvancedStatus про то, как
-                  пауза сочетается с «только вперёд»). Остальные переходы
-                  (заживление, завершение) проставляются сами. */}
-              <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} style={INPUT_STYLE}>
-                {PROJECT_STATUSES.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Состояние</FieldLabel>
-              <select value={state} onChange={(e) => setState(e.target.value as ProjectState)} style={INPUT_STYLE}>
-                {PROJECT_STATES.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Статус</FieldLabel>
+            {/* Мастер ставит статус вручную там, где автоматики нет —
+                «Пауза» и снятие с неё (см. withAdvancedStatus про то, как
+                пауза сочетается с «только вперёд»). Остальные переходы
+                (заживление, завершение) проставляются сами. Раньше рядом
+                стоял ещё один select — «Состояние» (ProjectState) — с тем же
+                набором значений (Активен/Пауза), так что форма показывала
+                два дублирующих поля одновременно. ProjectState теперь
+                хранится как унаследованное значение (см. preservedState
+                ниже), как и другие устаревшие атрибуты проекта. */}
+            <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} style={INPUT_STYLE}>
+              {PROJECT_STATUSES.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Не точное количество сессий — мастер на старте часто сама не
@@ -1105,7 +1101,7 @@ export function NewProjectSheet({
               firstSessionWindowAmount: exactDateMode ? null : selectedWindow?.amount ?? null,
               firstSessionWindowUnit: exactDateMode ? null : selectedWindow?.unit ?? null,
               firstSessionExactDate: exactDateMode ? firstSessionExactDate || null : null,
-              state,
+              state: preservedState,
               waitingFor: preservedWaitingFor,
               nextActionText,
               nextActionDate: nextActionDate || null,
