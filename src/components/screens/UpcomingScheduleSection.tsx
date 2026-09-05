@@ -40,29 +40,27 @@ export function UpcomingScheduleSection({
       <div style={dividerStyle} />
 
       <div style={subheadStyle}>Период расписания</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      <select
+        value={selectedWindowDays}
+        onChange={(e) => onChangeWindowDays(Number(e.target.value))}
+        aria-label="Период расписания"
+        style={{
+          font: 'inherit',
+          fontSize: fs(12),
+          padding: '4px 10px',
+          borderRadius: 2,
+          cursor: 'pointer',
+          border: '1px solid rgba(var(--gold-rgb),0.3)',
+          background: 'rgba(var(--gold-rgb),0.04)',
+          color: COLORS.gold,
+        }}
+      >
         {DASHBOARD_WINDOW_OPTIONS.map((o) => (
-          <button
-            key={o.days}
-            type="button"
-            onClick={() => onChangeWindowDays(o.days)}
-            aria-pressed={selectedWindowDays === o.days}
-            style={{
-              appearance: 'none',
-              font: 'inherit',
-              fontSize: fs(12),
-              padding: '4px 10px',
-              borderRadius: 2,
-              cursor: 'pointer',
-              border: selectedWindowDays === o.days ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-              background: selectedWindowDays === o.days ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-              color: selectedWindowDays === o.days ? COLORS.gold : COLORS.textFaint,
-            }}
-          >
+          <option key={o.days} value={o.days}>
             {o.label}
-          </button>
+          </option>
         ))}
-      </div>
+      </select>
 
       {groups.length === 0 ? (
         <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 12 }}>
