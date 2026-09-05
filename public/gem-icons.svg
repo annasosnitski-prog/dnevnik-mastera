@@ -19,27 +19,27 @@
   <defs>
     <!-- Exact metal language used by the main radial-toolbar button. -->
     <radialGradient id="gold-face" cx=".34" cy=".2" r=".84">
-      <stop offset="0" stop-color="#FFF8D7"/>
-      <stop offset=".14" stop-color="#FFD777"/>
-      <stop offset=".34" stop-color="#B88B32"/>
-      <stop offset=".56" stop-color="#793804"/>
-      <stop offset=".76" stop-color="#E2B655"/>
-      <stop offset=".91" stop-color="#7C5315"/>
-      <stop offset="1" stop-color="#431A00"/>
+      <stop offset="0" stop-color="#F5E3B8"/>
+      <stop offset=".14" stop-color="#E0B569"/>
+      <stop offset=".34" stop-color="#C8943A"/>
+      <stop offset=".56" stop-color="#8A6428"/>
+      <stop offset=".76" stop-color="#C9A24E"/>
+      <stop offset=".91" stop-color="#6E4E1C"/>
+      <stop offset="1" stop-color="#4A3313"/>
     </radialGradient>
     <linearGradient id="plate-face" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#F7E4B8"/>
-      <stop offset=".35" stop-color="#D8A94A"/>
-      <stop offset=".7" stop-color="#A3722A"/>
-      <stop offset="1" stop-color="#6E4A16"/>
+      <stop offset="0" stop-color="#F0DEB0"/>
+      <stop offset=".35" stop-color="#C8943A"/>
+      <stop offset=".7" stop-color="#96701F"/>
+      <stop offset="1" stop-color="#5C4014"/>
     </linearGradient>
     <linearGradient id="gold-edge" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6B2C00"/>
-      <stop offset=".16" stop-color="#FFF0B3"/>
-      <stop offset=".35" stop-color="#9F772C"/>
-      <stop offset=".55" stop-color="#FFD36E"/>
-      <stop offset=".75" stop-color="#7D3603"/>
-      <stop offset="1" stop-color="#E6BE68"/>
+      <stop offset="0" stop-color="#5C4014"/>
+      <stop offset=".16" stop-color="#EAD1A0"/>
+      <stop offset=".35" stop-color="#B08A3E"/>
+      <stop offset=".55" stop-color="#E0B569"/>
+      <stop offset=".75" stop-color="#6E4E1C"/>
+      <stop offset="1" stop-color="#C9A24E"/>
     </linearGradient>
     <radialGradient id="diamond-base" cx=".32" cy=".26" r=".75">
       <stop offset="0" stop-color="#FFFFFF"/>
@@ -52,9 +52,9 @@
          just linear instead of radial since the stone is a flat rhombus,
          not a domed disc. -->
     <linearGradient id="rhombus-gold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFF8D7"/>
-      <stop offset=".4" stop-color="#FFD777"/>
-      <stop offset="1" stop-color="#B88B32"/>
+      <stop offset="0" stop-color="#F5E3B8"/>
+      <stop offset=".4" stop-color="#E0B569"/>
+      <stop offset="1" stop-color="#C8943A"/>
     </linearGradient>
 
     <filter id="medallion-shadow" x="-20%" y="-20%" width="140%" height="150%">
@@ -92,17 +92,17 @@
          off the old circle onto the rhombus edges' midpoints. -->
     <g id="gold-medallion">
       <g transform="translate(32 32) scale(.724138) translate(-32 -32)">
-        <polygon points="32,3 61,32 32,61 3,32" fill="url(#gold-face)" stroke="#4B1A00" stroke-width=".7"/>
+        <polygon points="32,3 61,32 32,61 3,32" fill="url(#gold-face)" stroke="#5C4014" stroke-width=".7"/>
         <polygon points="32,4 60,32 32,60 4,32" fill="none" stroke="url(#gold-edge)" stroke-width=".95"/>
-        <polygon points="32,7.5 56.5,32 32,56.5 7.5,32" fill="#2C0A00" stroke="#FFCF68" stroke-width=".8"/>
-        <polygon points="32,8.35 55.65,32 32,55.65 8.35,32" fill="none" stroke="#6A2702" stroke-width=".4"/>
-        <polygon points="32,9 55,32 32,55 9,32" fill="url(#plate-face)" stroke="#4B1A00" stroke-width=".5"/>
+        <polygon points="32,7.5 56.5,32 32,56.5 7.5,32" fill="#3A2712" stroke="#E0B569" stroke-width=".8"/>
+        <polygon points="32,8.35 55.65,32 32,55.65 8.35,32" fill="none" stroke="#6E4E1C" stroke-width=".4"/>
+        <polygon points="32,9 55,32 32,55 9,32" fill="url(#plate-face)" stroke="#5C4014" stroke-width=".5"/>
         <polygon points="32,12 52,32 32,52 12,32" fill="none" stroke="url(#gold-edge)" stroke-width=".5"/>
         <!-- The tube sits directly above the pendant. Its light lands on the
              upper crown as a soft gold wash with a narrower hot reflection. -->
-        <path data-tube-reflection="ambient" d="M13.5 26 C20 12.5 44 12.5 50.5 26" fill="none" stroke="#FFD777" stroke-width="4.2" stroke-linecap="round" opacity=".15"/>
-        <path data-tube-reflection="highlight" d="M16 23.5 C23 15.5 41 15.5 48 23.5" fill="none" stroke="#FFF8D7" stroke-width=".9" stroke-linecap="round" opacity=".78"/>
-        <path d="M22 20 30 15" stroke="#FFF0B3" stroke-width="1.2" stroke-linecap="round" opacity=".4"/>
+        <path data-tube-reflection="ambient" d="M13.5 26 C20 12.5 44 12.5 50.5 26" fill="none" stroke="#E0B569" stroke-width="4.2" stroke-linecap="round" opacity=".15"/>
+        <path data-tube-reflection="highlight" d="M16 23.5 C23 15.5 41 15.5 48 23.5" fill="none" stroke="#F5E3B8" stroke-width=".9" stroke-linecap="round" opacity=".78"/>
+        <path d="M22 20 30 15" stroke="#EAD1A0" stroke-width="1.2" stroke-linecap="round" opacity=".4"/>
 
         <use href="#pave" xlink:href="#pave" transform="translate(32 5.2)"/>
         <use href="#pave" xlink:href="#pave" transform="translate(45.4 18.6)"/>
@@ -120,9 +120,9 @@
          with diamond shading), so every tab shares one identical gold cut
          instead of a colour keyed off `color`/currentColor. -->
     <g id="centre-stone">
-      <polygon points="32,25.85 38.15,32 32,38.15 25.85,32" fill="#2C0A00" stroke="url(#gold-edge)" stroke-width=".7"/>
+      <polygon points="32,25.85 38.15,32 32,38.15 25.85,32" fill="#3A2712" stroke="url(#gold-edge)" stroke-width=".7"/>
       <polygon points="32,26.667 37.333,32 32,37.333 26.667,32" fill="url(#rhombus-gold)" opacity=".4" filter="url(#stone-glow)"/>
-      <polygon points="32,26.667 37.333,32 32,37.333 26.667,32" fill="url(#rhombus-gold)" stroke="#160800" stroke-opacity=".7" stroke-width=".35"/>
+      <polygon points="32,26.667 37.333,32 32,37.333 26.667,32" fill="url(#rhombus-gold)" stroke="#3A2712" stroke-opacity=".7" stroke-width=".35"/>
       <path d="M32 26.667 37.333 32 32 32Z" fill="#FFFFFF" opacity=".34"/>
       <path d="M37.333 32 32 37.333 32 32Z" fill="#000000" opacity=".23"/>
       <path d="M32 37.333 26.667 32 32 32Z" fill="#000000" opacity=".38"/>

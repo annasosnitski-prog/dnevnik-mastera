@@ -457,7 +457,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
                   ) : (
                     <>
                       <span className="theme-dark-jewel" aria-hidden="true">
-                        <PendantIcon color="#C9922E" size={ITEM_SIZE} plate>
+                        <PendantIcon color="#C9A24E" size={ITEM_SIZE} plate>
                           <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
                           <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
                         </PendantIcon>
@@ -544,7 +544,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
                       style={{
                         top: -2 - badgeIndex * 7,
                         right: -2 - badgeIndex * 7,
-                        background: kind === "urgent" ? "var(--urgent)" : "#e0b84a",
+                        background: kind === "urgent" ? "var(--urgent)" : "#C9A24E",
                       }}
                     />
                   ))}
@@ -569,7 +569,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
           ) : (
             <>
               <span className="theme-dark-jewel" aria-hidden="true">
-                <PendantIcon color="#C9922E" size={HUB_SIZE} plate />
+                <PendantIcon color="#C9A24E" size={HUB_SIZE} plate />
               </span>
               <span className="theme-light-jewel" aria-hidden="true">
                 <NaturalStoneIcon size={HUB_SIZE} plate />
@@ -579,7 +579,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
           {mainBadgeKind && (
             <span
               className="nav-fab__badge"
-              style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#e0b84a" }}
+              style={{ top: -2, right: -2, background: mainBadgeKind === "urgent" ? "var(--urgent)" : "#C9A24E" }}
             />
           )}
         </button>

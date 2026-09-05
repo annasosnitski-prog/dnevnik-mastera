@@ -3121,10 +3121,10 @@ export default function TattoDiary() {
               zIndex: 10,
             }}
           >
-            <span style={{ flex: 1, fontSize: fs(15), color: '#D4A94E', fontStyle: 'italic' }}>{syncWarning}</span>
+            <span style={{ flex: 1, fontSize: fs(15), color: '#C9A24E', fontStyle: 'italic' }}>{syncWarning}</span>
             <button
               onClick={() => setSyncWarning(null)}
-              style={{ background: 'none', border: 'none', color: '#D4A94E', cursor: 'pointer', flexShrink: 0 }}
+              style={{ background: 'none', border: 'none', color: '#C9A24E', cursor: 'pointer', flexShrink: 0 }}
             >
               ✕
             </button>

@@ -107,7 +107,7 @@ test('toolbar stones render optical depth below the crown without extra blur fil
 // не только камень внутри неё: каждое кольцо, что раньше было кругом радиуса
 // R, теперь полигон с вершинами на 32±R по осям.
 test('ornate tabs use the main-button gold material, and the whole pendant is a rhombus', () => {
-  assert.match(gemSprite, /id="gold-face"[\s\S]*stop-color="#FFF8D7"[\s\S]*stop-color="#B88B32"[\s\S]*stop-color="#E2B655"[\s\S]*stop-color="#431A00"/);
+  assert.match(gemSprite, /id="gold-face"[\s\S]*stop-color="#F5E3B8"[\s\S]*stop-color="#C8943A"[\s\S]*stop-color="#C9A24E"[\s\S]*stop-color="#4A3313"/);
   assert.doesNotMatch(pendantIcon, /#C77A14|#EFAD3C|#B45F0B|#F1B54A/);
   assert.doesNotMatch(gemSprite, /#C77A14|#EFAD3C|#B45F0B|#F1B54A/);
   assert.match(gemSprite, /id="gold-medallion"[\s\S]*scale\(\.724138\)[\s\S]*polygon points="32,3 61,32 32,61 3,32" fill="url\(#gold-face\)"/);
@@ -135,9 +135,9 @@ test('tab medallions shrink inside their fixed slots without an active underline
 
 test('client tabs hang from a gold tube carrying the client-colour reflection', () => {
   assert.match(detailScreen, /boxSizing: 'border-box',[\s\S]*height: 5,[\s\S]*borderRadius: 999/);
-  assert.match(detailScreen, /#FFD777[\s\S]*#FFF8D7[\s\S]*#431A00/);
+  assert.match(detailScreen, /#E0B569[\s\S]*#F5E3B8[\s\S]*#4A3313/);
   assert.match(detailScreen, /color-mix\(in srgb, \$\{client\.color\}[\s\S]*mixBlendMode: 'screen'/);
-  assert.match(detailScreen, /0 0 3px rgba\(255,215,119,\.42\)/);
+  assert.match(detailScreen, /0 0 3px rgba\(224, 181, 105,\.42\)/);
 });
 
 test('gold tube separators stay centred between neighbouring medallions at any tab count', () => {
@@ -146,15 +146,15 @@ test('gold tube separators stay centred between neighbouring medallions at any t
   assert.match(detailScreen, /data-tube-divider=\{index \+ 1\}/);
   assert.match(detailScreen, /\(\(index \+ 1\) \/ CLIENT_TABS\.length\) \* 100/);
   assert.match(detailScreen, /width: 5\.5,[\s\S]*height: 5\.5,[\s\S]*borderRadius: '50%'/);
-  assert.match(detailScreen, /#FFFDF0[\s\S]*#FFD777[\s\S]*#B88B32[\s\S]*#431A00/);
-  assert.match(detailScreen, /0 0 4px rgba\(255,215,119,\.36\)/);
+  assert.match(detailScreen, /#F5E3B8[\s\S]*#E0B569[\s\S]*#C8943A[\s\S]*#4A3313/);
+  assert.match(detailScreen, /0 0 4px rgba\(224, 181, 105,\.36\)/);
 });
 
 test('tube light falls onto the pendant hardware and upper crown', () => {
   assert.match(tabBarModule, /className="client-card-tabbar__bail"/);
   assert.match(tabBarModule, /className="client-card-tabbar__medallion theme-\w+-jewel"/);
-  assert.match(indexCss, /\.client-card-tabbar__jump-ring[\s\S]*drop-shadow\(0 -1px 1px rgba\(255, 215, 119, 0\.58\)\)/);
-  assert.match(indexCss, /\.client-card-tabbar__bail[\s\S]*drop-shadow\(0 -1px 0\.8px rgba\(255, 240, 179, 0\.42\)\)/);
+  assert.match(indexCss, /\.client-card-tabbar__jump-ring[\s\S]*drop-shadow\(0 -1px 1px rgba\(224, 181, 105, 0\.58\)\)/);
+  assert.match(indexCss, /\.client-card-tabbar__bail[\s\S]*drop-shadow\(0 -1px 0\.8px rgba\(234, 209, 160, 0\.42\)\)/);
   assert.match(gemSprite, /data-tube-reflection="ambient"[\s\S]*data-tube-reflection="highlight"/);
 });
 
@@ -170,7 +170,7 @@ test('active medallion halo rises into the tube glow without following the pendu
   assert.match(indexCss, /\.client-card-tabbar__marker[\s\S]*isolation: isolate/);
   assert.match(indexCss, /\.client-card-tabbar__pendulum[\s\S]*z-index: 1/);
   assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*z-index: 0[\s\S]*top: -17px[\s\S]*ellipse 29px 34px at 50% 50%[\s\S]*ellipse 13px 39px at 50% 0%/);
-  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*var\(--active-gem-color\) 52%[\s\S]*rgba\(255, 248, 215, 0\.22\)[\s\S]*rgba\(255, 215, 119, 0\.14\)/);
+  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*var\(--active-gem-color\) 52%[\s\S]*rgba\(245, 227, 184, 0\.22\)[\s\S]*rgba\(224, 181, 105, 0\.14\)/);
   assert.match(tabBarModule, /client-card-tabbar__active-halo[\s\S]*<GemJumpRing active=\{active\} \/>[\s\S]*client-card-tabbar__pendulum/);
 });
 

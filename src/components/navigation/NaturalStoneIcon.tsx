@@ -197,12 +197,12 @@ export function NaturalStoneIcon({
                 <polygon points={`32,${32 - stoneR} ${32 + stoneR},32 32,${32 + stoneR} ${32 - stoneR},32`} fill="var(--bronze-recess)" />
                 <polygon
                   points={`32,${32 - stoneR * 0.86} ${32 + stoneR * 0.86},32 32,${32 + stoneR * 0.86} ${32 - stoneR * 0.86},32`}
-                  fill="#D8A94A"
+                  fill="#C8943A"
                 />
-                <path d={`M32 ${32 - stoneR * 0.86}L${32 + stoneR * 0.86} 32L32 32Z`} fill="#FFF8D7" opacity=".55" />
-                <path d={`M${32 + stoneR * 0.86} 32L32 ${32 + stoneR * 0.86}L32 32Z`} fill="#6E4A16" opacity=".45" />
-                <path d={`M32 ${32 + stoneR * 0.86}L${32 - stoneR * 0.86} 32L32 32Z`} fill="#431A00" opacity=".55" />
-                <path d={`M${32 - stoneR * 0.86} 32L32 ${32 - stoneR * 0.86}L32 32Z`} fill="#FFF8D7" opacity=".28" />
+                <path d={`M32 ${32 - stoneR * 0.86}L${32 + stoneR * 0.86} 32L32 32Z`} fill="#F5E3B8" opacity=".55" />
+                <path d={`M${32 + stoneR * 0.86} 32L32 ${32 + stoneR * 0.86}L32 32Z`} fill="#5C4014" opacity=".45" />
+                <path d={`M32 ${32 + stoneR * 0.86}L${32 - stoneR * 0.86} 32L32 32Z`} fill="#4A3313" opacity=".55" />
+                <path d={`M${32 - stoneR * 0.86} 32L32 ${32 - stoneR * 0.86}L32 32Z`} fill="#F5E3B8" opacity=".28" />
                 <polygon
                   points={`32,${32 - stoneR * 0.86} ${32 + stoneR * 0.86},32 32,${32 + stoneR * 0.86} ${32 - stoneR * 0.86},32`}
                   fill="none"

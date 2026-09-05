@@ -81,17 +81,21 @@ function GemJumpRing({ active }: { active: boolean }) {
         className={active ? 'client-card-tabbar__jump-ring jump-ring-swivel' : 'client-card-tabbar__jump-ring'}
         style={{ width: 18, height: 14, display: 'block', overflow: 'visible' }}
       >
-        {/* Rear wire: the tube occupies y=1…6 in this view. Removing that
-            strip lets the real tube remain visible in front of the rear arc. */}
-        <path className="jewel-wire-shadow" d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#4B1A00" strokeWidth="4" strokeLinecap="round" />
-        <path className="jewel-wire-rear" d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#9A4B08" strokeWidth="2.8" strokeLinecap="round" />
+        {/* Ring geometry scaled down around its hinge (9,1) — a snugger loop
+            that hugs the tube's real (thin) diameter instead of dwarfing it. */}
+        <g transform="translate(9 1) scale(0.6) translate(-9 -1)">
+          {/* Rear wire: the tube occupies y=1…6 in this view. Removing that
+              strip lets the real tube remain visible in front of the rear arc. */}
+          <path className="jewel-wire-shadow" d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#5C4014" strokeWidth="4" strokeLinecap="round" />
+          <path className="jewel-wire-rear" d="M9 .8 C9.8 .8 10.6 1 11.2 1.3 M14.3 6.3 C14.4 9.9 12.2 12.8 9 12.8" fill="none" stroke="#9A4B08" strokeWidth="2.8" strokeLinecap="round" />
 
-        {/* Front wire: this half crosses in front of the tube, making the rod
-            visibly pass through the ring rather than sit behind the drawing. */}
-        <path className="jewel-wire-shadow" d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" />
-        <path className="jewel-wire-front" d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#D8B46A" strokeWidth="2.9" strokeLinecap="round" />
-        <path className="jewel-wire-highlight" d="M7.1 11.8 C4.7 9.7 4.5 5.8 6.1 2.7" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".92" />
-        <path className="jewel-wire-patina" d="M11.2 11.7 C12.5 10.3 13.1 8.6 13.1 7" fill="none" stroke="#793804" strokeWidth=".9" strokeLinecap="round" opacity=".9" />
+          {/* Front wire: this half crosses in front of the tube, making the rod
+              visibly pass through the ring rather than sit behind the drawing. */}
+          <path className="jewel-wire-shadow" d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#5C4014" strokeWidth="4.2" strokeLinecap="round" />
+          <path className="jewel-wire-front" d="M9 12.8 C5.8 12.8 3.7 10.1 3.7 6.8 C3.7 3.5 5.8 .8 9 .8" fill="none" stroke="#D8B46A" strokeWidth="2.9" strokeLinecap="round" />
+          <path className="jewel-wire-highlight" d="M7.1 11.8 C4.7 9.7 4.5 5.8 6.1 2.7" fill="none" stroke="#EAD1A0" strokeWidth=".75" strokeLinecap="round" opacity=".92" />
+          <path className="jewel-wire-patina" d="M11.2 11.7 C12.5 10.3 13.1 8.6 13.1 7" fill="none" stroke="#8A6428" strokeWidth=".9" strokeLinecap="round" opacity=".9" />
+        </g>
       </svg>
     </span>
   );
@@ -116,9 +120,9 @@ function GemBail() {
       }}
     >
       {/* A folded bail hangs from one hinge and slips behind the medallion. */}
-      <path className="jewel-wire-shadow" d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#4B1A00" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path className="jewel-wire-shadow" d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#5C4014" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
       <path className="jewel-wire-front" d="M9 1 C8.8 4.2 6.5 7.2 6.2 11.8 M9 1 C9.2 4.2 11.5 7.2 11.8 11.8" fill="none" stroke="#D8B46A" strokeWidth="2.9" strokeLinecap="round" strokeLinejoin="round" />
-      <path className="jewel-wire-highlight" d="M8.6 1.8 C8.1 4.8 7.2 7.4 7 10.3" fill="none" stroke="#FFF0B3" strokeWidth=".75" strokeLinecap="round" opacity=".88" />
+      <path className="jewel-wire-highlight" d="M8.6 1.8 C8.1 4.8 7.2 7.4 7 10.3" fill="none" stroke="#EAD1A0" strokeWidth=".75" strokeLinecap="round" opacity=".88" />
     </svg>
   );
 }
@@ -253,6 +257,58 @@ function isMasterDashboardPair<T extends string>(tabs: ClientCardTabDef<T>[]) {
   return tabs.length === 2 && tabs[0]?.kind === 'info' && tabs[1]?.kind === 'projects';
 }
 
+// The same raised gold beads the client card's tube carries at each tab
+// boundary (see DetailScreen's data-tube-dividers) — plain HTML circles, not
+// SVG, so they stay round instead of being squashed by the rays' non-uniform
+// viewBox scaling.
+function TubeDividerBeads({ count }: { count: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-tube-dividers
+      className="client-card-tabbar__tube-dividers"
+      style={{
+        position: 'absolute',
+        left: 8,
+        right: 8,
+        top: 4,
+        height: 0,
+        pointerEvents: 'none',
+        zIndex: 1,
+      }}
+    >
+      {Array.from({ length: count - 1 }, (_, index) => (
+        <span
+          key={index}
+          data-tube-divider={index + 1}
+          style={{
+            position: 'absolute',
+            left: `${((index + 1) / count) * 100}%`,
+            top: 0,
+            width: 5.5,
+            height: 5.5,
+            transform: 'translate(-50%, -50%)',
+            borderRadius: '50%',
+            border: '0.5px solid rgba(255,240,179,.82)',
+            background: `radial-gradient(circle at 34% 28%,
+              #F5E3B8 0%,
+              #EAD1A0 16%,
+              #E0B569 34%,
+              #C8943A 63%,
+              #5C4014 82%,
+              #4A3313 100%)`,
+            boxShadow: `
+              0 0 1.5px rgba(255,240,179,.78),
+              0 0 4px rgba(224, 181, 105,.36),
+              0 0 7px rgba(226,182,85,.14),
+              0 1px 1px rgba(0,0,0,.45)`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 // Keeping the approved rays as SVG, rather than three bordered divs, lets the
 // inner ends taper to a genuinely narrow neck while both outer ends leave the
 // viewport square. IDs are per-instance so two tab bars cannot cross-reference
@@ -323,6 +379,7 @@ export function ClientCardTabBar<T extends string>({
       style={{ ...TABLIST_STYLE, paddingBottom: hasTwoPendantRays && !minimalism ? 11 : undefined }}
     >
       {hasTwoPendantRays && <TwoPendantRays />}
+      {hasTwoPendantRays && <TubeDividerBeads count={tabs.length} />}
       {tabs.map((tab) => (
         <button
           key={tab.id}

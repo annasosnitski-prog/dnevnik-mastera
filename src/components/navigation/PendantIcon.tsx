@@ -143,30 +143,30 @@ export function PendantIcon({
       <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
         <defs>
           <radialGradient id={goldFace} cx=".34" cy=".2" r=".84">
-            <stop offset="0" stopColor="#FFF8D7" />
-            <stop offset=".14" stopColor="#FFD777" />
-            <stop offset=".34" stopColor="#B88B32" />
-            <stop offset=".56" stopColor="#793804" />
-            <stop offset=".76" stopColor="#E2B655" />
-            <stop offset=".91" stopColor="#7C5315" />
-            <stop offset="1" stopColor="#431A00" />
+            <stop offset="0" stopColor="#F5E3B8" />
+            <stop offset=".14" stopColor="#E0B569" />
+            <stop offset=".34" stopColor="#C8943A" />
+            <stop offset=".56" stopColor="#8A6428" />
+            <stop offset=".76" stopColor="#C9A24E" />
+            <stop offset=".91" stopColor="#6E4E1C" />
+            <stop offset="1" stopColor="#4A3313" />
           </radialGradient>
           {/* A much gentler sheen than goldFace's dramatic dome-lit radial —
               «Создать» reads as a flat stamped plate, not another curved
               gemstone. */}
           <linearGradient id={plateFace} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#F7E4B8" />
-            <stop offset=".35" stopColor="#D8A94A" />
-            <stop offset=".7" stopColor="#A3722A" />
-            <stop offset="1" stopColor="#6E4A16" />
+            <stop offset="0" stopColor="#F0DEB0" />
+            <stop offset=".35" stopColor="#C8943A" />
+            <stop offset=".7" stopColor="#96701F" />
+            <stop offset="1" stopColor="#5C4014" />
           </linearGradient>
           <linearGradient id={goldEdge} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#6B2C00" />
-            <stop offset=".16" stopColor="#FFF0B3" />
-            <stop offset=".35" stopColor="#9F772C" />
-            <stop offset=".55" stopColor="#FFD36E" />
-            <stop offset=".75" stopColor="#7D3603" />
-            <stop offset="1" stopColor="#E6BE68" />
+            <stop offset="0" stopColor="#5C4014" />
+            <stop offset=".16" stopColor="#EAD1A0" />
+            <stop offset=".35" stopColor="#B08A3E" />
+            <stop offset=".55" stopColor="#E0B569" />
+            <stop offset=".75" stopColor="#6E4E1C" />
+            <stop offset="1" stopColor="#C9A24E" />
           </linearGradient>
           <radialGradient id={diamondBase} cx=".32" cy=".26" r=".75">
             <stop offset="0" stopColor="#FFFFFF" />
@@ -314,22 +314,22 @@ export function PendantIcon({
         </defs>
 
         <g>
-          <circle cx={cx} cy={cy} r={outerR} fill={`url(#${goldFace})`} stroke="#4B1A00" strokeWidth=".7" />
+          <circle cx={cx} cy={cy} r={outerR} fill={`url(#${goldFace})`} stroke="#5C4014" strokeWidth=".7" />
           <circle cx={cx} cy={cy} r={outerR - 1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".95" />
-          <circle cx={cx} cy={cy} r={outerR - 4.5} fill="#2C0A00" stroke="#FFCF68" strokeWidth=".8" />
-          <circle cx={cx} cy={cy} r={outerR - 5.35} fill="none" stroke="#6A2702" strokeWidth=".4" />
+          <circle cx={cx} cy={cy} r={outerR - 4.5} fill="#3A2712" stroke="#E0B569" strokeWidth=".8" />
+          <circle cx={cx} cy={cy} r={outerR - 5.35} fill="none" stroke="#6E4E1C" strokeWidth=".4" />
         </g>
 
         {plate ? (
           <g className="pendant-stone" filter={`url(#${stoneGlow})`}>
-            <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${plateFace})`} stroke="#4B1A00" strokeWidth=".5" />
+            <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${plateFace})`} stroke="#5C4014" strokeWidth=".5" />
             <circle cx={cx} cy={cy} r={stoneR - 3} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />
-            <path d="M22 20 30 15" stroke="#FFF0B3" strokeWidth="1.2" strokeLinecap="round" opacity=".4" />
+            <path d="M22 20 30 15" stroke="#EAD1A0" strokeWidth="1.2" strokeLinecap="round" opacity=".4" />
             {children && (
               <g
                 transform={`translate(${cx} ${cy})`}
-                fill="#4B1A00"
-                stroke="#4B1A00"
+                fill="#5C4014"
+                stroke="#5C4014"
                 style={{ filter: "drop-shadow(-.4px -.5px 0 rgba(255,240,179,.6))" }}
               >
                 {children}
@@ -465,7 +465,7 @@ export function PendantIcon({
           </g>
         )}
 
-        <circle cx={cx} cy={cy} r={stoneR + 0.6} fill="none" stroke="#4F1700" strokeWidth=".5" />
+        <circle cx={cx} cy={cy} r={stoneR + 0.6} fill="none" stroke="#5C4014" strokeWidth=".5" />
         <circle cx={cx} cy={cy} r={stoneR + 1.1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />
 
         {angles.map((deg) => {
