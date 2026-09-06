@@ -507,14 +507,18 @@ export function SettingsScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        {/* Absolute top-right corner, same spot on every screen (see
+            AdminDashboardScreen). */}
+        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
+          <TodayDateBadge onOpen={onOpenCalendar} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
           <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
             <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
               <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
             </svg>
             <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
-          <TodayDateBadge onOpen={onOpenCalendar} />
         </div>
         <div
           style={{
