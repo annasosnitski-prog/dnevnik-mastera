@@ -3,14 +3,17 @@
   left: 50%;
   top: 50%;
   bottom: auto;
-  z-index: 60;
+  /* Above BottomSheet's z-index:950 (see .nav-fab in index.css) — opening
+     the fan while a detail-view sheet is showing (project/session/
+     consultation) must stay reachable over it too, not just the closed hub. */
+  z-index: 961;
   animation: nav-fab-hub-glide 980ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .nav-fab__scrim {
   position: fixed !important;
   inset: 0;
-  z-index: 59 !important;
+  z-index: 960 !important;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   background: rgba(0, 0, 0, 0.22);

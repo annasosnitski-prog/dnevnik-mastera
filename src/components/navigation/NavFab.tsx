@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { PendantIcon } from "./PendantIcon";
 import { NaturalStoneIcon, type NaturalStoneKind } from "./NaturalStoneIcon";
 import { TERRITORY_COLORS } from "../ui/designTokens";
@@ -272,7 +273,21 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
   if (open) containerClasses.push("nav-fab--open");
   if (minimalism) containerClasses.push("nav-fab--minimal");
 
-  return (
+  // Portaled straight to document.body — same escape hatch BottomSheet uses
+  // (see ui/Sheet.tsx). #root is itself position:fixed (index.html, to lock
+  // the app to the real viewport on iOS), and empirically that makes it the
+  // containing block for position:fixed DESCENDANTS in this engine, which
+  // traps their stacking under #root's own (auto) rank in the root context
+  // — no z-index inside #root can then out-rank a sibling like BottomSheet
+  // portaled directly to body (z-index:950), no matter how high. That was
+  // silently defeating the "stay reachable over every detail sheet"
+  // requirement (see navFabHidden in TattoDiary.tsx): the hub was there in
+  // the DOM with the right z-index, just genuinely painted underneath.
+  // Portaling escapes #root's containing-block trap entirely. left:50% still
+  // centers correctly post-portal because .app-shell is itself centered
+  // within the viewport (margin:0 auto) — its horizontal centre and the
+  // viewport's coincide, so this needs no extra positioning logic.
+  return createPortal(
     <>
       {open && <div className="nav-fab__scrim" onClick={() => setOpen(false)} aria-hidden="true" />}
 
@@ -569,6 +584,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
           )}
         </button>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

@@ -7,7 +7,10 @@
   right: auto;
   bottom: auto;
   left: 50%;
-  z-index: 80;
+  /* Above BottomSheet's z-index:950 (see .nav-fab.nav-fab--open in
+     NavFabReveal.css) for the same reason — stay reachable over a detail
+     sheet even in Минимализм mode. */
+  z-index: 961;
   transform: scale(0.89);
   transform-origin: 0 0;
 }
