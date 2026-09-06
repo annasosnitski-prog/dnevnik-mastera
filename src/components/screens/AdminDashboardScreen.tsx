@@ -126,7 +126,9 @@ export function AdminDashboardScreen({
   onOpenNotes: (urgency: UrgencyKey) => void;
   onOpenCalendar: () => void;
 }) {
-  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('schedule');
+  // Открывая админку, мастер в первую очередь хочет увидеть, что происходит
+  // с проектами прямо сейчас — таймлайн, а не расписание или напоминания.
+  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('timeline');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
   const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.statsWindowDays);
