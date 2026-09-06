@@ -354,19 +354,23 @@ function PendantRail({ count }: { count: number }) {
   const metalId = `two-pendant-ray-metal-${rawId}`;
   const sheenId = `two-pendant-ray-sheen-${rawId}`;
 
+  // The tube keeps a solid floor thickness (5-7) at every join instead of
+  // tapering to a hairline there — a pinch that thin used to read as the
+  // gems hanging unattached in the air. It still bulges gently between
+  // joins so the tube isn't perfectly flat.
   const joins = Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 1000);
-  const metalPaths = [`M0 5 L0 7 L${joins[0]} 6.3 L${joins[0]} 5.7 Z`];
-  const sheenPaths = [`M0 5.35 L0 5.8 L${joins[0]} 5.92 L${joins[0]} 5.78 Z`];
+  const metalPaths = [`M0 5 L0 7 L${joins[0]} 7 L${joins[0]} 5 Z`];
+  const sheenPaths = [`M0 5.35 L0 5.92 L${joins[0]} 5.92 L${joins[0]} 5.35 Z`];
   for (let i = 0; i < joins.length - 1; i++) {
     const a = joins[i];
     const b = joins[i + 1];
     const mid = (a + b) / 2;
-    metalPaths.push(`M${a} 5.7 Q${mid} 4.6 ${b} 5.7 L${b} 6.3 Q${mid} 7.4 ${a} 6.3 Z`);
-    sheenPaths.push(`M${a} 5.78 Q${mid} 5.2 ${b} 5.78 L${b} 5.92 Q${mid} 5.5 ${a} 5.92 Z`);
+    metalPaths.push(`M${a} 5 Q${mid} 4.4 ${b} 5 L${b} 7 Q${mid} 7.6 ${a} 7 Z`);
+    sheenPaths.push(`M${a} 5.35 Q${mid} 5.18 ${b} 5.35 L${b} 5.92 Q${mid} 6.09 ${a} 5.92 Z`);
   }
   const last = joins[joins.length - 1];
-  metalPaths.push(`M${last} 5.7 L${last} 6.3 L1000 7 L1000 5 Z`);
-  sheenPaths.push(`M${last} 5.78 L${last} 5.92 L1000 5.8 L1000 5.35 Z`);
+  metalPaths.push(`M${last} 5 L${last} 7 L1000 7 L1000 5 Z`);
+  sheenPaths.push(`M${last} 5.35 L${last} 5.92 L1000 5.92 L1000 5.35 Z`);
 
   return (
     <svg

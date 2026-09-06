@@ -1865,11 +1865,11 @@ input[type='date'] {
 }
 .client-card-tabbar__gem-glow {
   position: absolute;
-  z-index: 3;
+  z-index: 1;
   top: 50%;
   left: 50%;
-  width: 22px;
-  height: 22px;
+  width: 46px;
+  height: 46px;
   transform: translate(-50%, -50%) rotate(45deg);
   pointer-events: none;
   /* The medallion itself is a rhombus, not a disc — the glow directly behind
@@ -1890,8 +1890,8 @@ input[type='date'] {
   transition: width 0.25s, height 0.25s, opacity 0.25s, box-shadow 0.25s;
 }
 .client-card-tabbar__gem-glow--active {
-  width: 29px;
-  height: 29px;
+  width: 58px;
+  height: 58px;
   opacity: 1;
   box-shadow:
     0 0 7px color-mix(in srgb, var(--gem-glow-color) 78%, transparent),

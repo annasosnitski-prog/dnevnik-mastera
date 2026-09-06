@@ -184,8 +184,11 @@ test('tube light falls onto the pendant hardware and upper crown', () => {
 
 test('every centre stone emits its own colour and the active stone intensifies', () => {
   assert.match(tabBarModule, /className=\{active[\s\S]*client-card-tabbar__gem-glow--active[\s\S]*--gem-glow-color/);
-  assert.match(indexCss, /\.client-card-tabbar__gem-glow[\s\S]*z-index: 3[\s\S]*var\(--gem-glow-color\) 58%[\s\S]*mix-blend-mode: screen[\s\S]*opacity: 0\.7/);
-  assert.match(indexCss, /\.client-card-tabbar__gem-glow--active[\s\S]*width: 29px[\s\S]*opacity: 1[\s\S]*var\(--gem-glow-color\) 78%/);
+  // Glow sits behind the medallion (z-index below the medallion's 2) and is
+  // sized past the gem's own edges — otherwise a dark ring shows between the
+  // small glow and the gem's cut, reading as a gap instead of light behind it.
+  assert.match(indexCss, /\.client-card-tabbar__gem-glow[\s\S]*z-index: 1[\s\S]*var\(--gem-glow-color\) 58%[\s\S]*mix-blend-mode: screen[\s\S]*opacity: 0\.7/);
+  assert.match(indexCss, /\.client-card-tabbar__gem-glow--active[\s\S]*width: 58px[\s\S]*opacity: 1[\s\S]*var\(--gem-glow-color\) 78%/);
   assert.match(tabBarModule, /client-card-tabbar__pendulum[\s\S]*client-card-tabbar__gem-glow[\s\S]*client-card-tabbar__medallion/);
 });
 

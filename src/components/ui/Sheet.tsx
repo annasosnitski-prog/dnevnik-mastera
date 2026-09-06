@@ -9,10 +9,18 @@ export function BottomSheet({
   open,
   heightPct,
   children,
+  zIndex = 950,
 }: {
   open: boolean;
   heightPct: number;
   children: React.ReactNode;
+  // A sheet opened from a button inside another already-open sheet (e.g.
+  // CreateChoiceSheet's "+" from within the 90%-tall ProjectViewSheet) is a
+  // sibling portal at the same document.body level — with matching z-index,
+  // whichever mounts later in source order paints on top, so the tall
+  // parent sheet was covering the small popup instead of the other way
+  // round. Raise this for a sheet that must stack above another open sheet.
+  zIndex?: number;
 }) {
   // Same sheet DOM node is reused across opens (e.g. add-session then
   // edit-session), so its scroll position otherwise carries over — reset to
@@ -44,7 +52,7 @@ export function BottomSheet({
         borderRadius: '20px 20px 0 0',
         border: '1px solid rgba(var(--gold-rgb),0.18)',
         borderBottom: 'none',
-        zIndex: 950,
+        zIndex,
         overflowY: 'auto',
         // Closed state must be reliably invisible AND must not enlarge this
         // screen's own scrollable area. A translateY(105%) alone only buys
