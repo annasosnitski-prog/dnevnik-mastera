@@ -193,6 +193,7 @@ import {
   getConsultationNumber,
   getClientSessions,
   getClientConsultations,
+  findProjectOfConsultation,
 } from '../domain/projectSelectors';
 export { clientNameFor } from '../domain/projectSelectors';
 import {
@@ -2082,10 +2083,18 @@ export default function TattoDiary() {
   // alone. Delete the linked session first (which restores the consultation
   // via deleteSession above), then the now-unconverted consultation can be
   // deleted normally.
+  // Resolved from `projects` (the single source of truth for both a
+  // client's and a client-less project's own records — see
+  // findProjectOfConsultation), not `selectedClient`: this also runs when a
+  // consultation is edited from ProjectViewSheet (Мастерская/Админка), where
+  // selectedClient can be null or still refer to a client left open in the
+  // background — checking that unrelated client's sessions let a converted
+  // consultation get deleted while its linked session survived.
   const deleteConsultation = (consultationId: string) => {
-    if (!selectedClient) return;
-    const consultation = selectedClient.consultations.find((c) => c.id === consultationId);
-    if (consultation && !isConsultationDeletable(consultation, selectedClient.sessions)) return;
+    const owner = findProjectOfConsultation(projects, consultationId);
+    if (!owner) return;
+    const consultation = owner.consultations.find((c) => c.id === consultationId);
+    if (consultation && !isConsultationDeletable(consultation, owner.sessions)) return;
     saveProjects(deleteConsultationFromProjects(projects, consultationId));
   };
 
@@ -3802,7 +3811,8 @@ export default function TattoDiary() {
         onClose={closeNewConsultation}
         onAdd={saveConsultationFromNewConsultationSheet}
         onDelete={
-          editConsultation && (!selectedClient || isConsultationDeletable(editConsultation, selectedClient.sessions))
+          editConsultation &&
+          isConsultationDeletable(editConsultation, findProjectOfConsultation(projects, editConsultation.id)?.sessions ?? [])
             ? () => { deleteConsultation(editConsultation.id); closeNewConsultation(); }
             : undefined
         }

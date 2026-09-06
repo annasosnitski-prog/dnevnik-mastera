@@ -181,6 +181,7 @@ export function NewSessionSheet({
       setIsLastSession(initial?.isLastSession ?? false);
       setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
+      setConfirmingDelete(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -398,9 +399,13 @@ export function NewSessionSheet({
           </span>
         </div>
 
-        {onDelete && (confirmingDelete ? (
+        {onDelete && !justSaved && (confirmingDelete ? (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <div onClick={() => setConfirmingDelete(false)} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Отмена</div>
+            {/* justSaved guards this too: a save schedules onAdd 700ms out
+                (see handleSave above) — deleting during that window would
+                have the pending onAdd resurrect the just-deleted record
+                right after, since it still closes over the pre-delete data. */}
             <div onClick={onDelete} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Удалить сессию</div>
           </div>
         ) : (
@@ -563,6 +568,7 @@ export function NewConsultationSheet({
       setPhotos(initial?.photos ?? []);
       setProjectId(initial?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
+      setConfirmingDelete(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -620,7 +626,7 @@ export function NewConsultationSheet({
 
       <div style={{ padding: '0 24px 40px' }}>
         <div className="inka-submit" onClick={handleSave} style={SUBMIT_STYLE}><span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>{isEdit ? 'Сохранить' : 'Добавить консультацию'}</span></div>
-        {onDelete && (confirmingDelete ? (
+        {onDelete && !justSaved && (confirmingDelete ? (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <div onClick={() => setConfirmingDelete(false)} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Отмена</div>
             <div onClick={onDelete} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Удалить консультацию</div>
@@ -931,7 +937,19 @@ export function NewProjectSheet({
   // side by side) — see ProjectState's own comment in domain/project.ts:
   // it should no longer control UI, so it's preserved like the other
   // deprecated attributes above rather than exposed as a second select.
-  const preservedState: ProjectState = initial?.state ?? 'active';
+  // ProjectState.paused must track the visible ProjectStatus control above,
+  // not just whatever the project was created with — buildReminders.ts still
+  // filters overdue/stale projects by p.state==='active', so leaving this
+  // frozen at the old value meant pausing a project via status left it
+  // producing reminders anyway, and unpausing couldn't reactivate it.
+  // 'cancelled'/'archived' have no equivalent in ProjectStatus and no control
+  // sets them any more, so an existing value there is preserved untouched.
+  const preservedState: ProjectState =
+    status === 'paused'
+      ? 'paused'
+      : initial?.state === 'cancelled' || initial?.state === 'archived'
+        ? initial.state
+        : 'active';
   const legacyArea = area && !PROJECT_BODY_AREAS.some((option) => option.key === area) ? area : null;
 
   useEffect(() => {
