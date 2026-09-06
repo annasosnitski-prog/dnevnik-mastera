@@ -1225,7 +1225,6 @@ export function ContentINKAScreen({
         </div>
         <InkaLogo height={fs(15)} />
         <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>ContentINKA</div>
-        <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 2 }}>Собрать материал</div>
         <StarDivider />
       </div>
 
