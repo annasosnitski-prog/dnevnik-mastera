@@ -12,28 +12,51 @@ const SEGMENT_LABELS: Record<PipelineSegmentKey, string> = {
 };
 
 // Прототип шкалы «Запрос → первая сессия» (§17/§22 pipeline-документа) —
-// один проект = одна горизонтальная строка. Позиция точки на линии — доля
-// пройденного пути от createdDate до целевой даты последней точки (session),
-// а не индекс по порядку: так видно, что моодборд с эскизом стоят близко
-// друг к другу, а до сессии ещё далеко, если окно большое.
+// один проект = одна горизонтальная строка. Точки стоят через равные
+// промежутки по ПОРЯДКУ (индексу), не по доле реального времени: раньше
+// позиция считалась как доля пройденного пути по датам, и при неровных
+// интервалах между вехами (например, долгая пауза перед сессией) соседние
+// точки и их подписи наезжали друг на друга — тем сильнее, чем ближе даты
+// друг к другу оказывались по случайности. Индексная раскладка всегда даёт
+// одинаковые, предсказуемые промежутки (0/33/66/100% для четырёх точек)
+// независимо от дат, так что подписи никогда не сталкиваются.
 //
 // Прожитая часть (от старта до сегодня) закрашена — что уже должно было
 // произойти; будущая часть — просто линия. Точка считается «пройденной»,
 // если её собственная дата <= сегодня, независимо от закраски линии под ней.
-function segmentPosition(startMs: number, totalMs: number, targetIso: string): number {
-  if (totalMs <= 0) return 100;
-  const ms = new Date(`${targetIso}T00:00:00.000Z`).getTime() - startMs;
-  return Math.max(0, Math.min(100, (ms / totalMs) * 100));
+function indexPosition(index: number, count: number): number {
+  return count <= 1 ? 0 : (index / (count - 1)) * 100;
+}
+
+// «Сегодня» ложится на ту же индексную шкалу — интерполяция идёт по датам
+// внутри пары точек, между которыми сегодня оказалось, а не по всему
+// диапазону сразу, так что заливка линии остаётся согласованной с
+// индексными позициями точек выше.
+function todayPosition(segments: { targetDate: string }[], today: string): number {
+  const count = segments.length;
+  if (count === 0) return 0;
+  if (today <= segments[0].targetDate) return 0;
+  if (today >= segments[count - 1].targetDate) return 100;
+  for (let i = 0; i < count - 1; i++) {
+    const a = segments[i].targetDate;
+    const b = segments[i + 1].targetDate;
+    if (today >= a && today <= b) {
+      const aMs = new Date(`${a}T00:00:00.000Z`).getTime();
+      const bMs = new Date(`${b}T00:00:00.000Z`).getTime();
+      const todayMs = new Date(`${today}T00:00:00.000Z`).getTime();
+      const frac = bMs > aMs ? (todayMs - aMs) / (bMs - aMs) : 0;
+      return indexPosition(i, count) + frac * (indexPosition(i + 1, count) - indexPosition(i, count));
+    }
+  }
+  return 100;
 }
 
 export function ProjectTimelineRow({ project, clientName }: { project: Project; clientName: string | null }) {
   const segments = getProjectPipelineSegments(project);
   if (!segments || segments.length === 0) return null;
 
-  const startMs = new Date(`${project.createdDate.slice(0, 10)}T00:00:00.000Z`).getTime();
-  const totalMs = new Date(`${segments[segments.length - 1].targetDate}T00:00:00.000Z`).getTime() - startMs;
   const today = todayISO();
-  const todayPct = totalMs > 0 ? Math.max(0, Math.min(100, ((new Date(`${today}T00:00:00.000Z`).getTime() - startMs) / totalMs) * 100)) : 0;
+  const todayPct = todayPosition(segments, today);
 
   return (
     <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)' }}>
@@ -67,8 +90,8 @@ export function ProjectTimelineRow({ project, clientName }: { project: Project; 
         <div style={{ position: 'absolute', top: 4, left: 0, right: 0, height: 2, background: 'rgba(var(--gold-rgb),0.15)', borderRadius: 1 }} />
         <div style={{ position: 'absolute', top: 4, left: 0, width: `${todayPct}%`, height: 2, background: 'rgba(var(--gold-rgb),0.65)', borderRadius: 1 }} />
 
-        {segments.map((segment) => {
-          const pct = segmentPosition(startMs, totalMs, segment.targetDate);
+        {segments.map((segment, index) => {
+          const pct = indexPosition(index, segments.length);
           const passed = segment.targetDate <= today;
           // Подпись у крайних точек анкерится к своему краю, а не к центру
           // (иначе текст первой/последней точки вылезал бы за пределы

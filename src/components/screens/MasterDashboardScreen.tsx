@@ -232,7 +232,12 @@ export function MasterDashboardScreen({
           личный кабинет по форме как карточка клиента»: Инфо — весь прежний
           профиль ниже, Проекты — «Проекты мастера» (без клиента), раньше
           жившие только в общей Мастерской. */}
-      <ClientCardTabBar tabs={MASTER_TABS} activeTab={tab} onTab={setTab} ariaLabel="Разделы личного кабинета" />
+      <ClientCardTabBar
+        tabs={MASTER_TABS}
+        activeTab={tab}
+        onTab={setTab}
+        ariaLabel="Разделы личного кабинета"
+      />
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {tab === 'info' && (

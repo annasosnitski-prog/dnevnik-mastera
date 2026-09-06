@@ -19,6 +19,10 @@ const masterDashboardScreen = readFileSync(
   new URL('../src/components/screens/MasterDashboardScreen.tsx', import.meta.url),
   'utf8',
 );
+const adminDashboardScreen = readFileSync(
+  new URL('../src/components/screens/AdminDashboardScreen.tsx', import.meta.url),
+  'utf8',
+);
 const gemSprite = readFileSync(new URL('../public/gem-icons.svg', import.meta.url), 'utf8');
 const navFab = readFileSync(new URL('../src/components/navigation/NavFab.tsx', import.meta.url), 'utf8');
 const pendantIcon = readFileSync(new URL('../src/components/navigation/PendantIcon.tsx', import.meta.url), 'utf8');
@@ -46,9 +50,10 @@ test('every tab keeps its own gem — no client-card-only Инфо/Проект�
   // Никакого спец-кейса по ariaLabel: каркас одинаков для карточки клиента
   // и Личного кабинета.
   assert.doesNotMatch(tabBarModule, /ariaLabel === 'Разделы клиента'/);
-  // Минимализм-иконка по-прежнему ключуется от kind; цвет — единый золотой
-  // для всех вкладок (см. следующий тест — палитру по территориям убрали).
-  assert.match(tabBarModule, /const color = GEM_GOLD;/);
+  // Минимализм-иконка по-прежнему ключуется от kind; цвет резолвится
+  // заранее (per-tab override или territory-по-kind — см. следующий тест) и
+  // приходит в GemTabMarker уже готовым.
+  assert.match(tabBarModule, /color=\{tab\.color \?\? KIND_COLORS\[tab\.kind\]\}/);
   assert.match(tabBarModule, /<ClientTabIcon name=\{kind\} size=\{26\} \/>/);
 });
 
@@ -67,12 +72,18 @@ test('all six tabs keep the same order as the six tiles in gem-icons.svg', () =>
   assert.match(gemSprite, /id="projects-icon"[\s\S]*transform="translate\(320 0\)"/);
 });
 
-// Раньше вкладки карточки клиента/Личного кабинета красились по той же
+// Вкладки карточки клиента/Личного кабинета/Админки красятся по той же
 // территориальной палитре, что и радиальный хаб (NavFab) — своя монета на
-// каждый смысл вкладки. По просьбе Ани эту палитру там убрали: все вкладки
-// делят один золотой ромб, так что от территориальной раскраски остался
-// только сам хаб (NavFab), который не трогали.
-test('the radial hub keeps its territory palette; client tabs no longer key colour off it', () => {
+// каждый смысл вкладки (kind), а не один общий золотой ромб и не единый
+// цвет на весь экран: в одной и той же строке вкладок Проекты синие,
+// Контент фиолетовый и т.д., как в главном меню. Раньше это красилось по
+// kind (#236), потом убрали в пользу единого золота (#243/#244), затем
+// вернули по kind ещё раз, но с единым цветом на весь экран (не то, что
+// нужно — Ане нужен цвет per-tab, а не per-screen). Kind, чьё значение не
+// совпадает с реальным смыслом вкладки (Админкина «Сводка» несёт иконку
+// info, но не «личное»), красится через явный override в самом тексте
+// вкладки, а не через проп на весь бар.
+test('every tab is coloured by its own territory (kind), with a per-tab override for the odd one out', () => {
   assert.match(designTokens, /clients: '#008A5A'/);
   assert.match(designTokens, /personal: '#C99516'/);
   assert.match(designTokens, /content: '#7935B2'/);
@@ -81,9 +92,22 @@ test('the radial hub keeps its territory palette; client tabs no longer key colo
   assert.match(designTokens, /admin: '#B01236'/);
 
   assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
-  assert.doesNotMatch(tabBarModule, /TERRITORY_COLORS/);
-  assert.match(tabBarModule, /const GEM_GOLD = COLORS\.gold;/);
+  // The shared tab bar imports the same territory palette and keys every
+  // kind to it — sessions/consultations and projects both read as the
+  // toolbar's blue (Админка's «Расписание» и «Таймлайн» — «записи синие»),
+  // content purple, notes orange, info personal-citrine.
+  assert.match(tabBarModule, /import \{ COLORS, TERRITORY_COLORS \} from '\.\.\/ui\/designTokens'/);
+  assert.match(
+    tabBarModule,
+    /const KIND_COLORS: Record<ClientTabIconName, string> = \{\s*sessions: TERRITORY_COLORS\.projects,\s*consultations: TERRITORY_COLORS\.projects,\s*content: TERRITORY_COLORS\.content,\s*notes: TERRITORY_COLORS\.notes,\s*info: TERRITORY_COLORS\.personal,\s*projects: TERRITORY_COLORS\.projects,/,
+  );
   assert.doesNotMatch(tabBarModule, /clientOrnateGemKind|gemKind/);
+  // Админка's «Сводка» overrides its info-kind default (personal) to the
+  // admin territory red — the one tab whose icon doesn't match its meaning.
+  assert.match(adminDashboardScreen, /id: 'summary', kind: 'info', label: 'Сводка', color: TERRITORY_COLORS\.admin/);
+  // No screen-wide accentColor prop any more — colour is resolved per tab.
+  assert.doesNotMatch(adminDashboardScreen, /accentColor/);
+  assert.doesNotMatch(masterDashboardScreen, /accentColor/);
 });
 
 test('toolbar stones render optical depth below the crown without extra blur filters', () => {
@@ -160,8 +184,11 @@ test('tube light falls onto the pendant hardware and upper crown', () => {
 
 test('every centre stone emits its own colour and the active stone intensifies', () => {
   assert.match(tabBarModule, /className=\{active[\s\S]*client-card-tabbar__gem-glow--active[\s\S]*--gem-glow-color/);
-  assert.match(indexCss, /\.client-card-tabbar__gem-glow[\s\S]*z-index: 3[\s\S]*var\(--gem-glow-color\) 58%[\s\S]*mix-blend-mode: screen[\s\S]*opacity: 0\.7/);
-  assert.match(indexCss, /\.client-card-tabbar__gem-glow--active[\s\S]*width: 29px[\s\S]*opacity: 1[\s\S]*var\(--gem-glow-color\) 78%/);
+  // Glow sits behind the medallion (z-index below the medallion's 2) and is
+  // sized past the gem's own edges — otherwise a dark ring shows between the
+  // small glow and the gem's cut, reading as a gap instead of light behind it.
+  assert.match(indexCss, /\.client-card-tabbar__gem-glow[\s\S]*z-index: 1[\s\S]*var\(--gem-glow-color\) 58%[\s\S]*mix-blend-mode: screen[\s\S]*opacity: 0\.7/);
+  assert.match(indexCss, /\.client-card-tabbar__gem-glow--active[\s\S]*width: 58px[\s\S]*opacity: 1[\s\S]*var\(--gem-glow-color\) 78%/);
   assert.match(tabBarModule, /client-card-tabbar__pendulum[\s\S]*client-card-tabbar__gem-glow[\s\S]*client-card-tabbar__medallion/);
 });
 
@@ -211,7 +238,7 @@ test('the client card wires its four tabs, Проекты first, via the shared 
 });
 
 test('Личный кабинет мастера reuses the same shared tab bar (Инфо/Проекты)', () => {
-  assert.match(masterDashboardScreen, /<ClientCardTabBar tabs=\{MASTER_TABS\} activeTab=\{tab\} onTab=\{setTab\}/);
+  assert.match(masterDashboardScreen, /<ClientCardTabBar[\s\S]*?tabs=\{MASTER_TABS\}[\s\S]*?activeTab=\{tab\}[\s\S]*?onTab=\{setTab\}/);
   const listMatch = masterDashboardScreen.match(/const MASTER_TABS: ClientCardTabDef<[^>]+>\[\] = \[([\s\S]*?)\];/);
   assert.ok(listMatch, 'MASTER_TABS array not found');
   const ids = [...listMatch[1].matchAll(/\{ id: '([^']+)', kind: '([^']+)'/g)].map(([, id, kind]) => [id, kind]);

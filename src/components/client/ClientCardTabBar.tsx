@@ -1,6 +1,6 @@
 import { useId, type CSSProperties } from 'react';
 import { useMinimalism } from '../ui/minimalism';
-import { COLORS } from '../ui/designTokens';
+import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
 import { NaturalStoneIcon } from '../navigation/NaturalStoneIcon';
 import './ClientCardTabBar.css';
@@ -24,13 +24,22 @@ const GEM_INDEX: Record<ClientTabIconName, number> = {
   projects: 5,
 };
 
-// Every tab's stone used to be keyed off the same territory palette as the
-// radial toolbar (its own colour per kind, dark-theme sprite tile and
-// light-theme mineral alike) — retired per Anna's direction: every tab now
-// shares one gold rhombus cut instead, so a single accent colour covers the
-// halo/glow and the Минимализм skin's icon tint everywhere a stone used to
-// carry its own hue.
-const GEM_GOLD = COLORS.gold;
+// Every tab's stone carries the same territory colour as the radial toolbar
+// (NavFab) — «карточка клиента» reads Проекты as the toolbar's blue,
+// Контент as its purple, and so on, everywhere this tab bar is used. Keyed
+// by `kind` (not by screen) so the same tab always reads the same colour
+// regardless of which screen hosts it — a tab def can still override this
+// per-instance (see ClientCardTabDef.color below) for a tab whose kind
+// doesn't match its actual meaning here, e.g. Админка's «Сводка» uses the
+// info icon but is coloured as the admin territory, not «личное».
+const KIND_COLORS: Record<ClientTabIconName, string> = {
+  sessions: TERRITORY_COLORS.projects,
+  consultations: TERRITORY_COLORS.projects,
+  content: TERRITORY_COLORS.content,
+  notes: TERRITORY_COLORS.notes,
+  info: TERRITORY_COLORS.personal,
+  projects: TERRITORY_COLORS.projects,
+};
 
 const TABLIST_STYLE: CSSProperties = {
   display: 'flex',
@@ -135,12 +144,15 @@ function GemBail() {
 function GemTabMarker({
   kind,
   active,
+  color,
 }: {
   kind: ClientTabIconName;
   active: boolean;
+  // Resolved by the caller: the tab's own override (ClientCardTabDef.color)
+  // or, failing that, its territory colour by kind (see KIND_COLORS above).
+  color: string;
 }) {
   const minimalism = useMinimalism();
-  const color = GEM_GOLD;
 
   if (minimalism) {
     return (
@@ -239,6 +251,23 @@ function GemTabMarker({
         >
           <NaturalStoneIcon size={GEM_SIZE} medallion goldDiamond />
         </span>
+        {/* The tab's territory colour lands on the stone itself, not just
+            the surrounding glow — a rhombus-clipped colour wash blended
+            over the shared gold cut, so e.g. Проекты reads as the toolbar's
+            blue without needing its own sprite tile. */}
+        <span
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 3,
+            clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+            background: color,
+            mixBlendMode: 'color',
+            opacity: 0.65,
+            pointerEvents: 'none',
+          }}
+        />
       </span>
     </span>
   );
@@ -248,6 +277,10 @@ export interface ClientCardTabDef<T extends string> {
   id: T;
   kind: ClientTabIconName;
   label: string;
+  // Overrides KIND_COLORS for a tab whose icon `kind` doesn't match its
+  // actual meaning here — e.g. Админка's «Сводка» borrows the info icon but
+  // isn't «личное», it's the admin overview.
+  color?: string;
 }
 
 // The master dashboard is the only two-pendant composition. Match its semantic
@@ -309,14 +342,35 @@ function TubeDividerBeads({ count }: { count: number }) {
   );
 }
 
-// Keeping the approved rays as SVG, rather than three bordered divs, lets the
-// inner ends taper to a genuinely narrow neck while both outer ends leave the
-// viewport square. IDs are per-instance so two tab bars cannot cross-reference
-// each other's gradients in the DOM.
-function TwoPendantRays() {
+// Keeping the approved rays as SVG, rather than bordered divs, lets the inner
+// ends taper to a genuinely narrow neck at every pendant while both outer
+// ends leave the viewport square. Generalised from the original two-pendant
+// build: N pendants sit at N evenly-spaced joins: the tube tapers thin at
+// each join and bulges back out at the midpoint between neighbours (where
+// TubeDividerBeads sits its bead). IDs are per-instance so two tab bars
+// cannot cross-reference each other's gradients in the DOM.
+function PendantRail({ count }: { count: number }) {
   const rawId = useId().replace(/:/g, '');
   const metalId = `two-pendant-ray-metal-${rawId}`;
   const sheenId = `two-pendant-ray-sheen-${rawId}`;
+
+  // The tube keeps a solid floor thickness (5-7) at every join instead of
+  // tapering to a hairline there — a pinch that thin used to read as the
+  // gems hanging unattached in the air. It still bulges gently between
+  // joins so the tube isn't perfectly flat.
+  const joins = Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 1000);
+  const metalPaths = [`M0 5 L0 7 L${joins[0]} 7 L${joins[0]} 5 Z`];
+  const sheenPaths = [`M0 5.35 L0 5.92 L${joins[0]} 5.92 L${joins[0]} 5.35 Z`];
+  for (let i = 0; i < joins.length - 1; i++) {
+    const a = joins[i];
+    const b = joins[i + 1];
+    const mid = (a + b) / 2;
+    metalPaths.push(`M${a} 5 Q${mid} 4.4 ${b} 5 L${b} 7 Q${mid} 7.6 ${a} 7 Z`);
+    sheenPaths.push(`M${a} 5.35 Q${mid} 5.18 ${b} 5.35 L${b} 5.92 Q${mid} 6.09 ${a} 5.92 Z`);
+  }
+  const last = joins[joins.length - 1];
+  metalPaths.push(`M${last} 5 L${last} 7 L1000 7 L1000 5 Z`);
+  sheenPaths.push(`M${last} 5.35 L${last} 5.92 L1000 5.92 L1000 5.35 Z`);
 
   return (
     <svg
@@ -341,17 +395,19 @@ function TwoPendantRays() {
       </defs>
 
       <g className="client-card-tabbar__ray-metal" style={{ fill: `url(#${metalId})` }}>
-        <path d="M0 5 L0 7 L250 6.3 L250 5.7 Z" />
-        <path d="M250 5.7 Q500 4.6 750 5.7 L750 6.3 Q500 7.4 250 6.3 Z" />
-        <path d="M750 5.7 L750 6.3 L1000 7 L1000 5 Z" />
+        {metalPaths.map((d, i) => <path key={i} d={d} />)}
       </g>
       <g className="client-card-tabbar__ray-sheen" style={{ fill: `url(#${sheenId})` }}>
-        <path d="M0 5.35 L0 5.8 L250 5.92 L250 5.78 Z" />
-        <path d="M250 5.78 Q500 5.2 750 5.78 L750 5.92 Q500 5.5 250 5.92 Z" />
-        <path d="M750 5.78 L750 5.92 L1000 5.8 L1000 5.35 Z" />
+        {sheenPaths.map((d, i) => <path key={i} d={d} />)}
       </g>
     </svg>
   );
+}
+
+// The master dashboard's original two-pendant build, now a thin wrapper over
+// the generalised rail (count=2 reproduces the exact original geometry).
+function TwoPendantRays() {
+  return <PendantRail count={2} />;
 }
 
 // One large gemstone per tab; labels stay available to assistive technology
@@ -361,25 +417,34 @@ export function ClientCardTabBar<T extends string>({
   activeTab,
   onTab,
   ariaLabel,
+  showTube = true,
 }: {
   tabs: ClientCardTabDef<T>[];
   activeTab: T;
   onTab: (tab: T) => void;
   ariaLabel: string;
+  // DetailScreen draws its own gold tube (with the client-colour reflection)
+  // above this tab bar, so it opts out of the built-in one to avoid a second,
+  // redundant tube.
+  showTube?: boolean;
 }) {
   const minimalism = useMinimalism();
   const hasTwoPendantRays = isMasterDashboardPair(tabs);
+  const showPendantRail = !hasTwoPendantRays && showTube && tabs.length >= 2;
+  const showBuiltInTube = hasTwoPendantRays || showPendantRail;
 
   return (
     <div
       className="client-card-tabbar"
       data-two-pendant-rays={hasTwoPendantRays ? 'true' : undefined}
+      data-pendant-rail={showPendantRail ? 'true' : undefined}
       role="tablist"
       aria-label={ariaLabel}
-      style={{ ...TABLIST_STYLE, paddingBottom: hasTwoPendantRays && !minimalism ? 11 : undefined }}
+      style={{ ...TABLIST_STYLE, paddingBottom: showBuiltInTube && !minimalism ? 11 : undefined }}
     >
       {hasTwoPendantRays && <TwoPendantRays />}
-      {hasTwoPendantRays && <TubeDividerBeads count={tabs.length} />}
+      {showPendantRail && <PendantRail count={tabs.length} />}
+      {showBuiltInTube && <TubeDividerBeads count={tabs.length} />}
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -394,6 +459,7 @@ export function ClientCardTabBar<T extends string>({
           <GemTabMarker
             kind={tab.kind}
             active={activeTab === tab.id}
+            color={tab.color ?? KIND_COLORS[tab.kind]}
           />
         </button>
       ))}

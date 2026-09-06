@@ -119,7 +119,7 @@ export function CreateChoiceSheet({
   };
 
   return (
-    <BottomSheet open={open} heightPct={heightForOptionCount(options.length)}>
+    <BottomSheet open={open} heightPct={heightForOptionCount(options.length)} zIndex={960}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Что добавить?</div>

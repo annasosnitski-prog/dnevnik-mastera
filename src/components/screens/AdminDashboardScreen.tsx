@@ -29,7 +29,7 @@ import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTab
 import { ProjectTimelineList } from '../project/ProjectTimelineList';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
-import { COLORS, fs } from '../ui/designTokens';
+import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
 import { type Prefs } from '../ui/preferences';
 import { buildAdminWorkSummary } from './adminWorkSummary';
 import { AdminWorkSummary } from './AdminWorkSummary';
@@ -45,7 +45,9 @@ import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'summary' | 'timeline'>[] = [
   { id: 'reminders', kind: 'notes', label: 'Напоминания' },
   { id: 'schedule', kind: 'sessions', label: 'Расписание' },
-  { id: 'summary', kind: 'info', label: 'Сводка' },
+  // Borrows the info icon, but this is the admin overview, not «личное» —
+  // overrides KIND_COLORS' default (personal) with the admin territory red.
+  { id: 'summary', kind: 'info', label: 'Сводка', color: TERRITORY_COLORS.admin },
   { id: 'timeline', kind: 'projects', label: 'Таймлайн' },
 ];
 
@@ -124,7 +126,9 @@ export function AdminDashboardScreen({
   onOpenNotes: (urgency: UrgencyKey) => void;
   onOpenCalendar: () => void;
 }) {
-  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('reminders');
+  // Открывая админку, мастер в первую очередь хочет увидеть, что происходит
+  // с проектами прямо сейчас — таймлайн, а не расписание или напоминания.
+  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('timeline');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
   const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.statsWindowDays);
@@ -156,18 +160,24 @@ export function AdminDashboardScreen({
           Управление и статистика
         </div>
         <StarDivider />
-      </div>
-
-      {/* «Сегодня» calendar badge — own row below the divider, in normal
-          flow (not overlaid on the header). */}
-      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-        <TodayDateBadge onOpen={onOpenCalendar} />
+        {/* Back in its original top-right corner — nothing else in this
+            header shares that spot, so it no longer needs its own row
+            pushing the gem tabs down (see #267, which only had to move it
+            off Личный кабинет's gear and Мастерская's filter icon). */}
+        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
+          <TodayDateBadge onOpen={onOpenCalendar} />
+        </div>
       </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента и личного
           кабинета (см. ClientCardTabBar) — «оформим админку по форме как
           карточка клиента»: 4 вкладки вместо одной длинной прокрутки. */}
-      <ClientCardTabBar tabs={ADMIN_TABS} activeTab={tab} onTab={setTab} ariaLabel="Разделы админки" />
+      <ClientCardTabBar
+        tabs={ADMIN_TABS}
+        activeTab={tab}
+        onTab={setTab}
+        ariaLabel="Разделы админки"
+      />
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* «Запланировать» now lives only behind the nav FAB's contextual

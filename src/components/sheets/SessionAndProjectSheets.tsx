@@ -80,6 +80,7 @@ export function NewSessionSheet({
   chainFrom,
   onClose,
   onAdd,
+  onDelete,
 }: {
   open: boolean;
   clientName: string;
@@ -125,8 +126,11 @@ export function NewSessionSheet({
     isLastSession: boolean;
     projectId: string | null;
   }) => void;
+  // Present only when editing an existing session — omitted for a new one.
+  onDelete?: () => void;
 }) {
   const isEdit = !!initial;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -177,6 +181,7 @@ export function NewSessionSheet({
       setIsLastSession(initial?.isLastSession ?? false);
       setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
+      setConfirmingDelete(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -393,6 +398,19 @@ export function NewSessionSheet({
             {isEdit ? 'Сохранить' : 'Добавить сессию'}
           </span>
         </div>
+
+        {onDelete && !justSaved && (confirmingDelete ? (
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div onClick={() => setConfirmingDelete(false)} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Отмена</div>
+            {/* justSaved guards this too: a save schedules onAdd 700ms out
+                (see handleSave above) — deleting during that window would
+                have the pending onAdd resurrect the just-deleted record
+                right after, since it still closes over the pre-delete data. */}
+            <div onClick={onDelete} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Удалить сессию</div>
+          </div>
+        ) : (
+          <div onClick={() => setConfirmingDelete(true)} style={{ textAlign: 'center', padding: '10px 0', marginTop: 12, color: COLORS.textFaint, fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Удалить сессию</div>
+        ))}
       </div>
     </BottomSheet>
   );
@@ -477,6 +495,7 @@ export function NewConsultationSheet({
   chainFrom,
   onClose,
   onAdd,
+  onDelete,
 }: {
   open: boolean;
   clientName: string;
@@ -513,8 +532,11 @@ export function NewConsultationSheet({
     photos: string[];
     projectId: string | null;
   }) => void;
+  // Present only when editing an existing consultation — omitted for a new one.
+  onDelete?: () => void;
 }) {
   const isEdit = !!initial;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [area, setArea] = useState('');
@@ -546,6 +568,7 @@ export function NewConsultationSheet({
       setPhotos(initial?.photos ?? []);
       setProjectId(initial?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
+      setConfirmingDelete(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -601,7 +624,17 @@ export function NewConsultationSheet({
         </div>
       </div>
 
-      <div style={{ padding: '0 24px 40px' }}><div className="inka-submit" onClick={handleSave} style={SUBMIT_STYLE}><span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>{isEdit ? 'Сохранить' : 'Добавить консультацию'}</span></div></div>
+      <div style={{ padding: '0 24px 40px' }}>
+        <div className="inka-submit" onClick={handleSave} style={SUBMIT_STYLE}><span style={{ fontFamily: "'Kelly Slab', 'Playfair Display', serif", fontSize: fs(13), color: COLORS.gold, letterSpacing: '2px' }}>{isEdit ? 'Сохранить' : 'Добавить консультацию'}</span></div>
+        {onDelete && !justSaved && (confirmingDelete ? (
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div onClick={() => setConfirmingDelete(false)} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(var(--gold-rgb),0.15)', color: COLORS.textFaint, fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Отмена</div>
+            <div onClick={onDelete} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 2, border: '1px solid rgba(200,90,90,0.4)', color: '#C56676', fontSize: fs(13), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer', wordBreak: 'break-word' }}>Удалить консультацию</div>
+          </div>
+        ) : (
+          <div onClick={() => setConfirmingDelete(true)} style={{ textAlign: 'center', padding: '10px 0', marginTop: 12, color: COLORS.textFaint, fontSize: fs(12), letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>Удалить консультацию</div>
+        ))}
+      </div>
     </BottomSheet>
   );
 }
@@ -879,7 +912,6 @@ export function NewProjectSheet({
   // data на submit всегда уезжает ровно одно из двух, а не оба сразу.
   const [exactDateMode, setExactDateMode] = useState(false);
   const [firstSessionExactDate, setFirstSessionExactDate] = useState('');
-  const [state, setState] = useState<ProjectState>('active');
   const [nextActionText, setNextActionText] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
   const [nextActionType, setNextActionType] = useState<NextActionType | null>(null);
@@ -901,6 +933,23 @@ export function NewProjectSheet({
   const preservedColor = initial?.color ?? MARKER_COLORS[0];
   const preservedWaitingFor: ProjectWaitingFor = initial?.waitingFor ?? 'none';
   const preservedPriority: ProjectPriority = initial?.priority ?? 'normal';
+  // ProjectState duplicated ProjectStatus in the form (both showed "Активен"
+  // side by side) — see ProjectState's own comment in domain/project.ts:
+  // it should no longer control UI, so it's preserved like the other
+  // deprecated attributes above rather than exposed as a second select.
+  // ProjectState.paused must track the visible ProjectStatus control above,
+  // not just whatever the project was created with — buildReminders.ts still
+  // filters overdue/stale projects by p.state==='active', so leaving this
+  // frozen at the old value meant pausing a project via status left it
+  // producing reminders anyway, and unpausing couldn't reactivate it.
+  // 'cancelled'/'archived' have no equivalent in ProjectStatus and no control
+  // sets them any more, so an existing value there is preserved untouched.
+  const preservedState: ProjectState =
+    status === 'paused'
+      ? 'paused'
+      : initial?.state === 'cancelled' || initial?.state === 'archived'
+        ? initial.state
+        : 'active';
   const legacyArea = area && !PROJECT_BODY_AREAS.some((option) => option.key === area) ? area : null;
 
   useEffect(() => {
@@ -915,7 +964,6 @@ export function NewProjectSheet({
       );
       setExactDateMode(!!initial?.firstSessionExactDate);
       setFirstSessionExactDate(initial?.firstSessionExactDate ?? '');
-      setState(initial?.state ?? 'active');
       setNextActionText(initial?.nextActionText ?? '');
       setNextActionDate(initial?.nextActionDate ?? '');
       setNextActionType(initial?.nextActionType ?? null);
@@ -951,31 +999,24 @@ export function NewProjectSheet({
           <div style={{ marginBottom: 16 }}><FieldLabel>Тип</FieldLabel><ProjectCategoryChips value={category} onPick={setCategory} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Клиент</FieldLabel><select value={clientId ?? ''} onChange={(e) => setClientId(e.target.value || null)} style={INPUT_STYLE}><option value="">Мастерская (без клиента)</option>{clients.map((c) => <option key={c.id} value={c.id}>{`${c.name} ${c.surname}`.trim()}</option>)}</select></div>
 
-          <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Статус</FieldLabel>
-              {/* Мастер ставит статус вручную там, где автоматики нет —
-                  «Пауза» и снятие с неё (см. withAdvancedStatus про то, как
-                  пауза сочетается с «только вперёд»). Остальные переходы
-                  (заживление, завершение) проставляются сами. */}
-              <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} style={INPUT_STYLE}>
-                {PROJECT_STATUSES.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldLabel>Состояние</FieldLabel>
-              <select value={state} onChange={(e) => setState(e.target.value as ProjectState)} style={INPUT_STYLE}>
-                {PROJECT_STATES.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Статус</FieldLabel>
+            {/* Мастер ставит статус вручную там, где автоматики нет —
+                «Пауза» и снятие с неё (см. withAdvancedStatus про то, как
+                пауза сочетается с «только вперёд»). Остальные переходы
+                (заживление, завершение) проставляются сами. Раньше рядом
+                стоял ещё один select — «Состояние» (ProjectState) — с тем же
+                набором значений (Активен/Пауза), так что форма показывала
+                два дублирующих поля одновременно. ProjectState теперь
+                хранится как унаследованное значение (см. preservedState
+                ниже), как и другие устаревшие атрибуты проекта. */}
+            <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} style={INPUT_STYLE}>
+              {PROJECT_STATUSES.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Не точное количество сессий — мастер на старте часто сама не
@@ -1105,7 +1146,7 @@ export function NewProjectSheet({
               firstSessionWindowAmount: exactDateMode ? null : selectedWindow?.amount ?? null,
               firstSessionWindowUnit: exactDateMode ? null : selectedWindow?.unit ?? null,
               firstSessionExactDate: exactDateMode ? firstSessionExactDate || null : null,
-              state,
+              state: preservedState,
               waitingFor: preservedWaitingFor,
               nextActionText,
               nextActionDate: nextActionDate || null,
