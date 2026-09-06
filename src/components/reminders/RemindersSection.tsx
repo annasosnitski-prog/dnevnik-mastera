@@ -760,6 +760,7 @@ function ReminderTile({
         flexDirection: 'column',
         justifyContent: 'space-between',
         gap: 4,
+        minWidth: 0,
         minHeight: 74,
         padding: '9px 8px',
         borderRadius: 3,
@@ -791,7 +792,7 @@ function ReminderTile({
 // 3-колоночная сетка тайлов одной группы — переиспользуется всеми пятью
 // секциями (M6), сама раскладка не знает о содержимом карточек.
 function ReminderTileGrid({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>{children}</div>;
+  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>{children}</div>;
 }
 
 // Деталь-оверлей — та же карточка (со свайпом/меню/кнопками), что раньше
