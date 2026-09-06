@@ -1,6 +1,6 @@
 import { useId, type CSSProperties } from 'react';
 import { useMinimalism } from '../ui/minimalism';
-import { COLORS } from '../ui/designTokens';
+import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
 import { NaturalStoneIcon } from '../navigation/NaturalStoneIcon';
 import './ClientCardTabBar.css';
@@ -24,13 +24,22 @@ const GEM_INDEX: Record<ClientTabIconName, number> = {
   projects: 5,
 };
 
-// Every tab's stone used to be keyed off the same territory palette as the
-// radial toolbar (its own colour per kind, dark-theme sprite tile and
-// light-theme mineral alike) — retired per Anna's direction: every tab now
-// shares one gold rhombus cut instead, so a single accent colour covers the
-// halo/glow and the Минимализм skin's icon tint everywhere a stone used to
-// carry its own hue.
-const GEM_GOLD = COLORS.gold;
+// Every tab's stone carries the same territory colour as the radial toolbar
+// (NavFab) — «карточка клиента» reads Проекты as the toolbar's blue,
+// Контент as its purple, and so on, everywhere this tab bar is used. Keyed
+// by `kind` (not by screen) so the same tab always reads the same colour
+// regardless of which screen hosts it — a tab def can still override this
+// per-instance (see ClientCardTabDef.color below) for a tab whose kind
+// doesn't match its actual meaning here, e.g. Админка's «Сводка» uses the
+// info icon but is coloured as the admin territory, not «личное».
+const KIND_COLORS: Record<ClientTabIconName, string> = {
+  sessions: TERRITORY_COLORS.projects,
+  consultations: TERRITORY_COLORS.projects,
+  content: TERRITORY_COLORS.content,
+  notes: TERRITORY_COLORS.notes,
+  info: TERRITORY_COLORS.personal,
+  projects: TERRITORY_COLORS.projects,
+};
 
 const TABLIST_STYLE: CSSProperties = {
   display: 'flex',
@@ -135,14 +144,15 @@ function GemBail() {
 function GemTabMarker({
   kind,
   active,
-  accentColor,
+  color,
 }: {
   kind: ClientTabIconName;
   active: boolean;
-  accentColor?: string;
+  // Resolved by the caller: the tab's own override (ClientCardTabDef.color)
+  // or, failing that, its territory colour by kind (see KIND_COLORS above).
+  color: string;
 }) {
   const minimalism = useMinimalism();
-  const color = accentColor ?? GEM_GOLD;
 
   if (minimalism) {
     return (
@@ -241,25 +251,23 @@ function GemTabMarker({
         >
           <NaturalStoneIcon size={GEM_SIZE} medallion goldDiamond />
         </span>
-        {accentColor && (
-          // Screens that opt into a territory colour (see accentColor above)
-          // get it on the stone itself, not just the surrounding glow — a
-          // rhombus-clipped colour wash blended over the shared gold cut,
-          // so Админка reads red without needing its own sprite tile.
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 3,
-              clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-              background: accentColor,
-              mixBlendMode: 'color',
-              opacity: 0.65,
-              pointerEvents: 'none',
-            }}
-          />
-        )}
+        {/* The tab's territory colour lands on the stone itself, not just
+            the surrounding glow — a rhombus-clipped colour wash blended
+            over the shared gold cut, so e.g. Проекты reads as the toolbar's
+            blue without needing its own sprite tile. */}
+        <span
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 3,
+            clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+            background: color,
+            mixBlendMode: 'color',
+            opacity: 0.65,
+            pointerEvents: 'none',
+          }}
+        />
       </span>
     </span>
   );
@@ -269,6 +277,10 @@ export interface ClientCardTabDef<T extends string> {
   id: T;
   kind: ClientTabIconName;
   label: string;
+  // Overrides KIND_COLORS for a tab whose icon `kind` doesn't match its
+  // actual meaning here — e.g. Админка's «Сводка» borrows the info icon but
+  // isn't «личное», it's the admin overview.
+  color?: string;
 }
 
 // The master dashboard is the only two-pendant composition. Match its semantic
@@ -401,16 +413,12 @@ export function ClientCardTabBar<T extends string>({
   activeTab,
   onTab,
   ariaLabel,
-  accentColor,
   showTube = true,
 }: {
   tabs: ClientCardTabDef<T>[];
   activeTab: T;
   onTab: (tab: T) => void;
   ariaLabel: string;
-  // Lets a screen tint every gem with its own nav territory colour (e.g.
-  // Админка in red) instead of the shared gold — omit for the plain gold cut.
-  accentColor?: string;
   // DetailScreen draws its own gold tube (with the client-colour reflection)
   // above this tab bar, so it opts out of the built-in one to avoid a second,
   // redundant tube.
@@ -447,7 +455,7 @@ export function ClientCardTabBar<T extends string>({
           <GemTabMarker
             kind={tab.kind}
             active={activeTab === tab.id}
-            accentColor={accentColor}
+            color={tab.color ?? KIND_COLORS[tab.kind]}
           />
         </button>
       ))}

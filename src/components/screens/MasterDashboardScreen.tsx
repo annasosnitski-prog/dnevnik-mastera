@@ -8,7 +8,7 @@ import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTab
 import { AddChatLinkForm, AddMasterLinkForm } from '../client/ClientControls';
 import { GoldFrame } from '../ui/Stripes';
 import { StatBlock } from '../ui/StatBlocks';
-import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
+import { COLORS, fs } from '../ui/designTokens';
 import { INPUT_STYLE } from '../TattoDiary';
 import { ProjectCard } from '../project/ProjectCard';
 import { buildChatLink } from '../../lib/chatLink';
@@ -237,7 +237,6 @@ export function MasterDashboardScreen({
         activeTab={tab}
         onTab={setTab}
         ariaLabel="Разделы личного кабинета"
-        accentColor={TERRITORY_COLORS.personal}
       />
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>

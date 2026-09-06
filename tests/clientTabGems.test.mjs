@@ -50,10 +50,10 @@ test('every tab keeps its own gem — no client-card-only Инфо/Проект�
   // Никакого спец-кейса по ariaLabel: каркас одинаков для карточки клиента
   // и Личного кабинета.
   assert.doesNotMatch(tabBarModule, /ariaLabel === 'Разделы клиента'/);
-  // Минимализм-иконка по-прежнему ключуется от kind; цвет по умолчанию —
-  // золотой, если экран не передал свой accentColor (см. следующий тест —
-  // территориальную палитру вернули по просьбе Ани).
-  assert.match(tabBarModule, /const color = accentColor \?\? GEM_GOLD;/);
+  // Минимализм-иконка по-прежнему ключуется от kind; цвет резолвится
+  // заранее (per-tab override или territory-по-kind — см. следующий тест) и
+  // приходит в GemTabMarker уже готовым.
+  assert.match(tabBarModule, /color=\{tab\.color \?\? KIND_COLORS\[tab\.kind\]\}/);
   assert.match(tabBarModule, /<ClientTabIcon name=\{kind\} size=\{26\} \/>/);
 });
 
@@ -72,14 +72,18 @@ test('all six tabs keep the same order as the six tiles in gem-icons.svg', () =>
   assert.match(gemSprite, /id="projects-icon"[\s\S]*transform="translate\(320 0\)"/);
 });
 
-// Вкладки карточки клиента/Личного кабинета раньше красились по той же
+// Вкладки карточки клиента/Личного кабинета/Админки красятся по той же
 // территориальной палитре, что и радиальный хаб (NavFab) — своя монета на
-// каждый смысл вкладки; затем эту палитру убрали в пользу единого золота
-// (#243/#244). По новой просьбе Ани территориальный цвет вернули — но не
-// внутрь ClientCardTabBar (он остаётся золотым и территориально-нейтральным
-// по умолчанию), а как опциональный `accentColor`, который передаёт каждый
-// экран сам: Админка красная, Личный кабинет — цвета «личное».
-test('the radial hub keeps its territory palette; screens opt their own gems into it via accentColor', () => {
+// каждый смысл вкладки (kind), а не один общий золотой ромб и не единый
+// цвет на весь экран: в одной и той же строке вкладок Проекты синие,
+// Контент фиолетовый и т.д., как в главном меню. Раньше это красилось по
+// kind (#236), потом убрали в пользу единого золота (#243/#244), затем
+// вернули по kind ещё раз, но с единым цветом на весь экран (не то, что
+// нужно — Ане нужен цвет per-tab, а не per-screen). Kind, чьё значение не
+// совпадает с реальным смыслом вкладки (Админкина «Сводка» несёт иконку
+// info, но не «личное»), красится через явный override в самом тексте
+// вкладки, а не через проп на весь бар.
+test('every tab is coloured by its own territory (kind), with a per-tab override for the odd one out', () => {
   assert.match(designTokens, /clients: '#008A5A'/);
   assert.match(designTokens, /personal: '#C99516'/);
   assert.match(designTokens, /content: '#7935B2'/);
@@ -88,13 +92,22 @@ test('the radial hub keeps its territory palette; screens opt their own gems int
   assert.match(designTokens, /admin: '#B01236'/);
 
   assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
-  // The shared tab bar itself stays generic — no territory import, gold by default.
-  assert.doesNotMatch(tabBarModule, /TERRITORY_COLORS/);
-  assert.match(tabBarModule, /const GEM_GOLD = COLORS\.gold;/);
+  // The shared tab bar imports the same territory palette and keys every
+  // kind to it — sessions/consultations and projects both read as the
+  // toolbar's blue (Админка's «Расписание» и «Таймлайн» — «записи синие»),
+  // content purple, notes orange, info personal-citrine.
+  assert.match(tabBarModule, /import \{ COLORS, TERRITORY_COLORS \} from '\.\.\/ui\/designTokens'/);
+  assert.match(
+    tabBarModule,
+    /const KIND_COLORS: Record<ClientTabIconName, string> = \{\s*sessions: TERRITORY_COLORS\.projects,\s*consultations: TERRITORY_COLORS\.projects,\s*content: TERRITORY_COLORS\.content,\s*notes: TERRITORY_COLORS\.notes,\s*info: TERRITORY_COLORS\.personal,\s*projects: TERRITORY_COLORS\.projects,/,
+  );
   assert.doesNotMatch(tabBarModule, /clientOrnateGemKind|gemKind/);
-  // Each screen that wants its own territory colour passes it in explicitly.
-  assert.match(adminDashboardScreen, /accentColor=\{TERRITORY_COLORS\.admin\}/);
-  assert.match(masterDashboardScreen, /accentColor=\{TERRITORY_COLORS\.personal\}/);
+  // Админка's «Сводка» overrides its info-kind default (personal) to the
+  // admin territory red — the one tab whose icon doesn't match its meaning.
+  assert.match(adminDashboardScreen, /id: 'summary', kind: 'info', label: 'Сводка', color: TERRITORY_COLORS\.admin/);
+  // No screen-wide accentColor prop any more — colour is resolved per tab.
+  assert.doesNotMatch(adminDashboardScreen, /accentColor/);
+  assert.doesNotMatch(masterDashboardScreen, /accentColor/);
 });
 
 test('toolbar stones render optical depth below the crown without extra blur filters', () => {

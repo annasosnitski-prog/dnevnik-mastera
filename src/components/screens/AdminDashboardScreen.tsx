@@ -45,7 +45,9 @@ import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'summary' | 'timeline'>[] = [
   { id: 'reminders', kind: 'notes', label: 'Напоминания' },
   { id: 'schedule', kind: 'sessions', label: 'Расписание' },
-  { id: 'summary', kind: 'info', label: 'Сводка' },
+  // Borrows the info icon, but this is the admin overview, not «личное» —
+  // overrides KIND_COLORS' default (personal) with the admin territory red.
+  { id: 'summary', kind: 'info', label: 'Сводка', color: TERRITORY_COLORS.admin },
   { id: 'timeline', kind: 'projects', label: 'Таймлайн' },
 ];
 
@@ -173,7 +175,6 @@ export function AdminDashboardScreen({
         activeTab={tab}
         onTab={setTab}
         ariaLabel="Разделы админки"
-        accentColor={TERRITORY_COLORS.admin}
       />
 
       <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
