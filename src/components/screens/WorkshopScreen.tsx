@@ -66,6 +66,13 @@ export function WorkshopScreen({
           establishes one via its hover/press transform) paints over the
           filter dropdown regardless of the dropdown's own z-index. */}
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 2 }}>
+        {/* Absolute top-right corner, same spot on every screen (see
+            AdminDashboardScreen) — the filter toggle below is the only other
+            control near this corner now, in its own row, so there's no
+            repeat of the old two-absolute-buttons collision (#267). */}
+        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 3 }}>
+          <TodayDateBadge onOpen={onOpenCalendar} />
+        </div>
         <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Мастерская
@@ -75,12 +82,8 @@ export function WorkshopScreen({
 
       {/* Same funnel-toggle + floating chip panel pattern as the client
           list's «Фильтры» — «Все» plus the same category set used when
-          creating a project. Own row below the divider, in normal flow next
-          to the «сегодня» calendar badge, rather than each absolutely
-          overlaid on the header — two absolute buttons in the same corner
-          used to bury one under the other. */}
+          creating a project. */}
       <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-        <TodayDateBadge onOpen={onOpenCalendar} />
         <div style={{ position: 'relative' }}>
           <div
             onClick={() => setFilterOpen((v) => !v)}

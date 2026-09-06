@@ -2807,6 +2807,13 @@ export default function TattoDiary() {
 
         {/* App header */}
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
+          {/* Absolute top-right corner, same spot on every screen (see
+              AdminDashboardScreen) — no longer scrolls away with the header
+              row below, but that row's own icons (search/filter/sort) still
+              do. */}
+          <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 11 }}>
+            <TodayDateBadge onOpen={() => setShowCalendar(true)} />
+          </div>
           <InkaLogo height={fs(34)} />
           <div
             style={{
@@ -2821,12 +2828,10 @@ export default function TattoDiary() {
             Дневник Мастера
           </div>
           <StarDivider />
-          {/* Below the divider, right-aligned — this whole row (calendar tag
-              included) scrolls away with the header, same as the client
-              grid underneath. */}
+          {/* Below the divider, right-aligned — this whole row scrolls away
+              with the header, same as the client grid underneath. */}
           <div style={{ marginTop: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-              <TodayDateBadge onOpen={() => setShowCalendar(true)} />
               {/* ── Поиск ── */}
               <div style={{ position: 'relative' }}>
                 <div

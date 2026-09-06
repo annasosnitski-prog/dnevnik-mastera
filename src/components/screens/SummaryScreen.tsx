@@ -148,6 +148,11 @@ export function SummaryScreen({
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       {/* Header — same formatting as the home screen: INKA logo + subtitle. */}
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        {/* Absolute top-right corner, same spot on every screen (see
+            AdminDashboardScreen). */}
+        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
+          <TodayDateBadge onOpen={onOpenCalendar} />
+        </div>
         <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Планнер
@@ -162,7 +167,6 @@ export function SummaryScreen({
           below, which is a later sibling and would otherwise win z-index
           ties by DOM order. */}
       <div style={{ padding: '4px 20px 14px', position: 'relative', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-        <TodayDateBadge onOpen={onOpenCalendar} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Funnel toggle — chips stay hidden until tapped. */}
           <div
