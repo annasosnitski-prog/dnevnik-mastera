@@ -467,7 +467,7 @@ export function DetailScreen({
                 <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
             </div>
-            <TodayDateBadge onOpen={onOpenCalendar} size={28} />
+            <TodayDateBadge onOpen={onOpenCalendar} size={35} />
           </div>
         </div>
 
@@ -528,9 +528,9 @@ export function DetailScreen({
           </div>
         )}
 
-        {/* Gold tube carrying the tab medallions. The client's marker colour
-            is present as reflected light along the whole tube, not as a flat
-            painted strip. */}
+        {/* Gold tube carrying the tab medallions. The chain shines in its own
+            gold, not the client's marker colour — that colour lives on the
+            gems above it, not bled along the metal itself. */}
         <div
           style={{
             position: 'relative',
@@ -553,7 +553,7 @@ export function DetailScreen({
               0 1px 0 rgba(255,240,179,.34) inset,
               0 1px 3px rgba(0,0,0,.38),
               0 0 3px rgba(224, 181, 105,.42),
-              0 0 7px color-mix(in srgb, ${client.color} 14%, rgba(226,182,85,.18) 86%)`,
+              0 0 7px rgba(226,182,85,.28)`,
           }}
         >
           <span
@@ -565,11 +565,11 @@ export function DetailScreen({
               top: '36%',
               height: '32%',
               background: `linear-gradient(90deg,
-                color-mix(in srgb, ${client.color} 60%, #8A6428 40%) 0%,
-                ${client.color} 20%,
-                color-mix(in srgb, ${client.color} 54%, white 46%) 50%,
-                ${client.color} 80%,
-                color-mix(in srgb, ${client.color} 60%, #8A6428 40%) 100%)`,
+                #8A6428 0%,
+                #F2E6CC 20%,
+                #FFFFFF 50%,
+                #F2E6CC 80%,
+                #8A6428 100%)`,
               opacity: 0.72,
               filter: 'blur(.45px)',
               mixBlendMode: 'screen',

@@ -437,15 +437,16 @@ function PendantRail({
         {sheenPaths.map((d, i) => <path key={i} d={d} />)}
       </g>
       {/* Localised glow — only the stretch of rail under the active gem
-          lights up, in that gem's own colour, instead of the whole rail
-          glowing uniformly. */}
+          lights up. The chain shines in its own metal colour (the rail's
+          own highlight tone, screen-blended for brightness, not the gem's
+          colour bleeding over from the stone above it). */}
       {activeIndex != null && activeColor != null && joins[activeIndex] != null && (
         <ellipse
           cx={joins[activeIndex]}
           cy="6"
           rx="52"
           ry="13"
-          fill={activeColor}
+          fill="var(--two-pendant-ray-highlight)"
           opacity=".65"
           filter={`url(#${glowId})`}
           style={{ mixBlendMode: 'screen' }}

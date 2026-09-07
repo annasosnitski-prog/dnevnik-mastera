@@ -1213,7 +1213,7 @@ export function ContentINKAScreen({
             AdminDashboardScreen) rather than sharing an in-flow row with
             other header controls. */}
         <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
-          <TodayDateBadge onOpen={onOpenCalendar} size={28} />
+          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>

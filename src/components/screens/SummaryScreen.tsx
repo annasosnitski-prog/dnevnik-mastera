@@ -151,7 +151,7 @@ export function SummaryScreen({
         {/* Absolute top-right corner, same spot on every screen (see
             AdminDashboardScreen). */}
         <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
-          <TodayDateBadge onOpen={onOpenCalendar} size={28} />
+          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
         <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
