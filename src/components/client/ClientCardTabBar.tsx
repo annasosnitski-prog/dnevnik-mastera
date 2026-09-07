@@ -3,6 +3,7 @@ import { useMinimalism } from '../ui/minimalism';
 import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
 import { NaturalStoneIcon } from '../navigation/NaturalStoneIcon';
+import { PendantIcon } from '../navigation/PendantIcon';
 import './ClientCardTabBar.css';
 
 // Разделяемый каркас вкладок «карточки клиента» (подвеска-самоцвет + строка
@@ -14,15 +15,6 @@ import './ClientCardTabBar.css';
 // их собственный комментарий про ленивый чанк DetailScreen), чтобы импорт
 // отсюда в TattoDiary.tsx не утянул этот чанк обратно в основной бандл.
 const GEM_SIZE = 54;
-
-const GEM_INDEX: Record<ClientTabIconName, number> = {
-  sessions: 0,
-  consultations: 1,
-  content: 2,
-  notes: 3,
-  info: 4,
-  projects: 5,
-};
 
 // Every tab's stone carries the same territory colour as the radial toolbar
 // (NavFab) — «карточка клиента» reads Проекты as the toolbar's blue,
@@ -207,6 +199,12 @@ function GemTabMarker({
         }}
       >
         <GemBail />
+        {/* Same faceted-jewel component the radial toolbar (NavFab) uses for
+            its own dark-theme destinations — shape="diamond" keeps every
+            gradient, facet and the glow filter identical to the round
+            pendant, tracing a rhombus instead of a circle. The tab's own
+            territory colour lands straight on the stone via PendantIcon's
+            `color` prop, same as the toolbar. */}
         <span
           aria-hidden="true"
           className="client-card-tabbar__medallion theme-dark-jewel"
@@ -216,13 +214,11 @@ function GemTabMarker({
             display: 'block',
             width: GEM_SIZE,
             height: GEM_SIZE,
-            backgroundImage: 'url(/gem-icons.svg)',
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: `${GEM_SIZE * 6}px ${GEM_SIZE}px`,
-            backgroundPosition: `${-GEM_INDEX[kind] * GEM_SIZE}px 0`,
             zIndex: 2,
           }}
-        />
+        >
+          <PendantIcon color={color} size={GEM_SIZE} shape="diamond" />
+        </span>
         <span
           aria-hidden="true"
           className="client-card-tabbar__medallion theme-light-jewel"
@@ -236,24 +232,23 @@ function GemTabMarker({
           }}
         >
           <NaturalStoneIcon size={GEM_SIZE} medallion goldDiamond />
+          {/* The tab's territory colour lands on the stone itself, not just
+              the surrounding glow — a rhombus-clipped colour wash blended
+              over the shared gold cut, so e.g. Проекты reads as the toolbar's
+              blue without needing its own sprite tile. */}
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+              background: color,
+              mixBlendMode: 'color',
+              opacity: 0.65,
+              pointerEvents: 'none',
+            }}
+          />
         </span>
-        {/* The tab's territory colour lands on the stone itself, not just
-            the surrounding glow — a rhombus-clipped colour wash blended
-            over the shared gold cut, so e.g. Проекты reads as the toolbar's
-            blue without needing its own sprite tile. */}
-        <span
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 3,
-            clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-            background: color,
-            mixBlendMode: 'color',
-            opacity: 0.65,
-            pointerEvents: 'none',
-          }}
-        />
       </span>
     </span>
   );
