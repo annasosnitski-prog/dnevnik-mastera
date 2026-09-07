@@ -87,12 +87,19 @@ export function ProjectTimelineRow({ project, clientName }: { project: Project; 
       </div>
 
       <div style={{ position: 'relative', height: 48, margin: '0 40px' }}>
-        {/* Та же подвесочная штанга (ClientCardTabBar's PendantRail), только
-            заполняемая по прогрессу вместо провисания между камнями —
-            закрашенная часть («сегодня уже здесь») светится тем же
-            двухслойным drop-shadow, что и её собственный металл. */}
-        <div style={{ position: 'absolute', top: -5, left: 0, right: 0 }}>
-          <ProgressRail progress={todayPct / 100} />
+        {/* Стеклянная трубка со светящейся зелёной «маной» вместо плоской
+            линии — золотые кольца-держатели банда́жем обхватывают стекло на
+            каждой вехе и загораются золотом, как только веха достигнута
+            (её дата <= сегодня), а не когда до неё дозаливается жидкость. */}
+        <div style={{ position: 'absolute', top: -3, left: 0, right: 0 }}>
+          <ProgressRail
+            progress={todayPct / 100}
+            milestones={segments.map((segment, index) => ({
+              key: segment.key,
+              position: indexPosition(index, segments.length) / 100,
+              reached: segment.targetDate <= today,
+            }))}
+          />
         </div>
 
         {segments.map((segment, index) => {
@@ -104,36 +111,22 @@ export function ProjectTimelineRow({ project, clientName }: { project: Project; 
           // по центру своего `pct`.
           const anchor = pct < 10 ? 'left' : pct > 90 ? 'right' : 'center';
           return (
-            <div key={segment.key}>
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: `${pct}%`,
-                  transform: 'translateX(-50%)',
-                  width: 9,
-                  height: 9,
-                  borderRadius: '50%',
-                  border: `1.5px solid ${passed ? COLORS.gold : 'rgba(var(--gold-rgb),0.4)'}`,
-                  background: passed ? COLORS.gold : 'transparent',
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 17,
-                  left: `${pct}%`,
-                  transform: anchor === 'left' ? 'translateX(0%)' : anchor === 'right' ? 'translateX(-100%)' : 'translateX(-50%)',
-                  textAlign: anchor,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <div style={{ fontSize: fs(9.5), color: passed ? COLORS.textSecondary : COLORS.textGhost }}>
-                  {SEGMENT_LABELS[segment.key]}
-                </div>
-                <div style={{ fontSize: fs(9), color: COLORS.textGhost, marginTop: 1 }}>
-                  {formatDate(segment.targetDate)}
-                </div>
+            <div
+              key={segment.key}
+              style={{
+                position: 'absolute',
+                top: 20,
+                left: `${pct}%`,
+                transform: anchor === 'left' ? 'translateX(0%)' : anchor === 'right' ? 'translateX(-100%)' : 'translateX(-50%)',
+                textAlign: anchor,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <div style={{ fontSize: fs(9.5), color: passed ? COLORS.textSecondary : COLORS.textGhost }}>
+                {SEGMENT_LABELS[segment.key]}
+              </div>
+              <div style={{ fontSize: fs(9), color: COLORS.textGhost, marginTop: 1 }}>
+                {formatDate(segment.targetDate)}
               </div>
             </div>
           );

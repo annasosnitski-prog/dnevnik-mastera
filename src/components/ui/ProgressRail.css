@@ -1,18 +1,33 @@
 .progress-rail {
   display: block;
   width: 100%;
-  height: 20px;
+  height: 24px;
   overflow: visible;
 }
 
-.progress-rail__fill {
+/* Glowing mana-green liquid. */
+.progress-rail__liquid {
   filter:
-    drop-shadow(0 0 3px rgba(224, 181, 105, 0.75))
-    drop-shadow(0 0 8px rgba(224, 181, 105, 0.45));
+    drop-shadow(0 0 3px rgba(46, 217, 127, 0.85))
+    drop-shadow(0 0 9px rgba(46, 217, 127, 0.5));
 }
 
-:root[data-theme='light'] .progress-rail__fill {
+/* Rings stay flat (no glow) until their milestone is reached, then light up
+   gold the same way the rest of the app's lit gold edges do. */
+.progress-rail__ring--lit {
   filter:
-    drop-shadow(0 0 3px rgba(162, 119, 90, 0.62))
-    drop-shadow(0 0 8px rgba(162, 119, 90, 0.36));
+    drop-shadow(0 0 2px rgba(224, 181, 105, 0.75))
+    drop-shadow(0 0 5px rgba(224, 181, 105, 0.4));
+}
+
+:root[data-theme='light'] .progress-rail__liquid {
+  filter:
+    drop-shadow(0 0 3px rgba(15, 161, 96, 0.7))
+    drop-shadow(0 0 9px rgba(15, 161, 96, 0.4));
+}
+
+:root[data-theme='light'] .progress-rail__ring--lit {
+  filter:
+    drop-shadow(0 0 2px rgba(162, 119, 90, 0.6))
+    drop-shadow(0 0 5px rgba(162, 119, 90, 0.32));
 }
