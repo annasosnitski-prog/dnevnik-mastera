@@ -1792,8 +1792,8 @@ input[type='date'] {
   overflow: visible;
   pointer-events: none;
   filter:
-    drop-shadow(0 -0.5px 1px rgba(255, 221, 133, 0.28))
-    drop-shadow(0 1px 2px rgba(32, 18, 4, 0.42));
+    drop-shadow(0 -0.5px 0.6px rgba(255, 221, 133, 0.2))
+    drop-shadow(0 0.5px 1px rgba(32, 18, 4, 0.3));
 }
 
 /* Keep the approved rays fixed. The complete pendant assembly moves instead,
@@ -1815,7 +1815,7 @@ input[type='date'] {
 :root[data-theme='light']
   .client-card-tabbar:is([data-two-pendant-rays='true'], [data-pendant-rail='true'])
   .client-card-tabbar__two-pendant-rays {
-  filter: drop-shadow(0 1px 2px rgba(84, 51, 35, 0.22));
+  filter: drop-shadow(0 0.5px 1px rgba(84, 51, 35, 0.16));
 }
 
 /* Minimalism owns a separate flat tab treatment; jewellery hardware must not
@@ -1863,125 +1863,11 @@ input[type='date'] {
 :root[data-theme='light'] .client-card-tabbar .jewel-wire-patina {
   stroke: #657C72 !important;
 }
-.client-card-tabbar__gem-glow {
-  position: absolute;
-  z-index: 1;
-  top: 50%;
-  left: 50%;
-  width: 46px;
-  height: 46px;
-  transform: translate(-50%, -50%) rotate(45deg);
-  pointer-events: none;
-  /* The medallion itself is a rhombus, not a disc — the glow directly behind
-     it now follows suit: a plain square, rotated 45deg into a diamond, so the
-     inner light reads as the same cut instead of a circular halo. */
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, white 22%, var(--gem-glow-color) 78%) 0%,
-    color-mix(in srgb, var(--gem-glow-color) 58%, transparent) 24%,
-    color-mix(in srgb, var(--gem-glow-color) 24%, transparent) 48%,
-    transparent 74%
-  );
-  box-shadow:
-    0 0 5px color-mix(in srgb, var(--gem-glow-color) 48%, transparent),
-    0 0 11px color-mix(in srgb, var(--gem-glow-color) 22%, transparent);
-  mix-blend-mode: screen;
-  opacity: 0.7;
-  transition: width 0.25s, height 0.25s, opacity 0.25s, box-shadow 0.25s;
-}
-.client-card-tabbar__gem-glow--active {
-  width: 58px;
-  height: 58px;
-  opacity: 1;
-  box-shadow:
-    0 0 7px color-mix(in srgb, var(--gem-glow-color) 78%, transparent),
-    0 0 16px color-mix(in srgb, var(--gem-glow-color) 42%, transparent);
-}
-
-:root[data-theme='light'] .client-card-tabbar__gem-glow {
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, white 34%, var(--gem-glow-color) 66%) 0%,
-    color-mix(in srgb, var(--gem-glow-color) 26%, transparent) 34%,
-    transparent 72%
-  );
-  box-shadow:
-    0 0 6px color-mix(in srgb, var(--gem-glow-color) 18%, transparent),
-    0 0 13px color-mix(in srgb, var(--gem-glow-color) 8%, transparent);
-  mix-blend-mode: normal;
-  opacity: 0.46;
-}
-
-:root[data-theme='light'] .client-card-tabbar__gem-glow--active {
-  opacity: 0.8;
-  box-shadow:
-    0 0 7px color-mix(in srgb, var(--gem-glow-color) 30%, transparent),
-    0 0 15px color-mix(in srgb, var(--gem-glow-color) 14%, transparent);
-}
 .client-card-tabbar__marker {
   isolation: isolate;
 }
 .client-card-tabbar__pendulum {
   z-index: 1;
-}
-.client-card-tabbar__active-halo {
-  position: absolute;
-  z-index: 0;
-  top: -17px;
-  left: 50%;
-  width: 78px;
-  height: 88px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      ellipse 29px 34px at 50% 50%,
-      color-mix(in srgb, var(--active-gem-color) 52%, transparent) 0%,
-      color-mix(in srgb, var(--active-gem-color) 24%, transparent) 38%,
-      rgba(226, 182, 85, 0.07) 58%,
-      transparent 78%
-    ),
-    radial-gradient(
-      ellipse 13px 39px at 50% 0%,
-      rgba(245, 227, 184, 0.22) 0%,
-      rgba(224, 181, 105, 0.14) 34%,
-      rgba(226, 182, 85, 0.05) 60%,
-      transparent 84%
-    );
-  filter: blur(4.5px);
-  opacity: 0.92;
-  animation: active-medallion-halo-in 0.28s ease-out both;
-}
-
-:root[data-theme='light'] .client-card-tabbar__active-halo {
-  background:
-    radial-gradient(
-      ellipse 29px 34px at 50% 50%,
-      color-mix(in srgb, var(--active-gem-color) 34%, transparent) 0%,
-      color-mix(in srgb, var(--active-gem-color) 15%, transparent) 42%,
-      rgba(91, 101, 106, 0.06) 61%,
-      transparent 79%
-    ),
-    radial-gradient(
-      ellipse 13px 39px at 50% 0%,
-      rgba(248, 251, 252, 0.42) 0%,
-      rgba(170, 180, 185, 0.18) 38%,
-      rgba(66, 74, 78, 0.05) 63%,
-      transparent 84%
-    );
-  filter: blur(4.2px);
-  opacity: 0.78;
-}
-@keyframes active-medallion-halo-in {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) scale(0.86);
-  }
-  to {
-    opacity: 0.92;
-    transform: translateX(-50%) scale(1);
-  }
 }
 .jump-ring-swivel {
   animation: jump-ring-swivel 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;

@@ -2807,9 +2807,6 @@ export default function TattoDiary() {
 
         {/* App header */}
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
-          <div style={{ position: 'absolute', top: 6, left: 24, zIndex: 2 }}>
-            <TodayDateBadge onOpen={() => setShowCalendar(true)} />
-          </div>
           <InkaLogo height={fs(34)} />
           <div
             style={{
@@ -2826,6 +2823,7 @@ export default function TattoDiary() {
           <StarDivider />
           <div style={{ marginTop: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+              <TodayDateBadge onOpen={() => setShowCalendar(true)} />
               {/* ── Поиск ── */}
               <div style={{ position: 'relative' }}>
                 <div

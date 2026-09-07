@@ -194,13 +194,6 @@ function GemTabMarker({
         transition: 'opacity 0.25s, filter 0.25s',
       }}
     >
-      {active && (
-        <span
-          aria-hidden="true"
-          className="client-card-tabbar__active-halo"
-          style={{ '--active-gem-color': color } as CSSProperties}
-        />
-      )}
       <GemJumpRing active={active} />
       <span
         aria-hidden="true"
@@ -213,13 +206,6 @@ function GemTabMarker({
           height: GEM_SIZE,
         }}
       >
-        <span
-          aria-hidden="true"
-          className={active
-            ? 'client-card-tabbar__gem-glow client-card-tabbar__gem-glow--active'
-            : 'client-card-tabbar__gem-glow'}
-          style={{ '--gem-glow-color': color } as CSSProperties}
-        />
         <GemBail />
         <span
           aria-hidden="true"
@@ -354,23 +340,23 @@ function PendantRail({ count }: { count: number }) {
   const metalId = `two-pendant-ray-metal-${rawId}`;
   const sheenId = `two-pendant-ray-sheen-${rawId}`;
 
-  // The tube keeps a solid floor thickness (5-7) at every join instead of
-  // tapering to a hairline there — a pinch that thin used to read as the
-  // gems hanging unattached in the air. It still bulges gently between
+  // A hairline-thin floor thickness (5.5-6.5, half the old 5-7) at every
+  // join, closer in weight to StarDivider's plain 1px rule — a delicate
+  // thread rather than a thick metal bar. It still bulges gently between
   // joins so the tube isn't perfectly flat.
   const joins = Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 1000);
-  const metalPaths = [`M0 5 L0 7 L${joins[0]} 7 L${joins[0]} 5 Z`];
-  const sheenPaths = [`M0 5.35 L0 5.92 L${joins[0]} 5.92 L${joins[0]} 5.35 Z`];
+  const metalPaths = [`M0 5.5 L0 6.5 L${joins[0]} 6.5 L${joins[0]} 5.5 Z`];
+  const sheenPaths = [`M0 5.675 L0 5.96 L${joins[0]} 5.96 L${joins[0]} 5.675 Z`];
   for (let i = 0; i < joins.length - 1; i++) {
     const a = joins[i];
     const b = joins[i + 1];
     const mid = (a + b) / 2;
-    metalPaths.push(`M${a} 5 Q${mid} 4.4 ${b} 5 L${b} 7 Q${mid} 7.6 ${a} 7 Z`);
-    sheenPaths.push(`M${a} 5.35 Q${mid} 5.18 ${b} 5.35 L${b} 5.92 Q${mid} 6.09 ${a} 5.92 Z`);
+    metalPaths.push(`M${a} 5.5 Q${mid} 5.2 ${b} 5.5 L${b} 6.5 Q${mid} 6.8 ${a} 6.5 Z`);
+    sheenPaths.push(`M${a} 5.675 Q${mid} 5.59 ${b} 5.675 L${b} 5.96 Q${mid} 6.045 ${a} 5.96 Z`);
   }
   const last = joins[joins.length - 1];
-  metalPaths.push(`M${last} 5 L${last} 7 L1000 7 L1000 5 Z`);
-  sheenPaths.push(`M${last} 5.35 L${last} 5.92 L1000 5.92 L1000 5.35 Z`);
+  metalPaths.push(`M${last} 5.5 L${last} 6.5 L1000 6.5 L1000 5.5 Z`);
+  sheenPaths.push(`M${last} 5.675 L${last} 5.96 L1000 5.96 L1000 5.675 Z`);
 
   return (
     <svg

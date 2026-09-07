@@ -183,12 +183,12 @@ test('master two-pendant geometry is explicit and gradient ids are instance-safe
   // "250"/"750" any more) is what's asserted here.
   assert.match(tabSource, /function PendantRail\(\{ count \}: \{ count: number \}\)/);
   assert.match(tabSource, /const joins = Array\.from\(\{ length: count \}, \(_, i\) => \(\(i \+ 0\.5\) \/ count\) \* 1000\)/);
-  // The tube holds a solid floor thickness (5-7) at every join instead of
+  // The tube holds a solid floor thickness (5.5-6.5) at every join instead of
   // tapering to a hairline there, which used to read as the gems hanging
   // unattached in the air — it still bulges gently between joins.
-  assert.match(tabSource, /M0 5 L0 7 L\$\{joins\[0\]\} 7 L\$\{joins\[0\]\} 5 Z/);
-  assert.match(tabSource, /Q\$\{mid\} 4\.4 \$\{b\} 5/);
-  assert.match(tabSource, /L1000 7 L1000 5 Z/);
+  assert.match(tabSource, /M0 5\.5 L0 6\.5 L\$\{joins\[0\]\} 6\.5 L\$\{joins\[0\]\} 5\.5 Z/);
+  assert.match(tabSource, /Q\$\{mid\} 5\.2 \$\{b\} 5\.5/);
+  assert.match(tabSource, /L1000 6\.5 L1000 5\.5 Z/);
   assert.match(tabSource, /function TwoPendantRays\(\) \{\s*return <PendantRail count=\{2\} \/>;\s*\}/);
   assert.match(tabSource, /data-two-pendant-rays=\{hasTwoPendantRays \? 'true' : undefined\}/);
   assert.match(jewelryThemeCss, /--two-pendant-ray-highlight: var\(--bronze-specular\)/);
