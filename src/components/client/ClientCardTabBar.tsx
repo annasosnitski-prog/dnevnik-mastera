@@ -277,9 +277,8 @@ function isMasterDashboardPair<T extends string>(tabs: ClientCardTabDef<T>[]) {
   return tabs.length === 2 && tabs[0]?.kind === 'info' && tabs[1]?.kind === 'projects';
 }
 
-// The same raised gold beads the client card's tube carries at each tab
-// boundary (see DetailScreen's data-tube-dividers) — plain HTML circles, not
-// SVG, so they stay round instead of being squashed by the rays' non-uniform
+// Raised gold beads at each tab boundary — plain HTML circles, not SVG, so
+// they stay round instead of being squashed by the rays' non-uniform
 // viewBox scaling.
 function TubeDividerBeads({ count }: { count: number }) {
   return (
@@ -370,19 +369,19 @@ function TubeDividerBeads({ count }: { count: number }) {
 function PendantRail({
   count,
   activeIndex,
-  activeColor,
 }: {
   count: number;
   // The rail no longer glows along its whole length — only the stretch
-  // under the active gem lights up, in that gem's own colour, echoing the
-  // per-item glow NavFab puts on its current pendant.
+  // between the two beads flanking the active gem lights up, in the
+  // chain's own gold, echoing the per-item glow NavFab puts on its current
+  // pendant without letting that gem's own colour bleed onto the metal.
   activeIndex?: number;
-  activeColor?: string;
 }) {
   const rawId = useId().replace(/:/g, '');
   const metalId = `two-pendant-ray-metal-${rawId}`;
   const sheenId = `two-pendant-ray-sheen-${rawId}`;
   const glowId = `two-pendant-ray-glow-${rawId}`;
+  const glowClipId = `two-pendant-ray-glowclip-${rawId}`;
 
   // A floor thickness (5.25-6.75) at every join — midway between the very
   // first hairline-thin pass (5.5-6.5) and the original thick bar
@@ -402,6 +401,18 @@ function PendantRail({
   const last = joins[joins.length - 1];
   metalPaths.push(`M${last} 5.25 L${last} 6.75 L1000 6.75 L1000 5.25 Z`);
   sheenPaths.push(`M${last} 5.51 L${last} 5.94 L1000 5.94 L1000 5.51 Z`);
+
+  // The two decoration beads flanking the active gem — same positions as
+  // TubeDividerBeads (edges at 8/92%, interior dividers at k/count) — bound
+  // exactly where the glow is allowed to appear, so it lights up the stretch
+  // of chain between its own beads instead of spilling past them.
+  const glowBounds =
+    activeIndex != null
+      ? {
+          left: activeIndex === 0 ? 80 : (activeIndex / count) * 1000,
+          right: activeIndex === count - 1 ? 920 : ((activeIndex + 1) / count) * 1000,
+        }
+      : null;
 
   return (
     <svg
@@ -423,10 +434,18 @@ function PendantRail({
           <stop offset="0.5" stopColor="var(--two-pendant-ray-sheen)" stopOpacity="0.78" />
           <stop offset="1" stopColor="var(--two-pendant-ray-highlight)" stopOpacity="0.3" />
         </linearGradient>
-        {activeColor != null && (
-          <filter id={glowId} x="-150%" y="-500%" width="400%" height="1100%">
-            <feGaussianBlur stdDeviation="9" />
-          </filter>
+        {glowBounds != null && (
+          <>
+            <filter id={glowId} x="-60%" y="-500%" width="220%" height="1100%">
+              <feGaussianBlur stdDeviation="6" />
+            </filter>
+            {/* Hard-bounded to the two beads flanking this gem — the blur
+                above softens the glow's own edges but never lets it spill
+                past its own segment onto the neighbours'. */}
+            <clipPath id={glowClipId}>
+              <rect x={glowBounds.left} y="0" width={glowBounds.right - glowBounds.left} height="12" />
+            </clipPath>
+          </>
         )}
       </defs>
 
@@ -436,21 +455,24 @@ function PendantRail({
       <g className="client-card-tabbar__ray-sheen" style={{ fill: `url(#${sheenId})` }}>
         {sheenPaths.map((d, i) => <path key={i} d={d} />)}
       </g>
-      {/* Localised glow — only the stretch of rail under the active gem
-          lights up. The chain shines in its own metal colour (the rail's
-          own highlight tone, screen-blended for brightness, not the gem's
-          colour bleeding over from the stone above it). */}
-      {activeIndex != null && activeColor != null && joins[activeIndex] != null && (
-        <ellipse
-          cx={joins[activeIndex]}
-          cy="6"
-          rx="52"
-          ry="13"
-          fill="var(--two-pendant-ray-highlight)"
-          opacity=".65"
-          filter={`url(#${glowId})`}
-          style={{ mixBlendMode: 'screen' }}
-        />
+      {/* Localised glow — only the stretch of rail between the two beads
+          flanking the active gem lights up, in the chain's own gold (its
+          own highlight tone, screen-blended for brightness), not the gem's
+          colour bleeding over from the stone above it. */}
+      {glowBounds != null && (
+        <g clipPath={`url(#${glowClipId})`}>
+          <rect
+            x={glowBounds.left}
+            y="1"
+            width={glowBounds.right - glowBounds.left}
+            height="10"
+            rx="5"
+            fill="var(--two-pendant-ray-highlight)"
+            opacity=".7"
+            filter={`url(#${glowId})`}
+            style={{ mixBlendMode: 'screen' }}
+          />
+        </g>
       )}
     </svg>
   );
@@ -458,8 +480,8 @@ function PendantRail({
 
 // The master dashboard's original two-pendant build, now a thin wrapper over
 // the generalised rail (count=2 reproduces the exact original geometry).
-function TwoPendantRays({ activeIndex, activeColor }: { activeIndex?: number; activeColor?: string }) {
-  return <PendantRail count={2} activeIndex={activeIndex} activeColor={activeColor} />;
+function TwoPendantRays({ activeIndex }: { activeIndex?: number }) {
+  return <PendantRail count={2} activeIndex={activeIndex} />;
 }
 
 // One large gemstone per tab; labels stay available to assistive technology
@@ -475,9 +497,8 @@ export function ClientCardTabBar<T extends string>({
   activeTab: T;
   onTab: (tab: T) => void;
   ariaLabel: string;
-  // DetailScreen draws its own gold tube (with the client-colour reflection)
-  // above this tab bar, so it opts out of the built-in one to avoid a second,
-  // redundant tube.
+  // Set false for a caller that wants the gem markers without the chain
+  // (e.g. a tab bar embedded somewhere the tube would be redundant).
   showTube?: boolean;
 }) {
   const minimalism = useMinimalism();
@@ -485,7 +506,6 @@ export function ClientCardTabBar<T extends string>({
   const showPendantRail = !hasTwoPendantRays && showTube && tabs.length >= 2;
   const showBuiltInTube = hasTwoPendantRays || showPendantRail;
   const activeIndex = tabs.findIndex((tab) => tab.id === activeTab);
-  const activeColor = activeIndex >= 0 ? tabs[activeIndex].color ?? KIND_COLORS[tabs[activeIndex].kind] : undefined;
 
   return (
     <div
@@ -496,9 +516,9 @@ export function ClientCardTabBar<T extends string>({
       aria-label={ariaLabel}
       style={{ ...TABLIST_STYLE, paddingBottom: showBuiltInTube && !minimalism ? 11 : undefined }}
     >
-      {hasTwoPendantRays && <TwoPendantRays activeIndex={activeIndex >= 0 ? activeIndex : undefined} activeColor={activeColor} />}
+      {hasTwoPendantRays && <TwoPendantRays activeIndex={activeIndex >= 0 ? activeIndex : undefined} />}
       {showPendantRail && (
-        <PendantRail count={tabs.length} activeIndex={activeIndex >= 0 ? activeIndex : undefined} activeColor={activeColor} />
+        <PendantRail count={tabs.length} activeIndex={activeIndex >= 0 ? activeIndex : undefined} />
       )}
       {showBuiltInTube && <TubeDividerBeads count={tabs.length} />}
       {tabs.map((tab) => (

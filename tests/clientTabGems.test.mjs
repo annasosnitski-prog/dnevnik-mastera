@@ -156,21 +156,31 @@ test('tab medallions shrink inside their fixed slots without an active underline
   assert.doesNotMatch(tabBarModule, /tabButtonStyle\(activeTab === tab\.id\)/);
 });
 
-test('client tabs hang from a gold tube carrying the client-colour reflection', () => {
-  assert.match(detailScreen, /boxSizing: 'border-box',[\s\S]*height: 5,[\s\S]*borderRadius: 999/);
-  assert.match(detailScreen, /#E0B569[\s\S]*#F5E3B8[\s\S]*#4A3313/);
-  assert.match(detailScreen, /color-mix\(in srgb, \$\{client\.color\}[\s\S]*mixBlendMode: 'screen'/);
-  assert.match(detailScreen, /0 0 3px rgba\(224, 181, 105,\.42\)/);
+test('client tabs hang from the same chain everywhere, glowing gold rather than the client colour', () => {
+  // DetailScreen no longer draws its own tube (with the client's marker
+  // colour bled along it) — it shares ClientCardTabBar's single PendantRail
+  // instead, so there is one chain implementation, not a second copy tinted
+  // per client.
+  assert.doesNotMatch(detailScreen, /color-mix\(in srgb, \$\{client\.color\}/);
+  assert.doesNotMatch(tabBarModule, /fill=\{activeColor\}/);
+  assert.match(tabBarModule, /fill="var\(--two-pendant-ray-highlight\)"/);
 });
 
 test('gold tube separators stay centred between neighbouring medallions at any tab count', () => {
-  assert.match(detailScreen, /data-tube-dividers[\s\S]*left: 8,[\s\S]*right: 8,[\s\S]*top: '50%'/);
-  assert.match(detailScreen, /CLIENT_TABS\.slice\(0, -1\)\.map/);
-  assert.match(detailScreen, /data-tube-divider=\{index \+ 1\}/);
-  assert.match(detailScreen, /\(\(index \+ 1\) \/ CLIENT_TABS\.length\) \* 100/);
-  assert.match(detailScreen, /width: 5\.5,[\s\S]*height: 5\.5,[\s\S]*borderRadius: '50%'/);
-  assert.match(detailScreen, /#F5E3B8[\s\S]*#E0B569[\s\S]*#C8943A[\s\S]*#4A3313/);
-  assert.match(detailScreen, /0 0 4px rgba\(224, 181, 105,\.36\)/);
+  // DetailScreen used to draw its own duplicate gold tube (with its own
+  // divider beads and its own client-colour glow band) above ClientCardTabBar.
+  // That duplicate is gone — DetailScreen now renders exactly one chain, the
+  // same PendantRail/TubeDividerBeads every other tab bar (including
+  // Админка's) uses, via ClientCardTabBar's own built-in tube.
+  assert.doesNotMatch(detailScreen, /data-tube-dividers/);
+  assert.doesNotMatch(detailScreen, /CLIENT_TABS\.slice\(0, -1\)\.map/);
+  assert.match(detailScreen, /<ClientCardTabBar tabs=\{CLIENT_TABS\} activeTab=\{activeTab\} onTab=\{onTab\} ariaLabel="Разделы клиента" \/>/);
+  assert.match(tabBarModule, /data-tube-dividers/);
+  assert.match(tabBarModule, /data-tube-divider=\{index \+ 1\}/);
+  assert.match(tabBarModule, /\(\(index \+ 1\) \/ count\) \* 100/);
+  assert.match(tabBarModule, /width: 5\.5,[\s\S]*height: 5\.5,[\s\S]*borderRadius: '50%'/);
+  assert.match(tabBarModule, /#F5E3B8[\s\S]*#E0B569[\s\S]*#C8943A[\s\S]*#4A3313/);
+  assert.match(tabBarModule, /0 0 4px rgba\(224, 181, 105,\.36\)/);
 });
 
 test('tube light falls onto the pendant hardware and upper crown', () => {

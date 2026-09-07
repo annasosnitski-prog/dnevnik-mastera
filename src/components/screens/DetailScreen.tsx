@@ -528,114 +528,15 @@ export function DetailScreen({
           </div>
         )}
 
-        {/* Gold tube carrying the tab medallions. The chain shines in its own
-            gold, not the client's marker colour — that colour lives on the
-            gems above it, not bled along the metal itself. */}
-        <div
-          style={{
-            position: 'relative',
-            boxSizing: 'border-box',
-            height: 5,
-            width: '100%',
-            flexShrink: 0,
-            overflow: 'visible',
-            borderRadius: 999,
-            borderTop: '1px solid #EAD1A0',
-            borderBottom: '1px solid #4A3313',
-            background: `linear-gradient(180deg,
-              #5C4014 0%,
-              #E0B569 18%,
-              #F5E3B8 36%,
-              #EFAD3C 52%,
-              #A55408 72%,
-              #4A3313 100%)`,
-            boxShadow: `
-              0 1px 0 rgba(255,240,179,.34) inset,
-              0 1px 3px rgba(0,0,0,.38),
-              0 0 3px rgba(224, 181, 105,.42),
-              0 0 7px rgba(226,182,85,.28)`,
-          }}
-        >
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: '36%',
-              height: '32%',
-              background: `linear-gradient(90deg,
-                #8A6428 0%,
-                #F2E6CC 20%,
-                #FFFFFF 50%,
-                #F2E6CC 80%,
-                #8A6428 100%)`,
-              opacity: 0.72,
-              filter: 'blur(.45px)',
-              mixBlendMode: 'screen',
-            }}
-          />
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              left: '1%',
-              right: '1%',
-              top: 1,
-              height: 1,
-              borderRadius: 999,
-              background: 'linear-gradient(90deg, transparent, rgba(245, 227, 184,.75) 18%, rgba(245, 227, 184,.2) 72%, transparent)',
-            }}
-          />
-          {/* Five raised gold separators sit on the tube at the exact
-              boundaries of the six equal tab slots: each one is therefore
-              centred between two neighbouring medallions at every width. */}
-          <span
-            aria-hidden="true"
-            data-tube-dividers
-            style={{
-              position: 'absolute',
-              left: 8,
-              right: 8,
-              top: '50%',
-              height: 0,
-              pointerEvents: 'none',
-              zIndex: 3,
-            }}
-          >
-            {CLIENT_TABS.slice(0, -1).map((tab, index) => (
-              <span
-                key={tab.id}
-                data-tube-divider={index + 1}
-                style={{
-                  position: 'absolute',
-                  left: `${((index + 1) / CLIENT_TABS.length) * 100}%`,
-                  top: 0,
-                  width: 5.5,
-                  height: 5.5,
-                  transform: 'translate(-50%, -50%)',
-                  borderRadius: '50%',
-                  border: '0.5px solid rgba(255,240,179,.82)',
-                  background: `radial-gradient(circle at 34% 28%,
-                    #F5E3B8 0%,
-                    #EAD1A0 16%,
-                    #E0B569 34%,
-                    #C8943A 63%,
-                    #5C4014 82%,
-                    #4A3313 100%)`,
-                  boxShadow: `
-                    0 0 1.5px rgba(255,240,179,.78),
-                    0 0 4px rgba(224, 181, 105,.36),
-                    0 0 7px rgba(226,182,85,.14),
-                    0 1px 1px rgba(0,0,0,.45)`,
-                }}
-              />
-            ))}
-          </span>
-        </div>
       </div>
 
-      <ClientCardTabBar tabs={CLIENT_TABS} activeTab={activeTab} onTab={onTab} ariaLabel="Разделы клиента" showTube={false} />
+      {/* The chain (tube + divider beads + segment glow) is now drawn once,
+          by ClientCardTabBar itself — the same PendantRail every other tab
+          bar in the app uses (including Админка's). DetailScreen used to
+          draw its own duplicate gold tube here, with its own bead spacing
+          and its own client-colour glow band; that duplicate is gone so
+          there is exactly one chain implementation left to keep in sync. */}
+      <ClientCardTabBar tabs={CLIENT_TABS} activeTab={activeTab} onTab={onTab} ariaLabel="Разделы клиента" />
 
       {/* Tab content */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '22px 24px 50px' }}>

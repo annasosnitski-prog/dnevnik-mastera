@@ -168,7 +168,7 @@ test('master two-pendant geometry is explicit and gradient ids are instance-safe
   assert.match(tabSource, /tabs\[0\]\?\.kind === 'info'/);
   assert.match(tabSource, /tabs\[1\]\?\.kind === 'projects'/);
   assert.match(tabSource, /const hasTwoPendantRays = isMasterDashboardPair\(tabs\)/);
-  assert.match(tabSource, /function TwoPendantRays\(\{ activeIndex, activeColor \}/);
+  assert.match(tabSource, /function TwoPendantRays\(\{ activeIndex \}/);
   assert.match(tabSource, /const rawId = useId\(\)\.replace\(\/:\/g, ''\)/);
   assert.match(tabSource, /two-pendant-ray-metal-\$\{rawId\}/);
   assert.match(tabSource, /two-pendant-ray-sheen-\$\{rawId\}/);
@@ -189,7 +189,7 @@ test('master two-pendant geometry is explicit and gradient ids are instance-safe
   assert.match(tabSource, /M0 5\.25 L0 6\.75 L\$\{joins\[0\]\} 6\.75 L\$\{joins\[0\]\} 5\.25 Z/);
   assert.match(tabSource, /Q\$\{mid\} 4\.8 \$\{b\} 5\.25/);
   assert.match(tabSource, /L1000 6\.75 L1000 5\.25 Z/);
-  assert.match(tabSource, /function TwoPendantRays\(\{ activeIndex, activeColor \}/);
+  assert.match(tabSource, /function TwoPendantRays\(\{ activeIndex \}/);
   assert.match(tabSource, /data-two-pendant-rays=\{hasTwoPendantRays \? 'true' : undefined\}/);
   assert.match(jewelryThemeCss, /--two-pendant-ray-highlight: var\(--bronze-specular\)/);
   assert.match(css, /\[data-minimalism='true'\][\s\S]*\.client-card-tabbar__two-pendant-rays[\s\S]*display: none/);
