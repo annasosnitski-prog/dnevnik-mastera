@@ -73,7 +73,9 @@
     color-mix(in srgb, var(--gem-glow-color) 26%, transparent) 34%,
     transparent 72%
   );
-  box-shadow: 0 0 6px color-mix(in srgb, var(--gem-glow-color) 18%, transparent);
+  box-shadow:
+    0 0 6px color-mix(in srgb, var(--gem-glow-color) 18%, transparent),
+    0 0 13px color-mix(in srgb, var(--gem-glow-color) 8%, transparent);
   mix-blend-mode: normal;
   opacity: 0.46;
 }

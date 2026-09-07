@@ -189,8 +189,8 @@ function GemTabMarker({
         width: GEM_SIZE,
         height: GEM_SIZE,
         flexShrink: 0,
-        opacity: active ? 1 : 0.62,
-        filter: active ? 'none' : 'saturate(0.72) brightness(0.82)',
+        opacity: active ? 1 : 0.7,
+        filter: active ? 'none' : 'saturate(0.82) brightness(0.88)',
         transition: 'opacity 0.25s, filter 0.25s',
       }}
     >
