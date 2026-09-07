@@ -297,6 +297,37 @@ function TubeDividerBeads({ count }: { count: number }) {
         zIndex: 1,
       }}
     >
+      {/* Edge beads, inset from the rail's own ends rather than sitting
+          right on them — the same bead style as the between-tab dividers,
+          just two fixed positions near (not at) each end. */}
+      {[8, 92].map((pct) => (
+        <span
+          key={`edge-${pct}`}
+          data-tube-divider="edge"
+          style={{
+            position: 'absolute',
+            left: `${pct}%`,
+            top: 0,
+            width: 5.5,
+            height: 5.5,
+            transform: 'translate(-50%, -50%)',
+            borderRadius: '50%',
+            border: '0.5px solid rgba(255,240,179,.82)',
+            background: `radial-gradient(circle at 34% 28%,
+              #F5E3B8 0%,
+              #EAD1A0 16%,
+              #E0B569 34%,
+              #C8943A 63%,
+              #5C4014 82%,
+              #4A3313 100%)`,
+            boxShadow: `
+              0 0 1.5px rgba(255,240,179,.78),
+              0 0 4px rgba(224, 181, 105,.36),
+              0 0 7px rgba(226,182,85,.14),
+              0 1px 1px rgba(0,0,0,.45)`,
+          }}
+        />
+      ))}
       {Array.from({ length: count - 1 }, (_, index) => (
         <span
           key={index}
@@ -336,28 +367,41 @@ function TubeDividerBeads({ count }: { count: number }) {
 // each join and bulges back out at the midpoint between neighbours (where
 // TubeDividerBeads sits its bead). IDs are per-instance so two tab bars
 // cannot cross-reference each other's gradients in the DOM.
-function PendantRail({ count }: { count: number }) {
+function PendantRail({
+  count,
+  activeIndex,
+  activeColor,
+}: {
+  count: number;
+  // The rail no longer glows along its whole length — only the stretch
+  // under the active gem lights up, in that gem's own colour, echoing the
+  // per-item glow NavFab puts on its current pendant.
+  activeIndex?: number;
+  activeColor?: string;
+}) {
   const rawId = useId().replace(/:/g, '');
   const metalId = `two-pendant-ray-metal-${rawId}`;
   const sheenId = `two-pendant-ray-sheen-${rawId}`;
+  const glowId = `two-pendant-ray-glow-${rawId}`;
 
-  // A hairline-thin floor thickness (5.5-6.5, half the old 5-7) at every
-  // join, closer in weight to StarDivider's plain 1px rule — a delicate
-  // thread rather than a thick metal bar. It still bulges gently between
-  // joins so the tube isn't perfectly flat.
+  // A floor thickness (5.25-6.75) at every join — midway between the very
+  // first hairline-thin pass (5.5-6.5) and the original thick bar
+  // (5-7): the elegance of the thin cut with enough body left to carry a
+  // visible glow (see the two-pendant-rays filter). It still bulges gently
+  // between joins so the tube isn't perfectly flat.
   const joins = Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 1000);
-  const metalPaths = [`M0 5.5 L0 6.5 L${joins[0]} 6.5 L${joins[0]} 5.5 Z`];
-  const sheenPaths = [`M0 5.675 L0 5.96 L${joins[0]} 5.96 L${joins[0]} 5.675 Z`];
+  const metalPaths = [`M0 5.25 L0 6.75 L${joins[0]} 6.75 L${joins[0]} 5.25 Z`];
+  const sheenPaths = [`M0 5.51 L0 5.94 L${joins[0]} 5.94 L${joins[0]} 5.51 Z`];
   for (let i = 0; i < joins.length - 1; i++) {
     const a = joins[i];
     const b = joins[i + 1];
     const mid = (a + b) / 2;
-    metalPaths.push(`M${a} 5.5 Q${mid} 5.2 ${b} 5.5 L${b} 6.5 Q${mid} 6.8 ${a} 6.5 Z`);
-    sheenPaths.push(`M${a} 5.675 Q${mid} 5.59 ${b} 5.675 L${b} 5.96 Q${mid} 6.045 ${a} 5.96 Z`);
+    metalPaths.push(`M${a} 5.25 Q${mid} 4.8 ${b} 5.25 L${b} 6.75 Q${mid} 7.2 ${a} 6.75 Z`);
+    sheenPaths.push(`M${a} 5.51 Q${mid} 5.39 ${b} 5.51 L${b} 5.94 Q${mid} 6.07 ${a} 5.94 Z`);
   }
   const last = joins[joins.length - 1];
-  metalPaths.push(`M${last} 5.5 L${last} 6.5 L1000 6.5 L1000 5.5 Z`);
-  sheenPaths.push(`M${last} 5.675 L${last} 5.96 L1000 5.96 L1000 5.675 Z`);
+  metalPaths.push(`M${last} 5.25 L${last} 6.75 L1000 6.75 L1000 5.25 Z`);
+  sheenPaths.push(`M${last} 5.51 L${last} 5.94 L1000 5.94 L1000 5.51 Z`);
 
   return (
     <svg
@@ -379,6 +423,11 @@ function PendantRail({ count }: { count: number }) {
           <stop offset="0.5" stopColor="var(--two-pendant-ray-sheen)" stopOpacity="0.78" />
           <stop offset="1" stopColor="var(--two-pendant-ray-highlight)" stopOpacity="0.3" />
         </linearGradient>
+        {activeColor != null && (
+          <filter id={glowId} x="-150%" y="-500%" width="400%" height="1100%">
+            <feGaussianBlur stdDeviation="9" />
+          </filter>
+        )}
       </defs>
 
       <g className="client-card-tabbar__ray-metal" style={{ fill: `url(#${metalId})` }}>
@@ -387,14 +436,29 @@ function PendantRail({ count }: { count: number }) {
       <g className="client-card-tabbar__ray-sheen" style={{ fill: `url(#${sheenId})` }}>
         {sheenPaths.map((d, i) => <path key={i} d={d} />)}
       </g>
+      {/* Localised glow — only the stretch of rail under the active gem
+          lights up, in that gem's own colour, instead of the whole rail
+          glowing uniformly. */}
+      {activeIndex != null && activeColor != null && joins[activeIndex] != null && (
+        <ellipse
+          cx={joins[activeIndex]}
+          cy="6"
+          rx="52"
+          ry="13"
+          fill={activeColor}
+          opacity=".65"
+          filter={`url(#${glowId})`}
+          style={{ mixBlendMode: 'screen' }}
+        />
+      )}
     </svg>
   );
 }
 
 // The master dashboard's original two-pendant build, now a thin wrapper over
 // the generalised rail (count=2 reproduces the exact original geometry).
-function TwoPendantRays() {
-  return <PendantRail count={2} />;
+function TwoPendantRays({ activeIndex, activeColor }: { activeIndex?: number; activeColor?: string }) {
+  return <PendantRail count={2} activeIndex={activeIndex} activeColor={activeColor} />;
 }
 
 // One large gemstone per tab; labels stay available to assistive technology
@@ -419,6 +483,8 @@ export function ClientCardTabBar<T extends string>({
   const hasTwoPendantRays = isMasterDashboardPair(tabs);
   const showPendantRail = !hasTwoPendantRays && showTube && tabs.length >= 2;
   const showBuiltInTube = hasTwoPendantRays || showPendantRail;
+  const activeIndex = tabs.findIndex((tab) => tab.id === activeTab);
+  const activeColor = activeIndex >= 0 ? tabs[activeIndex].color ?? KIND_COLORS[tabs[activeIndex].kind] : undefined;
 
   return (
     <div
@@ -429,8 +495,10 @@ export function ClientCardTabBar<T extends string>({
       aria-label={ariaLabel}
       style={{ ...TABLIST_STYLE, paddingBottom: showBuiltInTube && !minimalism ? 11 : undefined }}
     >
-      {hasTwoPendantRays && <TwoPendantRays />}
-      {showPendantRail && <PendantRail count={tabs.length} />}
+      {hasTwoPendantRays && <TwoPendantRays activeIndex={activeIndex >= 0 ? activeIndex : undefined} activeColor={activeColor} />}
+      {showPendantRail && (
+        <PendantRail count={tabs.length} activeIndex={activeIndex >= 0 ? activeIndex : undefined} activeColor={activeColor} />
+      )}
       {showBuiltInTube && <TubeDividerBeads count={tabs.length} />}
       {tabs.map((tab) => (
         <button

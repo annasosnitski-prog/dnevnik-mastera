@@ -1791,9 +1791,10 @@ input[type='date'] {
   height: 12px;
   overflow: visible;
   pointer-events: none;
-  filter:
-    drop-shadow(0 -0.5px 0.6px rgba(255, 221, 133, 0.2))
-    drop-shadow(0 0.5px 1px rgba(32, 18, 4, 0.3));
+  /* No uniform glow here any more — only the stretch under the active gem
+     lights up (see PendantRail's own <ellipse>, drawn in its colour). This
+     stays a plain depth shadow, not a glow. */
+  filter: drop-shadow(0 0.5px 1px rgba(32, 18, 4, 0.32));
 }
 
 /* Keep the approved rays fixed. The complete pendant assembly moves instead,
@@ -1815,7 +1816,7 @@ input[type='date'] {
 :root[data-theme='light']
   .client-card-tabbar:is([data-two-pendant-rays='true'], [data-pendant-rail='true'])
   .client-card-tabbar__two-pendant-rays {
-  filter: drop-shadow(0 0.5px 1px rgba(84, 51, 35, 0.16));
+  filter: drop-shadow(0 0.5px 1.5px rgba(84, 51, 35, 0.24));
 }
 
 /* Minimalism owns a separate flat tab treatment; jewellery hardware must not
