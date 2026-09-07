@@ -121,7 +121,7 @@ import {
   ProjectViewSheet,
   NewProjectSheet,
 } from './sheets/SessionAndProjectSheets';
-import { CreateChoiceSheet } from './sheets/CreateChoiceSheet';
+import { CreateChoiceSheet, type CreateOptionKind } from './sheets/CreateChoiceSheet';
 import { NoteComposerSheet } from './sheets/NoteComposerSheet';
 import {
   TimelineViewSheet,
@@ -2624,6 +2624,92 @@ export default function TattoDiary() {
   // Set the text-size multiplier for this render pass before any child renders.
   setTextScale(prefs.textScale);
 
+  // Where a given create option lands, by context — shared by the tap path
+  // (CreateChoiceSheet.onPick below, after createChoiceContext resolves the
+  // context via a sheet) and the long-press path (NavFab's onQuickCreate,
+  // which already knows its context up front and calls this directly,
+  // skipping the sheet). Extracted so both stay a single source of truth
+  // instead of drifting apart.
+  const pickCreateOption = (context: 'detail' | 'workshop' | 'viewProject' | 'admin', kind: CreateOptionKind) => {
+    if (context === 'viewProject') {
+      if (!viewProject) return;
+      const project = viewProject;
+      setViewProject(null);
+      if (kind === 'session') {
+        setEditSession(null);
+        setSessionTargetProjectId(project.id);
+        setShowNewSessionForm(true);
+      } else if (kind === 'consultation') {
+        setEditConsultation(null);
+        setConsultationTargetProjectId(project.id);
+        setShowNewConsultationForm(true);
+      } else if (kind === 'note') {
+        setNoteComposerContext({ clientId: project.clientId, projectId: project.id });
+      }
+      return;
+    }
+    if (context === 'detail') {
+      if (!selectedClient) return;
+      const client = selectedClient;
+      runGated(false, () => {
+        if (kind === 'project') {
+          setEditProject(null);
+          setNewProjectClientId(client.id);
+          setShowNewProjectForm(true);
+        } else if (kind === 'session') {
+          setEditSession(null);
+          setShowNewSessionForm(true);
+        } else if (kind === 'consultation') {
+          setEditConsultation(null);
+          setShowNewConsultationForm(true);
+        } else if (kind === 'note') {
+          setNoteComposerContext({ clientId: client.id, projectId: null });
+        }
+      });
+      return;
+    }
+    if (context === 'workshop') {
+      if (kind === 'project') {
+        setEditProject(null);
+        setNewProjectClientId(null);
+        setShowNewProjectForm(true);
+      } else if (kind === 'session' || kind === 'consultation') {
+        setProjectPickerKind(kind);
+        setProjectPickerScope('clientless');
+        setShowProjectSessionPicker(true);
+      } else if (kind === 'note') {
+        setNoteComposerContext({ clientId: null, projectId: null });
+      }
+      return;
+    }
+    if (context === 'admin') {
+      if (kind === 'project') {
+        setEditProject(null);
+        setNewProjectClientId(null);
+        setShowNewProjectForm(true);
+      } else if (kind === 'session' || kind === 'consultation') {
+        setProjectPickerKind(kind);
+        setProjectPickerScope('all');
+        setShowProjectSessionPicker(true);
+      }
+    }
+  };
+
+  // Same resolution onCreate below uses to pick a createChoiceContext, minus
+  // the two screens (list/settings, summary) whose «Создать» does something
+  // else entirely (new client, note composer) rather than opening a
+  // session/consultation/project choice — quick-create only ever offers
+  // those three, so it has nothing to do on those screens.
+  const quickCreateContext: 'detail' | 'workshop' | 'viewProject' | 'admin' | null = viewProject
+    ? 'viewProject'
+    : screen === 'admin'
+      ? 'admin'
+      : screen === 'detail' && selectedClient
+        ? 'detail'
+        : screen === 'master' || screen === 'workshop'
+          ? 'workshop'
+          : null;
+
   return (
     <div
       className="app-shell"
@@ -3254,6 +3340,12 @@ export default function TattoDiary() {
                       ? () => setCreateChoiceContext('workshop')
                       : undefined
           }
+          // Долгое нажатие на хаб — прямой путь к трём самым частым
+          // вариантам (Консультация/Сессия/Тату), минуя и обычный веер, и
+          // саму CreateChoiceSheet: quickCreateContext уже знает контекст,
+          // так что pickCreateOption вызывается сразу, без промежуточного
+          // состояния createChoiceContext.
+          onQuickCreate={quickCreateContext ? (kind) => pickCreateOption(quickCreateContext, kind) : undefined}
         />
       )}
 
@@ -3666,68 +3758,7 @@ export default function TattoDiary() {
         onPick={(kind) => {
           const context = createChoiceContext;
           setCreateChoiceContext(null);
-          if (context === 'viewProject') {
-            if (!viewProject) return;
-            const project = viewProject;
-            setViewProject(null);
-            if (kind === 'session') {
-              setEditSession(null);
-              setSessionTargetProjectId(project.id);
-              setShowNewSessionForm(true);
-            } else if (kind === 'consultation') {
-              setEditConsultation(null);
-              setConsultationTargetProjectId(project.id);
-              setShowNewConsultationForm(true);
-            } else if (kind === 'note') {
-              setNoteComposerContext({ clientId: project.clientId, projectId: project.id });
-            }
-            return;
-          }
-          if (context === 'detail') {
-            if (!selectedClient) return;
-            const client = selectedClient;
-            runGated(false, () => {
-              if (kind === 'project') {
-                setEditProject(null);
-                setNewProjectClientId(client.id);
-                setShowNewProjectForm(true);
-              } else if (kind === 'session') {
-                setEditSession(null);
-                setShowNewSessionForm(true);
-              } else if (kind === 'consultation') {
-                setEditConsultation(null);
-                setShowNewConsultationForm(true);
-              } else if (kind === 'note') {
-                setNoteComposerContext({ clientId: client.id, projectId: null });
-              }
-            });
-            return;
-          }
-          if (context === 'workshop') {
-            if (kind === 'project') {
-              setEditProject(null);
-              setNewProjectClientId(null);
-              setShowNewProjectForm(true);
-            } else if (kind === 'session' || kind === 'consultation') {
-              setProjectPickerKind(kind);
-              setProjectPickerScope('clientless');
-              setShowProjectSessionPicker(true);
-            } else if (kind === 'note') {
-              setNoteComposerContext({ clientId: null, projectId: null });
-            }
-            return;
-          }
-          if (context === 'admin') {
-            if (kind === 'project') {
-              setEditProject(null);
-              setNewProjectClientId(null);
-              setShowNewProjectForm(true);
-            } else if (kind === 'session' || kind === 'consultation') {
-              setProjectPickerKind(kind);
-              setProjectPickerScope('all');
-              setShowProjectSessionPicker(true);
-            }
-          }
+          if (context) pickCreateOption(context, kind);
         }}
       />
       <ProjectSessionPickerSheet
