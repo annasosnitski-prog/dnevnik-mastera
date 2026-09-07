@@ -91,7 +91,7 @@ export function ProjectTimelineRow({ project, clientName }: { project: Project; 
             заполняемая по прогрессу вместо провисания между камнями —
             закрашенная часть («сегодня уже здесь») светится тем же
             двухслойным drop-shadow, что и её собственный металл. */}
-        <div style={{ position: 'absolute', top: -1, left: 0, right: 0 }}>
+        <div style={{ position: 'absolute', top: -5, left: 0, right: 0 }}>
           <ProgressRail progress={todayPct / 100} />
         </div>
 

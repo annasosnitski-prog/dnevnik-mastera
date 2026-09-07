@@ -14,12 +14,12 @@ export function ProgressRail({ progress }: { progress: number }) {
   const pct = Math.max(0, Math.min(1, progress)) * 1000;
 
   return (
-    <svg aria-hidden="true" className="progress-rail" viewBox="0 0 1000 12" preserveAspectRatio="none">
+    <svg aria-hidden="true" className="progress-rail" viewBox="0 0 1000 24" preserveAspectRatio="none">
       <defs>
         <linearGradient id={trackId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="var(--two-pendant-ray-highlight)" stopOpacity=".16" />
-          <stop offset=".5" stopColor="var(--two-pendant-ray-mid)" stopOpacity=".2" />
-          <stop offset="1" stopColor="var(--two-pendant-ray-shadow)" stopOpacity=".28" />
+          <stop offset="0" stopColor="var(--two-pendant-ray-highlight)" stopOpacity=".3" />
+          <stop offset=".5" stopColor="var(--two-pendant-ray-mid)" stopOpacity=".38" />
+          <stop offset="1" stopColor="var(--two-pendant-ray-shadow)" stopOpacity=".5" />
         </linearGradient>
         <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="var(--two-pendant-ray-highlight)" />
@@ -29,9 +29,21 @@ export function ProgressRail({ progress }: { progress: number }) {
           <stop offset="1" stopColor="var(--two-pendant-ray-shadow)" />
         </linearGradient>
       </defs>
-      <path d="M0 5.5 L0 6.5 L1000 6.5 L1000 5.5 Z" fill={`url(#${trackId})`} />
-      {pct > 0 && (
-        <path className="progress-rail__fill" d={`M0 5.5 L0 6.5 L${pct} 6.5 L${pct} 5.5 Z`} fill={`url(#${fillId})`} />
+      {/* A real tube (8 of 24 viewBox units — was a 1-unit hairline) worth
+          filling, with rounded caps reading as a pill cross-section. */}
+      <path
+        d="M4 8 L996 8 A4 4 0 0 1 996 16 L4 16 A4 4 0 0 1 4 8 Z"
+        fill={`url(#${trackId})`}
+        stroke="var(--two-pendant-ray-shadow)"
+        strokeOpacity=".45"
+        strokeWidth=".6"
+      />
+      {pct > 4 && (
+        <path
+          className="progress-rail__fill"
+          d={`M4 8 L${pct} 8 L${pct} 16 L4 16 A4 4 0 0 1 4 8 Z`}
+          fill={`url(#${fillId})`}
+        />
       )}
     </svg>
   );
