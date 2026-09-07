@@ -3,6 +3,7 @@ import { useMinimalism } from '../ui/minimalism';
 import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
 import { NaturalStoneIcon } from '../navigation/NaturalStoneIcon';
+import { PendantIcon } from '../navigation/PendantIcon';
 import './ClientCardTabBar.css';
 
 // Разделяемый каркас вкладок «карточки клиента» (подвеска-самоцвет + строка
@@ -14,15 +15,6 @@ import './ClientCardTabBar.css';
 // их собственный комментарий про ленивый чанк DetailScreen), чтобы импорт
 // отсюда в TattoDiary.tsx не утянул этот чанк обратно в основной бандл.
 const GEM_SIZE = 54;
-
-const GEM_INDEX: Record<ClientTabIconName, number> = {
-  sessions: 0,
-  consultations: 1,
-  content: 2,
-  notes: 3,
-  info: 4,
-  projects: 5,
-};
 
 // Every tab's stone carries the same territory colour as the radial toolbar
 // (NavFab) — «карточка клиента» reads Проекты as the toolbar's blue,
@@ -189,18 +181,11 @@ function GemTabMarker({
         width: GEM_SIZE,
         height: GEM_SIZE,
         flexShrink: 0,
-        opacity: active ? 1 : 0.62,
-        filter: active ? 'none' : 'saturate(0.72) brightness(0.82)',
+        opacity: active ? 1 : 0.7,
+        filter: active ? 'none' : 'saturate(0.82) brightness(0.88)',
         transition: 'opacity 0.25s, filter 0.25s',
       }}
     >
-      {active && (
-        <span
-          aria-hidden="true"
-          className="client-card-tabbar__active-halo"
-          style={{ '--active-gem-color': color } as CSSProperties}
-        />
-      )}
       <GemJumpRing active={active} />
       <span
         aria-hidden="true"
@@ -213,14 +198,16 @@ function GemTabMarker({
           height: GEM_SIZE,
         }}
       >
-        <span
-          aria-hidden="true"
-          className={active
-            ? 'client-card-tabbar__gem-glow client-card-tabbar__gem-glow--active'
-            : 'client-card-tabbar__gem-glow'}
-          style={{ '--gem-glow-color': color } as CSSProperties}
-        />
         <GemBail />
+        {/* Same faceted-jewel component the radial toolbar (NavFab) uses for
+            its own dark-theme destinations — shape="diamond" keeps every
+            gradient, facet and the glow filter identical to the round
+            pendant, tracing a rhombus instead of a circle. The tab's own
+            territory colour lands straight on the stone via PendantIcon's
+            `color` prop, same as the toolbar. */}
+        {/* Same layered drop-shadow glow NavFab puts on its own current-item
+            jewel (see NavFab.tsx's isCurrentItem filter) — three softening
+            rings for the active stone, two tighter ones at rest. */}
         <span
           aria-hidden="true"
           className="client-card-tabbar__medallion theme-dark-jewel"
@@ -230,13 +217,14 @@ function GemTabMarker({
             display: 'block',
             width: GEM_SIZE,
             height: GEM_SIZE,
-            backgroundImage: 'url(/gem-icons.svg)',
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: `${GEM_SIZE * 6}px ${GEM_SIZE}px`,
-            backgroundPosition: `${-GEM_INDEX[kind] * GEM_SIZE}px 0`,
             zIndex: 2,
+            filter: active
+              ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${color}D9) drop-shadow(0 0 16px ${color}99) drop-shadow(0 0 28px ${color}5C)`
+              : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${color}99) drop-shadow(0 0 12px ${color}4D)`,
           }}
-        />
+        >
+          <PendantIcon color={color} size={GEM_SIZE} shape="diamond" />
+        </span>
         <span
           aria-hidden="true"
           className="client-card-tabbar__medallion theme-light-jewel"
@@ -250,24 +238,23 @@ function GemTabMarker({
           }}
         >
           <NaturalStoneIcon size={GEM_SIZE} medallion goldDiamond />
+          {/* The tab's territory colour lands on the stone itself, not just
+              the surrounding glow — a rhombus-clipped colour wash blended
+              over the shared gold cut, so e.g. Проекты reads as the toolbar's
+              blue without needing its own sprite tile. */}
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+              background: color,
+              mixBlendMode: 'color',
+              opacity: 0.65,
+              pointerEvents: 'none',
+            }}
+          />
         </span>
-        {/* The tab's territory colour lands on the stone itself, not just
-            the surrounding glow — a rhombus-clipped colour wash blended
-            over the shared gold cut, so e.g. Проекты reads as the toolbar's
-            blue without needing its own sprite tile. */}
-        <span
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 3,
-            clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-            background: color,
-            mixBlendMode: 'color',
-            opacity: 0.65,
-            pointerEvents: 'none',
-          }}
-        />
       </span>
     </span>
   );
@@ -310,6 +297,37 @@ function TubeDividerBeads({ count }: { count: number }) {
         zIndex: 1,
       }}
     >
+      {/* Edge beads, inset from the rail's own ends rather than sitting
+          right on them — the same bead style as the between-tab dividers,
+          just two fixed positions near (not at) each end. */}
+      {[8, 92].map((pct) => (
+        <span
+          key={`edge-${pct}`}
+          data-tube-divider="edge"
+          style={{
+            position: 'absolute',
+            left: `${pct}%`,
+            top: 0,
+            width: 5.5,
+            height: 5.5,
+            transform: 'translate(-50%, -50%)',
+            borderRadius: '50%',
+            border: '0.5px solid rgba(255,240,179,.82)',
+            background: `radial-gradient(circle at 34% 28%,
+              #F5E3B8 0%,
+              #EAD1A0 16%,
+              #E0B569 34%,
+              #C8943A 63%,
+              #5C4014 82%,
+              #4A3313 100%)`,
+            boxShadow: `
+              0 0 1.5px rgba(255,240,179,.78),
+              0 0 4px rgba(224, 181, 105,.36),
+              0 0 7px rgba(226,182,85,.14),
+              0 1px 1px rgba(0,0,0,.45)`,
+          }}
+        />
+      ))}
       {Array.from({ length: count - 1 }, (_, index) => (
         <span
           key={index}
@@ -349,28 +367,41 @@ function TubeDividerBeads({ count }: { count: number }) {
 // each join and bulges back out at the midpoint between neighbours (where
 // TubeDividerBeads sits its bead). IDs are per-instance so two tab bars
 // cannot cross-reference each other's gradients in the DOM.
-function PendantRail({ count }: { count: number }) {
+function PendantRail({
+  count,
+  activeIndex,
+  activeColor,
+}: {
+  count: number;
+  // The rail no longer glows along its whole length — only the stretch
+  // under the active gem lights up, in that gem's own colour, echoing the
+  // per-item glow NavFab puts on its current pendant.
+  activeIndex?: number;
+  activeColor?: string;
+}) {
   const rawId = useId().replace(/:/g, '');
   const metalId = `two-pendant-ray-metal-${rawId}`;
   const sheenId = `two-pendant-ray-sheen-${rawId}`;
+  const glowId = `two-pendant-ray-glow-${rawId}`;
 
-  // The tube keeps a solid floor thickness (5-7) at every join instead of
-  // tapering to a hairline there — a pinch that thin used to read as the
-  // gems hanging unattached in the air. It still bulges gently between
-  // joins so the tube isn't perfectly flat.
+  // A floor thickness (5.25-6.75) at every join — midway between the very
+  // first hairline-thin pass (5.5-6.5) and the original thick bar
+  // (5-7): the elegance of the thin cut with enough body left to carry a
+  // visible glow (see the two-pendant-rays filter). It still bulges gently
+  // between joins so the tube isn't perfectly flat.
   const joins = Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 1000);
-  const metalPaths = [`M0 5 L0 7 L${joins[0]} 7 L${joins[0]} 5 Z`];
-  const sheenPaths = [`M0 5.35 L0 5.92 L${joins[0]} 5.92 L${joins[0]} 5.35 Z`];
+  const metalPaths = [`M0 5.25 L0 6.75 L${joins[0]} 6.75 L${joins[0]} 5.25 Z`];
+  const sheenPaths = [`M0 5.51 L0 5.94 L${joins[0]} 5.94 L${joins[0]} 5.51 Z`];
   for (let i = 0; i < joins.length - 1; i++) {
     const a = joins[i];
     const b = joins[i + 1];
     const mid = (a + b) / 2;
-    metalPaths.push(`M${a} 5 Q${mid} 4.4 ${b} 5 L${b} 7 Q${mid} 7.6 ${a} 7 Z`);
-    sheenPaths.push(`M${a} 5.35 Q${mid} 5.18 ${b} 5.35 L${b} 5.92 Q${mid} 6.09 ${a} 5.92 Z`);
+    metalPaths.push(`M${a} 5.25 Q${mid} 4.8 ${b} 5.25 L${b} 6.75 Q${mid} 7.2 ${a} 6.75 Z`);
+    sheenPaths.push(`M${a} 5.51 Q${mid} 5.39 ${b} 5.51 L${b} 5.94 Q${mid} 6.07 ${a} 5.94 Z`);
   }
   const last = joins[joins.length - 1];
-  metalPaths.push(`M${last} 5 L${last} 7 L1000 7 L1000 5 Z`);
-  sheenPaths.push(`M${last} 5.35 L${last} 5.92 L1000 5.92 L1000 5.35 Z`);
+  metalPaths.push(`M${last} 5.25 L${last} 6.75 L1000 6.75 L1000 5.25 Z`);
+  sheenPaths.push(`M${last} 5.51 L${last} 5.94 L1000 5.94 L1000 5.51 Z`);
 
   return (
     <svg
@@ -392,6 +423,11 @@ function PendantRail({ count }: { count: number }) {
           <stop offset="0.5" stopColor="var(--two-pendant-ray-sheen)" stopOpacity="0.78" />
           <stop offset="1" stopColor="var(--two-pendant-ray-highlight)" stopOpacity="0.3" />
         </linearGradient>
+        {activeColor != null && (
+          <filter id={glowId} x="-150%" y="-500%" width="400%" height="1100%">
+            <feGaussianBlur stdDeviation="9" />
+          </filter>
+        )}
       </defs>
 
       <g className="client-card-tabbar__ray-metal" style={{ fill: `url(#${metalId})` }}>
@@ -400,14 +436,29 @@ function PendantRail({ count }: { count: number }) {
       <g className="client-card-tabbar__ray-sheen" style={{ fill: `url(#${sheenId})` }}>
         {sheenPaths.map((d, i) => <path key={i} d={d} />)}
       </g>
+      {/* Localised glow — only the stretch of rail under the active gem
+          lights up, in that gem's own colour, instead of the whole rail
+          glowing uniformly. */}
+      {activeIndex != null && activeColor != null && joins[activeIndex] != null && (
+        <ellipse
+          cx={joins[activeIndex]}
+          cy="6"
+          rx="52"
+          ry="13"
+          fill={activeColor}
+          opacity=".65"
+          filter={`url(#${glowId})`}
+          style={{ mixBlendMode: 'screen' }}
+        />
+      )}
     </svg>
   );
 }
 
 // The master dashboard's original two-pendant build, now a thin wrapper over
 // the generalised rail (count=2 reproduces the exact original geometry).
-function TwoPendantRays() {
-  return <PendantRail count={2} />;
+function TwoPendantRays({ activeIndex, activeColor }: { activeIndex?: number; activeColor?: string }) {
+  return <PendantRail count={2} activeIndex={activeIndex} activeColor={activeColor} />;
 }
 
 // One large gemstone per tab; labels stay available to assistive technology
@@ -432,6 +483,8 @@ export function ClientCardTabBar<T extends string>({
   const hasTwoPendantRays = isMasterDashboardPair(tabs);
   const showPendantRail = !hasTwoPendantRays && showTube && tabs.length >= 2;
   const showBuiltInTube = hasTwoPendantRays || showPendantRail;
+  const activeIndex = tabs.findIndex((tab) => tab.id === activeTab);
+  const activeColor = activeIndex >= 0 ? tabs[activeIndex].color ?? KIND_COLORS[tabs[activeIndex].kind] : undefined;
 
   return (
     <div
@@ -442,8 +495,10 @@ export function ClientCardTabBar<T extends string>({
       aria-label={ariaLabel}
       style={{ ...TABLIST_STYLE, paddingBottom: showBuiltInTube && !minimalism ? 11 : undefined }}
     >
-      {hasTwoPendantRays && <TwoPendantRays />}
-      {showPendantRail && <PendantRail count={tabs.length} />}
+      {hasTwoPendantRays && <TwoPendantRays activeIndex={activeIndex >= 0 ? activeIndex : undefined} activeColor={activeColor} />}
+      {showPendantRail && (
+        <PendantRail count={tabs.length} activeIndex={activeIndex >= 0 ? activeIndex : undefined} activeColor={activeColor} />
+      )}
       {showBuiltInTube && <TubeDividerBeads count={tabs.length} />}
       {tabs.map((tab) => (
         <button

@@ -5,6 +5,22 @@ function point(cx: number, cy: number, deg: number, r: number): [number, number]
   return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)];
 }
 
+// Same direction as `point`, but the boundary is a rhombus (|x|+|y|=r in the
+// axis-aligned local frame) instead of a circle — used by `shape="diamond"`
+// so every ring, the pavé border and the stone's own silhouette trace one
+// consistent diamond outline instead of a circle's.
+function diamondPoint(cx: number, cy: number, deg: number, r: number): [number, number] {
+  const rad = (deg * Math.PI) / 180;
+  const dx = Math.sin(rad);
+  const dy = -Math.cos(rad);
+  const t = r / (Math.abs(dx) + Math.abs(dy) || 1);
+  return [cx + t * dx, cy + t * dy];
+}
+
+function ringPoints(edge: (deg: number, r: number) => [number, number], r: number): string {
+  return [0, 90, 180, 270].map((deg) => edge(deg, r).join(',')).join(' ');
+}
+
 // A small round gold-pendant medallion, ported from a richer reference (a
 // faceted ruby-and-diamond pendant render) and generalised so any of the
 // seven destination colours can drop in: every ruby-specific hex in that
@@ -23,14 +39,21 @@ export function PendantIcon({
   color,
   size,
   plate = false,
+  shape = 'round',
   children,
 }: {
   color: string;
   size: number;
   plate?: boolean;
+  // 'diamond' keeps every gradient, facet and the glow filter identical to
+  // the round pendant — only the gold body, its rings and the pavé border
+  // trace a rhombus instead of a circle, and the stone's own facet cut is
+  // clipped to that same rhombus silhouette.
+  shape?: 'round' | 'diamond';
   children?: ReactNode;
 }) {
   const uid = useId();
+  const stoneClip = `pendant-stoneclip-${uid}`;
   const goldFace = `pendant-goldface-${uid}`;
   const plateFace = `pendant-plateface-${uid}`;
   const goldEdge = `pendant-goldedge-${uid}`;
@@ -54,6 +77,8 @@ export function PendantIcon({
 
   const cx = 32;
   const cy = 32;
+  const edge = (deg: number, r: number): [number, number] =>
+    shape === 'diamond' ? diamondPoint(cx, cy, deg, r) : point(cx, cy, deg, r);
   const outerR = 29;
   const stoneR = 23;
   // The central table facet, shrunk by about a third from its first pass —
@@ -311,17 +336,33 @@ export function PendantIcon({
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          {shape === 'diamond' && (
+            <clipPath id={stoneClip}>
+              <polygon points={ringPoints(edge, stoneR * 1.1)} />
+            </clipPath>
+          )}
         </defs>
 
         <g>
-          <circle cx={cx} cy={cy} r={outerR} fill={`url(#${goldFace})`} stroke="#5C4014" strokeWidth=".7" />
-          <circle cx={cx} cy={cy} r={outerR - 1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".95" />
-          <circle cx={cx} cy={cy} r={outerR - 4.5} fill="#3A2712" stroke="#E0B569" strokeWidth=".8" />
-          <circle cx={cx} cy={cy} r={outerR - 5.35} fill="none" stroke="#6E4E1C" strokeWidth=".4" />
+          {shape === 'diamond' ? (
+            <>
+              <polygon points={ringPoints(edge, outerR)} fill={`url(#${goldFace})`} stroke="#5C4014" strokeWidth=".7" />
+              <polygon points={ringPoints(edge, outerR - 1)} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".95" />
+              <polygon points={ringPoints(edge, outerR - 4.5)} fill="#3A2712" stroke="#E0B569" strokeWidth=".8" />
+              <polygon points={ringPoints(edge, outerR - 5.35)} fill="none" stroke="#6E4E1C" strokeWidth=".4" />
+            </>
+          ) : (
+            <>
+              <circle cx={cx} cy={cy} r={outerR} fill={`url(#${goldFace})`} stroke="#5C4014" strokeWidth=".7" />
+              <circle cx={cx} cy={cy} r={outerR - 1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".95" />
+              <circle cx={cx} cy={cy} r={outerR - 4.5} fill="#3A2712" stroke="#E0B569" strokeWidth=".8" />
+              <circle cx={cx} cy={cy} r={outerR - 5.35} fill="none" stroke="#6E4E1C" strokeWidth=".4" />
+            </>
+          )}
         </g>
 
         {plate ? (
-          <g className="pendant-stone" filter={`url(#${stoneGlow})`}>
+          <g className="pendant-stone" filter={`url(#${stoneGlow})`} clipPath={shape === 'diamond' ? `url(#${stoneClip})` : undefined}>
             <circle cx={cx} cy={cy} r={stoneR} fill={`url(#${plateFace})`} stroke="#5C4014" strokeWidth=".5" />
             <circle cx={cx} cy={cy} r={stoneR - 3} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />
             <path d="M22 20 30 15" stroke="#EAD1A0" strokeWidth="1.2" strokeLinecap="round" opacity=".4" />
@@ -337,7 +378,7 @@ export function PendantIcon({
             )}
           </g>
         ) : (
-          <g className="pendant-stone" filter={`url(#${stoneGlow})`}>
+          <g className="pendant-stone" filter={`url(#${stoneGlow})`} clipPath={shape === 'diamond' ? `url(#${stoneClip})` : undefined}>
             {/* Soft haze bleeding out past the stone's own edge, like light
                 escaping a lit potion bottle rather than staying inside a
                 solid surface. */}
@@ -465,14 +506,23 @@ export function PendantIcon({
           </g>
         )}
 
-        <circle cx={cx} cy={cy} r={stoneR + 0.6} fill="none" stroke="#5C4014" strokeWidth=".5" />
-        <circle cx={cx} cy={cy} r={stoneR + 1.1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />
+        {shape === 'diamond' ? (
+          <>
+            <polygon points={ringPoints(edge, stoneR + 0.6)} fill="none" stroke="#5C4014" strokeWidth=".5" />
+            <polygon points={ringPoints(edge, stoneR + 1.1)} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />
+          </>
+        ) : (
+          <>
+            <circle cx={cx} cy={cy} r={stoneR + 0.6} fill="none" stroke="#5C4014" strokeWidth=".5" />
+            <circle cx={cx} cy={cy} r={stoneR + 1.1} fill="none" stroke={`url(#${goldEdge})`} strokeWidth=".5" />
+          </>
+        )}
 
         {angles.map((deg) => {
-          const [x, y] = point(cx, cy, deg, 26.8);
+          const [x, y] = edge(deg, 26.8);
           return diamond(x, y, diamondBase);
         })}
-        {[45, 135, 225, 315].map((deg) => sparkle(...point(cx, cy, deg, 26.8)))}
+        {[45, 135, 225, 315].map((deg) => sparkle(...edge(deg, 26.8)))}
       </svg>
     </span>
   );

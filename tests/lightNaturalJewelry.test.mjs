@@ -168,7 +168,7 @@ test('master two-pendant geometry is explicit and gradient ids are instance-safe
   assert.match(tabSource, /tabs\[0\]\?\.kind === 'info'/);
   assert.match(tabSource, /tabs\[1\]\?\.kind === 'projects'/);
   assert.match(tabSource, /const hasTwoPendantRays = isMasterDashboardPair\(tabs\)/);
-  assert.match(tabSource, /function TwoPendantRays\(\)/);
+  assert.match(tabSource, /function TwoPendantRays\(\{ activeIndex, activeColor \}/);
   assert.match(tabSource, /const rawId = useId\(\)\.replace\(\/:\/g, ''\)/);
   assert.match(tabSource, /two-pendant-ray-metal-\$\{rawId\}/);
   assert.match(tabSource, /two-pendant-ray-sheen-\$\{rawId\}/);
@@ -181,15 +181,15 @@ test('master two-pendant geometry is explicit and gradient ids are instance-safe
   // is now a thin count=2 wrapper over it. count=2 reproduces the exact
   // original geometry: joins at 25%/75%, so the formula (not the literal
   // "250"/"750" any more) is what's asserted here.
-  assert.match(tabSource, /function PendantRail\(\{ count \}: \{ count: number \}\)/);
+  assert.match(tabSource, /function PendantRail\(\{[\s\S]{0,200}count: number;/);
   assert.match(tabSource, /const joins = Array\.from\(\{ length: count \}, \(_, i\) => \(\(i \+ 0\.5\) \/ count\) \* 1000\)/);
-  // The tube holds a solid floor thickness (5-7) at every join instead of
-  // tapering to a hairline there, which used to read as the gems hanging
+  // The tube holds a solid floor thickness (5.25-6.75) at every join instead
+  // of tapering to a hairline there, which used to read as the gems hanging
   // unattached in the air — it still bulges gently between joins.
-  assert.match(tabSource, /M0 5 L0 7 L\$\{joins\[0\]\} 7 L\$\{joins\[0\]\} 5 Z/);
-  assert.match(tabSource, /Q\$\{mid\} 4\.4 \$\{b\} 5/);
-  assert.match(tabSource, /L1000 7 L1000 5 Z/);
-  assert.match(tabSource, /function TwoPendantRays\(\) \{\s*return <PendantRail count=\{2\} \/>;\s*\}/);
+  assert.match(tabSource, /M0 5\.25 L0 6\.75 L\$\{joins\[0\]\} 6\.75 L\$\{joins\[0\]\} 5\.25 Z/);
+  assert.match(tabSource, /Q\$\{mid\} 4\.8 \$\{b\} 5\.25/);
+  assert.match(tabSource, /L1000 6\.75 L1000 5\.25 Z/);
+  assert.match(tabSource, /function TwoPendantRays\(\{ activeIndex, activeColor \}/);
   assert.match(tabSource, /data-two-pendant-rays=\{hasTwoPendantRays \? 'true' : undefined\}/);
   assert.match(jewelryThemeCss, /--two-pendant-ray-highlight: var\(--bronze-specular\)/);
   assert.match(css, /\[data-minimalism='true'\][\s\S]*\.client-card-tabbar__two-pendant-rays[\s\S]*display: none/);

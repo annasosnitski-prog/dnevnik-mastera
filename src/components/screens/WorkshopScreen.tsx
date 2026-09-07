@@ -71,7 +71,7 @@ export function WorkshopScreen({
             control near this corner now, in its own row, so there's no
             repeat of the old two-absolute-buttons collision (#267). */}
         <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 3 }}>
-          <TodayDateBadge onOpen={onOpenCalendar} />
+          <TodayDateBadge onOpen={onOpenCalendar} size={28} />
         </div>
         <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>

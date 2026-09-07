@@ -2812,7 +2812,7 @@ export default function TattoDiary() {
               row below, but that row's own icons (search/filter/sort) still
               do. */}
           <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 11 }}>
-            <TodayDateBadge onOpen={() => setShowCalendar(true)} />
+            <TodayDateBadge onOpen={() => setShowCalendar(true)} size={28} />
           </div>
           <InkaLogo height={fs(34)} />
           <div

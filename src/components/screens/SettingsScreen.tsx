@@ -510,7 +510,7 @@ export function SettingsScreen({
         {/* Absolute top-right corner, same spot on every screen (see
             AdminDashboardScreen). */}
         <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
-          <TodayDateBadge onOpen={onOpenCalendar} />
+          <TodayDateBadge onOpen={onOpenCalendar} size={28} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
           <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>

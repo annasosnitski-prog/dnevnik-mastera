@@ -3,6 +3,7 @@ import { getProjectPipelineSegments, type PipelineSegmentKey } from '../../domai
 import { isRTL, firstLetter } from '../../lib/textFormat';
 import { formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
+import { ProgressRail } from '../ui/ProgressRail';
 
 const SEGMENT_LABELS: Record<PipelineSegmentKey, string> = {
   moodboard: 'Мудборд',
@@ -86,9 +87,13 @@ export function ProjectTimelineRow({ project, clientName }: { project: Project; 
       </div>
 
       <div style={{ position: 'relative', height: 48, margin: '0 40px' }}>
-        {/* Линия целиком; закрашенная часть — «сегодня уже здесь». */}
-        <div style={{ position: 'absolute', top: 4, left: 0, right: 0, height: 2, background: 'rgba(var(--gold-rgb),0.15)', borderRadius: 1 }} />
-        <div style={{ position: 'absolute', top: 4, left: 0, width: `${todayPct}%`, height: 2, background: 'rgba(var(--gold-rgb),0.65)', borderRadius: 1 }} />
+        {/* Та же подвесочная штанга (ClientCardTabBar's PendantRail), только
+            заполняемая по прогрессу вместо провисания между камнями —
+            закрашенная часть («сегодня уже здесь») светится тем же
+            двухслойным drop-shadow, что и её собственный металл. */}
+        <div style={{ position: 'absolute', top: -5, left: 0, right: 0 }}>
+          <ProgressRail progress={todayPct / 100} />
+        </div>
 
         {segments.map((segment, index) => {
           const pct = indexPosition(index, segments.length);

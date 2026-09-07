@@ -29,13 +29,17 @@ const pendantIcon = readFileSync(new URL('../src/components/navigation/PendantIc
 const designTokens = readFileSync(new URL('../src/components/ui/designTokens.ts', import.meta.url), 'utf8');
 const indexCss = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
 
-test('each client tab crops exactly one tile from the shared gemstone sprite', () => {
-  assert.doesNotMatch(tabBarModule, /gem-icons\.svg#/);
-  assert.match(tabBarModule, /backgroundImage: 'url\(\/gem-icons\.svg\)'/);
-  assert.match(tabBarModule, /backgroundSize: `\$\{GEM_SIZE \* 6\}px \$\{GEM_SIZE\}px`/);
-  // Слот спрайта берётся прямо из kind — отдельного gemKind больше нет
-  // (см. следующий тест: подмену камней Инфо/Проекты убрали в #238).
-  assert.match(tabBarModule, /backgroundPosition: `\$\{-GEM_INDEX\[kind\] \* GEM_SIZE\}px 0`/);
+// The flat gemstone sprite (dark theme) used to sit at a noticeably lower
+// fidelity than the radial toolbar's own faceted jewel — swapped for the
+// exact same PendantIcon component NavFab uses for its dark-theme
+// destinations, so the two read as one material system. shape="diamond"
+// keeps every gradient/facet/glow filter identical to the round pendant,
+// only tracing a rhombus instead of a circle.
+test('the dark-theme medallion reuses NavFab\'s own PendantIcon, not a flat sprite', () => {
+  assert.doesNotMatch(tabBarModule, /gem-icons\.svg/);
+  assert.doesNotMatch(tabBarModule, /GEM_INDEX/);
+  assert.match(tabBarModule, /import \{ PendantIcon \} from '\.\.\/navigation\/PendantIcon'/);
+  assert.match(tabBarModule, /className="client-card-tabbar__medallion theme-dark-jewel"[\s\S]*?<PendantIcon color=\{color\} size=\{GEM_SIZE\} shape="diamond" \/>/);
 });
 
 // Раньше карточка клиента (и только она) меняла местами камни Инфо и Проекты
@@ -57,12 +61,7 @@ test('every tab keeps its own gem — no client-card-only Инфо/Проект�
   assert.match(tabBarModule, /<ClientTabIcon name=\{kind\} size=\{26\} \/>/);
 });
 
-test('all six tabs keep the same order as the six tiles in gem-icons.svg', () => {
-  assert.match(
-    tabBarModule,
-    /const GEM_INDEX: Record<ClientTabIconName, number> = \{\s*sessions: 0,\s*consultations: 1,\s*content: 2,\s*notes: 3,\s*info: 4,\s*projects: 5,/s,
-  );
-
+test('the retired gem sprite still lists all six tiles in tab order', () => {
   assert.match(gemSprite, /width="384"[\s\S]*height="64"[\s\S]*viewBox="0 0 384 64"/);
   assert.match(gemSprite, /id="sessions-icon"/);
   assert.match(gemSprite, /id="consultations-icon"[\s\S]*transform="translate\(64 0\)"/);
@@ -86,10 +85,10 @@ test('all six tabs keep the same order as the six tiles in gem-icons.svg', () =>
 test('every tab is coloured by its own territory (kind), with a per-tab override for the odd one out', () => {
   assert.match(designTokens, /clients: '#008A5A'/);
   assert.match(designTokens, /personal: '#C99516'/);
-  assert.match(designTokens, /content: '#7935B2'/);
+  assert.match(designTokens, /content: '#B01236'/);
   assert.match(designTokens, /projects: '#1448A7'/);
   assert.match(designTokens, /notes: '#D45A1F'/);
-  assert.match(designTokens, /admin: '#B01236'/);
+  assert.match(designTokens, /admin: '#7935B2'/);
 
   assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
   // The shared tab bar imports the same territory palette and keys every
@@ -182,23 +181,12 @@ test('tube light falls onto the pendant hardware and upper crown', () => {
   assert.match(gemSprite, /data-tube-reflection="ambient"[\s\S]*data-tube-reflection="highlight"/);
 });
 
-test('every centre stone emits its own colour and the active stone intensifies', () => {
-  assert.match(tabBarModule, /className=\{active[\s\S]*client-card-tabbar__gem-glow--active[\s\S]*--gem-glow-color/);
-  // Glow sits behind the medallion (z-index below the medallion's 2) and is
-  // sized past the gem's own edges — otherwise a dark ring shows between the
-  // small glow and the gem's cut, reading as a gap instead of light behind it.
-  assert.match(indexCss, /\.client-card-tabbar__gem-glow[\s\S]*z-index: 1[\s\S]*var\(--gem-glow-color\) 58%[\s\S]*mix-blend-mode: screen[\s\S]*opacity: 0\.7/);
-  assert.match(indexCss, /\.client-card-tabbar__gem-glow--active[\s\S]*width: 58px[\s\S]*opacity: 1[\s\S]*var\(--gem-glow-color\) 78%/);
-  assert.match(tabBarModule, /client-card-tabbar__pendulum[\s\S]*client-card-tabbar__gem-glow[\s\S]*client-card-tabbar__medallion/);
-});
-
-test('active medallion halo rises into the tube glow without following the pendulum swing', () => {
-  assert.match(tabBarModule, /active && \([\s\S]*className="client-card-tabbar__active-halo"[\s\S]*--active-gem-color/);
-  assert.match(indexCss, /\.client-card-tabbar__marker[\s\S]*isolation: isolate/);
-  assert.match(indexCss, /\.client-card-tabbar__pendulum[\s\S]*z-index: 1/);
-  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*z-index: 0[\s\S]*top: -17px[\s\S]*ellipse 29px 34px at 50% 50%[\s\S]*ellipse 13px 39px at 50% 0%/);
-  assert.match(indexCss, /\.client-card-tabbar__active-halo[\s\S]*var\(--active-gem-color\) 52%[\s\S]*rgba\(245, 227, 184, 0\.22\)[\s\S]*rgba\(224, 181, 105, 0\.14\)/);
-  assert.match(tabBarModule, /client-card-tabbar__active-halo[\s\S]*<GemJumpRing active=\{active\} \/>[\s\S]*client-card-tabbar__pendulum/);
+test('centre stones carry no glow or halo layer around the medallion', () => {
+  assert.doesNotMatch(tabBarModule, /client-card-tabbar__gem-glow/);
+  assert.doesNotMatch(tabBarModule, /client-card-tabbar__active-halo/);
+  assert.doesNotMatch(indexCss, /\.client-card-tabbar__gem-glow/);
+  assert.doesNotMatch(indexCss, /\.client-card-tabbar__active-halo/);
+  assert.match(tabBarModule, /client-card-tabbar__pendulum[\s\S]*<GemBail \/>[\s\S]*client-card-tabbar__medallion/);
 });
 
 test('shared sky keeps irregular stars without a repeating dot grid', () => {

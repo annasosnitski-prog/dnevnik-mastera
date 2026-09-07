@@ -467,7 +467,7 @@ export function DetailScreen({
                 <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
             </div>
-            <TodayDateBadge onOpen={onOpenCalendar} />
+            <TodayDateBadge onOpen={onOpenCalendar} size={28} />
           </div>
         </div>
 
