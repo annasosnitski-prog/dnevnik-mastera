@@ -1216,7 +1216,7 @@ export function ContentINKAScreen({
             </svg>
             <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
-          <TodayDateBadge onOpen={onOpenCalendar} />
+          <TodayDateBadge onOpen={onOpenCalendar} size={28} />
         </div>
         <InkaLogo height={fs(15)} />
         <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>ContentINKA</div>

@@ -2823,7 +2823,7 @@ export default function TattoDiary() {
           <StarDivider />
           <div style={{ marginTop: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-              <TodayDateBadge onOpen={() => setShowCalendar(true)} />
+              <TodayDateBadge onOpen={() => setShowCalendar(true)} size={28} />
               {/* ── Поиск ── */}
               <div style={{ position: 'relative' }}>
                 <div

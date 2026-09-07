@@ -162,7 +162,7 @@ export function SummaryScreen({
           below, which is a later sibling and would otherwise win z-index
           ties by DOM order. */}
       <div style={{ padding: '4px 20px 14px', position: 'relative', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-        <TodayDateBadge onOpen={onOpenCalendar} />
+        <TodayDateBadge onOpen={onOpenCalendar} size={28} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Funnel toggle — chips stay hidden until tapped. */}
           <div

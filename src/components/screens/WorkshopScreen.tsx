@@ -80,7 +80,7 @@ export function WorkshopScreen({
           overlaid on the header — two absolute buttons in the same corner
           used to bury one under the other. */}
       <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-        <TodayDateBadge onOpen={onOpenCalendar} />
+        <TodayDateBadge onOpen={onOpenCalendar} size={28} />
         <div style={{ position: 'relative' }}>
           <div
             onClick={() => setFilterOpen((v) => !v)}

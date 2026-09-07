@@ -514,7 +514,7 @@ export function SettingsScreen({
             </svg>
             <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
-          <TodayDateBadge onOpen={onOpenCalendar} />
+          <TodayDateBadge onOpen={onOpenCalendar} size={28} />
         </div>
         <div
           style={{
