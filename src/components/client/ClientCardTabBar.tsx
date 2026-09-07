@@ -205,6 +205,9 @@ function GemTabMarker({
             pendant, tracing a rhombus instead of a circle. The tab's own
             territory colour lands straight on the stone via PendantIcon's
             `color` prop, same as the toolbar. */}
+        {/* Same layered drop-shadow glow NavFab puts on its own current-item
+            jewel (see NavFab.tsx's isCurrentItem filter) — three softening
+            rings for the active stone, two tighter ones at rest. */}
         <span
           aria-hidden="true"
           className="client-card-tabbar__medallion theme-dark-jewel"
@@ -215,6 +218,9 @@ function GemTabMarker({
             width: GEM_SIZE,
             height: GEM_SIZE,
             zIndex: 2,
+            filter: active
+              ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${color}D9) drop-shadow(0 0 16px ${color}99) drop-shadow(0 0 28px ${color}5C)`
+              : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${color}99) drop-shadow(0 0 12px ${color}4D)`,
           }}
         >
           <PendantIcon color={color} size={GEM_SIZE} shape="diamond" />
