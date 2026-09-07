@@ -85,10 +85,10 @@ test('the retired gem sprite still lists all six tiles in tab order', () => {
 test('every tab is coloured by its own territory (kind), with a per-tab override for the odd one out', () => {
   assert.match(designTokens, /clients: '#008A5A'/);
   assert.match(designTokens, /personal: '#C99516'/);
-  assert.match(designTokens, /content: '#7935B2'/);
+  assert.match(designTokens, /content: '#B01236'/);
   assert.match(designTokens, /projects: '#1448A7'/);
   assert.match(designTokens, /notes: '#D45A1F'/);
-  assert.match(designTokens, /admin: '#B01236'/);
+  assert.match(designTokens, /admin: '#7935B2'/);
 
   assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
   // The shared tab bar imports the same territory palette and keys every

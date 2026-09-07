@@ -16,13 +16,15 @@ export const COLORS = {
 // toolbar and the related client-card tabs both consume this object so their
 // palettes cannot silently drift apart again.
 export const TERRITORY_COLORS = {
-  // Emerald · citrine · amethyst · dark sapphire · fire opal · ruby.
+  // Emerald · citrine · ruby · dark sapphire · fire opal · amethyst.
+  // content and admin swapped territories (were amethyst/ruby) so admin
+  // reads purple and content reads red everywhere this palette is used.
   clients: '#008A5A',
   personal: '#C99516',
-  content: '#7935B2',
+  content: '#B01236',
   projects: '#1448A7',
   notes: '#D45A1F',
-  admin: '#B01236',
+  admin: '#7935B2',
 } as const;
 
 // "Размер текста" scales typography only. TattoDiary sets the multiplier at
