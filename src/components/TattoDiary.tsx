@@ -3217,7 +3217,15 @@ export default function TattoDiary() {
       {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop' || screen === 'content') && !navFabHidden && (
         <NavFab
           active={screen}
-          onNavigate={(s) => setScreen(s)}
+          onNavigate={(s) => {
+            // Переход через меню навигации должен закрывать открытый
+            // просмотрщик сессии/консультации или проекта — иначе экран
+            // сменится позади, а сам шит (портированный в document.body)
+            // продолжит висеть поверх нового экрана.
+            setViewEntry(null);
+            setViewProject(null);
+            setScreen(s);
+          }}
           moduleFlags={masterInfo.modules}
           adminBadges={[
             // Просроченная задача (task_overdue) — как urgent; задача на
