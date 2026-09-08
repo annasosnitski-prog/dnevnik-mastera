@@ -8,22 +8,30 @@ function readSource(path) {
 
 const source = readSource('../src/sync/useSyncDriver.ts');
 const timerEffect = source.slice(
-  source.indexOf('  // Часовой таймер + один синк сразу после привязки/запуска.'),
-  source.indexOf('  // Возвращение в приложение'),
+  source.indexOf('  // Первый синк после запуска/привязки'),
+  source.indexOf('  useEffect(() => {\n    const onResume'),
 );
 
 test('часовой таймер не перезапускается на переходе paired → syncing → paired', () => {
-  // runSync намеренно меняет phase для UI. Если эффект таймера зависит от
-  // `phase === "paired"`, syncing временно делает зависимость false, cleanup
-  // снимает таймер, а возврат в paired снова монтирует эффект и немедленно
-  // запускает runSync — получается бесконечный цикл.
   assert.match(source, /const syncEnabled = phase === 'paired' \|\| phase === 'syncing';/);
   assert.match(timerEffect, /if \(!syncEnabled\)/);
   assert.match(timerEffect, /\}, \[syncEnabled\]\);/);
   assert.doesNotMatch(timerEffect, /\[phase === 'paired'\]/);
 });
 
+test('первый и ручной синк обновляют видимый экран только когда реально что-то приехало', () => {
+  assert.match(source, /const pulledSomething =/);
+  assert.match(source, /if \(refreshVisibleData && pulledSomething\) \{\s*window\.location\.reload\(\);/);
+  assert.match(timerEffect, /void runSync\(true\);/);
+  assert.match(timerEffect, /setInterval\(\(\) => void runSync\(false\), SYNC_INTERVAL_MS\)/);
+  assert.match(source, /syncNow: \(\) => runSync\(true\)/);
+});
+
 test('runSync по-прежнему показывает syncing в UI и возвращает paired после завершения', () => {
   assert.match(source, /setPhase\('syncing'\);/);
   assert.match(source, /finally \{\s*syncingRef\.current = false;\s*setPhase\('paired'\);/);
+});
+
+test('переходник Supabase теперь ожидается асинхронно — он проверяет настоящую сессию', () => {
+  assert.match(source, /const remote = await createSupabaseRemote\(client\);/);
 });
