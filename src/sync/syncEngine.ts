@@ -23,6 +23,7 @@ import * as clientsRepo from '../storage/repos/clientsRepo.js';
 import * as projectsRepo from '../storage/repos/projectsRepo.js';
 import * as contentRepo from '../storage/repos/contentRepo.js';
 import { getMasterInfoRecord, putMasterInfoRecord } from '../storage/repos/masterInfoRepo.js';
+import { restorePhotos, stripPhotos } from './photoPayload.js';
 
 export interface RemoteRow extends MergeableRecord {
   [key: string]: unknown;
@@ -131,9 +132,15 @@ async function syncCollection(
     remoteTombstones: remoteTombstoneRows,
   });
 
+  // Фото не ездят через облако (см. photoPayload.ts): приехавшая запись
+  // приносит тексты, даты и связи, а снимки в неё возвращаются свои.
+  const localById = new Map(local.map((record) => [record.id, record]));
+
   if (merged.toWriteLocally.length || merged.toDeleteLocally.length || merged.tombstonesToStore.length) {
     const writeTx = db.transaction([adapter.store, DELETIONS_STORE], 'readwrite');
-    for (const record of merged.toWriteLocally) adapter.put(writeTx, record, { preserveUpdatedAt: true });
+    for (const record of merged.toWriteLocally) {
+      adapter.put(writeTx, restorePhotos(kind, record, localById.get(record.id)), { preserveUpdatedAt: true });
+    }
     for (const id of merged.toDeleteLocally) adapter.remove(writeTx, id);
     // Время следа — из облака (когда там удалили), а не «сейчас»: устройство
     // могло быть офлайн неделю, и «сейчас» соврало бы о том, когда это
@@ -144,7 +151,7 @@ async function syncCollection(
     await txDone(writeTx);
   }
 
-  if (merged.toPushRemotely.length) await remote.upsert(merged.toPushRemotely);
+  if (merged.toPushRemotely.length) await remote.upsert(merged.toPushRemotely.map((record) => stripPhotos(kind, record)));
   if (merged.tombstonesToPush.length) {
     await remoteTombstones.upsert(
       merged.tombstonesToPush.map((t) => ({ ...t, store: adapter.store, key: tombstoneKey(adapter.store, t.id) })),

@@ -1157,6 +1157,14 @@ export function SettingsScreen({
                     ? `Последняя синхронизация: ${new Date(sync.lastSyncAt).toLocaleString('ru-RU')}`
                     : 'Устройство привязано, первая синхронизация вот-вот пройдёт.'}
               </div>
+              {/* Про фото говорим прямо и в самой панели: мастер, увидев на
+                  втором устройстве проект без снимков, иначе решит, что синк
+                  их потерял. Убрать эту строку — когда фото поедут через
+                  Supabase Storage (см. docs/SYNC_PLAN.md). */}
+              <div style={{ fontSize: fs(11), lineHeight: 1.5, marginBottom: 10, color: COLORS.textFaint, fontStyle: 'italic' }}>
+                Фото пока не синхронизируются — они остаются на том устройстве, где сняты. Клиенты, проекты, даты,
+                заметки и связи едут полностью.
+              </div>
               {sync.lastError && (
                 <div style={{ marginBottom: 10, fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic' }}>{sync.lastError}</div>
               )}
