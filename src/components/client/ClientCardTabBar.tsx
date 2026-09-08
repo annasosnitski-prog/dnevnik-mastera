@@ -277,9 +277,55 @@ function isMasterDashboardPair<T extends string>(tabs: ClientCardTabDef<T>[]) {
   return tabs.length === 2 && tabs[0]?.kind === 'info' && tabs[1]?.kind === 'projects';
 }
 
-// Raised gold beads at each tab boundary — plain HTML circles, not SVG, so
-// they stay round instead of being squashed by the rays' non-uniform
-// viewBox scaling.
+// The rail is inset by a fixed 8% margin at each end — beads sit at
+// `count + 1` positions spread evenly across that inset span (not across
+// the full 0-100%), so segment k (between bead k and bead k+1, one segment
+// per gem) is always exactly `(100 - 2*RAIL_MARGIN_PCT) / count` wide,
+// whatever `count` is. PendantRail below places its joins and its glow at
+// the very same positions, so the gems, the beads and the glow all agree
+// on where each segment starts and ends.
+const RAIL_MARGIN_PCT = 8;
+function beadPositionPct(index: number, count: number): number {
+  return RAIL_MARGIN_PCT + (index / count) * (100 - 2 * RAIL_MARGIN_PCT);
+}
+
+// A small threaded bead — sphere-shaded (off-centre specular highlight,
+// dark core, a bright rim) so it reads as a bead strung on the wire rather
+// than a flat painted dot, with its own drop shadow for the wire passing
+// behind it.
+function ThreadedBead({ pct }: { pct: number }) {
+  return (
+    <span
+      data-tube-divider=""
+      style={{
+        position: 'absolute',
+        left: `${pct}%`,
+        top: 0,
+        width: 7,
+        height: 7,
+        transform: 'translate(-50%, -50%)',
+        borderRadius: '50%',
+        border: '0.5px solid rgba(255,240,179,.85)',
+        background: `radial-gradient(circle at 32% 26%,
+          #FFFFFF 0%,
+          #F5E3B8 12%,
+          #EAD1A0 24%,
+          #E0B569 40%,
+          #C8943A 60%,
+          #7A5620 82%,
+          #3A2712 100%)`,
+        boxShadow: `
+          inset -1px -1px 1.4px rgba(0,0,0,.55),
+          inset 0.6px 0.6px 0.8px rgba(255,255,255,.5),
+          0 0 1.5px rgba(255,240,179,.82),
+          0 0 4px rgba(224,181,105,.4),
+          0 0 7px rgba(226,182,85,.16),
+          0 1.5px 2px rgba(0,0,0,.5)`,
+      }}
+    />
+  );
+}
+
 function TubeDividerBeads({ count }: { count: number }) {
   return (
     <span
@@ -288,72 +334,16 @@ function TubeDividerBeads({ count }: { count: number }) {
       className="client-card-tabbar__tube-dividers"
       style={{
         position: 'absolute',
-        left: 8,
-        right: 8,
+        left: 0,
+        right: 0,
         top: 4,
         height: 0,
         pointerEvents: 'none',
         zIndex: 1,
       }}
     >
-      {/* Edge beads, inset from the rail's own ends rather than sitting
-          right on them — the same bead style as the between-tab dividers,
-          just two fixed positions near (not at) each end. */}
-      {[8, 92].map((pct) => (
-        <span
-          key={`edge-${pct}`}
-          data-tube-divider="edge"
-          style={{
-            position: 'absolute',
-            left: `${pct}%`,
-            top: 0,
-            width: 5.5,
-            height: 5.5,
-            transform: 'translate(-50%, -50%)',
-            borderRadius: '50%',
-            border: '0.5px solid rgba(255,240,179,.82)',
-            background: `radial-gradient(circle at 34% 28%,
-              #F5E3B8 0%,
-              #EAD1A0 16%,
-              #E0B569 34%,
-              #C8943A 63%,
-              #5C4014 82%,
-              #4A3313 100%)`,
-            boxShadow: `
-              0 0 1.5px rgba(255,240,179,.78),
-              0 0 4px rgba(224, 181, 105,.36),
-              0 0 7px rgba(226,182,85,.14),
-              0 1px 1px rgba(0,0,0,.45)`,
-          }}
-        />
-      ))}
-      {Array.from({ length: count - 1 }, (_, index) => (
-        <span
-          key={index}
-          data-tube-divider={index + 1}
-          style={{
-            position: 'absolute',
-            left: `${((index + 1) / count) * 100}%`,
-            top: 0,
-            width: 5.5,
-            height: 5.5,
-            transform: 'translate(-50%, -50%)',
-            borderRadius: '50%',
-            border: '0.5px solid rgba(255,240,179,.82)',
-            background: `radial-gradient(circle at 34% 28%,
-              #F5E3B8 0%,
-              #EAD1A0 16%,
-              #E0B569 34%,
-              #C8943A 63%,
-              #5C4014 82%,
-              #4A3313 100%)`,
-            boxShadow: `
-              0 0 1.5px rgba(255,240,179,.78),
-              0 0 4px rgba(224, 181, 105,.36),
-              0 0 7px rgba(226,182,85,.14),
-              0 1px 1px rgba(0,0,0,.45)`,
-          }}
-        />
+      {Array.from({ length: count + 1 }, (_, index) => (
+        <ThreadedBead key={index} pct={beadPositionPct(index, count)} />
       ))}
     </span>
   );
@@ -381,14 +371,14 @@ function PendantRail({
   const metalId = `two-pendant-ray-metal-${rawId}`;
   const sheenId = `two-pendant-ray-sheen-${rawId}`;
   const glowId = `two-pendant-ray-glow-${rawId}`;
-  const glowClipId = `two-pendant-ray-glowclip-${rawId}`;
 
-  // A floor thickness (5.25-6.75) at every join — midway between the very
-  // first hairline-thin pass (5.5-6.5) and the original thick bar
-  // (5-7): the elegance of the thin cut with enough body left to carry a
-  // visible glow (see the two-pendant-rays filter). It still bulges gently
-  // between joins so the tube isn't perfectly flat.
-  const joins = Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 1000);
+  // Same evenly-spaced beads as TubeDividerBeads, in the rail's own 1000-unit
+  // space — `count + 1` of them, so segment `i` (bead i .. bead i+1) is
+  // always the same width for every i, and each gem's join sits at the exact
+  // midpoint of its own segment instead of an independently-computed
+  // position that could drift from where its flanking beads actually are.
+  const beads = Array.from({ length: count + 1 }, (_, i) => beadPositionPct(i, count) * 10);
+  const joins = Array.from({ length: count }, (_, i) => (beads[i] + beads[i + 1]) / 2);
   const metalPaths = [`M0 5.25 L0 6.75 L${joins[0]} 6.75 L${joins[0]} 5.25 Z`];
   const sheenPaths = [`M0 5.51 L0 5.94 L${joins[0]} 5.94 L${joins[0]} 5.51 Z`];
   for (let i = 0; i < joins.length - 1; i++) {
@@ -402,16 +392,16 @@ function PendantRail({
   metalPaths.push(`M${last} 5.25 L${last} 6.75 L1000 6.75 L1000 5.25 Z`);
   sheenPaths.push(`M${last} 5.51 L${last} 5.94 L1000 5.94 L1000 5.51 Z`);
 
-  // The two decoration beads flanking the active gem — same positions as
-  // TubeDividerBeads (edges at 8/92%, interior dividers at k/count) — bound
-  // exactly where the glow is allowed to appear, so it lights up the stretch
-  // of chain between its own beads instead of spilling past them.
-  const glowBounds =
-    activeIndex != null
-      ? {
-          left: activeIndex === 0 ? 80 : (activeIndex / count) * 1000,
-          right: activeIndex === count - 1 ? 920 : ((activeIndex + 1) / count) * 1000,
-        }
+  // The active gem's own segment, bounded by the two beads flanking it.
+  const glowSegment = activeIndex != null ? { left: beads[activeIndex], right: beads[activeIndex + 1] } : null;
+  // A lens shape — thin at both tips, widest at the centre, the same
+  // pointed-taper construction PendantIcon's own `glint` sparkle uses —
+  // rather than a flat bar: it already reaches zero width right at each
+  // bead, so the light narrows into the bead instead of being cut off by a
+  // hard clip.
+  const glowLens =
+    glowSegment != null
+      ? `M${glowSegment.left},6 Q${(glowSegment.left + glowSegment.right) / 2},1.2 ${glowSegment.right},6 Q${(glowSegment.left + glowSegment.right) / 2},10.8 ${glowSegment.left},6Z`
       : null;
 
   return (
@@ -434,18 +424,19 @@ function PendantRail({
           <stop offset="0.5" stopColor="var(--two-pendant-ray-sheen)" stopOpacity="0.78" />
           <stop offset="1" stopColor="var(--two-pendant-ray-highlight)" stopOpacity="0.3" />
         </linearGradient>
-        {glowBounds != null && (
-          <>
-            <filter id={glowId} x="-60%" y="-500%" width="220%" height="1100%">
-              <feGaussianBlur stdDeviation="6" />
-            </filter>
-            {/* Hard-bounded to the two beads flanking this gem — the blur
-                above softens the glow's own edges but never lets it spill
-                past its own segment onto the neighbours'. */}
-            <clipPath id={glowClipId}>
-              <rect x={glowBounds.left} y="0" width={glowBounds.right - glowBounds.left} height="12" />
-            </clipPath>
-          </>
+        {/* Same bloom recipe as PendantIcon's own stoneGlow filter on the
+            gems (blur -> flood-tint -> composite -> merge over the source),
+            just re-tinted to the rail's own gold instead of a gem colour. */}
+        {glowLens != null && (
+          <filter id={glowId} x="-30%" y="-200%" width="160%" height="500%">
+            <feGaussianBlur stdDeviation="2.4" result="blur" />
+            <feFlood floodColor="var(--two-pendant-ray-highlight)" floodOpacity=".95" />
+            <feComposite in2="blur" operator="in" />
+            <feMerge>
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         )}
       </defs>
 
@@ -456,23 +447,17 @@ function PendantRail({
         {sheenPaths.map((d, i) => <path key={i} d={d} />)}
       </g>
       {/* Localised glow — only the stretch of rail between the two beads
-          flanking the active gem lights up, in the chain's own gold (its
-          own highlight tone, screen-blended for brightness), not the gem's
-          colour bleeding over from the stone above it. */}
-      {glowBounds != null && (
-        <g clipPath={`url(#${glowClipId})`}>
-          <rect
-            x={glowBounds.left}
-            y="1"
-            width={glowBounds.right - glowBounds.left}
-            height="10"
-            rx="5"
-            fill="var(--two-pendant-ray-highlight)"
-            opacity=".7"
-            filter={`url(#${glowId})`}
-            style={{ mixBlendMode: 'screen' }}
-          />
-        </g>
+          flanking the active gem lights up, narrowing to a point at each
+          bead rather than stopping at a hard edge, in the chain's own gold
+          (not the gem's colour bleeding over from the stone above it). */}
+      {glowLens != null && (
+        <path
+          d={glowLens}
+          fill="var(--two-pendant-ray-highlight)"
+          opacity=".85"
+          filter={`url(#${glowId})`}
+          style={{ mixBlendMode: 'screen' }}
+        />
       )}
     </svg>
   );

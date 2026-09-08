@@ -178,11 +178,12 @@ test('master two-pendant geometry is explicit and gradient ids are instance-safe
   assert.match(tabSource, /viewBox="0 0 1000 12"/);
   // The two-pendant ray shape was generalised into PendantRail(count) so any
   // tab bar can grow a built-in tube, not just the master pair — TwoPendantRays
-  // is now a thin count=2 wrapper over it. count=2 reproduces the exact
-  // original geometry: joins at 25%/75%, so the formula (not the literal
-  // "250"/"750" any more) is what's asserted here.
+  // is now a thin count=2 wrapper over it. Each join now sits at the midpoint
+  // of the two beads flanking it (not an independently-computed position),
+  // so it always lands exactly centred in its own segment.
   assert.match(tabSource, /function PendantRail\(\{[\s\S]{0,200}count: number;/);
-  assert.match(tabSource, /const joins = Array\.from\(\{ length: count \}, \(_, i\) => \(\(i \+ 0\.5\) \/ count\) \* 1000\)/);
+  assert.match(tabSource, /const beads = Array\.from\(\{ length: count \+ 1 \}, \(_, i\) => beadPositionPct\(i, count\) \* 10\)/);
+  assert.match(tabSource, /const joins = Array\.from\(\{ length: count \}, \(_, i\) => \(beads\[i\] \+ beads\[i \+ 1\]\) \/ 2\)/);
   // The tube holds a solid floor thickness (5.25-6.75) at every join instead
   // of tapering to a hairline there, which used to read as the gems hanging
   // unattached in the air — it still bulges gently between joins.

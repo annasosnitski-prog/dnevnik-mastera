@@ -176,11 +176,16 @@ test('gold tube separators stay centred between neighbouring medallions at any t
   assert.doesNotMatch(detailScreen, /CLIENT_TABS\.slice\(0, -1\)\.map/);
   assert.match(detailScreen, /<ClientCardTabBar tabs=\{CLIENT_TABS\} activeTab=\{activeTab\} onTab=\{onTab\} ariaLabel="Разделы клиента" \/>/);
   assert.match(tabBarModule, /data-tube-dividers/);
-  assert.match(tabBarModule, /data-tube-divider=\{index \+ 1\}/);
-  assert.match(tabBarModule, /\(\(index \+ 1\) \/ count\) \* 100/);
-  assert.match(tabBarModule, /width: 5\.5,[\s\S]*height: 5\.5,[\s\S]*borderRadius: '50%'/);
-  assert.match(tabBarModule, /#F5E3B8[\s\S]*#E0B569[\s\S]*#C8943A[\s\S]*#4A3313/);
-  assert.match(tabBarModule, /0 0 4px rgba\(224, 181, 105,\.36\)/);
+  // All count+1 beads (both rail ends and every interior divider) now come
+  // from one shared position formula instead of two separately-hardcoded
+  // loops (edges fixed at 8/92%, interior at k/count) — that mismatch used
+  // to make the outer two segments a different width than the inner ones.
+  assert.match(tabBarModule, /function beadPositionPct\(index: number, count: number\)/);
+  assert.match(tabBarModule, /RAIL_MARGIN_PCT \+ \(index \/ count\) \* \(100 - 2 \* RAIL_MARGIN_PCT\)/);
+  assert.match(tabBarModule, /Array\.from\(\{ length: count \+ 1 \}, \(_, index\) => \([\s\S]{0,80}<ThreadedBead key=\{index\} pct=\{beadPositionPct\(index, count\)\} \/>/);
+  assert.match(tabBarModule, /width: 7,[\s\S]*height: 7,[\s\S]*borderRadius: '50%'/);
+  assert.match(tabBarModule, /#F5E3B8[\s\S]*#E0B569[\s\S]*#C8943A[\s\S]*#3A2712/);
+  assert.match(tabBarModule, /0 0 4px rgba\(224,181,105,\.4\)/);
 });
 
 test('tube light falls onto the pendant hardware and upper crown', () => {
