@@ -58,8 +58,13 @@ const result = {
 test('database version 4 and technical content job store are wired', () => {
   assert.equal(TATTO_DIARY_DB_VERSION, 4);
   assert.equal(CONTENT_INGEST_JOB_STORE, 'contentIngestJobs');
-  assert.match(diary, /indexedDB\.open\('TattoDiaryDB', TATTO_DIARY_DB_VERSION\)/);
-  assert.match(diary, /ensureContentIngestJobStore\(db\)/);
+  // Открытие базы и создание сторов переехали в src/storage/connection.ts
+  // (Шаг 2 разбора, docs/DATA_LAYER_PLAN.md); дневник передаёт версию как
+  // параметр, а не читает её на месте открытия.
+  const conn = readFileSync(new URL('../src/storage/connection.ts', import.meta.url), 'utf8');
+  assert.match(conn, /indexedDB\.open\(TATTO_DIARY_DB_NAME, dbVersion\)/);
+  assert.match(conn, /ensureContentIngestJobStore\(db\)/);
+  assert.match(diary, /createStorageConnection\(TATTO_DIARY_DB_VERSION,/);
 });
 
 test('completed create uses the preallocated entry id and keeps original photos', () => {
@@ -112,7 +117,11 @@ test('create and refresh jobs are persisted instead of waiting for the long send
 test('full import clears technical jobs but backup props do not expose them', () => {
   const replace = diary.slice(diary.indexOf('const replaceAllData ='), diary.indexOf('const importClients ='));
   assert.match(replace, /CONTENT_INGEST_JOB_STORE/);
-  assert.match(replace, /\.clear\(\)/);
+  // Само .clear() — в lib/contentJobQueue.ts (Шаг 7 разбора,
+  // docs/DATA_LAYER_PLAN.md), дневник только зовёт его на общей транзакции.
+  assert.match(replace, /clearContentIngestJobs\(tx\)/);
+  const queueSrc = readFileSync(new URL('../src/lib/contentJobQueue.ts', import.meta.url), 'utf8');
+  assert.match(queueSrc, /export function clearContentIngestJobs.*\.clear\(\)/s);
   const adminUsage = diary.slice(diary.indexOf('<AdminDashboardScreen'), diary.indexOf('/>', diary.indexOf('<AdminDashboardScreen')) + 2);
   assert.doesNotMatch(adminUsage, /contentIngestJobs/);
 });

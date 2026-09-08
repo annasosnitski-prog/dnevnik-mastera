@@ -54,12 +54,23 @@ test('старая копия в localStorage остаётся страховк�
 });
 
 test('карточка лежит одной записью с постоянным id', () => {
-  assert.match(persistEffect, /put\(\{ \.\.\.masterInfo, id: MASTER_INFO_RECORD_ID \}\)/);
-  assert.match(loadEffect, /\.get\(MASTER_INFO_RECORD_ID\)/);
+  // Само get/put по фиксированному id — в src/storage/repos/masterInfoRepo.ts
+  // (Шаг 6 разбора, docs/DATA_LAYER_PLAN.md); здесь только проверяем, что
+  // эффекты дневника зовут именно его.
+  assert.match(persistEffect, /putMasterInfoRecord\(tx, masterInfo\)/);
+  assert.match(loadEffect, /getMasterInfoRecord\(tx\)/);
+  const repo = readSource('../src/storage/repos/masterInfoRepo.ts');
+  assert.match(repo, /\.put\(\{ \.\.\.value, id: MASTER_INFO_RECORD_ID \}\)/);
+  assert.match(repo, /\.get\(MASTER_INFO_RECORD_ID\)/);
 });
 
 test('стор заводится при обновлении схемы, не трогая существующие', () => {
-  assert.match(app, /if \(!db\.objectStoreNames\.contains\(MASTER_INFO_STORE\)\) \{\s*db\.createObjectStore\(MASTER_INFO_STORE, \{ keyPath: 'id' \}\);/);
+  // Открытие базы (и создание сторов) переехало в src/storage/connection.ts
+  // (Шаг 2 разбора, docs/DATA_LAYER_PLAN.md) — стор личного кабинета там
+  // заводится по литеральному имени 'masterInfo', совпадающему с
+  // MASTER_INFO_STORE из lib/masterInfoStore.ts.
+  const conn = readSource('../src/storage/connection.ts');
+  assert.match(conn, /if \(!db\.objectStoreNames\.contains\('masterInfo'\)\) \{\s*db\.createObjectStore\('masterInfo', \{ keyPath: 'id' \}\);/);
 });
 
 test('прежнего сообщения про переполнение localStorage больше нет', () => {
@@ -90,7 +101,7 @@ test('кабинет восстанавливается той же транза
   // Иначе восстановление могло пройти наполовину: клиенты новые, кабинет
   // старый, и понять это по экрану невозможно.
   assert.match(replaceAllData, /if \(restoredMaster\) stores\.push\(MASTER_INFO_STORE\);/);
-  assert.match(replaceAllData, /tx\.objectStore\(MASTER_INFO_STORE\)\.put\(\{ \.\.\.restoredMaster, id: MASTER_INFO_RECORD_ID \}\)/);
+  assert.match(replaceAllData, /putMasterInfoRecord\(tx, restoredMaster\)/);
 });
 
 test('старый файл с одними задачами не стирает имя и реквизиты', () => {

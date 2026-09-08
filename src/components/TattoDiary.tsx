@@ -19,9 +19,9 @@ import {
   CONTENT_INGEST_JOB_STORE,
   ContentJobDbUnavailableError,
   TATTO_DIARY_DB_VERSION,
+  clearContentIngestJobs,
   deleteContentEntryAndRefreshJobs,
   deleteContentIngestJob,
-  ensureContentIngestJobStore,
   loadContentIngestJobs,
   putContentIngestJob,
   startContentIngestJobCoordinator,
@@ -55,18 +55,15 @@ import {
   storageFailureNeedsReconnect,
   type StorageFailureKind,
 } from '../lib/storageMessages';
-import {
-  enqueuePendingWrite,
-  isConnectionStable,
-  pendingWriteSummary,
-  reconnectDelayMs,
-  type PendingWrite,
-  type StoragePhase,
-} from '../lib/storageRecovery';
+import type { StoragePhase } from '../lib/storageRecovery';
+import { createStorageConnection, type StorageConnection } from '../storage/connection';
+import { getAllClients, putClient, deleteClientRecord, clearClients } from '../storage/repos/clientsRepo';
+import { getAllProjects, putProject, deleteProjectRecord, clearProjects } from '../storage/repos/projectsRepo';
+import { getAllContentEntries, putContentEntry, clearContentEntries } from '../storage/repos/contentRepo';
+import { getMasterInfoRecord, putMasterInfoRecord } from '../storage/repos/masterInfoRepo';
 import { BUSY_ATTRIBUTE } from '../lib/appUpdate';
 import {
   MASTER_INFO_STORE,
-  MASTER_INFO_RECORD_ID,
   MASTER_INFO_LOCAL_KEY,
   DEFAULT_MASTER_INFO,
   normalizeMasterInfo,
@@ -306,81 +303,10 @@ export const SKIN_TYPES: { value: string; label: string }[] = [
 ];
 
 // ===================== DATABASE =====================
-// Version bumped 1 → 2 to add two new stores at once — «projects»
-// (Творческая мастерская) and «contentEntries» (единая сущность для всего,
-// что проходит через ContentINKA — сессия/консультация/свободная заметка,
-// см. ContentEntry ниже). Existing installs upgrade in place on next load;
-// onupgradeneeded only touches stores that don't exist yet, so the clients
-// store and its data are never re-created or wiped.
-// Сколько ждём ответа от indexedDB.open(), прежде чем считать попытку
-// провалившейся и уйти на повтор.
-const DB_OPEN_TIMEOUT_MS = 8000;
-
-const initDB = (): Promise<IDBDatabase> =>
-  new Promise((resolve, reject) => {
-    const request = indexedDB.open('TattoDiaryDB', TATTO_DIARY_DB_VERSION);
-    // Промис обязан завершиться при любом исходе, иначе повторные попытки
-    // ниже просто не начнутся. Два случая, в которых он раньше не завершался
-    // никогда: открытие заблокировано другой вкладкой с этим же дневником
-    // (onblocked, обработчика не было вовсе) и молчаливое зависание open() на
-    // iOS, когда система усыпила приложение прямо во время открытия — там не
-    // приходит вообще ни одного события, и приложение висело бесконечно,
-    // даже не показав плашку с «Повторить».
-    let settled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const finish = (run: () => void) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      run();
-    };
-    timer = setTimeout(() => finish(() => reject(new Error('IndexedDB open timed out'))), DB_OPEN_TIMEOUT_MS);
-    request.onerror = () => finish(() => reject(request.error));
-    request.onsuccess = () => {
-      // Если open() всё-таки ответил уже после таймаута, соединение нужно
-      // закрыть: иначе оно останется висеть и заблокирует следующую попытку.
-      if (settled) {
-        request.result.close();
-        return;
-      }
-      finish(() => resolve(request.result));
-    };
-    request.onblocked = () => finish(() => reject(new Error('IndexedDB upgrade blocked')));
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains('clients')) {
-        db.createObjectStore('clients', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('projects')) {
-        db.createObjectStore('projects', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('contentEntries')) {
-        db.createObjectStore('contentEntries', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains(MASTER_INFO_STORE)) {
-        db.createObjectStore(MASTER_INFO_STORE, { keyPath: 'id' });
-      }
-      ensureContentIngestJobStore(db);
-    };
-  });
-
-// iOS/WebKit sometimes fails the very first indexedDB.open() right after a
-// cold launch (the storage subsystem isn't ready yet) — this is NOT the same
-// as private browsing, which the previous error message wrongly assumed. A
-// couple of quick retries clears up that transient case before we bother the
-// user at all.
-const initDBWithRetry = async (attempts = 3, delayMs = 400): Promise<IDBDatabase> => {
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      return await initDB();
-    } catch (err) {
-      if (attempt === attempts) throw err;
-      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
-    }
-  }
-  throw new Error('unreachable');
-};
-
+// Открытие базы, переподключение, очередь отложенных записей — вынесены в
+// src/storage/connection.ts (Шаг 1 разбора, docs/DATA_LAYER_PLAN.md).
+// Логика та же, только setState заменён на колбэки (см. ниже, useMemo с
+// createStorageConnection).
 
 export const INPUT_STYLE: React.CSSProperties = {
   width: '100%',
@@ -521,25 +447,33 @@ export default function TattoDiary() {
   // Теперь дневник сначала чинится сам и молча (см. lib/storageRecovery.ts),
   // а мастера беспокоит, только если у него не вышло.
   const [storagePhase, setStoragePhase] = useState<StoragePhase>('connecting');
-  // Ссылки, а не состояние: восстановление живёт в обработчиках событий и в
-  // таймерах, которым нужно ТЕКУЩЕЕ значение, а не то, что было на рендере,
-  // где обработчик подписался.
+  // dbRef — та же база, что и в состоянии db, но читаемая синхронно из
+  // обработчиков событий и таймеров, которым нужно ТЕКУЩЕЕ значение, а не то,
+  // что было на рендере, где обработчик подписался. Источник истины теперь —
+  // src/storage/connection.ts (Шаг 1 разбора, docs/DATA_LAYER_PLAN.md);
+  // connRef держит единственный экземпляр модуля на весь компонент.
   const dbRef = useRef<IDBDatabase | null>(null);
-  const recoveringRef = useRef(false);
-  const reconnectAttemptRef = useRef(0);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  // Когда соединение открылось. Нужно, чтобы отличить «связь была и
-  // оборвалась» от «открывается и тут же падает» — см. isConnectionStable.
-  const connectedAtRef = useRef<number | null>(null);
-  // Открытие базы уже идёт. Без этого флага запись, сделанная в первые
-  // миллисекунды запуска (или обрыв, замеченный во время переподключения),
-  // заводила бы ВТОРОЕ параллельное открытие поверх первого — а очередь
-  // отложенных записей и так будет разобрана тем открытием, что уже в пути.
-  const openInFlightRef = useRef(false);
-  // Записи, не попавшие в базу из-за оборвавшейся связи. Дожидаются
-  // восстановления и повторяются — вместо того чтобы пропасть вместе с тем,
-  // что мастер только что ввела.
-  const pendingWritesRef = useRef<PendingWrite[]>([]);
+  const connRef = useRef<StorageConnection | null>(null);
+  if (!connRef.current) {
+    connRef.current = createStorageConnection(TATTO_DIARY_DB_VERSION, {
+      onPhaseChange: (phase) => {
+        setStoragePhase(phase);
+        const database = connRef.current!.getDatabase();
+        dbRef.current = database;
+        setDb(database);
+      },
+      onConnected: () => {
+        clearStorageFailure();
+        const database = connRef.current!.getDatabase()!;
+        loadClients(database);
+        loadProjects(database);
+        loadContentEntries(database);
+        reloadContentIngestJobs(database);
+      },
+      onFailure: (kind, action, _error, extra) => showStorageFailure(kind, action, extra),
+      onErrorLog: (action, error) => logError('storage', action, error),
+    });
+  }
 
   // ── Журнал сбоев ─────────────────────────────────────────────────────────
   // Консоль браузера на телефоне не открыть, поэтому раньше сбой не оставлял
@@ -586,6 +520,20 @@ export default function TattoDiary() {
   // собирается ЗДЕСЬ, а не на месте вызова, чтобы текст плашки по-прежнему
   // рождался ровно в одной точке: расползание формулировок по коду и было
   // тем, от чего избавлялись, заводя storageMessages.ts.
+  // Плашка сама по себе — без записи в журнал. Отдельно от reportStorageFailure
+  // ниже, потому что для сбоев самого соединения (обрыв/конфликт вкладок)
+  // журнал уже получил запись через onErrorLog в createStorageConnection —
+  // вызвать logError ещё раз здесь означало бы задвоить её в журнале.
+  const showStorageFailure = (kind: StorageFailureKind, action: string, extra?: string | null) => {
+    setDbErrorKind(kind);
+    setDbError(extra ? `${storageFailureMessage(kind, action)} ${extra}` : storageFailureMessage(kind, action));
+  };
+
+  // Единственная точка, где появляется сообщение о сбое хранилища для прямых
+  // сбоев чтения/записи (тех, что случаются на живом соединении — см.
+  // tx.onerror ниже). Раньше здесь было двадцать разных формулировок про одно
+  // и то же — теперь текст собирается из состояния и названия операции, и та
+  // же пара уходит в журнал.
   const reportStorageFailure = (kind: StorageFailureKind, action: string, error?: unknown, extra?: string | null) => {
     logError('storage', action, error ?? kind);
     // Пока дневник чинит связь сам, плашек не показываем ВООБЩЕ. Иначе
@@ -597,9 +545,8 @@ export default function TattoDiary() {
     // Исключение — 'conflicting': вторая вкладка обновляет схему, и это
     // единственный случай, который дневник САМ починить не может, потому что
     // чинится он закрытием той вкладки.
-    if (recoveringRef.current && kind !== 'conflicting') return;
-    setDbErrorKind(kind);
-    setDbError(extra ? `${storageFailureMessage(kind, action)} ${extra}` : storageFailureMessage(kind, action));
+    if (connRef.current!.getPhase() === 'recovering' && kind !== 'conflicting') return;
+    showStorageFailure(kind, action, extra);
   };
   const clearStorageFailure = () => {
     setDbError(null);
@@ -679,7 +626,7 @@ export default function TattoDiary() {
     if (!db || masterInfoLoaded) return;
     const tx = openTx(MASTER_INFO_STORE, db, 'readonly', STORAGE_ACTIONS.loadMasterInfo);
     if (!tx) return;
-    const request = tx.objectStore(MASTER_INFO_STORE).get(MASTER_INFO_RECORD_ID);
+    const request = getMasterInfoRecord(tx);
     request.onsuccess = () => {
       const stored = request.result ? normalizeMasterInfo(request.result) : null;
       const { value, needsMigration } = resolveMasterInfoSource(stored, readLocalMasterInfo());
@@ -695,7 +642,7 @@ export default function TattoDiary() {
       if (needsMigration) {
         const writeTx = openWriteTx(MASTER_INFO_STORE, db, STORAGE_ACTIONS.migrateMasterInfo);
         if (!writeTx) return;
-        writeTx.objectStore(MASTER_INFO_STORE).put({ ...value, id: MASTER_INFO_RECORD_ID });
+        putMasterInfoRecord(writeTx, value);
         writeTx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.migrateMasterInfo);
       }
     };
@@ -706,7 +653,7 @@ export default function TattoDiary() {
     if (!db || !masterInfoLoaded) return;
     const tx = openWriteTx(MASTER_INFO_STORE, db, STORAGE_ACTIONS.saveMasterInfo);
     if (!tx) return;
-    tx.objectStore(MASTER_INFO_STORE).put({ ...masterInfo, id: MASTER_INFO_RECORD_ID });
+    putMasterInfoRecord(tx, masterInfo);
     tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.saveMasterInfo);
   }, [db, masterInfoLoaded, masterInfo]);
   // Старая копия в localStorage НЕ обновляется и не удаляется: она остаётся
@@ -1053,129 +1000,21 @@ export default function TattoDiary() {
     setLastBackupAt(now);
   };
 
-  // Отложенные записи ложатся в базу в том же порядке, в каком мастер их
-  // сделала. Падение одной не должно съесть остальные — поэтому каждая в
-  // своём try.
-  const flushPendingWrites = (database: IDBDatabase) => {
-    const queued = pendingWritesRef.current;
-    if (queued.length === 0) return;
-    pendingWritesRef.current = [];
-    queued.forEach((item) => {
-      try {
-        item.run(database);
-      } catch (err) {
-        logError('storage', item.action, err);
-      }
-    });
-  };
-
-  const connectDb = (options?: { manual?: boolean }) => {
-    // «Повторить» руками — это всегда новая серия попыток, даже если
-    // автоматические уже исчерпаны.
-    if (options?.manual) reconnectAttemptRef.current = 0;
-    clearTimeout(reconnectTimerRef.current);
-    openInFlightRef.current = true;
-    initDBWithRetry()
-      .then((database) => {
-        openInFlightRef.current = false;
-        recoveringRef.current = false;
-        reconnectAttemptRef.current = 0;
-        connectedAtRef.current = Date.now();
-        setStoragePhase('ready');
-        clearStorageFailure();
-        dbRef.current = database;
-        setDb(database);
-        // Браузер может закрыть соединение сам (нехватка памяти — вероятнее
-        // всего на больших фото), а другая вкладка — начать обновление схемы.
-        // Первое дневник чинит сам; второе — единственный случай, где без
-        // мастера не обойтись (закрыть лишнюю вкладку).
-        database.onclose = () => handleConnectionLost(STORAGE_ACTIONS.open);
-        database.onversionchange = () => {
-          database.close();
-          dbRef.current = null;
-          setDb(null);
-          recoveringRef.current = false;
-          setStoragePhase('failed');
-          reportStorageFailure('conflicting', STORAGE_ACTIONS.open);
-        };
-        loadClients(database);
-        loadProjects(database);
-        loadContentEntries(database);
-        reloadContentIngestJobs(database);
-        // Записи, сделанные, пока связи не было, — последним делом, уже по
-        // живому соединению.
-        flushPendingWrites(database);
-      })
-      .catch((err) => {
-        openInFlightRef.current = false;
-        console.error('IndexedDB init failed:', err);
-        scheduleReconnect(err);
-      });
-  };
-
-  // Следующая тихая попытка — или признание, что сами не справились.
-  const scheduleReconnect = (error?: unknown) => {
-    const attempt = reconnectAttemptRef.current + 1;
-    const delay = reconnectDelayMs(attempt);
-    if (delay === null) {
-      recoveringRef.current = false;
-      setStoragePhase('failed');
-      // Сообщение о потере связи + приписка о том, что именно не легло в
-      // базу: мастер должна понимать, повторять ли ей действие.
-      reportStorageFailure('lost', STORAGE_ACTIONS.open, error, pendingWriteSummary(pendingWritesRef.current));
-      return;
-    }
-    reconnectAttemptRef.current = attempt;
-    recoveringRef.current = true;
-    setStoragePhase('recovering');
-    clearTimeout(reconnectTimerRef.current);
-    reconnectTimerRef.current = setTimeout(() => connectDbRef.current(), delay);
-  };
-
-  // Связь пропала посреди работы. Никаких плашек: помечаем и чиним.
-  const handleConnectionLost = (action: string, error?: unknown) => {
-    dbRef.current = null;
-    setDb(null);
-    logError('storage', action, error ?? 'соединение с хранилищем закрыто');
-    if (recoveringRef.current || openInFlightRef.current) return;
-    recoveringRef.current = true;
-    setStoragePhase('recovering');
-    // Обрыв после нормально прожившего соединения — повод начать серию
-    // заново. А вот соединение, рухнувшее сразу после открытия, серию НЕ
-    // обнуляет: иначе дневник вечно крутил бы «открылись — упали».
-    if (isConnectionStable(connectedAtRef.current, Date.now())) reconnectAttemptRef.current = 0;
-    connectedAtRef.current = null;
-    scheduleReconnect(error);
-  };
+  // connectDb/scheduleReconnect/handleConnectionLost/flushPendingWrites/
+  // withStorage — перенесены в src/storage/connection.ts (Шаг 1/2 разбора,
+  // docs/DATA_LAYER_PLAN.md). connectDb ниже — тонкая обёртка над модулем,
+  // под тем же именем, чтобы обработчики (mount-эффект, resume-эффект)
+  // остались без изменений.
+  const connectDb = (options?: { manual?: boolean }) => connRef.current!.connect(options);
 
   // Единственный вход для любой записи. Есть связь — пишем; нет — откладываем
-  // и чиним. Ключ нужен, чтобы повторная правка того же объекта заменяла
-  // прежнюю, а не копилась (см. enqueuePendingWrite).
-  const withStorage = (key: string, action: string, run: (database: IDBDatabase) => void) => {
-    const database = dbRef.current ?? db;
-    if (database) {
-      run(database);
-      return;
-    }
-    pendingWritesRef.current = enqueuePendingWrite(pendingWritesRef.current, { key, action, run });
-    if (!recoveringRef.current && !openInFlightRef.current) {
-      recoveringRef.current = true;
-      setStoragePhase('recovering');
-      reconnectAttemptRef.current = 0;
-      scheduleReconnect();
-    }
-  };
-
-  // Обработчики ниже подписываются один раз, а connectDb пересоздаётся на
-  // каждом рендере — ссылка держит для них свежую версию.
-  const connectDbRef = useRef(connectDb);
-  useEffect(() => {
-    connectDbRef.current = connectDb;
-  });
+  // и чиним (см. connection.ts: write).
+  const withStorage = (key: string, action: string, run: (database: IDBDatabase) => void) =>
+    connRef.current!.write(key, action, run);
 
   useEffect(() => {
     connectDb();
-    return () => clearTimeout(reconnectTimerRef.current);
+    return () => connRef.current?.destroy();
   }, []);
 
   // Подметаем черновики прошлых сборок копии ПРИ КАЖДОМ ЗАПУСКЕ.
@@ -1228,11 +1067,11 @@ export default function TattoDiary() {
   useEffect(() => {
     const onResume = () => {
       if (document.visibilityState !== 'visible') return;
-      if (dbRef.current || openInFlightRef.current) return;
-      reconnectAttemptRef.current = 0;
-      recoveringRef.current = true;
+      if (connRef.current!.getDatabase() || connRef.current!.isOpening()) return;
+      // Немедленная обратная связь в интерфейсе, ещё до ответа base — тот же
+      // эффект, что давал recoveringRef.current = true в исходном коде.
       setStoragePhase('recovering');
-      connectDbRef.current();
+      connectDb({ manual: true });
     };
     document.addEventListener('visibilitychange', onResume);
     window.addEventListener('pageshow', onResume);
@@ -1246,24 +1085,21 @@ export default function TattoDiary() {
   // закрылось (браузер может закрыть его сам под давлением памяти — вероятнее
   // при больших фото, см. downsizeForStorage). Раньше это исключение никем не
   // ловилось и роняло всё приложение вместо понятной ошибки с «Повторить».
-  // Соединение уже закрыто — это всегда «хранилище отключилось», независимо
-  // от того, какую операцию пытались начать; операция нужна только чтобы
-  // назвать её в журнале.
-  const openTx = (storeNames: string | string[], database: IDBDatabase, mode: IDBTransactionMode, action: string): IDBTransaction | null => {
-    try {
-      return database.transaction(storeNames, mode);
-    } catch (err) {
-      handleConnectionLost(action, err);
-      return null;
-    }
-  };
+  // Перенесено в connection.ts (см. openTx там) — здесь тонкая обёртка под
+  // прежней сигнатурой (storeNames, database, mode, action), чтобы все
+  // call-сайты ниже (loadClients, saveClient и т.д.) остались без изменений.
+  // Параметр database больше не используется: connection.ts всегда открывает
+  // транзакцию на своём текущем соединении — но это то же самое соединение,
+  // которое вызывающий код и так получил из db/database.
+  const openTx = (storeNames: string | string[], _database: IDBDatabase, mode: IDBTransactionMode, action: string): IDBTransaction | null =>
+    connRef.current!.openTx(storeNames, mode, action);
   const openWriteTx = (storeNames: string | string[], database: IDBDatabase, action: string): IDBTransaction | null =>
     openTx(storeNames, database, 'readwrite', action);
 
   const loadClients = (database: IDBDatabase) => {
     const tx = openTx('clients', database, 'readonly', STORAGE_ACTIONS.loadClients);
     if (!tx) return;
-    const request = tx.objectStore('clients').getAll();
+    const request = getAllClients(tx);
     request.onsuccess = () => {
       setStoredClients((request.result || []).map(normalizeClient));
       setClientsLoaded(true);
@@ -1274,7 +1110,7 @@ export default function TattoDiary() {
   const loadProjects = (database: IDBDatabase) => {
     const tx = openTx('projects', database, 'readonly', STORAGE_ACTIONS.loadProjects);
     if (!tx) return;
-    const request = tx.objectStore('projects').getAll();
+    const request = getAllProjects(tx);
     request.onsuccess = () => {
       setProjects((request.result || []).map(normalizeProject));
       setProjectsLoaded(true);
@@ -1285,7 +1121,7 @@ export default function TattoDiary() {
   const reloadMasterInfo = (database: IDBDatabase) => {
     const tx = openTx(MASTER_INFO_STORE, database, 'readonly', STORAGE_ACTIONS.loadMasterInfo);
     if (!tx) return;
-    const request = tx.objectStore(MASTER_INFO_STORE).get(MASTER_INFO_RECORD_ID);
+    const request = getMasterInfoRecord(tx);
     request.onsuccess = () => {
       if (request.result) setMasterInfo(normalizeMasterInfo(request.result));
     };
@@ -1334,8 +1170,7 @@ export default function TattoDiary() {
     if (changed.length === 0) return Promise.resolve(0);
     const tx = openWriteTx('clients', database, STORAGE_ACTIONS.clearLegacyRecords);
     if (!tx) return Promise.resolve(null);
-    const store = tx.objectStore('clients');
-    for (const client of changed) store.put({ ...client, sessions: [], consultations: [] });
+    for (const client of changed) putClient(tx, { ...client, sessions: [], consultations: [] });
     return new Promise<number | null>((resolve) => {
       tx.oncomplete = () => {
         loadClients(database);
@@ -1454,7 +1289,6 @@ export default function TattoDiary() {
   ) => {
     const tx = openWriteTx('projects', db, STORAGE_ACTIONS.saveProject);
     if (!tx) return;
-    const store = tx.objectStore('projects');
     // Бамп «последнего движения» — то же правило, что было в saveProject:
     // только значимые изменения (см. isMeaningfulProjectChange), новый проект
     // получает его всегда.
@@ -1464,7 +1298,7 @@ export default function TattoDiary() {
         prev && !isMeaningfulProjectChange(prev, project)
           ? project
           : { ...project, lastMeaningfulActivityAt: new Date().toISOString() };
-      store.put(next);
+      putProject(tx, next);
       return next;
     });
     tx.oncomplete = () => {
@@ -1512,7 +1346,7 @@ export default function TattoDiary() {
     withStorage(`project-delete:${id}`, STORAGE_ACTIONS.deleteProject, (database) => {
       const tx = openWriteTx('projects', database, STORAGE_ACTIONS.deleteProject);
       if (!tx) return;
-      tx.objectStore('projects').delete(id);
+      deleteProjectRecord(tx, id);
       tx.oncomplete = () => {
         // Удалили один проект — незачем перечитывать все остальные с их фото
         // (см. saveProjects выше о том, почему это дорого).
@@ -1555,9 +1389,8 @@ export default function TattoDiary() {
     const changed = new Set(result.changedProjectIds);
     const tx = openWriteTx('projects', db, STORAGE_ACTIONS.migrateRecords);
     if (!tx) return;
-    const store = tx.objectStore('projects');
     for (const project of result.projects) {
-      if (changed.has(project.id)) store.put(project);
+      if (changed.has(project.id)) putProject(tx, project);
     }
     tx.oncomplete = () => {
       recordsMigrationRanRef.current = true;
@@ -1569,7 +1402,7 @@ export default function TattoDiary() {
   const loadContentEntries = (database: IDBDatabase) => {
     const tx = openTx('contentEntries', database, 'readonly', STORAGE_ACTIONS.loadContent);
     if (!tx) return;
-    const request = tx.objectStore('contentEntries').getAll();
+    const request = getAllContentEntries(tx);
     request.onsuccess = () =>
       setContentEntries((request.result || []).map((entry) => normalizeContentEntry(entry)).map((entry) => normalizeContentEntryLink(entry)));
     request.onerror = () => reportStorageFailure('read', STORAGE_ACTIONS.loadContent);
@@ -1582,7 +1415,7 @@ export default function TattoDiary() {
   // `db` looking fine while every next attempt fails the same way.
   const handleContentJobDbError = (err: unknown, action: string): boolean => {
     if (!(err instanceof ContentJobDbUnavailableError)) return false;
-    handleConnectionLost(action, err);
+    connRef.current!.reportConnectionLost(action, err);
     return true;
   };
 
@@ -1642,7 +1475,7 @@ export default function TattoDiary() {
     withStorage(`content:${entry.id}`, STORAGE_ACTIONS.saveContent, (database) => {
       const tx = openWriteTx('contentEntries', database, STORAGE_ACTIONS.saveContent);
       if (!tx) return;
-      tx.objectStore('contentEntries').put(entry);
+      putContentEntry(tx, entry);
       // Успех перечитывать нечего: состояние выставлено выше ровно тем же
       // `entry`, что лёг в базу. Раньше здесь стоял getAll по всему стору
       // контента — а он держит ВТОРЫЕ копии фото (см. ContentEntry.photos),
@@ -1711,7 +1544,7 @@ export default function TattoDiary() {
     withStorage(`client:${client.id}`, STORAGE_ACTIONS.saveClient, (database) => {
       const tx = openWriteTx('clients', database, STORAGE_ACTIONS.saveClient);
       if (!tx) return;
-      tx.objectStore('clients').put(record);
+      putClient(tx, record);
       tx.oncomplete = () => {
         // Записали ровно `record` — его и ставим в состояние, вместо getAll
         // по всему стору клиентов (см. saveProjects о цене такого чтения).
@@ -1744,7 +1577,7 @@ export default function TattoDiary() {
     withStorage(`client-delete:${id}`, STORAGE_ACTIONS.deleteClient, (database) => {
       const tx = openWriteTx('clients', database, STORAGE_ACTIONS.deleteClient);
       if (!tx) return;
-      tx.objectStore('clients').delete(id);
+      deleteClientRecord(tx, id);
       tx.oncomplete = () => {
         setStoredClients((current) => current.filter((c) => c.id !== id));
         diffAndSync(prevClient, null, calendarSync);
@@ -1782,22 +1615,19 @@ export default function TattoDiary() {
     if (restoredMaster) stores.push(MASTER_INFO_STORE);
     const tx = openWriteTx(stores, db, STORAGE_ACTIONS.importData);
     if (!tx) return;
-    const cs = tx.objectStore('clients');
-    cs.clear();
-    bundle.clients.forEach((c) => cs.put(c));
+    clearClients(tx);
+    bundle.clients.forEach((c) => putClient(tx, c));
     if (bundle.projects) {
-      const ps = tx.objectStore('projects');
-      ps.clear();
-      bundle.projects.forEach((p) => ps.put(p));
+      clearProjects(tx);
+      bundle.projects.forEach((p) => putProject(tx, p));
     }
     if (bundle.contentEntries) {
-      const es = tx.objectStore('contentEntries');
-      es.clear();
-      bundle.contentEntries.forEach((e) => es.put(e));
-      tx.objectStore(CONTENT_INGEST_JOB_STORE).clear();
+      clearContentEntries(tx);
+      bundle.contentEntries.forEach((e) => putContentEntry(tx, e));
+      clearContentIngestJobs(tx);
     }
     if (restoredMaster) {
-      tx.objectStore(MASTER_INFO_STORE).put({ ...restoredMaster, id: MASTER_INFO_RECORD_ID });
+      putMasterInfoRecord(tx, restoredMaster);
     }
     tx.oncomplete = () => {
       loadClients(db);
@@ -1823,8 +1653,7 @@ export default function TattoDiary() {
     }
     const tx = openWriteTx('clients', db, STORAGE_ACTIONS.importData);
     if (!tx) return;
-    const store = tx.objectStore('clients');
-    newClients.forEach((c) => store.put(c));
+    newClients.forEach((c) => putClient(tx, c));
     tx.oncomplete = () => loadClients(db);
     tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.importData);
   };

@@ -109,7 +109,7 @@ test('the legacy client arrays are normalized only for display, never rewritten 
   // Легаси sessions/consultations — страховка после переезда записей на
   // проекты. В базу по-прежнему ложится `record` как есть.
   const save = slice('const saveClient = (client: Client) => {', 'const deleteClient = (id: string) => {');
-  assert.match(save, /tx\.objectStore\('clients'\)\.put\(record\)/);
+  assert.match(save, /putClient\(tx, record\)/);
   assert.doesNotMatch(save, /put\(shown\)/);
   assert.doesNotMatch(save, /put\(normalizeClient/);
 });
@@ -125,8 +125,11 @@ test('a failed content write DOES re-read — state ran ahead of the database', 
 });
 
 test('full reads stay where everything really changed: connect, import, migration, restore', () => {
-  // Подключение к базе — состояние пустое, читать обязательно.
-  const connect = slice('const connectDb = (', 'const scheduleReconnect');
+  // Подключение к базе — состояние пустое, читать обязательно. Само
+  // открытие соединения теперь в src/storage/connection.ts (Шаг 2 разбора,
+  // docs/DATA_LAYER_PLAN.md); здесь остаётся только колбэк onConnected,
+  // которым дневник реагирует на «связь появилась».
+  const connect = slice('onConnected: () => {', 'onFailure: (');
   assert.match(connect, /loadClients\(database\)/);
   assert.match(connect, /loadProjects\(database\)/);
   assert.match(connect, /loadContentEntries\(database\)/);

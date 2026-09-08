@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import * as recovery from '../.test-dist/src/lib/storageRecovery.js';
 const diary = readFileSync(new URL('../src/components/TattoDiary.tsx', import.meta.url), 'utf8');
+// Открытие соединения и вся серия переподключений переехали в
+// src/storage/connection.ts (Шаг 2 разбора, docs/DATA_LAYER_PLAN.md) —
+// часть проверок ниже следует за ними туда.
+const conn = readFileSync(new URL('../src/storage/connection.ts', import.meta.url), 'utf8');
 
 // ── Паузы между тихими попытками ─────────────────────────────────────────
 
@@ -33,8 +37,8 @@ test('a connection that dies right after opening does not restart the series for
 });
 
 test('the diary only resets its attempt counter after a connection that actually held', () => {
-  const lost = diary.slice(diary.indexOf('const handleConnectionLost'), diary.indexOf('const withStorage'));
-  assert.match(lost, /if \(isConnectionStable\(connectedAtRef\.current, Date\.now\(\)\)\) reconnectAttemptRef\.current = 0;/);
+  const lost = conn.slice(conn.indexOf('const handleConnectionLost'), conn.indexOf('const scheduleReconnect'));
+  assert.match(lost, /if \(isConnectionStable\(connectedAt, Date\.now\(\)\)\) reconnectAttempt = 0;/);
 });
 
 // ── Когда мастер видит плашку ────────────────────────────────────────────
@@ -98,72 +102,78 @@ test('the summary names the one lost operation, or counts several', () => {
 // ── Проводка в дневнике ──────────────────────────────────────────────────
 
 test('a lost connection triggers self-repair instead of a banner', () => {
-  const lost = diary.slice(diary.indexOf('const handleConnectionLost'), diary.indexOf('const withStorage'));
+  const lost = conn.slice(conn.indexOf('const handleConnectionLost'), conn.indexOf('const scheduleReconnect'));
   assert.match(lost, /scheduleReconnect\(/);
   // Красной плашки в этом пути нет вовсе — только запись в журнал.
-  assert.doesNotMatch(lost, /reportStorageFailure/);
-  assert.match(lost, /logError\('storage'/);
+  assert.doesNotMatch(lost, /reportFailure\(/);
+  assert.match(lost, /onErrorLog\?\.\(/);
 });
 
 test('every connection-loss path goes through the same self-repair', () => {
-  // Транзакция, не открывшаяся на закрытом соединении, и упавшая фоновая
-  // задача — это тот же обрыв, а не три разных аварии.
-  assert.match(diary, /database\.onclose = \(\) => handleConnectionLost\(/);
-  assert.match(diary, /catch \(err\) \{\s*handleConnectionLost\(action, err\);/);
-  assert.match(diary, /if \(!\(err instanceof ContentJobDbUnavailableError\)\) return false;\s*handleConnectionLost\(/);
+  // Транзакция, не открывшаяся на закрытом соединении — это обрыв,
+  // обрабатываемый в connection.ts.
+  assert.match(conn, /database\.onclose = \(\) => handleConnectionLost\(/);
+  assert.match(conn, /catch \(err\) \{\s*handleConnectionLost\(action, err\);/);
+  // Упавшая фоновая задача (contentJobQueue) сообщает об обрыве тем же
+  // модулем, но из TattoDiary.tsx — у неё своя обёртка над теми же сторами.
+  assert.match(diary, /if \(!\(err instanceof ContentJobDbUnavailableError\)\) return false;\s*connRef\.current!\.reportConnectionLost\(/);
 });
 
 test('failures are silenced while self-repair is running, but still journalled', () => {
-  const report = diary.slice(
-    diary.indexOf('const reportStorageFailure'),
-    diary.indexOf('const clearStorageFailure'),
-  );
-  // Журнал пишется всегда и первым — иначе разбирать сбой будет нечем.
-  assert.ok(report.indexOf("logError('storage'") < report.indexOf('setDbError('));
-  assert.match(report, /if \(recoveringRef\.current && kind !== 'conflicting'\) return;/);
+  // Сторона connection.ts: обрыв/конфликт вкладок — суппрессия внутри
+  // reportFailure, журнал (onErrorLog) пишется первым и всегда.
+  const report = conn.slice(conn.indexOf('const reportFailure'), conn.indexOf('// Отложенные записи ложатся'));
+  assert.ok(report.indexOf('onErrorLog?.(') < report.indexOf('onFailure?.('));
+  assert.match(report, /if \(recovering && kind !== 'conflicting'\) return;/);
+
+  // Сторона TattoDiary.tsx: прямые сбои чтения/записи (кроме потери связи)
+  // используют тот же признак — текущую фазу соединения, а не свой счётчик.
+  const componentReport = diary.slice(diary.indexOf('const reportStorageFailure'), diary.indexOf('// Падения, до которых'));
+  assert.ok(componentReport.indexOf("logError('storage'") < componentReport.indexOf('showStorageFailure('));
+  assert.match(componentReport, /if \(connRef\.current!\.getPhase\(\) === 'recovering' && kind !== 'conflicting'\) return;/);
 });
 
 test('returning to the app reconnects on its own — iOS closes the connection while asleep', () => {
   const resume = diary.slice(diary.indexOf('const onResume = () => {'), diary.indexOf("window.addEventListener('pageshow', onResume);"));
-  assert.match(resume, /if \(dbRef\.current \|\| openInFlightRef\.current\) return;/);
-  assert.match(resume, /connectDbRef\.current\(\)/);
+  assert.match(resume, /if \(connRef\.current!\.getDatabase\(\) \|\| connRef\.current!\.isOpening\(\)\) return;/);
+  assert.match(resume, /connectDb\(\{ manual: true \}\)/);
 });
 
 test('nothing ever starts a second open on top of one already in flight', () => {
-  const withStorage = diary.slice(diary.indexOf('const withStorage = ('), diary.indexOf('const connectDbRef'));
-  assert.match(withStorage, /if \(!recoveringRef\.current && !openInFlightRef\.current\)/);
-  const lost = diary.slice(diary.indexOf('const handleConnectionLost'), diary.indexOf('const withStorage'));
-  assert.match(lost, /if \(recoveringRef\.current \|\| openInFlightRef\.current\) return;/);
+  const write = conn.slice(conn.indexOf('const write = ('), conn.indexOf('return {'));
+  assert.match(write, /if \(!recovering && !openInFlight\)/);
+  const lost = conn.slice(conn.indexOf('const handleConnectionLost'), conn.indexOf('const scheduleReconnect'));
+  assert.match(lost, /if \(recovering \|\| openInFlight\) return;/);
 });
 
 test('writes attempted with no connection are queued, not lost', () => {
-  const withStorage = diary.slice(diary.indexOf('const withStorage = ('), diary.indexOf('const connectDbRef'));
-  assert.match(withStorage, /enqueuePendingWrite\(pendingWritesRef\.current/);
-  assert.match(withStorage, /scheduleReconnect\(\)/);
-  // Каждая запись дневника обязана идти через эту воронку, иначе она снова
-  // тихо пропадёт при оборванной связи.
+  const write = conn.slice(conn.indexOf('const write = ('), conn.indexOf('return {'));
+  assert.match(write, /enqueuePendingWrite\(pendingWrites/);
+  assert.match(write, /scheduleReconnect\(\)/);
+  // Каждая запись дневника обязана идти через withStorage (тонкая обёртка
+  // над connection.write), иначе она снова тихо пропадёт при оборванной связи.
   for (const call of ['client:${client.id}', 'client-delete:${id}', 'projects', 'project-delete:${id}', 'content:${entry.id}', 'content-delete:${id}']) {
     assert.ok(diary.includes(`withStorage(\`${call}\``) || diary.includes(`withStorage('${call}'`), `нет withStorage для ${call}`);
   }
 });
 
 test('queued writes are replayed once the connection is back', () => {
-  const connect = diary.slice(diary.indexOf('const connectDb = ('), diary.indexOf('const scheduleReconnect'));
+  const connect = conn.slice(conn.indexOf('const connect = ('), conn.indexOf('// db.transaction() бросает'));
   assert.match(connect, /flushPendingWrites\(database\)/);
   // Повтор идёт по СВЕЖЕМУ соединению, переданному параметром: замыкание
   // помнит своё db пустым — оно и создавалось, когда связи не было.
-  assert.match(diary, /item\.run\(database\)/);
+  assert.match(conn, /item\.run\(database\)/);
 });
 
 test('«Повторить» starts a fresh series even after automatic attempts ran out', () => {
-  assert.match(diary, /if \(options\?\.manual\) reconnectAttemptRef\.current = 0;/);
+  assert.match(conn, /if \(options\?\.manual\) reconnectAttempt = 0;/);
   assert.match(diary, /onClick=\{\(\) => connectDb\(\{ manual: true \}\)\}/);
 });
 
 test('a second tab upgrading the schema still asks the master — self-repair cannot fix that', () => {
-  const connect = diary.slice(diary.indexOf('const connectDb = ('), diary.indexOf('const scheduleReconnect'));
+  const connect = conn.slice(conn.indexOf('const connect = ('), conn.indexOf('// db.transaction() бросает'));
   assert.match(connect, /database\.onversionchange/);
-  assert.match(connect, /reportStorageFailure\('conflicting'/);
+  assert.match(connect, /reportFailure\('conflicting'/);
 });
 
 test('the calm «reconnecting» line waits, so a 150ms repair never flickers', () => {
