@@ -58,6 +58,8 @@ import type { StoragePhase } from '../lib/storageRecovery';
 import { createStorageConnection, type StorageConnection } from '../storage/connection';
 import { getAllClients, putClient, deleteClientRecord } from '../storage/repos/clientsRepo';
 import { getAllProjects, putProject, deleteProjectRecord } from '../storage/repos/projectsRepo';
+import { getAllContentEntries, putContentEntry } from '../storage/repos/contentRepo';
+import { getMasterInfoRecord, putMasterInfoRecord } from '../storage/repos/masterInfoRepo';
 import { BUSY_ATTRIBUTE } from '../lib/appUpdate';
 import {
   MASTER_INFO_STORE,
@@ -624,7 +626,7 @@ export default function TattoDiary() {
     if (!db || masterInfoLoaded) return;
     const tx = openTx(MASTER_INFO_STORE, db, 'readonly', STORAGE_ACTIONS.loadMasterInfo);
     if (!tx) return;
-    const request = tx.objectStore(MASTER_INFO_STORE).get(MASTER_INFO_RECORD_ID);
+    const request = getMasterInfoRecord(tx);
     request.onsuccess = () => {
       const stored = request.result ? normalizeMasterInfo(request.result) : null;
       const { value, needsMigration } = resolveMasterInfoSource(stored, readLocalMasterInfo());
@@ -640,7 +642,7 @@ export default function TattoDiary() {
       if (needsMigration) {
         const writeTx = openWriteTx(MASTER_INFO_STORE, db, STORAGE_ACTIONS.migrateMasterInfo);
         if (!writeTx) return;
-        writeTx.objectStore(MASTER_INFO_STORE).put({ ...value, id: MASTER_INFO_RECORD_ID });
+        putMasterInfoRecord(writeTx, value);
         writeTx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.migrateMasterInfo);
       }
     };
@@ -651,7 +653,7 @@ export default function TattoDiary() {
     if (!db || !masterInfoLoaded) return;
     const tx = openWriteTx(MASTER_INFO_STORE, db, STORAGE_ACTIONS.saveMasterInfo);
     if (!tx) return;
-    tx.objectStore(MASTER_INFO_STORE).put({ ...masterInfo, id: MASTER_INFO_RECORD_ID });
+    putMasterInfoRecord(tx, masterInfo);
     tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.saveMasterInfo);
   }, [db, masterInfoLoaded, masterInfo]);
   // Старая копия в localStorage НЕ обновляется и не удаляется: она остаётся
@@ -1115,7 +1117,7 @@ export default function TattoDiary() {
   const reloadMasterInfo = (database: IDBDatabase) => {
     const tx = openTx(MASTER_INFO_STORE, database, 'readonly', STORAGE_ACTIONS.loadMasterInfo);
     if (!tx) return;
-    const request = tx.objectStore(MASTER_INFO_STORE).get(MASTER_INFO_RECORD_ID);
+    const request = getMasterInfoRecord(tx);
     request.onsuccess = () => {
       if (request.result) setMasterInfo(normalizeMasterInfo(request.result));
     };
@@ -1396,7 +1398,7 @@ export default function TattoDiary() {
   const loadContentEntries = (database: IDBDatabase) => {
     const tx = openTx('contentEntries', database, 'readonly', STORAGE_ACTIONS.loadContent);
     if (!tx) return;
-    const request = tx.objectStore('contentEntries').getAll();
+    const request = getAllContentEntries(tx);
     request.onsuccess = () =>
       setContentEntries((request.result || []).map((entry) => normalizeContentEntry(entry)).map((entry) => normalizeContentEntryLink(entry)));
     request.onerror = () => reportStorageFailure('read', STORAGE_ACTIONS.loadContent);
@@ -1469,7 +1471,7 @@ export default function TattoDiary() {
     withStorage(`content:${entry.id}`, STORAGE_ACTIONS.saveContent, (database) => {
       const tx = openWriteTx('contentEntries', database, STORAGE_ACTIONS.saveContent);
       if (!tx) return;
-      tx.objectStore('contentEntries').put(entry);
+      putContentEntry(tx, entry);
       // Успех перечитывать нечего: состояние выставлено выше ровно тем же
       // `entry`, что лёг в базу. Раньше здесь стоял getAll по всему стору
       // контента — а он держит ВТОРЫЕ копии фото (см. ContentEntry.photos),

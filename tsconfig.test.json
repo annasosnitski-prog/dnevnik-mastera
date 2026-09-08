@@ -36,6 +36,8 @@
     "src/storage/connection.ts",
     "src/storage/repos/clientsRepo.ts",
     "src/storage/repos/projectsRepo.ts",
+    "src/storage/repos/contentRepo.ts",
+    "src/storage/repos/masterInfoRepo.ts",
     "src/lib/appUpdate.ts",
     "src/lib/chatLink.ts",
     "src/lib/backupSerialize.ts",

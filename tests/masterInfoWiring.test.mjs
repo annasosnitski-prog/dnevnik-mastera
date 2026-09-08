@@ -54,8 +54,14 @@ test('старая копия в localStorage остаётся страховк�
 });
 
 test('карточка лежит одной записью с постоянным id', () => {
-  assert.match(persistEffect, /put\(\{ \.\.\.masterInfo, id: MASTER_INFO_RECORD_ID \}\)/);
-  assert.match(loadEffect, /\.get\(MASTER_INFO_RECORD_ID\)/);
+  // Само get/put по фиксированному id — в src/storage/repos/masterInfoRepo.ts
+  // (Шаг 6 разбора, docs/DATA_LAYER_PLAN.md); здесь только проверяем, что
+  // эффекты дневника зовут именно его.
+  assert.match(persistEffect, /putMasterInfoRecord\(tx, masterInfo\)/);
+  assert.match(loadEffect, /getMasterInfoRecord\(tx\)/);
+  const repo = readSource('../src/storage/repos/masterInfoRepo.ts');
+  assert.match(repo, /\.put\(\{ \.\.\.value, id: MASTER_INFO_RECORD_ID \}\)/);
+  assert.match(repo, /\.get\(MASTER_INFO_RECORD_ID\)/);
 });
 
 test('стор заводится при обновлении схемы, не трогая существующие', () => {

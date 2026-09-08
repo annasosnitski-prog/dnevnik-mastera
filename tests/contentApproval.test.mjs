@@ -106,7 +106,7 @@ test('approval UI persists through the existing contentEntries store and locks r
   assert.match(screen, /saveEntryInWorkspace\(confirmContentEntry\(currentEntry\)\)/);
   assert.match(screen, /saveEntryInWorkspace\(setContentEntryExemplar\(currentEntry, isExemplar\)\)/);
   assert.match(source, /setContentEntries\(\(current\) => \[shown, \.\.\.current\.filter/);
-  assert.match(source, /tx\.objectStore\('contentEntries'\)\.put\(entry\)/);
+  assert.match(source, /putContentEntry\(tx, entry\)/);
   assert.match(screen, /Одобрить текст/);
   assert.match(screen, /Одобрено/);
   assert.match(screen, /Эталон/);
