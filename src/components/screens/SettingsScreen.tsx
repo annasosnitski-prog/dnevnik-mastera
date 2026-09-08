@@ -38,6 +38,7 @@ import {
 } from '../../lib/storageHealth';
 import {
   breakdownLines,
+  duplicateBytes,
   reclaimableBytes,
   totalPhotoBytes,
   type StorageBreakdown,
@@ -852,6 +853,17 @@ export function SettingsScreen({
                 Фото занимают {formatMegabytes(totalPhotoBytes(breakdown)) ?? 'меньше 0,1 МБ'} — примерно, по весу
                 самих снимков.
               </div>
+              {/* Разделы ниже складывают КОПИИ: один снимок, попавший в
+                  черновик и в задачу, весит в них трижды. Строка про
+                  уникальные показывает, сколько дневник весит на самом
+                  деле — это и есть цифра, с которой он поедет в облако. */}
+              {duplicateBytes(breakdown) > 0 && (
+                <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic', marginBottom: 8 }}>
+                  Разных снимков — {breakdown.unique.count} на{' '}
+                  {formatMegabytes(breakdown.unique.bytes) ?? 'меньше 0,1 МБ'}; остальное копии одного и того же
+                  ({formatMegabytes(duplicateBytes(breakdown)) ?? 'меньше 0,1 МБ'}).
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {/* Пустые разделы не показываем: у мастера, начавшей дневник
                     после переезда записей, легаси-копий нет вовсе, и строка
