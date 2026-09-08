@@ -131,6 +131,15 @@ test('deleting an entry also removes its queued refresh jobs', () => {
   assert.match(diary, /deleteContentEntryAndRefreshJobs\(database, id\)/);
 });
 
+test('completed content writes through contentRepo so device sync gets a fresh updatedAt', () => {
+  const queue = readFileSync(new URL('../src/lib/contentJobQueue.ts', import.meta.url), 'utf8');
+  const apply = queue.slice(queue.indexOf('export function applyCompletedContentIngestJob'), queue.indexOf('async function updateJobState'));
+  assert.match(queue, /import \{ putContentEntry \} from '\.\.\/storage\/repos\/contentRepo\.js';/);
+  assert.match(apply, /putContentEntry\(tx, createCompletedContentEntry\(record, result\)\)/);
+  assert.match(apply, /putContentEntry\(tx, \{ \.\.\.entry, textDraft: result\.text_draft \}\)/);
+  assert.doesNotMatch(apply, /entries\.put\(/);
+});
+
 test('hidden documents pause polling and visible, focus, online wake it', () => {
   const queue = readFileSync(new URL('../src/lib/contentJobQueue.ts', import.meta.url), 'utf8');
   assert.match(queue, /visibilityState === 'hidden'/);
@@ -254,7 +263,7 @@ test('completed jobs reject malformed media and mismatched job ids', async () =>
   await assert.rejects(
     getContentIngestJob('job-1', {
       readSettings: () => settings,
-      fetch: async () => ({ status: 200, ok: true, json: async () => ({ job_id: 'job-other', status: 'running' }) }),
+      fetch: async () => ({ status: 200, ok: true, json: async () => ({ job_id: 'job-other', status: 'running', result: { media: [], visual_archetype: null, text_triad: null, text_draft: 'Текст' } }) }),
     }),
     (error) => error instanceof ContentSyncError && error.message === 'ContentINKA вернула неожиданный ответ.',
   );
