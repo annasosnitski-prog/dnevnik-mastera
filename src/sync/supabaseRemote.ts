@@ -15,6 +15,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RemoteApi, RemoteRow } from './syncEngine.js';
+import type { PhotoTransport } from './photoPayload.js';
 import type { DeletableStore, Tombstone } from '../storage/repos/tombstonesRepo.js';
 
 const TABLE_BY_STORE: Record<'clients' | 'projects' | 'contentEntries', string> = {
@@ -93,6 +94,59 @@ function makeMasterInfo(client: SupabaseClient, ownerId: string) {
   };
 }
 
+// Файлы снимков. Имя файла — sha256 его содержимого (photoRefs.ts), поэтому
+// одинаковые копии одного фото занимают в облаке место один раз, а «уже
+// есть такой файл» — не ошибка, а штатный и самый частый исход загрузки.
+const PHOTO_BUCKET = 'sync-photos';
+
+function makePhotos(client: SupabaseClient, ownerId: string): PhotoTransport {
+  const pathOf = (hash: string) => `${ownerId}/${hash}`;
+
+  return {
+    async upload(hash, dataUrl) {
+      const blob = dataUrlToBlob(dataUrl);
+      const { error } = await client.storage
+        .from(PHOTO_BUCKET)
+        .upload(pathOf(hash), blob, { contentType: blob.type, upsert: false });
+      if (!error) return;
+      // Содержимое адресуется хэшем: файл с этим именем — это ровно этот же
+      // снимок. Повтор означает «уже загружено», а не сбой.
+      const message = error.message.toLowerCase();
+      if (message.includes('exists') || message.includes('duplicate')) return;
+      throw error;
+    },
+
+    async download(hash) {
+      const { data, error } = await client.storage.from(PHOTO_BUCKET).download(pathOf(hash));
+      // Нет файла — не повод валить весь синк: запись приедет со ссылкой,
+      // и снимок подтянется на следующем разе (см. internalizePhotos).
+      if (error || !data) return null;
+      return await blobToDataUrl(data);
+    },
+  };
+}
+
+// base64-строка ↔ файл. Через Blob, а не через ручную сборку байтов:
+// снимок уходит на сервер бинарно, без лишней трети веса от base64.
+function dataUrlToBlob(dataUrl: string): Blob {
+  const comma = dataUrl.indexOf(',');
+  const header = dataUrl.slice(0, comma);
+  const type = header.slice(5, header.indexOf(';') === -1 ? undefined : header.indexOf(';')) || 'image/jpeg';
+  const binary = atob(dataUrl.slice(comma + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('не удалось прочитать снимок из облака'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export async function createSupabaseRemote(client: SupabaseClient): Promise<RemoteApi> {
   const { data, error } = await client.auth.getSession();
   if (error) throw error;
@@ -102,6 +156,7 @@ export async function createSupabaseRemote(client: SupabaseClient): Promise<Remo
   }
 
   return {
+    photos: makePhotos(client, ownerId),
     clients: makeCollection(client, ownerId, 'clients'),
     projects: makeCollection(client, ownerId, 'projects'),
     contentEntries: makeCollection(client, ownerId, 'contentEntries'),

@@ -1,29 +1,42 @@
 // ============================================================
-// ФОТО НЕ ЕДУТ В ОБЛАКО — промежуточный шаг синка (docs/SYNC_PLAN.md).
+// ФОТО НА ГРАНИЦЕ ОБЛАКА — Шаг 6 синка (docs/SYNC_PLAN.md).
 //
 // Фото лежат base64-строками ВНУТРИ записей. Отправить их «как есть»
-// значит уложить фотобиблиотеку целиком в Postgres jsonb одним upsert'ом:
-// база бесплатного тарифа этого не выдержит, а даже если бы выдержала —
-// каждый снимок уехал бы столько раз, сколько у него копий в сторах (см.
-// duplicateBytes в lib/storageBreakdown.ts).
+// значило бы уложить фотобиблиотеку целиком в Postgres jsonb одним
+// upsert'ом: база бесплатного тарифа этого не выдержит, а даже если бы
+// выдержала — каждый снимок уехал бы столько раз, сколько у него копий в
+// сторах (см. duplicateBytes в lib/storageBreakdown.ts).
 //
-// Пока фото не переехали в Supabase Storage, синк возит ВСЁ ОСТАЛЬНОЕ:
-// клиентов, проекты, даты, заметки, связи, следы удаления. Фото остаются
-// на том устройстве, где сняты.
+// Поэтому здесь запись выворачивается наизнанку ровно на время передачи:
+//   отправляем — снимок уходит файлом в Storage, в строке остаётся
+//                ссылка photo:<sha256> (см. photoRefs.ts);
+//   принимаем  — ссылка разворачивается обратно в base64.
 //
-// Правило простое и намеренно тупое:
-//   отправляем  — фото-поля пустыми массивами;
-//   принимаем   — фото-поля берём из СВОЕЙ локальной записи, не из облака.
+// Локальная база не меняется ничем: на устройстве снимок как был
+// base64-строкой внутри записи, так и остался, и ни один экран не знает,
+// что синк существует.
 //
-// Поэтому облачная запись никогда не может затереть местные снимки, а
-// подстановка «по позиции в массиве» (которая ломается, как только на
-// другом устройстве фото переставили) не нужна вовсе.
+// Ключевая экономия на приёме: прежде чем качать файл, смотрим в СВОЮ
+// запись с тем же id. Если снимок на месте и его хэш совпал со ссылкой —
+// качать нечего. Обычная синхронизация (правку текста прислали, фото не
+// трогали) не скачивает ни байта.
 //
 // Слияние это не трогает: mergeRecords сравнивает только updatedAt, а он
-// от снятия фото не меняется.
+// от подмены снимка ссылкой не меняется.
 // ============================================================
 
 import type { RemoteRow } from './syncEngine.js';
+import { hashToRef, isInlinePhoto, isPhotoRef, photoContentHash, refToHash } from './photoRefs.js';
+
+// Куда синк складывает и откуда берёт файлы снимков. Настоящая реализация —
+// Supabase Storage (supabaseRemote.ts); тесты подставляют свою и проверяют
+// всю логику выноса и возврата без единого обращения к сети.
+export interface PhotoTransport {
+  // Загрузить снимок под его хэшем. Файл с таким адресом уже может лежать —
+  // это не ошибка, а ровно то, ради чего адрес и есть хэш содержимого.
+  upload(hash: string, dataUrl: string): Promise<void>;
+  download(hash: string): Promise<string | null>;
+}
 
 export type PhotoKind = 'clients' | 'projects' | 'contentEntries';
 
@@ -59,81 +72,135 @@ export const PHOTO_SHAPES: Record<PhotoKind, PhotoShape> = {
   },
 };
 
-function isPhotoString(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0;
-}
 
-// Снять снимки с записи, сохранив всё остальное. Клонируем только те
-// уровни, которые меняем: запись целиком через structuredClone означало бы
-// поднять в память ту самую фотобиблиотеку, от которой мы и уходим.
-export function stripPhotos(kind: PhotoKind, record: RemoteRow): RemoteRow {
+
+// ── Отправка: снимок уходит в Storage, в записи остаётся ссылка ──────────
+
+export async function externalizePhotos(
+  kind: PhotoKind,
+  record: RemoteRow,
+  transport: PhotoTransport,
+  uploaded: Set<string>,
+): Promise<RemoteRow> {
   const shape = PHOTO_SHAPES[kind];
+  // Клонируем только те уровни, которые меняем: structuredClone всей записи
+  // поднял бы в память ту самую фотобиблиотеку, от которой мы и уходим.
   const out: RemoteRow = { ...record };
 
+  const toRef = async (value: unknown): Promise<unknown> => {
+    if (!isInlinePhoto(value)) return value;
+    const hash = await photoContentHash(value);
+    // uploaded общий на весь прогон синка: одинаковые копии одного снимка
+    // грузятся один раз, даже если лежат в разных сторах.
+    if (!uploaded.has(hash)) {
+      await transport.upload(hash, value);
+      uploaded.add(hash);
+    }
+    return hashToRef(hash);
+  };
+
   for (const field of shape.direct) {
-    if (Array.isArray(out[field])) out[field] = [];
+    const list = out[field];
+    if (!Array.isArray(list)) continue;
+    out[field] = await Promise.all(list.map(toRef));
   }
 
   for (const { field, photoField } of shape.objects) {
     const list = out[field];
     if (!Array.isArray(list)) continue;
-    // Сам объект нужен (имя документа, дата заживления) — пустеет только снимок.
-    out[field] = list.map((item) =>
-      isPhotoString((item as Record<string, unknown> | null)?.[photoField])
-        ? { ...(item as Record<string, unknown>), [photoField]: '' }
-        : item,
+    out[field] = await Promise.all(
+      list.map(async (item) => {
+        const item0 = item as Record<string, unknown> | null;
+        if (!item0) return item;
+        // Сам объект нужен целиком (имя документа, день заживления) —
+        // подменяется только снимок.
+        return { ...item0, [photoField]: await toRef(item0[photoField]) };
+      }),
     );
   }
 
   for (const field of shape.nested) {
     const list = out[field];
     if (!Array.isArray(list)) continue;
-    out[field] = list.map((item) =>
-      Array.isArray((item as Record<string, unknown> | null)?.photos)
-        ? { ...(item as Record<string, unknown>), photos: [] }
-        : item,
+    out[field] = await Promise.all(
+      list.map(async (item) => {
+        const item0 = item as Record<string, unknown> | null;
+        if (!item0 || !Array.isArray(item0.photos)) return item;
+        return { ...item0, photos: await Promise.all(item0.photos.map(toRef)) };
+      }),
     );
   }
 
   return out;
 }
 
-// Вернуть в приехавшую запись СВОИ снимки. local отсутствует, когда запись
-// на этом устройстве видят впервые — тогда фото просто нет, и это честно:
-// они остались на том устройстве, где их сняли.
-export function restorePhotos(kind: PhotoKind, incoming: RemoteRow, local: RemoteRow | undefined): RemoteRow {
+// ── Приём: ссылка разворачивается обратно в снимок ───────────────────────
+
+export async function internalizePhotos(
+  kind: PhotoKind,
+  incoming: RemoteRow,
+  local: RemoteRow | undefined,
+  transport: PhotoTransport,
+): Promise<RemoteRow> {
   const shape = PHOTO_SHAPES[kind];
   const out: RemoteRow = { ...incoming };
 
+  // Снимки, уже развёрнутые в этой записи: у одного фото бывает несколько
+  // мест в одной записи, качать его дважды незачем.
+  const cache = new Map<string, string | null>();
+
+  const fromRef = async (value: unknown, mine: unknown): Promise<unknown> => {
+    if (!isPhotoRef(value)) return value;
+    const hash = refToHash(value);
+
+    // Свой снимок на том же месте — самый частый случай: прислали правку
+    // текста, фото не трогали. Сверяем хэш и не идём в сеть вовсе.
+    if (isInlinePhoto(mine) && (await photoContentHash(mine)) === hash) return mine;
+
+    if (!cache.has(hash)) cache.set(hash, await transport.download(hash));
+    // Файла нет (не догрузился, вычищен) — оставляем ссылку как есть, а не
+    // подставляем пустоту: иначе следующая отправка увезла бы в облако
+    // «фото удалили», хотя его никто не удалял.
+    return cache.get(hash) ?? value;
+  };
+
+  const mineAt = (field: string) => (local?.[field] as unknown[] | undefined) ?? [];
+
   for (const field of shape.direct) {
-    const mine = local?.[field];
-    if (Array.isArray(out[field])) out[field] = Array.isArray(mine) ? mine : [];
+    const list = out[field];
+    if (!Array.isArray(list)) continue;
+    const mine = mineAt(field);
+    // По позиции здесь можно: это лишь ПОДСКАЗКА, где искать свой снимок.
+    // Не совпало — сверка хэша это заметит и снимок просто скачается.
+    out[field] = await Promise.all(list.map((value, index) => fromRef(value, mine[index])));
   }
 
   for (const { field, photoField } of shape.objects) {
     const list = out[field];
     if (!Array.isArray(list)) continue;
-    // Документы могли добавиться на другом устройстве, поэтому идём по
-    // приехавшему списку, а снимок ищем по id своего.
     const mineById = byId(local?.[field]);
-    out[field] = list.map((item) => {
-      const record = item as Record<string, unknown> | null;
-      if (!record) return item;
-      const mine = mineById.get(String(record.id));
-      return { ...record, [photoField]: isPhotoString(mine?.[photoField]) ? mine![photoField] : '' };
-    });
+    out[field] = await Promise.all(
+      list.map(async (item) => {
+        const item0 = item as Record<string, unknown> | null;
+        if (!item0) return item;
+        const mine = mineById.get(String(item0.id));
+        return { ...item0, [photoField]: await fromRef(item0[photoField], mine?.[photoField]) };
+      }),
+    );
   }
 
   for (const field of shape.nested) {
     const list = out[field];
     if (!Array.isArray(list)) continue;
     const mineById = byId(local?.[field]);
-    out[field] = list.map((item) => {
-      const record = item as Record<string, unknown> | null;
-      if (!record) return item;
-      const mine = mineById.get(String(record.id));
-      return { ...record, photos: Array.isArray(mine?.photos) ? mine!.photos : [] };
-    });
+    out[field] = await Promise.all(
+      list.map(async (item) => {
+        const item0 = item as Record<string, unknown> | null;
+        if (!item0 || !Array.isArray(item0.photos)) return item;
+        const minePhotos = (mineById.get(String(item0.id))?.photos as unknown[] | undefined) ?? [];
+        return { ...item0, photos: await Promise.all(item0.photos.map((value, index) => fromRef(value, minePhotos[index]))) };
+      }),
+    );
   }
 
   return out;

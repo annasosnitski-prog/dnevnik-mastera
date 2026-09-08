@@ -6,7 +6,7 @@ globalThis.indexedDB = indexedDB;
 
 import { runFullSync } from '../.test-dist/src/sync/syncEngine.js';
 import { putClient, getAllClients, deleteClientRecord } from '../.test-dist/src/storage/repos/clientsRepo.js';
-import { putProject } from '../.test-dist/src/storage/repos/projectsRepo.js';
+import { putProject, getAllProjects } from '../.test-dist/src/storage/repos/projectsRepo.js';
 import { putMasterInfoRecord, getMasterInfoRecord } from '../.test-dist/src/storage/repos/masterInfoRepo.js';
 import { getAllTombstones } from '../.test-dist/src/storage/repos/tombstonesRepo.js';
 
@@ -54,6 +54,7 @@ function read(db, stores, run) {
 function fakeRemote() {
   const collections = { clients: new Map(), projects: new Map(), contentEntries: new Map() };
   const tombstones = [];
+  const photoFiles = new Map();
   let masterInfo = null;
 
   const makeCollection = (name) => ({
@@ -71,6 +72,15 @@ function fakeRemote() {
   return {
     _collections: collections,
     _tombstones: tombstones,
+    _photoFiles: photoFiles,
+    photos: {
+      async upload(hash, dataUrl) {
+        photoFiles.set(hash, dataUrl);
+      },
+      async download(hash) {
+        return photoFiles.get(hash) ?? null;
+      },
+    },
     clients: makeCollection('clients'),
     projects: makeCollection('projects'),
     contentEntries: makeCollection('contentEntries'),
@@ -211,4 +221,45 @@ test('один прогон синхронизирует клиентов, пр�
   assert.equal(summary.clients.pushed, 1);
   assert.equal(summary.projects.pushed, 1);
   assert.equal(summary.contentEntries.pushed, 0);
+});
+
+
+// ── Фото едут отдельно от записи ─────────────────────────────────────────
+
+test('снимок уезжает файлом в Storage, а в облачной строке остаётся ссылка', async () => {
+  // Ради этого шаг 6 и делался: base64 внутри записи уложил бы всю
+  // фотобиблиотеку в Postgres jsonb, где для неё нет ни места, ни смысла.
+  const db = await openTestDb();
+  const shot = `data:image/jpeg;base64,${'A'.repeat(2000)}`;
+  await write(db, ['projects', 'deletions'], (tx) => putProject(tx, { id: 'p1', title: 'Дракон', photos: [shot] }));
+
+  const remote = fakeRemote();
+  await runFullSync(db, remote);
+
+  const row = remote._collections.projects.get('p1');
+  assert.equal(row.title, 'Дракон');
+  assert.match(row.photos[0], /^photo:[0-9a-f]{64}$/);
+  // Сам снимок — в Storage, ровно один файл.
+  assert.equal(remote._photoFiles.size, 1);
+  assert.equal([...remote._photoFiles.values()][0], shot);
+});
+
+test('приехавшая из облака ссылка разворачивается в снимок прямо в базе', async () => {
+  const db = await openTestDb();
+  const shot = `data:image/jpeg;base64,${'B'.repeat(2000)}`;
+
+  // Другое устройство уже отправило свой проект: сначала соберём облако его руками.
+  const donor = await openTestDb();
+  await write(donor, ['projects', 'deletions'], (tx) => putProject(tx, { id: 'p9', title: 'Пионы', photos: [shot] }));
+  const remote = fakeRemote();
+  await runFullSync(donor, remote);
+
+  await runFullSync(db, remote);
+
+  const stored = await read(db, 'projects', (tx) => getAllProjects(tx));
+  const project = stored.find((p) => p.id === 'p9');
+  assert.equal(project.title, 'Пионы');
+  // В локальной базе снимок лежит как всегда — base64 внутри записи.
+  // Ни один экран дневника не знает, что он куда-то ездил.
+  assert.equal(project.photos[0], shot);
 });

@@ -23,7 +23,7 @@ import * as clientsRepo from '../storage/repos/clientsRepo.js';
 import * as projectsRepo from '../storage/repos/projectsRepo.js';
 import * as contentRepo from '../storage/repos/contentRepo.js';
 import { getMasterInfoRecord, putMasterInfoRecord } from '../storage/repos/masterInfoRepo.js';
-import { restorePhotos, stripPhotos } from './photoPayload.js';
+import { externalizePhotos, internalizePhotos, type PhotoTransport } from './photoPayload.js';
 
 export interface RemoteRow extends MergeableRecord {
   [key: string]: unknown;
@@ -50,6 +50,9 @@ export interface RemoteMasterInfo {
 }
 
 export interface RemoteApi {
+  // Файлы снимков. В Postgres уезжают только ссылки photo:<sha256>
+  // (см. photoPayload.ts) — сами снимки лежат отдельно, в Storage.
+  photos: PhotoTransport;
   clients: RemoteCollection;
   projects: RemoteCollection;
   contentEntries: RemoteCollection;
@@ -113,6 +116,8 @@ async function syncCollection(
   kind: 'clients' | 'projects' | 'contentEntries',
   remote: RemoteCollection,
   remoteTombstones: RemoteTombstones,
+  photos: PhotoTransport,
+  uploaded: Set<string>,
 ): Promise<CollectionSyncSummary> {
   const adapter = adapters[kind];
 
@@ -132,15 +137,20 @@ async function syncCollection(
     remoteTombstones: remoteTombstoneRows,
   });
 
-  // Фото не ездят через облако (см. photoPayload.ts): приехавшая запись
-  // приносит тексты, даты и связи, а снимки в неё возвращаются свои.
+  // Свои записи под рукой: приехавшая ссылка на снимок чаще всего
+  // разворачивается из собственного фото, а не скачиванием (photoPayload.ts).
   const localById = new Map(local.map((record) => [record.id, record]));
+
+  // Снимки разворачиваются ДО открытия записи: транзакция IndexedDB живёт
+  // до первого витка событий без запросов, а скачивание файла — это await
+  // на сеть, который её гарантированно закроет.
+  const toWriteLocally = await Promise.all(
+    merged.toWriteLocally.map((record) => internalizePhotos(kind, record, localById.get(record.id), photos)),
+  );
 
   if (merged.toWriteLocally.length || merged.toDeleteLocally.length || merged.tombstonesToStore.length) {
     const writeTx = db.transaction([adapter.store, DELETIONS_STORE], 'readwrite');
-    for (const record of merged.toWriteLocally) {
-      adapter.put(writeTx, restorePhotos(kind, record, localById.get(record.id)), { preserveUpdatedAt: true });
-    }
+    for (const record of toWriteLocally) adapter.put(writeTx, record, { preserveUpdatedAt: true });
     for (const id of merged.toDeleteLocally) adapter.remove(writeTx, id);
     // Время следа — из облака (когда там удалили), а не «сейчас»: устройство
     // могло быть офлайн неделю, и «сейчас» соврало бы о том, когда это
@@ -151,7 +161,14 @@ async function syncCollection(
     await txDone(writeTx);
   }
 
-  if (merged.toPushRemotely.length) await remote.upsert(merged.toPushRemotely.map((record) => stripPhotos(kind, record)));
+  if (merged.toPushRemotely.length) {
+    const rows = [];
+    // Последовательно, не Promise.all: параллельная отправка всех записей
+    // разом подняла бы в память столько снимков, сколько их набралось за
+    // офлайн — ровно та беда, от которой уходим.
+    for (const record of merged.toPushRemotely) rows.push(await externalizePhotos(kind, record, photos, uploaded));
+    await remote.upsert(rows);
+  }
   if (merged.tombstonesToPush.length) {
     await remoteTombstones.upsert(
       merged.tombstonesToPush.map((t) => ({ ...t, store: adapter.store, key: tombstoneKey(adapter.store, t.id) })),
@@ -204,9 +221,12 @@ export async function runFullSync(db: IDBDatabase, remote: RemoteApi): Promise<S
   // clients/projects (link/clientId) — если что-то пойдёт не так на
   // клиентах, лучше остановиться, чем свести контент с наполовину слитыми
   // клиентами. Дороговизны здесь нет — раз в час, не в цикле рендера.
-  const clients = await syncCollection(db, 'clients', remote.clients, remote.tombstones);
-  const projects = await syncCollection(db, 'projects', remote.projects, remote.tombstones);
-  const contentEntries = await syncCollection(db, 'contentEntries', remote.contentEntries, remote.tombstones);
+  // Один набор на весь прогон: копии одного снимка в разных сторах грузятся
+  // в облако ровно один раз.
+  const uploaded = new Set<string>();
+  const clients = await syncCollection(db, 'clients', remote.clients, remote.tombstones, remote.photos, uploaded);
+  const projects = await syncCollection(db, 'projects', remote.projects, remote.tombstones, remote.photos, uploaded);
+  const contentEntries = await syncCollection(db, 'contentEntries', remote.contentEntries, remote.tombstones, remote.photos, uploaded);
   const masterInfo = await syncMasterInfo(db, remote.masterInfo);
   return { clients, projects, contentEntries, masterInfo };
 }

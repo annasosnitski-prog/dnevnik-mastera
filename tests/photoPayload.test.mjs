@@ -2,134 +2,219 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { PHOTO_SHAPES, restorePhotos, stripPhotos } from '../.test-dist/src/sync/photoPayload.js';
+import { PHOTO_SHAPES, externalizePhotos, internalizePhotos } from '../.test-dist/src/sync/photoPayload.js';
+import { hashToRef, photoContentHash } from '../.test-dist/src/sync/photoRefs.js';
 
-// Фото не ездят через облако, пока не переехали в Supabase Storage: base64
-// внутри записей уложил бы фотобиблиотеку в Postgres jsonb одним upsert'ом.
-// Здесь держим обе половины правила — «отправляем без снимков» и «принимаем,
-// не трогая свои».
+// Фото не влезают в Postgres: base64 внутри записей уложил бы всю
+// фотобиблиотеку в jsonb, да ещё столько раз, сколько у снимка копий.
+// Поэтому на границе облака запись выворачивается: снимок уходит файлом в
+// Storage под именем-хэшем, в строке остаётся ссылка photo:<sha256>.
+// Здесь держим обе половины — вынос и возврат — без единого обращения к сети.
 
-const photo = (n) => `data:image/jpeg;base64,${'A'.repeat(n)}`;
+const photo = (n, seed = 'A') => `data:image/jpeg;base64,${seed}${'A'.repeat(n)}`;
 
-// ── Отправка ─────────────────────────────────────────────────────────────
+// Поддельный Storage: помнит, что положили, и считает обращения.
+function fakeTransport(prefill = {}) {
+  const files = new Map(Object.entries(prefill));
+  const uploads = [];
+  const downloads = [];
+  return {
+    files,
+    uploads,
+    downloads,
+    async upload(hash, dataUrl) {
+      uploads.push(hash);
+      files.set(hash, dataUrl);
+    },
+    async download(hash) {
+      downloads.push(hash);
+      return files.get(hash) ?? null;
+    },
+  };
+}
 
-test('проект уезжает без единого снимка, но со всем остальным', () => {
+const ref = async (dataUrl) => hashToRef(await photoContentHash(dataUrl));
+
+// ── Отправка: снимок в Storage, ссылка в записи ──────────────────────────
+
+test('проект уезжает ссылками, а сами снимки ложатся файлами', async () => {
+  const cover = photo(1000, 'cover');
+  const healing = photo(1000, 'heal');
   const project = {
     id: 'p1',
     updatedAt: '2026-01-01T00:00:00.000Z',
     title: 'Дракон',
     price: 30000,
-    photos: [photo(1000), photo(1000)],
-    healingPhotos: [{ id: 'h1', day: 7, url: photo(1000) }],
-    sessions: [{ id: 's1', date: '2026-01-01', notes: 'первый сеанс', photos: [photo(1000)] }],
-    consultations: [{ id: 'c1', photos: [photo(1000)] }],
+    photos: [cover],
+    healingPhotos: [{ id: 'h1', day: 7, url: healing }],
+    sessions: [{ id: 's1', notes: 'первый сеанс', photos: [cover] }],
   };
-  const sent = stripPhotos('projects', project);
+  const transport = fakeTransport();
+  const sent = await externalizePhotos('projects', project, transport, new Set());
 
-  assert.deepEqual(sent.photos, []);
-  assert.deepEqual(sent.healingPhotos, [{ id: 'h1', day: 7, url: '' }]);
-  assert.deepEqual(sent.sessions, [{ id: 's1', date: '2026-01-01', notes: 'первый сеанс', photos: [] }]);
-  assert.deepEqual(sent.consultations, [{ id: 'c1', photos: [] }]);
-  // Всё, ради чего синк и делается, на месте.
+  assert.deepEqual(sent.photos, [await ref(cover)]);
+  assert.equal(sent.healingPhotos[0].url, await ref(healing));
+  assert.equal(sent.healingPhotos[0].day, 7);
+  assert.deepEqual(sent.sessions[0].photos, [await ref(cover)]);
+  assert.equal(sent.sessions[0].notes, 'первый сеанс');
   assert.equal(sent.title, 'Дракон');
   assert.equal(sent.price, 30000);
-  assert.equal(sent.updatedAt, '2026-01-01T00:00:00.000Z');
+
+  // Одно фото обложки, лежащее и в проекте, и в сессии, — один файл.
+  assert.equal(transport.uploads.length, 2);
 });
 
-test('карточка клиента уезжает с документами, но без их содержимого', () => {
-  const sent = stripPhotos('clients', {
-    id: 'c1',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    name: 'Аня',
-    documents: [{ id: 'd1', name: 'Согласие', fileUrl: photo(1000) }],
-    sessions: [{ id: 's1', photos: [photo(1000)] }],
-  });
-  assert.deepEqual(sent.documents, [{ id: 'd1', name: 'Согласие', fileUrl: '' }]);
-  assert.deepEqual(sent.sessions, [{ id: 's1', photos: [] }]);
-  assert.equal(sent.name, 'Аня');
+test('копия снимка в другом сторе не грузится второй раз', async () => {
+  // Ровно то тройное дублирование, которое показывает duplicateBytes:
+  // фото сессии уехало в черновик контента. Набор uploaded общий на прогон.
+  const shared = photo(1000, 'shared');
+  const transport = fakeTransport();
+  const uploaded = new Set();
+  await externalizePhotos('projects', { id: 'p1', updatedAt: 'a', photos: [shared] }, transport, uploaded);
+  await externalizePhotos('contentEntries', { id: 'e1', updatedAt: 'a', photos: [shared] }, transport, uploaded);
+  assert.equal(transport.uploads.length, 1);
 });
 
-test('снятие снимков не трогает исходную запись — она остаётся в базе целой', () => {
+test('вынос снимков не трогает исходную запись — она остаётся в базе целой', async () => {
   const project = { id: 'p1', updatedAt: 'x', photos: [photo(10)], sessions: [{ id: 's1', photos: [photo(10)] }] };
-  stripPhotos('projects', project);
-  assert.equal(project.photos.length, 1);
-  assert.equal(project.sessions[0].photos.length, 1);
+  await externalizePhotos('projects', project, fakeTransport(), new Set());
+  assert.ok(project.photos[0].startsWith('data:'));
+  assert.ok(project.sessions[0].photos[0].startsWith('data:'));
 });
 
-test('запись без фото-полей вообще проходит без выдумывания пустых массивов', () => {
-  const sent = stripPhotos('contentEntries', { id: 'e1', updatedAt: 'x', text: 'пост' });
+test('запись без фото-полей проходит без выдумывания пустых массивов', async () => {
+  const sent = await externalizePhotos('contentEntries', { id: 'e1', updatedAt: 'x', text: 'пост' }, fakeTransport(), new Set());
   assert.deepEqual(sent, { id: 'e1', updatedAt: 'x', text: 'пост' });
 });
 
-// ── Получение ────────────────────────────────────────────────────────────
-
-test('приехавшая правка приносит текст, а снимки остаются свои', () => {
-  const incoming = {
-    id: 'p1',
-    updatedAt: '2026-02-01T00:00:00.000Z',
-    title: 'Дракон и пионы',
-    photos: [],
-    sessions: [{ id: 's1', notes: 'дополнено на планшете', photos: [] }],
-  };
-  const local = {
-    id: 'p1',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    title: 'Дракон',
-    photos: [photo(1000)],
-    sessions: [{ id: 's1', notes: 'первый сеанс', photos: [photo(1000)] }],
-  };
-  const merged = restorePhotos('projects', incoming, local);
-
-  assert.equal(merged.title, 'Дракон и пионы');
-  assert.equal(merged.sessions[0].notes, 'дополнено на планшете');
-  assert.deepEqual(merged.photos, local.photos);
-  assert.deepEqual(merged.sessions[0].photos, local.sessions[0].photos);
-});
-
-test('облако не может стереть местные снимки, даже если прислало пустоту', () => {
-  // Это и есть главная гарантия шага: другое устройство отправляет ВСЕГДА
-  // без фото, поэтому «пусто в облаке» никогда не значит «удали у себя».
-  const local = { id: 'p1', updatedAt: 'a', photos: [photo(1000), photo(1000)] };
-  const merged = restorePhotos('projects', { id: 'p1', updatedAt: 'b', photos: [] }, local);
-  assert.equal(merged.photos.length, 2);
-});
-
-test('запись, которую это устройство видит впервые, приходит без фото — и это честно', () => {
-  const merged = restorePhotos('projects', { id: 'p2', updatedAt: 'b', title: 'Новый', photos: [] }, undefined);
-  assert.equal(merged.title, 'Новый');
-  assert.deepEqual(merged.photos, []);
-});
-
-test('сессии сопоставляются по id, а не по месту в массиве', () => {
-  // На другом устройстве сессии могли переставить или добавить новую.
-  // Подстановка «по позиции» пришила бы снимки к чужой сессии.
-  const incoming = {
-    id: 'p1',
-    updatedAt: 'b',
-    sessions: [{ id: 's-new', photos: [] }, { id: 's1', photos: [] }],
-  };
-  const local = { id: 'p1', updatedAt: 'a', sessions: [{ id: 's1', photos: [photo(1000)] }] };
-  const merged = restorePhotos('projects', incoming, local);
-
-  assert.deepEqual(merged.sessions[0], { id: 's-new', photos: [] });
-  assert.equal(merged.sessions[1].photos.length, 1);
-});
-
-test('документы тоже по id — содержимое возвращается своё', () => {
-  const merged = restorePhotos(
+test('карточка клиента: документ уезжает ссылкой, имя остаётся', async () => {
+  const scan = photo(1000, 'scan');
+  const sent = await externalizePhotos(
     'clients',
-    { id: 'c1', updatedAt: 'b', documents: [{ id: 'd1', name: 'Согласие (испр.)', fileUrl: '' }] },
-    { id: 'c1', updatedAt: 'a', documents: [{ id: 'd1', name: 'Согласие', fileUrl: photo(1000) }] },
+    { id: 'c1', updatedAt: 'a', name: 'Аня', documents: [{ id: 'd1', name: 'Согласие', fileUrl: scan }] },
+    fakeTransport(),
+    new Set(),
+  );
+  assert.equal(sent.documents[0].fileUrl, await ref(scan));
+  assert.equal(sent.documents[0].name, 'Согласие');
+  assert.equal(sent.name, 'Аня');
+});
+
+// ── Приём: ссылка разворачивается обратно ───────────────────────────────
+
+test('свой снимок на месте — ссылка разворачивается без единого скачивания', async () => {
+  // Самый частый случай: прислали правку текста, фото не трогали. Ходить за
+  // мегабайтами в сеть тут нечего.
+  const cover = photo(1000, 'cover');
+  const transport = fakeTransport({ [await photoContentHash(cover)]: cover });
+  const merged = await internalizePhotos(
+    'projects',
+    { id: 'p1', updatedAt: 'b', title: 'Дракон и пионы', photos: [await ref(cover)] },
+    { id: 'p1', updatedAt: 'a', title: 'Дракон', photos: [cover] },
+    transport,
+  );
+  assert.equal(merged.title, 'Дракон и пионы');
+  assert.equal(merged.photos[0], cover);
+  assert.deepEqual(transport.downloads, []);
+});
+
+test('чужой снимок скачивается и ложится в запись как обычная base64-строка', async () => {
+  const shot = photo(1000, 'new');
+  const transport = fakeTransport({ [await photoContentHash(shot)]: shot });
+  const merged = await internalizePhotos(
+    'projects',
+    { id: 'p2', updatedAt: 'b', title: 'Новый', photos: [await ref(shot)] },
+    undefined,
+    transport,
+  );
+  assert.equal(merged.photos[0], shot);
+  assert.equal(transport.downloads.length, 1);
+});
+
+test('одинаковые ссылки внутри одной записи качаются один раз', async () => {
+  const shot = photo(1000, 'twice');
+  const link = await ref(shot);
+  const transport = fakeTransport({ [await photoContentHash(shot)]: shot });
+  await internalizePhotos(
+    'projects',
+    { id: 'p1', updatedAt: 'b', photos: [link], sessions: [{ id: 's1', photos: [link] }] },
+    undefined,
+    transport,
+  );
+  assert.equal(transport.downloads.length, 1);
+});
+
+test('файла в облаке нет — ссылка остаётся ссылкой, а не превращается в пустоту', async () => {
+  // Подставить сюда пустоту значило бы, что следующая отправка увезёт в
+  // облако «фото удалили», хотя его никто не удалял.
+  const link = hashToRef('deadbeef');
+  const merged = await internalizePhotos('projects', { id: 'p1', updatedAt: 'b', photos: [link] }, undefined, fakeTransport());
+  assert.deepEqual(merged.photos, [link]);
+});
+
+test('свой снимок другой — ссылка качается, а не подставляется вслепую', async () => {
+  // Позиция в массиве — только подсказка, где искать своё. Если на другом
+  // устройстве фото переставили, сверка хэша это замечает.
+  const mine = photo(1000, 'mine');
+  const theirs = photo(1000, 'theirs');
+  const transport = fakeTransport({ [await photoContentHash(theirs)]: theirs });
+  const merged = await internalizePhotos(
+    'projects',
+    { id: 'p1', updatedAt: 'b', photos: [await ref(theirs)] },
+    { id: 'p1', updatedAt: 'a', photos: [mine] },
+    transport,
+  );
+  assert.equal(merged.photos[0], theirs);
+});
+
+test('сессии сопоставляются по id, а не по месту в массиве', async () => {
+  const mine = photo(1000, 'mine');
+  const transport = fakeTransport();
+  const merged = await internalizePhotos(
+    'projects',
+    { id: 'p1', updatedAt: 'b', sessions: [{ id: 's-new', photos: [] }, { id: 's1', photos: [await ref(mine)] }] },
+    { id: 'p1', updatedAt: 'a', sessions: [{ id: 's1', photos: [mine] }] },
+    transport,
+  );
+  assert.equal(merged.sessions[1].photos[0], mine);
+  assert.deepEqual(transport.downloads, []);
+});
+
+test('документы тоже по id — своё содержимое не скачивается заново', async () => {
+  const scan = photo(1000, 'scan');
+  const transport = fakeTransport();
+  const merged = await internalizePhotos(
+    'clients',
+    { id: 'c1', updatedAt: 'b', documents: [{ id: 'd1', name: 'Согласие (испр.)', fileUrl: await ref(scan) }] },
+    { id: 'c1', updatedAt: 'a', documents: [{ id: 'd1', name: 'Согласие', fileUrl: scan }] },
+    transport,
   );
   assert.equal(merged.documents[0].name, 'Согласие (испр.)');
-  assert.equal(merged.documents[0].fileUrl.length, photo(1000).length);
+  assert.equal(merged.documents[0].fileUrl, scan);
+  assert.deepEqual(transport.downloads, []);
+});
+
+test('вынос и возврат — обратимая пара: запись возвращается такой же', async () => {
+  const project = {
+    id: 'p1',
+    updatedAt: 'a',
+    title: 'Дракон',
+    photos: [photo(500, 'a'), photo(500, 'b')],
+    healingPhotos: [{ id: 'h1', day: 7, url: photo(500, 'c') }],
+    sessions: [{ id: 's1', notes: 'сеанс', photos: [photo(500, 'd')] }],
+  };
+  const transport = fakeTransport();
+  const sent = await externalizePhotos('projects', project, transport, new Set());
+  const back = await internalizePhotos('projects', sent, undefined, transport);
+  assert.deepEqual(back, project);
 });
 
 // ── Списки полей не должны разойтись ─────────────────────────────────────
 
 test('фото-поля здесь и в разборе «Куда ушло место» перечислены одни и те же', () => {
   // Оба списка описывают одно и то же: где в записи лежат снимки. Разъедутся
-  // — и новое фото-поле либо не попадёт в замер, либо тихо уедет в облако.
+  // — и новое фото-поле либо не попадёт в замер, либо тихо уедет в Postgres
+  // целым мегабайтом вместо ссылки.
   const breakdown = readFileSync(new URL('../src/lib/storageBreakdown.ts', import.meta.url), 'utf8');
 
   const mentioned = (name) => breakdown.includes(name);
@@ -143,8 +228,21 @@ test('фото-поля здесь и в разборе «Куда ушло ме
   }
 });
 
-test('движок синка снимает фото на отправке и возвращает свои на приёме', () => {
+test('движок выносит снимки на отправке и разворачивает на приёме', () => {
   const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
-  assert.match(engine, /remote\.upsert\(merged\.toPushRemotely\.map\(\(record\) => stripPhotos\(kind, record\)\)\)/);
-  assert.match(engine, /restorePhotos\(kind, record, localById\.get\(record\.id\)\)/);
+  assert.match(engine, /externalizePhotos\(kind, record, photos, uploaded\)/);
+  assert.match(engine, /internalizePhotos\(kind, record, localById\.get\(record\.id\), photos\)/);
+  // Набор загруженного — один на весь прогон, иначе копии одного снимка в
+  // разных сторах уехали бы в облако по разу за стор.
+  assert.match(engine, /const uploaded = new Set<string>\(\);/);
+});
+
+test('снимки разворачиваются ДО открытия записи в IndexedDB', () => {
+  // Транзакция IndexedDB закрывается на первом витке событий без запросов.
+  // Скачать файл внутри неё — это await на сеть, то есть гарантированный
+  // TransactionInactiveError на записи.
+  const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
+  const prepare = engine.indexOf('const toWriteLocally = await Promise.all(');
+  const open = engine.indexOf("db.transaction([adapter.store, DELETIONS_STORE], 'readwrite')");
+  assert.ok(prepare > 0 && prepare < open);
 });
