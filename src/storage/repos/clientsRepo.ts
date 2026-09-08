@@ -37,6 +37,16 @@ export function deleteClientRecord(tx: IDBTransaction, id: string): void {
   recordDeletion(tx, 'clients', id);
 }
 
+// Только физическое удаление, БЕЗ следа — для движка синка (Шаг 5,
+// docs/SYNC_PLAN.md), который применяет удаление, пришедшее из облака.
+// Время в следе тогда обязано быть тем же, что и в облаке (когда там
+// удалили), а не «сейчас» — иначе устройство, которое было офлайн неделю,
+// перезаписало бы старый след свежим и следующее слияние решило бы, что
+// удаление только что случилось здесь.
+export function removeClientRecordOnly(tx: IDBTransaction, id: string): void {
+  tx.objectStore('clients').delete(id);
+}
+
 // Стор целиком под замену — только полное восстановление из резервной
 // копии (см. TattoDiary.tsx: replaceAllData).
 export function clearClients(tx: IDBTransaction): void {

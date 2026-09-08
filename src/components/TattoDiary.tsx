@@ -58,6 +58,7 @@ import {
 import type { StoragePhase } from '../lib/storageRecovery';
 import { createStorageConnection, type StorageConnection } from '../storage/connection';
 import { getAllClients, putClient, deleteClientRecord, clearClients } from '../storage/repos/clientsRepo';
+import { useSyncDriver } from '../sync/useSyncDriver';
 import { getAllProjects, putProject, deleteProjectRecord, clearProjects } from '../storage/repos/projectsRepo';
 import { getAllContentEntries, putContentEntry, clearContentEntries } from '../storage/repos/contentRepo';
 import { getMasterInfoRecord, putMasterInfoRecord } from '../storage/repos/masterInfoRepo';
@@ -475,6 +476,12 @@ export default function TattoDiary() {
       onErrorLog: (action, error) => logError('storage', action, error),
     });
   }
+
+  // Синк между устройствами (docs/SYNC_PLAN.md) — живёт на верхнем уровне,
+  // а не внутри экрана настроек: часовая проверка обязана идти, пока
+  // мастер работает где угодно в дневнике, а не только пока открыты
+  // настройки. getDatabase — та же связь, что и у остального хранилища.
+  const syncDriver = useSyncDriver(() => connRef.current?.getDatabase() ?? null);
 
   // ── Журнал сбоев ─────────────────────────────────────────────────────────
   // Консоль браузера на телефоне не открыть, поэтому раньше сбой не оставлял
@@ -3510,6 +3517,7 @@ export default function TattoDiary() {
               onChangeMinimalism={setMinimalism}
               onMeasureStorage={measureStorageUse}
               onClearLegacyRecords={clearLegacyClientRecords}
+              sync={syncDriver}
               prefs={prefs}
               onChange={setPrefs}
               onBack={() => setScreen('master')}

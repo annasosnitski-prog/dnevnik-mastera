@@ -46,6 +46,7 @@ import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, type Theme, type Prefs, DEFAULT_PREFS } from '../TattoDiary';
+import type { SyncDriverState } from '../../sync/useSyncDriver';
 
 // Вынесено из TattoDiary.tsx (PR 9 рефакторинга). Логика и разметка не
 // менялись — только перенос в отдельный модуль. Экран prop-driven; тема и
@@ -118,6 +119,7 @@ export function SettingsScreen({
   onOpenCalendar,
   onMeasureStorage,
   onClearLegacyRecords,
+  sync,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
@@ -158,6 +160,9 @@ export function SettingsScreen({
   // нажала «Освободить» под разбором места. null — сбой, тот же контракт,
   // что у onMeasureStorage; 0 — очищать было нечего.
   onClearLegacyRecords: () => Promise<number | null>;
+  // Синк между устройствами (docs/SYNC_PLAN.md) — вся логика в
+  // src/sync/useSyncDriver.ts, экран только показывает её и вызывает.
+  sync: SyncDriverState;
   lastBackupAt: string | null;
   // Вызывается ТОЛЬКО когда копия реально уехала из телефона: отмена и сбой
   // копией не считаются, иначе напоминание замолчало бы, ничего не защитив.
@@ -258,6 +263,24 @@ export function SettingsScreen({
   // акт удаления освобождает место в браузере не мгновенно и не выдаёт
   // точную цифру, а breakdown после переизмерения покажет уже 0 — сказать
   // мастеру, сколько было, можно только запомнив это заранее.
+  // Синк между устройствами (docs/SYNC_PLAN.md) — само поле ввода кода
+  // живёт на экране, вся логика привязки/синка — в sync (useSyncDriver).
+  const [syncCode, setSyncCode] = useState('');
+  const [syncCodeError, setSyncCodeError] = useState<string | null>(null);
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const handlePair = async () => {
+    if (sync.isCodeTooWeak(syncCode)) {
+      setSyncCodeError('Слишком короткий код — придумайте подлиннее, как пароль от Wi-Fi.');
+      return;
+    }
+    setPairingBusy(true);
+    setSyncCodeError(null);
+    const result = await sync.pairWithCode(syncCode);
+    setPairingBusy(false);
+    if (!result.ok) setSyncCodeError(result.message ?? 'Не удалось привязать устройство.');
+    else setSyncCode('');
+  };
+
   const [legacyClearState, setLegacyClearState] = useState<
     | { kind: 'idle' }
     | { kind: 'confirm' }
@@ -1066,6 +1089,80 @@ export function SettingsScreen({
           )}
           {importSuccess && (
             <div style={{ marginTop: 10, fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic' }}>{importSuccess}</div>
+          )}
+        </div>
+
+        {/* Синк между устройствами (docs/SYNC_PLAN.md) */}
+        <div style={rowStyle}>
+          <div style={labelStyle}>Синк между устройствами</div>
+          {sync.phase === 'checking' && (
+            <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic' }}>Проверяем…</div>
+          )}
+          {sync.phase === 'unpaired' && (
+            <>
+              <div style={{ fontSize: fs(12), lineHeight: 1.5, marginBottom: 10, color: 'var(--text-soft)', fontStyle: 'italic' }}>
+                Введите один и тот же код на всех устройствах — данные начнут появляться друг у друга примерно раз в
+                час.
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  value={syncCode}
+                  onChange={(e) => {
+                    setSyncCode(e.target.value);
+                    setSyncCodeError(null);
+                  }}
+                  placeholder="Придумайте код, как пароль от Wi-Fi"
+                  style={{
+                    flex: 1,
+                    minWidth: 180,
+                    background: 'rgba(var(--surface-rgb),0.03)',
+                    border: '1px solid rgba(var(--gold-rgb),0.18)',
+                    borderRadius: 2,
+                    padding: '10px 14px',
+                    fontFamily: "'Inter', sans-serif",
+                    color: COLORS.textPrimary,
+                    outline: 'none',
+                  }}
+                />
+                <div
+                  onClick={pairingBusy ? undefined : handlePair}
+                  style={{ ...actionButtonStyle, flex: '0 0 auto', opacity: pairingBusy ? 0.6 : 1 }}
+                >
+                  {pairingBusy ? 'Привязываем…' : 'Привязать'}
+                </div>
+              </div>
+              {syncCodeError && (
+                <div style={{ marginTop: 8, fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic' }}>{syncCodeError}</div>
+              )}
+            </>
+          )}
+          {(sync.phase === 'paired' || sync.phase === 'syncing') && (
+            <>
+              <div style={{ fontSize: fs(12), lineHeight: 1.5, marginBottom: 10, color: 'var(--text-soft)', fontStyle: 'italic' }}>
+                {sync.phase === 'syncing'
+                  ? 'Синхронизируем…'
+                  : sync.lastSyncAt
+                    ? `Последняя синхронизация: ${new Date(sync.lastSyncAt).toLocaleString('ru-RU')}`
+                    : 'Устройство привязано, первая синхронизация вот-вот пройдёт.'}
+              </div>
+              {sync.lastError && (
+                <div style={{ marginBottom: 10, fontSize: fs(12), color: 'var(--urgent)', fontStyle: 'italic' }}>{sync.lastError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div
+                  onClick={sync.phase === 'syncing' ? undefined : () => void sync.syncNow()}
+                  style={{ ...actionButtonStyle, opacity: sync.phase === 'syncing' ? 0.6 : 1 }}
+                >
+                  {sync.phase === 'syncing' ? 'Синхронизируем…' : 'Синхронизировать сейчас'}
+                </div>
+                <div
+                  onClick={() => void sync.unpair()}
+                  style={{ ...actionButtonStyle, flex: '0 0 auto', color: 'var(--urgent)', borderColor: 'var(--urgent)' }}
+                >
+                  Отвязать
+                </div>
+              </div>
+            </>
           )}
         </div>
 
