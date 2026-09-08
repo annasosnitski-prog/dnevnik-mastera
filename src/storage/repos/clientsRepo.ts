@@ -11,6 +11,7 @@
 // ============================================================
 
 import { stampUpdatedAt, type StampOptions } from '../updatedAt.js';
+import { recordDeletion } from './tombstonesRepo.js';
 
 // Нормализация (см. src/lib/normalize.ts) остаётся заботой вызывающей
 // стороны: она не про хранение, а про то, каким клиент должен выглядеть на
@@ -27,8 +28,13 @@ export function putClient<T extends { id: string }>(tx: IDBTransaction, record: 
   tx.objectStore('clients').put(stampUpdatedAt(record, options));
 }
 
+// Удаление и его след — ОДНОЙ транзакцией (Шаг 2 синка). Поэтому
+// вызывающая сторона обязана открыть её и на DELETIONS_STORE: иначе
+// возможно «запись удалена, следа нет», и первое же слияние вернёт её
+// с другого устройства обратно.
 export function deleteClientRecord(tx: IDBTransaction, id: string): void {
   tx.objectStore('clients').delete(id);
+  recordDeletion(tx, 'clients', id);
 }
 
 // Стор целиком под замену — только полное восстановление из резервной

@@ -14,6 +14,8 @@ function openTestDb() {
     const request = indexedDB.open(`projectsRepo-test-${dbCounter}-${Date.now()}`, 1);
     request.onupgradeneeded = () => {
       request.result.createObjectStore('projects', { keyPath: 'id' });
+      // delete* пишет след удаления в ту же транзакцию (Шаг 2 синка).
+      request.result.createObjectStore('deletions', { keyPath: 'key' });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -21,7 +23,7 @@ function openTestDb() {
 }
 
 function tx(db, mode = 'readwrite') {
-  return db.transaction('projects', mode);
+  return db.transaction(['projects', 'deletions'], mode);
 }
 
 test('putProject сохраняет запись, доступную следующим чтением', async () => {

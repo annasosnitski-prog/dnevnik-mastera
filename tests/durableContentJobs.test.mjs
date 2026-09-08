@@ -56,7 +56,8 @@ const result = {
 // Версия 4: добавился стор masterInfo — Личный кабинет переехал из
 // localStorage, где ему не хватало квоты под фото в задачах.
 test('database version 4 and technical content job store are wired', () => {
-  assert.equal(TATTO_DIARY_DB_VERSION, 4);
+  // 5: добавился стор следов удалений (Шаг 2 синка, docs/SYNC_PLAN.md).
+  assert.equal(TATTO_DIARY_DB_VERSION, 5);
   assert.equal(CONTENT_INGEST_JOB_STORE, 'contentIngestJobs');
   // Открытие базы и создание сторов переехали в src/storage/connection.ts
   // (Шаг 2 разбора, docs/DATA_LAYER_PLAN.md); дневник передаёт версию как

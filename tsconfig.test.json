@@ -39,6 +39,7 @@
     "src/storage/repos/projectsRepo.ts",
     "src/storage/repos/contentRepo.ts",
     "src/storage/repos/masterInfoRepo.ts",
+    "src/storage/repos/tombstonesRepo.ts",
     "src/lib/appUpdate.ts",
     "src/lib/chatLink.ts",
     "src/lib/backupSerialize.ts",

@@ -7,6 +7,7 @@
 // ============================================================
 
 import { stampUpdatedAt, type StampOptions } from '../updatedAt.js';
+import { recordDeletion } from './tombstonesRepo.js';
 
 export function getAllProjects<T = unknown>(tx: IDBTransaction): IDBRequest<T[]> {
   return tx.objectStore('projects').getAll();
@@ -20,8 +21,13 @@ export function putProject<T extends { id: string }>(tx: IDBTransaction, record:
   tx.objectStore('projects').put(stampUpdatedAt(record, options));
 }
 
+// Удаление и его след — ОДНОЙ транзакцией (Шаг 2 синка). Поэтому
+// вызывающая сторона обязана открыть её и на DELETIONS_STORE: иначе
+// возможно «запись удалена, следа нет», и первое же слияние вернёт её
+// с другого устройства обратно.
 export function deleteProjectRecord(tx: IDBTransaction, id: string): void {
   tx.objectStore('projects').delete(id);
+  recordDeletion(tx, 'projects', id);
 }
 
 // Стор целиком под замену — только полное восстановление из резервной
