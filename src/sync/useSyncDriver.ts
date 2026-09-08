@@ -18,15 +18,8 @@
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-// syncIdentity.ts не тянет Supabase (только Web Crypto) — безопасно
-// импортировать сразу, не дожидаясь loadSyncModules ниже.
 import { isCodeTooWeak } from '../lib/syncIdentity.js';
 
-// Тот же ключ, что и storageKey в src/lib/supabaseClient.ts — по нему
-// синхронно, без единого байта Supabase, узнаём, было ли устройство
-// когда-нибудь привязано. Больше эта строка нигде не хранится нарочно:
-// это внутренний формат supabase-js, знать который обязано только это
-// место, принимающее решение — грузить модуль или нет.
 const SUPABASE_AUTH_STORAGE_KEY = 'inka-sync-auth';
 
 function hasStoredSession(): boolean {
@@ -48,10 +41,7 @@ async function loadSyncModules() {
   return { getSupabaseClient, pairDeviceWithCode, unpairDevice, checkIsPaired, createSupabaseRemote, runFullSync };
 }
 
-// Раз в час, как договорились — не реальное время (см. docs/SYNC_PLAN.md,
-// «Что выбрано и почему»).
 const SYNC_INTERVAL_MS = 60 * 60 * 1000;
-
 const LAST_SYNC_KEY = 'inka-sync-last-at';
 
 export type SyncPhase = 'checking' | 'unpaired' | 'paired' | 'syncing';
@@ -67,8 +57,6 @@ export interface SyncDriverState {
 }
 
 export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriverState {
-  // Ни разу не привязано — сразу 'unpaired', без единого динамического
-  // импорта: это обычное состояние подавляющего большинства запусков.
   const [phase, setPhase] = useState<SyncPhase>(() => (hasStoredSession() ? 'checking' : 'unpaired'));
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(() => {
     try {
@@ -87,46 +75,73 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
   // создаст его заново и немедленно запустит следующий синк — бесконечный цикл.
   const syncEnabled = phase === 'paired' || phase === 'syncing';
 
-  const runSync = useCallback(async () => {
-    // Одна синхронизация одновременно: ручное «Синхронизировать сейчас» и
-    // часовой таймер не должны столкнуться в двух параллельных запусках
-    // над одной базой.
-    if (syncingRef.current) return;
-    const database = getDatabase();
-    if (!database) return;
-    syncingRef.current = true;
-    setPhase('syncing');
-    try {
-      const { getSupabaseClient, createSupabaseRemote, runFullSync } = await loadSyncModules();
-      const client = getSupabaseClient();
-      const remote = createSupabaseRemote(client);
-      await runFullSync(database, remote);
-      const now = new Date().toISOString();
-      setLastSyncAt(now);
-      setLastError(null);
-      try {
-        localStorage.setItem(LAST_SYNC_KEY, now);
-      } catch {
-        /* не страшно — просто не запомнится до следующего успеха */
+  const runSync = useCallback(
+    async (refreshVisibleData = false) => {
+      if (syncingRef.current) return;
+      const database = getDatabase();
+      if (!database) {
+        setLastError('Локальное хранилище ещё не готово. Попробуйте синхронизацию ещё раз через несколько секунд.');
+        return;
       }
-    } catch (err) {
-      setLastError(err instanceof Error ? err.message : 'Не удалось синхронизироваться.');
-    } finally {
-      syncingRef.current = false;
-      setPhase('paired');
-    }
-  }, [getDatabase]);
+      syncingRef.current = true;
+      setPhase('syncing');
+      try {
+        const { getSupabaseClient, createSupabaseRemote, runFullSync } = await loadSyncModules();
+        const client = getSupabaseClient();
+        const remote = await createSupabaseRemote(client);
+        const summary = await runFullSync(database, remote);
+        const now = new Date().toISOString();
+        setLastSyncAt(now);
+        setLastError(null);
+        try {
+          localStorage.setItem(LAST_SYNC_KEY, now);
+        } catch {
+          /* не страшно — просто не запомнится до следующего успеха */
+        }
 
-  // Проверка привязки при запуске — только если раньше УЖЕ была сессия
-  // (см. hasStoredSession выше); иначе дневник и не тронул бы Supabase.
+        // runFullSync пишет приехавшие данные прямо в IndexedDB, а React-экран
+        // держит свой снимок clients/projects/contentEntries/masterInfo в state.
+        // Без перечитывания база уже слита, но мастер видит старый экран до
+        // следующего запуска приложения. На первом синке после запуска и на
+        // ручной кнопке безопасно перезагружаем только если реально что-то
+        // ПРИЕХАЛО/удалилось локально. Следующий запуск уже увидит слитую базу,
+        // поэтому цикла перезагрузок не будет.
+        const pulledSomething =
+          summary.clients.pulled > 0 ||
+          summary.clients.deletedLocally > 0 ||
+          summary.projects.pulled > 0 ||
+          summary.projects.deletedLocally > 0 ||
+          summary.contentEntries.pulled > 0 ||
+          summary.contentEntries.deletedLocally > 0 ||
+          summary.masterInfo === 'pulled';
+        if (refreshVisibleData && pulledSomething) {
+          window.location.reload();
+          return;
+        }
+      } catch (err) {
+        setLastError(err instanceof Error ? err.message : 'Не удалось синхронизироваться.');
+      } finally {
+        syncingRef.current = false;
+        setPhase('paired');
+      }
+    },
+    [getDatabase],
+  );
+
   useEffect(() => {
     if (phase !== 'checking') return;
     let cancelled = false;
     void (async () => {
-      const { getSupabaseClient, checkIsPaired } = await loadSyncModules();
-      const paired = await checkIsPaired(getSupabaseClient());
-      if (cancelled) return;
-      setPhase(paired ? 'paired' : 'unpaired');
+      try {
+        const { getSupabaseClient, checkIsPaired } = await loadSyncModules();
+        const paired = await checkIsPaired(getSupabaseClient());
+        if (cancelled) return;
+        setPhase(paired ? 'paired' : 'unpaired');
+      } catch (err) {
+        if (cancelled) return;
+        setLastError(err instanceof Error ? err.message : 'Не удалось проверить привязку синка.');
+        setPhase('unpaired');
+      }
     })();
     return () => {
       cancelled = true;
@@ -134,27 +149,24 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Часовой таймер + один синк сразу после привязки/запуска. Во время самого
-  // синка phase меняется paired → syncing → paired, но syncEnabled остаётся
-  // true, поэтому эффект НЕ перезапускается и не порождает следующий синк.
+  // Первый синк после запуска/привязки обновляет видимый экран, если из
+  // облака реально приехали изменения. Часовые фоновые проверки НЕ должны
+  // внезапно перезагружать приложение во время работы.
   useEffect(() => {
     if (!syncEnabled) {
       clearInterval(timerRef.current);
       return;
     }
-    void runSync();
-    timerRef.current = setInterval(() => void runSync(), SYNC_INTERVAL_MS);
+    void runSync(true);
+    timerRef.current = setInterval(() => void runSync(false), SYNC_INTERVAL_MS);
     return () => clearInterval(timerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncEnabled]);
 
-  // Возвращение в приложение — тот же повод, что и у восстановления связи
-  // с хранилищем (см. connection.ts): пока дневник был свёрнут, час вполне
-  // мог пройти.
   useEffect(() => {
     const onResume = () => {
       if (document.visibilityState !== 'visible') return;
-      if (phase === 'paired') void runSync();
+      if (phase === 'paired') void runSync(false);
     };
     document.addEventListener('visibilitychange', onResume);
     return () => document.removeEventListener('visibilitychange', onResume);
@@ -174,7 +186,9 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
         ? 'Нет связи с облаком. Проверьте интернет и попробуйте ещё раз.'
         : result.reason === 'weak-password'
           ? 'Код слишком короткий для облака — придумайте длиннее.'
-          : 'Не удалось привязать устройство. Попробуйте ещё раз.';
+          : result.reason === 'confirmation-required'
+            ? 'Supabase не выдал сессию. В Authentication → Sign In / Providers → Email выключите Confirm email, затем привяжите устройство заново.'
+            : result.message || 'Не удалось привязать устройство. Попробуйте ещё раз.';
     setLastError(message);
     return { ok: false, message };
   }, []);
@@ -186,5 +200,13 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
     setLastError(null);
   }, []);
 
-  return { phase, lastSyncAt, lastError, isCodeTooWeak, pairWithCode, unpair, syncNow: runSync };
+  return {
+    phase,
+    lastSyncAt,
+    lastError,
+    isCodeTooWeak,
+    pairWithCode,
+    unpair,
+    syncNow: () => runSync(true),
+  };
 }
