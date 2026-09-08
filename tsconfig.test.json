@@ -36,6 +36,8 @@
     "src/storage/connection.ts",
     "src/storage/updatedAt.ts",
     "src/storage/mergeRecords.ts",
+    "src/lib/syncIdentity.ts",
+    "src/lib/syncAuth.ts",
     "src/storage/repos/clientsRepo.ts",
     "src/storage/repos/projectsRepo.ts",
     "src/storage/repos/contentRepo.ts",
