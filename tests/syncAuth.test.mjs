@@ -5,7 +5,7 @@ import { pairDeviceWithCode, unpairDevice, isPaired } from '../.test-dist/src/li
 
 // Поддельный клиент — без сети и без настоящего Supabase. Проверяем
 // именно решение «вход или регистрация», а не саму библиотеку.
-function fakeClient({ signInError, signUpError } = {}) {
+function fakeClient({ signInError, signUpError, signUpSession = { user: { id: 'u1' } } } = {}) {
   const calls = [];
   return {
     calls,
@@ -16,7 +16,7 @@ function fakeClient({ signInError, signUpError } = {}) {
       },
       async signUp(identity) {
         calls.push(['signUp', identity]);
-        return signUpError ? { error: signUpError } : { error: null };
+        return signUpError ? { error: signUpError, data: { session: null } } : { error: null, data: { session: signUpSession } };
       },
       async signOut() {
         calls.push(['signOut']);
@@ -28,13 +28,22 @@ function fakeClient({ signInError, signUpError } = {}) {
   };
 }
 
-test('первое устройство: входа ещё нет — регистрируется той же парой', async () => {
+test('первое устройство: входа ещё нет — регистрируется той же парой и получает сессию', async () => {
   const client = fakeClient({ signInError: { message: 'Invalid login credentials', status: 400 } });
   const result = await pairDeviceWithCode(client, 'correct-horse-battery');
   assert.deepEqual(result, { ok: true, created: true });
   assert.deepEqual(client.calls.map((c) => c[0]), ['signIn', 'signUp']);
-  // Вход и регистрация — той же самой личностью, иначе устройства не встретятся.
   assert.deepEqual(client.calls[0][1], client.calls[1][1]);
+});
+
+test('signUp без сессии не выдаётся за успешную привязку', async () => {
+  const client = fakeClient({
+    signInError: { message: 'Invalid login credentials', status: 400 },
+    signUpSession: null,
+  });
+  const result = await pairDeviceWithCode(client, 'correct-horse-battery');
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'confirmation-required');
 });
 
 test('второе устройство: вход сразу удаётся, регистрация не пробуется', async () => {
