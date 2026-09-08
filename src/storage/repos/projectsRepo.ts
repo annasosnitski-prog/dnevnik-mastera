@@ -17,3 +17,9 @@ export function putProject<T extends { id: string }>(tx: IDBTransaction, record:
 export function deleteProjectRecord(tx: IDBTransaction, id: string): void {
   tx.objectStore('projects').delete(id);
 }
+
+// Стор целиком под замену — только полное восстановление из резервной
+// копии (см. TattoDiary.tsx: replaceAllData).
+export function clearProjects(tx: IDBTransaction): void {
+  tx.objectStore('projects').clear();
+}

@@ -4,7 +4,7 @@ import { indexedDB } from 'fake-indexeddb';
 
 globalThis.indexedDB = indexedDB;
 
-import { getAllClients, putClient, deleteClientRecord } from '../.test-dist/src/storage/repos/clientsRepo.js';
+import { getAllClients, putClient, deleteClientRecord, clearClients } from '../.test-dist/src/storage/repos/clientsRepo.js';
 
 let dbCounter = 0;
 
@@ -93,6 +93,30 @@ test('deleteClientRecord убирает запись по id, не трогая 
 
 test('getAllClients на пустом сторе отдаёт пустой массив, не null/undefined', async () => {
   const db = await openTestDb();
+  const readTx = tx(db, 'readonly');
+  const all = await new Promise((resolve, reject) => {
+    const request = getAllClients(readTx);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  assert.deepEqual(all, []);
+});
+
+test('clearClients опустошает стор целиком', async () => {
+  const db = await openTestDb();
+  await new Promise((resolve, reject) => {
+    const t = tx(db);
+    putClient(t, { id: 'c1' });
+    putClient(t, { id: 'c2' });
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+  });
+  await new Promise((resolve, reject) => {
+    const t = tx(db);
+    clearClients(t);
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+  });
   const readTx = tx(db, 'readonly');
   const all = await new Promise((resolve, reject) => {
     const request = getAllClients(readTx);

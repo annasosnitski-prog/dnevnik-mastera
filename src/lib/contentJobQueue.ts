@@ -118,6 +118,14 @@ function transactionDone(tx: IDBTransaction): Promise<void> {
   });
 }
 
+// Стор целиком под замену — только полное восстановление из резервной
+// копии (см. TattoDiary.tsx: replaceAllData). Транзакция и её стор уже
+// открыты вызывающей стороной (входят в общую multi-store транзакцию
+// восстановления), поэтому здесь только сама операция, без открытия своей.
+export function clearContentIngestJobs(tx: IDBTransaction): void {
+  tx.objectStore(CONTENT_INGEST_JOB_STORE).clear();
+}
+
 export function loadContentIngestJobs(db: IDBDatabase): Promise<ContentIngestJobRecord[]> {
   return new Promise((resolve, reject) => {
     const tx = openJobTx(db, CONTENT_INGEST_JOB_STORE, 'readonly');

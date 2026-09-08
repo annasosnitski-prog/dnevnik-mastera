@@ -4,7 +4,7 @@ import { indexedDB } from 'fake-indexeddb';
 
 globalThis.indexedDB = indexedDB;
 
-import { getAllContentEntries, putContentEntry } from '../.test-dist/src/storage/repos/contentRepo.js';
+import { getAllContentEntries, putContentEntry, clearContentEntries } from '../.test-dist/src/storage/repos/contentRepo.js';
 
 let dbCounter = 0;
 
@@ -65,6 +65,30 @@ test('повторный putContentEntry с тем же id заменяет за
 
 test('getAllContentEntries на пустом сторе отдаёт пустой массив', async () => {
   const db = await openTestDb();
+  const readTx = tx(db, 'readonly');
+  const all = await new Promise((resolve, reject) => {
+    const request = getAllContentEntries(readTx);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  assert.deepEqual(all, []);
+});
+
+test('clearContentEntries опустошает стор целиком', async () => {
+  const db = await openTestDb();
+  await new Promise((resolve, reject) => {
+    const t = tx(db);
+    putContentEntry(t, { id: 'e1' });
+    putContentEntry(t, { id: 'e2' });
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+  });
+  await new Promise((resolve, reject) => {
+    const t = tx(db);
+    clearContentEntries(t);
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+  });
   const readTx = tx(db, 'readonly');
   const all = await new Promise((resolve, reject) => {
     const request = getAllContentEntries(readTx);

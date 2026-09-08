@@ -15,3 +15,9 @@ export function getAllContentEntries<T = any>(tx: IDBTransaction): IDBRequest<T[
 export function putContentEntry<T extends { id: string }>(tx: IDBTransaction, record: T): void {
   tx.objectStore('contentEntries').put(record);
 }
+
+// Стор целиком под замену — только полное восстановление из резервной
+// копии (см. TattoDiary.tsx: replaceAllData).
+export function clearContentEntries(tx: IDBTransaction): void {
+  tx.objectStore('contentEntries').clear();
+}

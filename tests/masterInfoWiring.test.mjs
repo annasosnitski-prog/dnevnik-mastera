@@ -101,7 +101,7 @@ test('кабинет восстанавливается той же транза
   // Иначе восстановление могло пройти наполовину: клиенты новые, кабинет
   // старый, и понять это по экрану невозможно.
   assert.match(replaceAllData, /if \(restoredMaster\) stores\.push\(MASTER_INFO_STORE\);/);
-  assert.match(replaceAllData, /tx\.objectStore\(MASTER_INFO_STORE\)\.put\(\{ \.\.\.restoredMaster, id: MASTER_INFO_RECORD_ID \}\)/);
+  assert.match(replaceAllData, /putMasterInfoRecord\(tx, restoredMaster\)/);
 });
 
 test('старый файл с одними задачами не стирает имя и реквизиты', () => {

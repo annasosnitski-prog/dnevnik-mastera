@@ -117,7 +117,11 @@ test('create and refresh jobs are persisted instead of waiting for the long send
 test('full import clears technical jobs but backup props do not expose them', () => {
   const replace = diary.slice(diary.indexOf('const replaceAllData ='), diary.indexOf('const importClients ='));
   assert.match(replace, /CONTENT_INGEST_JOB_STORE/);
-  assert.match(replace, /\.clear\(\)/);
+  // Само .clear() — в lib/contentJobQueue.ts (Шаг 7 разбора,
+  // docs/DATA_LAYER_PLAN.md), дневник только зовёт его на общей транзакции.
+  assert.match(replace, /clearContentIngestJobs\(tx\)/);
+  const queueSrc = readFileSync(new URL('../src/lib/contentJobQueue.ts', import.meta.url), 'utf8');
+  assert.match(queueSrc, /export function clearContentIngestJobs.*\.clear\(\)/s);
   const adminUsage = diary.slice(diary.indexOf('<AdminDashboardScreen'), diary.indexOf('/>', diary.indexOf('<AdminDashboardScreen')) + 2);
   assert.doesNotMatch(adminUsage, /contentIngestJobs/);
 });

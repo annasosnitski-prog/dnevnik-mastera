@@ -25,3 +25,9 @@ export function putClient<T extends { id: string }>(tx: IDBTransaction, record: 
 export function deleteClientRecord(tx: IDBTransaction, id: string): void {
   tx.objectStore('clients').delete(id);
 }
+
+// Стор целиком под замену — только полное восстановление из резервной
+// копии (см. TattoDiary.tsx: replaceAllData).
+export function clearClients(tx: IDBTransaction): void {
+  tx.objectStore('clients').clear();
+}

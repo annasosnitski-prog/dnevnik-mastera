@@ -19,6 +19,7 @@ import {
   CONTENT_INGEST_JOB_STORE,
   ContentJobDbUnavailableError,
   TATTO_DIARY_DB_VERSION,
+  clearContentIngestJobs,
   deleteContentEntryAndRefreshJobs,
   deleteContentIngestJob,
   loadContentIngestJobs,
@@ -56,14 +57,13 @@ import {
 } from '../lib/storageMessages';
 import type { StoragePhase } from '../lib/storageRecovery';
 import { createStorageConnection, type StorageConnection } from '../storage/connection';
-import { getAllClients, putClient, deleteClientRecord } from '../storage/repos/clientsRepo';
-import { getAllProjects, putProject, deleteProjectRecord } from '../storage/repos/projectsRepo';
-import { getAllContentEntries, putContentEntry } from '../storage/repos/contentRepo';
+import { getAllClients, putClient, deleteClientRecord, clearClients } from '../storage/repos/clientsRepo';
+import { getAllProjects, putProject, deleteProjectRecord, clearProjects } from '../storage/repos/projectsRepo';
+import { getAllContentEntries, putContentEntry, clearContentEntries } from '../storage/repos/contentRepo';
 import { getMasterInfoRecord, putMasterInfoRecord } from '../storage/repos/masterInfoRepo';
 import { BUSY_ATTRIBUTE } from '../lib/appUpdate';
 import {
   MASTER_INFO_STORE,
-  MASTER_INFO_RECORD_ID,
   MASTER_INFO_LOCAL_KEY,
   DEFAULT_MASTER_INFO,
   normalizeMasterInfo,
@@ -1611,22 +1611,19 @@ export default function TattoDiary() {
     if (restoredMaster) stores.push(MASTER_INFO_STORE);
     const tx = openWriteTx(stores, db, STORAGE_ACTIONS.importData);
     if (!tx) return;
-    const cs = tx.objectStore('clients');
-    cs.clear();
-    bundle.clients.forEach((c) => cs.put(c));
+    clearClients(tx);
+    bundle.clients.forEach((c) => putClient(tx, c));
     if (bundle.projects) {
-      const ps = tx.objectStore('projects');
-      ps.clear();
-      bundle.projects.forEach((p) => ps.put(p));
+      clearProjects(tx);
+      bundle.projects.forEach((p) => putProject(tx, p));
     }
     if (bundle.contentEntries) {
-      const es = tx.objectStore('contentEntries');
-      es.clear();
-      bundle.contentEntries.forEach((e) => es.put(e));
-      tx.objectStore(CONTENT_INGEST_JOB_STORE).clear();
+      clearContentEntries(tx);
+      bundle.contentEntries.forEach((e) => putContentEntry(tx, e));
+      clearContentIngestJobs(tx);
     }
     if (restoredMaster) {
-      tx.objectStore(MASTER_INFO_STORE).put({ ...restoredMaster, id: MASTER_INFO_RECORD_ID });
+      putMasterInfoRecord(tx, restoredMaster);
     }
     tx.oncomplete = () => {
       loadClients(db);
@@ -1652,8 +1649,7 @@ export default function TattoDiary() {
     }
     const tx = openWriteTx('clients', db, STORAGE_ACTIONS.importData);
     if (!tx) return;
-    const store = tx.objectStore('clients');
-    newClients.forEach((c) => store.put(c));
+    newClients.forEach((c) => putClient(tx, c));
     tx.oncomplete = () => loadClients(db);
     tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.importData);
   };

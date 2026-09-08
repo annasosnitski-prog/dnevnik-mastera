@@ -4,7 +4,7 @@ import { indexedDB } from 'fake-indexeddb';
 
 globalThis.indexedDB = indexedDB;
 
-import { getAllProjects, putProject, deleteProjectRecord } from '../.test-dist/src/storage/repos/projectsRepo.js';
+import { getAllProjects, putProject, deleteProjectRecord, clearProjects } from '../.test-dist/src/storage/repos/projectsRepo.js';
 
 let dbCounter = 0;
 
@@ -93,6 +93,30 @@ test('deleteProjectRecord убирает запись по id, не трогая
 
 test('getAllProjects на пустом сторе отдаёт пустой массив, не null/undefined', async () => {
   const db = await openTestDb();
+  const readTx = tx(db, 'readonly');
+  const all = await new Promise((resolve, reject) => {
+    const request = getAllProjects(readTx);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  assert.deepEqual(all, []);
+});
+
+test('clearProjects опустошает стор целиком', async () => {
+  const db = await openTestDb();
+  await new Promise((resolve, reject) => {
+    const t = tx(db);
+    putProject(t, { id: 'p1' });
+    putProject(t, { id: 'p2' });
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+  });
+  await new Promise((resolve, reject) => {
+    const t = tx(db);
+    clearProjects(t);
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+  });
   const readTx = tx(db, 'readonly');
   const all = await new Promise((resolve, reject) => {
     const request = getAllProjects(readTx);
