@@ -277,16 +277,18 @@ function isMasterDashboardPair<T extends string>(tabs: ClientCardTabDef<T>[]) {
   return tabs.length === 2 && tabs[0]?.kind === 'info' && tabs[1]?.kind === 'projects';
 }
 
-// The rail is inset by a fixed 8% margin at each end — beads sit at
-// `count + 1` positions spread evenly across that inset span (not across
-// the full 0-100%), so segment k (between bead k and bead k+1, one segment
-// per gem) is always exactly `(100 - 2*RAIL_MARGIN_PCT) / count` wide,
-// whatever `count` is. PendantRail below places its joins and its glow at
-// the very same positions, so the gems, the beads and the glow all agree
-// on where each segment starts and ends.
-const RAIL_MARGIN_PCT = 8;
+// `count + 1` beads spread evenly across the full width of this span, so
+// segment k (bead k .. bead k+1, one segment per gem) is always exactly
+// `100 / count` wide, whatever `count` is — no separate margin/inset math
+// that could disagree with itself between the two ends and the interior.
+// This span itself is inset 8px from the tab bar's own edges (see the
+// wrapper's `left: 8, right: 8` below), the same 8px the tube SVG is inset
+// by (`.client-card-tabbar__two-pendant-rays` in index.css) and the same
+// 8px of padding the flex tab row sits inside (TABLIST_STYLE) — so bead
+// 0%/100% and a gem's own flex-centred position both land on the same
+// physical pixel for the same tab count.
 function beadPositionPct(index: number, count: number): number {
-  return RAIL_MARGIN_PCT + (index / count) * (100 - 2 * RAIL_MARGIN_PCT);
+  return (index / count) * 100;
 }
 
 // A small threaded bead — sphere-shaded (off-centre specular highlight,
@@ -334,8 +336,8 @@ function TubeDividerBeads({ count }: { count: number }) {
       className="client-card-tabbar__tube-dividers"
       style={{
         position: 'absolute',
-        left: 0,
-        right: 0,
+        left: 8,
+        right: 8,
         top: 4,
         height: 0,
         pointerEvents: 'none',

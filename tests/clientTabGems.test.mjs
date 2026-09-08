@@ -181,7 +181,12 @@ test('gold tube separators stay centred between neighbouring medallions at any t
   // loops (edges fixed at 8/92%, interior at k/count) — that mismatch used
   // to make the outer two segments a different width than the inner ones.
   assert.match(tabBarModule, /function beadPositionPct\(index: number, count: number\)/);
-  assert.match(tabBarModule, /RAIL_MARGIN_PCT \+ \(index \/ count\) \* \(100 - 2 \* RAIL_MARGIN_PCT\)/);
+  assert.match(tabBarModule, /return \(index \/ count\) \* 100;/);
+  // The beads' own wrapper must stay inset the same 8px as the tube SVG
+  // (.client-card-tabbar__two-pendant-rays in index.css) and the flex tab
+  // row's own padding — otherwise bead 0%/100% lands on a different pixel
+  // than the tab row's own edges and the "even spacing" breaks again.
+  assert.match(tabBarModule, /left: 8,\s*right: 8,\s*top: 4,/);
   assert.match(tabBarModule, /Array\.from\(\{ length: count \+ 1 \}, \(_, index\) => \([\s\S]{0,80}<ThreadedBead key=\{index\} pct=\{beadPositionPct\(index, count\)\} \/>/);
   assert.match(tabBarModule, /width: 7,[\s\S]*height: 7,[\s\S]*borderRadius: '50%'/);
   assert.match(tabBarModule, /#F5E3B8[\s\S]*#E0B569[\s\S]*#C8943A[\s\S]*#3A2712/);
