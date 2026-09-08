@@ -216,9 +216,12 @@ export function createStorageConnection(
         recovering = false;
         reconnectAttempt = 0;
         connectedAt = Date.now();
+        // db выставляется ДО setPhase/onConnected: колбэки читают текущую
+        // базу через getDatabase(), и она обязана быть на месте уже в
+        // момент, когда onPhaseChange('ready') долетает до подписчика.
+        db = database;
         setPhase('ready');
         callbacks.onConnected?.();
-        db = database;
         // Браузер может закрыть соединение сам (нехватка памяти), а другая
         // вкладка — начать обновление схемы. Первое дневник чинит сам;
         // второе — единственный случай, где без мастера не обойтись

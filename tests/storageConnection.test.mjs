@@ -115,6 +115,22 @@ test('onConnected срабатывает один раз на подключен
     conn.destroy();
   }));
 
+test('getDatabase() уже отдаёт живое соединение внутри onPhaseChange(\'ready\')', () =>
+  withIsolatedDb(async () => {
+    // Компонент зеркалит db через колбэк onPhaseChange — если getDatabase()
+    // вернёт null в этот момент, зеркало state потеряет соединение на кадр.
+    let seenInsidePhaseChange;
+    const conn = createStorageConnection(DB_VERSION, {
+      onPhaseChange: (p) => {
+        if (p === 'ready') seenInsidePhaseChange = conn.getDatabase();
+      },
+    });
+    conn.connect();
+    await waitFor(() => conn.getPhase() === 'ready');
+    assert.ok(seenInsidePhaseChange, 'getDatabase() должна быть непустой уже во время onPhaseChange(\'ready\')');
+    conn.destroy();
+  }));
+
 test('openTx возвращает null, пока соединения нет, и не бросает исключение', () =>
   withIsolatedDb(async () => {
     const conn = createStorageConnection(DB_VERSION);
