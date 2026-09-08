@@ -2738,10 +2738,10 @@ export default function TattoDiary() {
   };
   const QUICK_CREATE_META: Record<QuickCreateKind, { label: string; color: string }> = {
     client: { label: 'Клиент', color: TERRITORY_COLORS.clients },
-    session: { label: 'Сессия', color: TERRITORY_COLORS.projects },
+    session: { label: 'Сессия', color: TERRITORY_COLORS.personal },
     consultation: { label: 'Консультация', color: TERRITORY_COLORS.personal },
-    project: { label: 'Тату', color: TERRITORY_COLORS.admin },
-    note: { label: 'Заметка', color: TERRITORY_COLORS.notes },
+    project: { label: 'Проект', color: TERRITORY_COLORS.projects },
+    note: { label: 'Заметка', color: TERRITORY_COLORS.personal },
   };
   const quickCreateOptions = quickCreateContext
     ? QUICK_CREATE_KINDS_BY_CONTEXT[quickCreateContext].map((kind) => ({ kind, ...QUICK_CREATE_META[kind] }))

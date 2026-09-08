@@ -274,7 +274,10 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
   };
   const handleHubPointerDown = () => {
     setPressedId("hub");
-    if (!onQuickCreate || !quickCreateOptions?.length || open) return;
+    // Already showing the quick-create fan — a fresh press here should only
+    // ever be able to close it (see handleHubClick below), never arm a new
+    // long-press on top of an open one.
+    if (!onQuickCreate || !quickCreateOptions?.length || open || quickCreateOpen) return;
     longPressFiredRef.current = false;
     clearLongPressTimer();
     longPressTimerRef.current = window.setTimeout(() => {
@@ -287,9 +290,31 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
     releasePress("hub");
     clearLongPressTimer();
   };
+  // A single tap on the hub while the quick-create fan is showing closes it
+  // (same as tapping the scrim); a second tap arriving within DOUBLE_TAP_MS
+  // instead closes it AND opens the main fan — a quick way to back out of
+  // quick-create into the full menu without a dead tap in between. The
+  // single-tap close is delayed by that same window so it can still be
+  // upgraded into the double-tap outcome if a second tap follows.
+  const DOUBLE_TAP_MS = 320;
+  const hubTapTimerRef = useRef<number | null>(null);
   const handleHubClick = () => {
     if (longPressFiredRef.current) {
       longPressFiredRef.current = false;
+      return;
+    }
+    if (quickCreateOpen) {
+      if (hubTapTimerRef.current != null) {
+        window.clearTimeout(hubTapTimerRef.current);
+        hubTapTimerRef.current = null;
+        setQuickCreateOpen(false);
+        setOpen(true);
+      } else {
+        hubTapTimerRef.current = window.setTimeout(() => {
+          hubTapTimerRef.current = null;
+          setQuickCreateOpen(false);
+        }, DOUBLE_TAP_MS);
+      }
       return;
     }
     setOpen((value) => !value);
@@ -648,14 +673,44 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
           onClick={handleHubClick}
         >
           {minimalism ? (
-            <span className="nav-fab__minimal-home-mark" aria-hidden="true">$</span>
+            quickCreateOpen ? (
+              <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ color: "inherit" }}>
+                <line x1="10" y1="3" x2="10" y2="17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <span className="nav-fab__minimal-home-mark" aria-hidden="true">$</span>
+            )
           ) : (
             <>
+              {/* Same plate + cross as the main fan's own «Создать» button —
+                  while the quick-create fan is open, the hub reads as that
+                  same action instead of its usual "open the menu" jewel. */}
               <span className="theme-dark-jewel" aria-hidden="true">
-                <PendantIcon color="#C9A24E" size={HUB_SIZE} plate />
+                {quickCreateOpen ? (
+                  <PendantIcon color="#C9A24E" size={HUB_SIZE} plate>
+                    <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
+                    <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
+                  </PendantIcon>
+                ) : (
+                  <PendantIcon color="#C9A24E" size={HUB_SIZE} plate />
+                )}
               </span>
               <span className="theme-light-jewel" aria-hidden="true">
-                <NaturalStoneIcon size={HUB_SIZE} plate />
+                {quickCreateOpen ? (
+                  <NaturalStoneIcon size={HUB_SIZE} plate>
+                    <g aria-hidden="true">
+                      <line x1="0" y1="-7" x2="0" y2="7" stroke="var(--bronze-engrave-groove)" strokeWidth="3.4" strokeLinecap="round" />
+                      <line x1="-7" y1="0" x2="7" y2="0" stroke="var(--bronze-engrave-groove)" strokeWidth="3.4" strokeLinecap="round" />
+                      <line x1="-.62" y1="-7" x2="-.62" y2="7" stroke="var(--bronze-engrave-highlight)" strokeWidth=".72" strokeLinecap="round" opacity=".64" />
+                      <line x1="-7" y1="-.62" x2="7" y2="-.62" stroke="var(--bronze-engrave-highlight)" strokeWidth=".72" strokeLinecap="round" opacity=".64" />
+                      <line x1=".62" y1="-7" x2=".62" y2="7" stroke="var(--bronze-engrave-shadow)" strokeWidth=".76" strokeLinecap="round" opacity=".72" />
+                      <line x1="-7" y1=".62" x2="7" y2=".62" stroke="var(--bronze-engrave-shadow)" strokeWidth=".76" strokeLinecap="round" opacity=".72" />
+                    </g>
+                  </NaturalStoneIcon>
+                ) : (
+                  <NaturalStoneIcon size={HUB_SIZE} plate />
+                )}
               </span>
             </>
           )}
