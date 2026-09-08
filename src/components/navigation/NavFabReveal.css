@@ -208,6 +208,82 @@
   to { transform: rotate(360deg); }
 }
 
+/* Same above-scrim z-index the main open fan gets (see .nav-fab.nav-fab--open
+   above) — without it the scrim (z-index:960) sits above the still-bottom-
+   anchored hub (z-index:951) and swallows every tap meant for the quick
+   buttons. Nothing else about --open (the hub-glide animation, its
+   ornaments) applies here — the hub stays exactly where it always sits. */
+.nav-fab.nav-fab--quick-open {
+  z-index: 961;
+}
+
+/* Long-press quick-create — three buttons fanning straight up from the hub
+   (see quickCreateOffset in NavFab.tsx). Deliberately its own, much simpler
+   animation than the main fan's hub-glide ceremony: the hub stays put, the
+   buttons just pop up on a short delay stagger. */
+.nav-fab__quick-create {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.nav-fab__quick-item {
+  appearance: none;
+  padding: 0;
+  border: none;
+  background: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1);
+  transition: transform 0.12s ease;
+  animation: nav-fab-quick-item-in 260ms cubic-bezier(0.18, 0.82, 0.2, 1) both;
+  animation-delay: var(--quick-delay, 0ms);
+}
+
+.nav-fab__quick-item--pressed {
+  transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.9);
+}
+
+.nav-fab__quick-item-label {
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: var(--toolbar-icon-active);
+  background: rgba(0, 0, 0, 0.55);
+  padding: 1px 6px;
+  border-radius: 2px;
+  white-space: nowrap;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+
+.nav-fab__quick-item-minimal-dot {
+  display: block;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(var(--gold-rgb), 0.5);
+  box-shadow: 0 0 8px -1px currentColor;
+}
+
+@keyframes nav-fab-quick-item-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nav-fab.nav-fab--open,
   .nav-fab.nav-fab--open::before,
@@ -216,7 +292,8 @@
   .nav-fab__main--gold::before,
   .nav-fab__main--gold::after,
   .nav-fab__ray-group,
-  .nav-fab--open .nav-fab__item--ice {
+  .nav-fab--open .nav-fab__item--ice,
+  .nav-fab__quick-item {
     animation: none !important;
   }
 

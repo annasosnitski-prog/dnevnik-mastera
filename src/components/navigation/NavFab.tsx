@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PendantIcon } from "./PendantIcon";
 import { NaturalStoneIcon, type NaturalStoneKind } from "./NaturalStoneIcon";
@@ -10,6 +10,17 @@ import "./NavFabMinimal.css";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
 type NavItemId = "clients" | "gear" | "content" | "brush" | "sketchbook" | "profile";
+export type QuickCreateKind = "client" | "consultation" | "session" | "project" | "note";
+export interface QuickCreateOption {
+  kind: QuickCreateKind;
+  label: string;
+  color: string;
+  // Flat gold plate (same disc as the hub / main fan's «Создать»), not a
+  // faceted gem — for the gold-toned options (see TattoDiary.tsx's
+  // QUICK_CREATE_META), where the gem's own facet shading barely reads
+  // against gold-on-gold and just looks like a duller plate anyway.
+  plate?: boolean;
+}
 
 interface NavFabProps {
   active: AppScreen;
@@ -21,6 +32,14 @@ interface NavFabProps {
   moduleFlags: ModuleFlags;
   adminBadges?: ("urgent" | "reminder")[];
   onCreate?: () => void;
+  // Долгое нажатие на хаб — короткий путь мимо и главного веера, и шторки
+  // CreateChoiceSheet: сразу самые частые варианты для ТЕКУЩЕГО экрана,
+  // тем же набором, что предложила бы шторка (TattoDiary.tsx подбирает
+  // quickCreateOptions ровно так же, как options для CreateChoiceSheet —
+  // см. её quickCreateContext). Пустой/undefined список — долгое нажатие
+  // ничего не открывает (экран не поддерживает быстрое создание).
+  quickCreateOptions?: QuickCreateOption[];
+  onQuickCreate?: (kind: QuickCreateKind) => void;
 }
 
 const NAV_ITEMS = [
@@ -84,6 +103,10 @@ const NAV_ITEMS = [
 ] as const;
 
 const CREATE_DURATION_MS = 2400;
+// How long a hold on the hub counts as a long-press rather than a tap.
+const LONG_PRESS_MS = 480;
+const QUICK_ITEM_SIZE = 50;
+const QUICK_RADIUS = 108;
 const ITEM_HALF = 35;
 const HUB_HALF = 31;
 const HUB_SIZE = HUB_HALF * 2;
@@ -121,6 +144,21 @@ type PolygonVertex = {
   y: number;
   sourceIndex: number;
 };
+
+// Spread evenly across an arc directly above the hub (straight-up is -90°)
+// — a compact upward fan, not the full circle the main menu uses, since
+// long-press is meant to feel quicker than opening it. Widens with the
+// option count (2 → 105°, 4 → 170°) so a 4-item fan's labels don't crowd
+// into each other the way a fixed 120° arc did.
+function quickCreateOffset(index: number, total: number): { dx: number; dy: number } {
+  const spreadDeg = Math.min(170, 70 + 35 * (total - 1));
+  const startDeg = -90 - spreadDeg / 2;
+  const angle = ((startDeg + (total <= 1 ? spreadDeg / 2 : (index * spreadDeg) / (total - 1))) * Math.PI) / 180;
+  return {
+    dx: Math.round(Math.cos(angle) * QUICK_RADIUS),
+    dy: Math.round(Math.sin(angle) * QUICK_RADIUS),
+  };
+}
 
 function radialOffset(index: number, total: number): { dx: number; dy: number } {
   const angle = -Math.PI / 2 + (index * Math.PI * 2) / total;
@@ -218,13 +256,74 @@ function MinimalGlyph({ id, size }: { id: NavItemId; size: number }) {
   );
 }
 
-export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate }: NavFabProps) {
+export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate, quickCreateOptions, onQuickCreate }: NavFabProps) {
   const minimalism = useMinimalism();
   const [open, setOpen] = useState(false);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [pressedId, setPressedId] = useState<string | null>(null);
   const releasePress = (id: string) => setPressedId((current) => (current === id ? null : current));
   const current = NAV_ITEMS.find((item) => item.isActive(active)) ?? NAV_ITEMS[0];
   const isNavItemVisible = (item: (typeof NAV_ITEMS)[number]) => item.moduleKey === null || moduleFlags[item.moduleKey];
+
+  // Long-press detection on the hub: a timer armed on pointerdown fires
+  // quick-create instead of the usual tap-toggle if held past LONG_PRESS_MS.
+  // longPressFiredRef suppresses the click that follows the same pointerup
+  // so a fired long-press never also toggles the main fan open.
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  const handleHubPointerDown = () => {
+    setPressedId("hub");
+    // Already showing the quick-create fan — a fresh press here should only
+    // ever be able to close it (see handleHubClick below), never arm a new
+    // long-press on top of an open one.
+    if (!onQuickCreate || !quickCreateOptions?.length || open || quickCreateOpen) return;
+    longPressFiredRef.current = false;
+    clearLongPressTimer();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      longPressTimerRef.current = null;
+      setQuickCreateOpen(true);
+    }, LONG_PRESS_MS);
+  };
+  const handleHubPointerUp = () => {
+    releasePress("hub");
+    clearLongPressTimer();
+  };
+  // A single tap on the hub while the quick-create fan is showing closes it
+  // (same as tapping the scrim); a second tap arriving within DOUBLE_TAP_MS
+  // instead closes it AND opens the main fan — a quick way to back out of
+  // quick-create into the full menu without a dead tap in between. The
+  // single-tap close is delayed by that same window so it can still be
+  // upgraded into the double-tap outcome if a second tap follows.
+  const DOUBLE_TAP_MS = 320;
+  const hubTapTimerRef = useRef<number | null>(null);
+  const handleHubClick = () => {
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    if (quickCreateOpen) {
+      if (hubTapTimerRef.current != null) {
+        window.clearTimeout(hubTapTimerRef.current);
+        hubTapTimerRef.current = null;
+        setQuickCreateOpen(false);
+        setOpen(true);
+      } else {
+        hubTapTimerRef.current = window.setTimeout(() => {
+          hubTapTimerRef.current = null;
+          setQuickCreateOpen(false);
+        }, DOUBLE_TAP_MS);
+      }
+      return;
+    }
+    setOpen((value) => !value);
+  };
 
   const allFanEntries: FanEntry[] = onCreate
     ? [
@@ -271,6 +370,11 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
 
   const containerClasses = ["nav-fab"];
   if (open) containerClasses.push("nav-fab--open");
+  // Its own modifier, not nav-fab--open — that one also triggers the hub's
+  // glide-to-centre animation, which quick-create deliberately skips (the
+  // hub stays put). Still needs the same above-scrim z-index bump though,
+  // or the scrim (z-index:960) swallows every tap on the quick buttons.
+  if (quickCreateOpen) containerClasses.push("nav-fab--quick-open");
   if (minimalism) containerClasses.push("nav-fab--minimal");
 
   // Portaled straight to document.body — same escape hatch BottomSheet uses
@@ -289,7 +393,16 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
   // viewport's coincide, so this needs no extra positioning logic.
   return createPortal(
     <>
-      {open && <div className="nav-fab__scrim" onClick={() => setOpen(false)} aria-hidden="true" />}
+      {(open || quickCreateOpen) && (
+        <div
+          className="nav-fab__scrim"
+          onClick={() => {
+            setOpen(false);
+            setQuickCreateOpen(false);
+          }}
+          aria-hidden="true"
+        />
+      )}
 
       <div className={containerClasses.join(" ")}>
         {open && !minimalism && (
@@ -556,23 +669,53 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
           type="button"
           className={mainClasses.join(" ")}
           style={minimalism ? { width: MINIMAL_HUB_SIZE, height: MINIMAL_HUB_SIZE } : undefined}
-          aria-label={open ? "Закрыть меню" : "Открыть меню"}
+          aria-label={open ? "Закрыть меню" : "Открыть меню (долгое нажатие — быстрое создание)"}
           aria-expanded={open}
-          onPointerDown={() => setPressedId("hub")}
-          onPointerUp={() => releasePress("hub")}
-          onPointerCancel={() => releasePress("hub")}
-          onPointerLeave={() => releasePress("hub")}
-          onClick={() => setOpen((value) => !value)}
+          onPointerDown={handleHubPointerDown}
+          onPointerUp={handleHubPointerUp}
+          onPointerCancel={handleHubPointerUp}
+          onPointerLeave={handleHubPointerUp}
+          onClick={handleHubClick}
         >
           {minimalism ? (
-            <span className="nav-fab__minimal-home-mark" aria-hidden="true">$</span>
+            quickCreateOpen ? (
+              <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ color: "inherit" }}>
+                <line x1="10" y1="3" x2="10" y2="17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <span className="nav-fab__minimal-home-mark" aria-hidden="true">$</span>
+            )
           ) : (
             <>
+              {/* Same plate + cross as the main fan's own «Создать» button —
+                  while the quick-create fan is open, the hub reads as that
+                  same action instead of its usual "open the menu" jewel. */}
               <span className="theme-dark-jewel" aria-hidden="true">
-                <PendantIcon color="#C9A24E" size={HUB_SIZE} plate />
+                {quickCreateOpen ? (
+                  <PendantIcon color="#C9A24E" size={HUB_SIZE} plate>
+                    <line x1="0" y1="-7" x2="0" y2="7" strokeWidth="2.2" strokeLinecap="round" />
+                    <line x1="-7" y1="0" x2="7" y2="0" strokeWidth="2.2" strokeLinecap="round" />
+                  </PendantIcon>
+                ) : (
+                  <PendantIcon color="#C9A24E" size={HUB_SIZE} plate />
+                )}
               </span>
               <span className="theme-light-jewel" aria-hidden="true">
-                <NaturalStoneIcon size={HUB_SIZE} plate />
+                {quickCreateOpen ? (
+                  <NaturalStoneIcon size={HUB_SIZE} plate>
+                    <g aria-hidden="true">
+                      <line x1="0" y1="-7" x2="0" y2="7" stroke="var(--bronze-engrave-groove)" strokeWidth="3.4" strokeLinecap="round" />
+                      <line x1="-7" y1="0" x2="7" y2="0" stroke="var(--bronze-engrave-groove)" strokeWidth="3.4" strokeLinecap="round" />
+                      <line x1="-.62" y1="-7" x2="-.62" y2="7" stroke="var(--bronze-engrave-highlight)" strokeWidth=".72" strokeLinecap="round" opacity=".64" />
+                      <line x1="-7" y1="-.62" x2="7" y2="-.62" stroke="var(--bronze-engrave-highlight)" strokeWidth=".72" strokeLinecap="round" opacity=".64" />
+                      <line x1=".62" y1="-7" x2=".62" y2="7" stroke="var(--bronze-engrave-shadow)" strokeWidth=".76" strokeLinecap="round" opacity=".72" />
+                      <line x1="-7" y1=".62" x2="7" y2=".62" stroke="var(--bronze-engrave-shadow)" strokeWidth=".76" strokeLinecap="round" opacity=".72" />
+                    </g>
+                  </NaturalStoneIcon>
+                ) : (
+                  <NaturalStoneIcon size={HUB_SIZE} plate />
+                )}
               </span>
             </>
           )}
@@ -583,6 +726,61 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate 
             />
           )}
         </button>
+
+        {/* Long-press quick-create — a compact upward fan of this screen's
+            create options (the same set CreateChoiceSheet would offer —
+            see quickCreateOptions in TattoDiary.tsx), bypassing both the
+            main radial menu and that bottom sheet. The hub itself stays put
+            (unlike the full menu, it never glides to screen centre), so
+            this reads as a quick flick rather than the main menu's ceremony. */}
+        {quickCreateOpen && quickCreateOptions && quickCreateOptions.length > 0 && (
+          <div className="nav-fab__quick-create" role="menu" aria-label="Быстрое создание">
+            {quickCreateOptions.map((option, index) => {
+              const { dx, dy } = quickCreateOffset(index, quickCreateOptions.length);
+              const id = `quick-${option.kind}`;
+              return (
+                <button
+                  key={option.kind}
+                  type="button"
+                  role="menuitem"
+                  className={
+                    pressedId === id
+                      ? "nav-fab__quick-item nav-fab__quick-item--pressed"
+                      : "nav-fab__quick-item"
+                  }
+                  style={{
+                    ["--dx" as string]: `${dx}px`,
+                    ["--dy" as string]: `${dy}px`,
+                    ["--quick-delay" as string]: `${index * 45}ms`,
+                  }}
+                  aria-label={option.label}
+                  title={option.label}
+                  onPointerDown={() => setPressedId(id)}
+                  onPointerUp={() => releasePress(id)}
+                  onPointerCancel={() => releasePress(id)}
+                  onPointerLeave={() => releasePress(id)}
+                  onClick={() => {
+                    onQuickCreate?.(option.kind);
+                    setQuickCreateOpen(false);
+                  }}
+                >
+                  {minimalism ? (
+                    <span
+                      className="nav-fab__quick-item-minimal-dot"
+                      aria-hidden="true"
+                      style={{ background: option.color }}
+                    />
+                  ) : (
+                    <PendantIcon color={option.color} size={QUICK_ITEM_SIZE} plate={option.plate} />
+                  )}
+                  <span className="nav-fab__quick-item-label" aria-hidden="true">
+                    {option.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>,
     document.body,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
-import { NavFab } from './navigation/NavFab';
+import { NavFab, type QuickCreateKind } from './navigation/NavFab';
 import { TodayDateBadge } from './ui/TodayDateBadge';
 import {
   readSyncSettings,
@@ -109,7 +109,7 @@ import { normalizeClient, normalizeProject } from '../lib/normalize';
 // UI-примитивы вынесены в отдельные модули (PR 4 рефакторинга). Логика и
 // разметка не менялись — только перенос.
 import { TopStripe, RightStripe, GemCorner } from './ui/Stripes';
-import { COLORS, fs, setTextScale } from './ui/designTokens';
+import { COLORS, fs, setTextScale, TERRITORY_COLORS } from './ui/designTokens';
 export { COLORS, DONE_EMOJI, fs } from './ui/designTokens';
 // Bottom sheets вынесены в отдельные модули (PR 5 рефакторинга). Логика и
 // разметка не менялись — только перенос.
@@ -121,7 +121,7 @@ import {
   ProjectViewSheet,
   NewProjectSheet,
 } from './sheets/SessionAndProjectSheets';
-import { CreateChoiceSheet } from './sheets/CreateChoiceSheet';
+import { CreateChoiceSheet, type CreateOptionKind } from './sheets/CreateChoiceSheet';
 import { NoteComposerSheet } from './sheets/NoteComposerSheet';
 import {
   TimelineViewSheet,
@@ -904,10 +904,14 @@ export default function TattoDiary() {
   // independent boolean per sheet) makes the steps mutually exclusive by
   // construction — two of these sheets can never both be "open" at once,
   // which a set of separate booleans could otherwise drift into.
+  // 'project' joined the two original kinds so the same client-then-form walk
+  // also serves the long-press quick-create fan's «Тату» option on screens
+  // that have no client already selected (see quickCreateContext below) —
+  // calendarCreateDate simply stays null there (no date to prefill).
   type CalendarWalkStep = 'kind' | 'clientKind' | 'clientPicker' | 'quickClient' | null;
   const [calendarWalkStep, setCalendarWalkStep] = useState<CalendarWalkStep>(null);
   const [calendarCreateDate, setCalendarCreateDate] = useState<string | null>(null);
-  const [calendarEventKind, setCalendarEventKind] = useState<'session' | 'consultation' | null>(null);
+  const [calendarEventKind, setCalendarEventKind] = useState<'session' | 'consultation' | 'project' | null>(null);
   // Cancels the calendar-creation walk from any step, clearing its state.
   const cancelCalendarWalk = () => {
     setCalendarWalkStep(null);
@@ -1897,12 +1901,16 @@ export default function TattoDiary() {
   // with the form already up and the date prefilled. Behind the form the
   // card sits on «Проекты» (its only entry point into work now that the
   // Сессии/Консультации tabs are gone).
-  const openPendingCalendarEvent = () => {
+  const openPendingCalendarEvent = (clientId: string) => {
     setScreen('detail');
     setActiveTab('projects');
     if (calendarEventKind === 'consultation') {
       setEditConsultation(null);
       setShowNewConsultationForm(true);
+    } else if (calendarEventKind === 'project') {
+      setEditProject(null);
+      setNewProjectClientId(clientId);
+      setShowNewProjectForm(true);
     } else {
       setEditSession(null);
       setShowNewSessionForm(true);
@@ -1939,7 +1947,7 @@ export default function TattoDiary() {
     setCalendarWalkStep(null);
     setCelebrationCount(clients.length + 1);
     setCelebrationKey((k) => k + 1);
-    openPendingCalendarEvent();
+    openPendingCalendarEvent(client.id);
   };
 
   const handleUpdateClient = (data: { name: string; surname: string; styles: string[]; color: string; clientType: ClientType; note: string }) => {
@@ -2624,6 +2632,142 @@ export default function TattoDiary() {
   // Set the text-size multiplier for this render pass before any child renders.
   setTextScale(prefs.textScale);
 
+  // Where a given create option lands, by context — shared by the tap path
+  // (CreateChoiceSheet.onPick below, after createChoiceContext resolves the
+  // context via a sheet) and the long-press path (NavFab's onQuickCreate,
+  // which already knows its context up front and calls this directly,
+  // skipping the sheet). Extracted so both stay a single source of truth
+  // instead of drifting apart.
+  const pickCreateOption = (context: 'detail' | 'workshop' | 'viewProject' | 'admin', kind: CreateOptionKind) => {
+    if (context === 'viewProject') {
+      if (!viewProject) return;
+      const project = viewProject;
+      setViewProject(null);
+      if (kind === 'session') {
+        setEditSession(null);
+        setSessionTargetProjectId(project.id);
+        setShowNewSessionForm(true);
+      } else if (kind === 'consultation') {
+        setEditConsultation(null);
+        setConsultationTargetProjectId(project.id);
+        setShowNewConsultationForm(true);
+      } else if (kind === 'note') {
+        setNoteComposerContext({ clientId: project.clientId, projectId: project.id });
+      }
+      return;
+    }
+    if (context === 'detail') {
+      if (!selectedClient) return;
+      const client = selectedClient;
+      runGated(false, () => {
+        if (kind === 'project') {
+          setEditProject(null);
+          setNewProjectClientId(client.id);
+          setShowNewProjectForm(true);
+        } else if (kind === 'session') {
+          setEditSession(null);
+          setShowNewSessionForm(true);
+        } else if (kind === 'consultation') {
+          setEditConsultation(null);
+          setShowNewConsultationForm(true);
+        } else if (kind === 'note') {
+          setNoteComposerContext({ clientId: client.id, projectId: null });
+        }
+      });
+      return;
+    }
+    if (context === 'workshop') {
+      if (kind === 'project') {
+        setEditProject(null);
+        setNewProjectClientId(null);
+        setShowNewProjectForm(true);
+      } else if (kind === 'session' || kind === 'consultation') {
+        setProjectPickerKind(kind);
+        setProjectPickerScope('clientless');
+        setShowProjectSessionPicker(true);
+      } else if (kind === 'note') {
+        setNoteComposerContext({ clientId: null, projectId: null });
+      }
+      return;
+    }
+    if (context === 'admin') {
+      if (kind === 'project') {
+        setEditProject(null);
+        setNewProjectClientId(null);
+        setShowNewProjectForm(true);
+      } else if (kind === 'session' || kind === 'consultation') {
+        setProjectPickerKind(kind);
+        setProjectPickerScope('all');
+        setShowProjectSessionPicker(true);
+      }
+    }
+  };
+
+  // Same resolution onCreate below uses to pick a createChoiceContext, plus
+  // 'list' (list/settings) — the one screen whose ordinary «Создать» does
+  // something else entirely (opens NewClientSheet directly, no choice
+  // sheet), but which long-press still supports: its own quick-create set
+  // swaps the «Заметка» slot for «Клиент» (see QUICK_CREATE_KINDS_BY_CONTEXT)
+  // and routes session/consultation/project through the calendar walk's
+  // client-picker (ClientKindChoiceSheet → existing/new), the only place
+  // that already knows how to ask "for which client?" before opening the
+  // form. 'summary' still has nothing to offer quick-create.
+  type QuickCreateContext = 'detail' | 'workshop' | 'viewProject' | 'admin' | 'list';
+  const quickCreateContext: QuickCreateContext | null = viewProject
+    ? 'viewProject'
+    : screen === 'admin'
+      ? 'admin'
+      : screen === 'detail' && selectedClient
+        ? 'detail'
+        : screen === 'master' || screen === 'workshop'
+          ? 'workshop'
+          : screen === 'list' || screen === 'settings'
+            ? 'list'
+            : null;
+
+  // The exact same 5 kinds (CreateOptionKind + 'client') cover the whole
+  // app; which subset (and in what order they fan out) mirrors the options
+  // CreateChoiceSheet would show for that context, so the two entry points
+  // never suggest different things.
+  const QUICK_CREATE_KINDS_BY_CONTEXT: Record<QuickCreateContext, QuickCreateKind[]> = {
+    viewProject: ['session', 'consultation', 'note'],
+    admin: ['project', 'session', 'consultation'],
+    detail: ['project', 'session', 'consultation', 'note'],
+    workshop: ['project', 'session', 'consultation', 'note'],
+    list: ['client', 'session', 'consultation', 'project'],
+  };
+  // Gold options render as a flat plate — same disc as the hub / main fan's
+  // «Создать» — rather than a faceted gem, since gold-on-gold facet shading
+  // barely reads and just looked like a duller plate anyway.
+  const QUICK_CREATE_META: Record<QuickCreateKind, { label: string; color: string; plate?: boolean }> = {
+    client: { label: 'Клиент', color: TERRITORY_COLORS.clients },
+    session: { label: 'Сессия', color: TERRITORY_COLORS.personal, plate: true },
+    consultation: { label: 'Консультация', color: TERRITORY_COLORS.personal, plate: true },
+    project: { label: 'Проект', color: TERRITORY_COLORS.projects },
+    note: { label: 'Заметка', color: TERRITORY_COLORS.personal, plate: true },
+  };
+  const quickCreateOptions = quickCreateContext
+    ? QUICK_CREATE_KINDS_BY_CONTEXT[quickCreateContext].map((kind) => ({ kind, ...QUICK_CREATE_META[kind] }))
+    : undefined;
+
+  const handleQuickCreate = (kind: QuickCreateKind) => {
+    if (!quickCreateContext) return;
+    if (quickCreateContext === 'list') {
+      if (kind === 'client') {
+        runGated(clients.length === 0, () => setShowNewClientForm(true));
+        return;
+      }
+      if (kind === 'session' || kind === 'consultation' || kind === 'project') {
+        setCalendarEventKind(kind);
+        setCalendarCreateDate(null);
+        setCalendarWalkStep('clientKind');
+      }
+      return;
+    }
+    if (kind === 'client') return;
+    pickCreateOption(quickCreateContext, kind);
+  };
+
   return (
     <div
       className="app-shell"
@@ -3262,6 +3406,11 @@ export default function TattoDiary() {
                       ? () => setCreateChoiceContext('workshop')
                       : undefined
           }
+          // Долгое нажатие на хаб — тот же набор вариантов, что предложила
+          // бы CreateChoiceSheet на этом экране (см. quickCreateOptions),
+          // только сразу, минуя и обычный веер, и саму шторку.
+          quickCreateOptions={quickCreateOptions}
+          onQuickCreate={quickCreateOptions ? handleQuickCreate : undefined}
         />
       )}
 
@@ -3674,68 +3823,7 @@ export default function TattoDiary() {
         onPick={(kind) => {
           const context = createChoiceContext;
           setCreateChoiceContext(null);
-          if (context === 'viewProject') {
-            if (!viewProject) return;
-            const project = viewProject;
-            setViewProject(null);
-            if (kind === 'session') {
-              setEditSession(null);
-              setSessionTargetProjectId(project.id);
-              setShowNewSessionForm(true);
-            } else if (kind === 'consultation') {
-              setEditConsultation(null);
-              setConsultationTargetProjectId(project.id);
-              setShowNewConsultationForm(true);
-            } else if (kind === 'note') {
-              setNoteComposerContext({ clientId: project.clientId, projectId: project.id });
-            }
-            return;
-          }
-          if (context === 'detail') {
-            if (!selectedClient) return;
-            const client = selectedClient;
-            runGated(false, () => {
-              if (kind === 'project') {
-                setEditProject(null);
-                setNewProjectClientId(client.id);
-                setShowNewProjectForm(true);
-              } else if (kind === 'session') {
-                setEditSession(null);
-                setShowNewSessionForm(true);
-              } else if (kind === 'consultation') {
-                setEditConsultation(null);
-                setShowNewConsultationForm(true);
-              } else if (kind === 'note') {
-                setNoteComposerContext({ clientId: client.id, projectId: null });
-              }
-            });
-            return;
-          }
-          if (context === 'workshop') {
-            if (kind === 'project') {
-              setEditProject(null);
-              setNewProjectClientId(null);
-              setShowNewProjectForm(true);
-            } else if (kind === 'session' || kind === 'consultation') {
-              setProjectPickerKind(kind);
-              setProjectPickerScope('clientless');
-              setShowProjectSessionPicker(true);
-            } else if (kind === 'note') {
-              setNoteComposerContext({ clientId: null, projectId: null });
-            }
-            return;
-          }
-          if (context === 'admin') {
-            if (kind === 'project') {
-              setEditProject(null);
-              setNewProjectClientId(null);
-              setShowNewProjectForm(true);
-            } else if (kind === 'session' || kind === 'consultation') {
-              setProjectPickerKind(kind);
-              setProjectPickerScope('all');
-              setShowProjectSessionPicker(true);
-            }
-          }
+          if (context) pickCreateOption(context, kind);
         }}
       />
       <ProjectSessionPickerSheet
@@ -4020,7 +4108,7 @@ export default function TattoDiary() {
         onPick={(clientId) => {
           setSelectedId(clientId);
           setCalendarWalkStep(null);
-          openPendingCalendarEvent();
+          openPendingCalendarEvent(clientId);
         }}
       />
       <QuickClientSheet
