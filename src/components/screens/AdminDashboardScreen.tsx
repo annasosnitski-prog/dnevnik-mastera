@@ -165,7 +165,7 @@ export function AdminDashboardScreen({
             pushing the gem tabs down (see #267, which only had to move it
             off Личный кабинет's gear and Мастерская's filter icon). */}
         <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
-          <TodayDateBadge onOpen={onOpenCalendar} size={28} />
+          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
       </div>
 
