@@ -2736,12 +2736,15 @@ export default function TattoDiary() {
     workshop: ['project', 'session', 'consultation', 'note'],
     list: ['client', 'session', 'consultation', 'project'],
   };
-  const QUICK_CREATE_META: Record<QuickCreateKind, { label: string; color: string }> = {
+  // Gold options render as a flat plate — same disc as the hub / main fan's
+  // «Создать» — rather than a faceted gem, since gold-on-gold facet shading
+  // barely reads and just looked like a duller plate anyway.
+  const QUICK_CREATE_META: Record<QuickCreateKind, { label: string; color: string; plate?: boolean }> = {
     client: { label: 'Клиент', color: TERRITORY_COLORS.clients },
-    session: { label: 'Сессия', color: TERRITORY_COLORS.personal },
-    consultation: { label: 'Консультация', color: TERRITORY_COLORS.personal },
+    session: { label: 'Сессия', color: TERRITORY_COLORS.personal, plate: true },
+    consultation: { label: 'Консультация', color: TERRITORY_COLORS.personal, plate: true },
     project: { label: 'Проект', color: TERRITORY_COLORS.projects },
-    note: { label: 'Заметка', color: TERRITORY_COLORS.personal },
+    note: { label: 'Заметка', color: TERRITORY_COLORS.personal, plate: true },
   };
   const quickCreateOptions = quickCreateContext
     ? QUICK_CREATE_KINDS_BY_CONTEXT[quickCreateContext].map((kind) => ({ kind, ...QUICK_CREATE_META[kind] }))

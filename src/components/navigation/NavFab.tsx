@@ -15,6 +15,11 @@ export interface QuickCreateOption {
   kind: QuickCreateKind;
   label: string;
   color: string;
+  // Flat gold plate (same disc as the hub / main fan's «Создать»), not a
+  // faceted gem — for the gold-toned options (see TattoDiary.tsx's
+  // QUICK_CREATE_META), where the gem's own facet shading barely reads
+  // against gold-on-gold and just looks like a duller plate anyway.
+  plate?: boolean;
 }
 
 interface NavFabProps {
@@ -766,7 +771,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                       style={{ background: option.color }}
                     />
                   ) : (
-                    <PendantIcon color={option.color} size={QUICK_ITEM_SIZE} />
+                    <PendantIcon color={option.color} size={QUICK_ITEM_SIZE} plate={option.plate} />
                   )}
                   <span className="nav-fab__quick-item-label" aria-hidden="true">
                     {option.label}
