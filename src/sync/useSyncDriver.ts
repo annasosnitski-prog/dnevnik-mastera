@@ -81,6 +81,12 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
   const syncingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
+  // paired и syncing — два UI-состояния одной и той же привязки.
+  // Для таймера это ОБА «синк включён»: если считать syncing выключением,
+  // каждая синхронизация сама очистит эффект, а возврат в paired тут же
+  // создаст его заново и немедленно запустит следующий синк — бесконечный цикл.
+  const syncEnabled = phase === 'paired' || phase === 'syncing';
+
   const runSync = useCallback(async () => {
     // Одна синхронизация одновременно: ручное «Синхронизировать сейчас» и
     // часовой таймер не должны столкнуться в двух параллельных запусках
@@ -128,10 +134,11 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Часовой таймер + синк сразу после привязки/запуска — тот же принцип,
-  // что и у резервной копии: не заставлять мастера ждать первого часа.
+  // Часовой таймер + один синк сразу после привязки/запуска. Во время самого
+  // синка phase меняется paired → syncing → paired, но syncEnabled остаётся
+  // true, поэтому эффект НЕ перезапускается и не порождает следующий синк.
   useEffect(() => {
-    if (phase !== 'paired') {
+    if (!syncEnabled) {
       clearInterval(timerRef.current);
       return;
     }
@@ -139,7 +146,7 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
     timerRef.current = setInterval(() => void runSync(), SYNC_INTERVAL_MS);
     return () => clearInterval(timerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase === 'paired']);
+  }, [syncEnabled]);
 
   // Возвращение в приложение — тот же повод, что и у восстановления связи
   // с хранилищем (см. connection.ts): пока дневник был свёрнут, час вполне
