@@ -34,6 +34,7 @@
     "src/lib/storageRecovery.ts",
     "src/lib/storageBreakdown.ts",
     "src/storage/connection.ts",
+    "src/storage/repos/clientsRepo.ts",
     "src/lib/appUpdate.ts",
     "src/lib/chatLink.ts",
     "src/lib/backupSerialize.ts",

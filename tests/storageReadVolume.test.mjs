@@ -109,7 +109,7 @@ test('the legacy client arrays are normalized only for display, never rewritten 
   // Легаси sessions/consultations — страховка после переезда записей на
   // проекты. В базу по-прежнему ложится `record` как есть.
   const save = slice('const saveClient = (client: Client) => {', 'const deleteClient = (id: string) => {');
-  assert.match(save, /tx\.objectStore\('clients'\)\.put\(record\)/);
+  assert.match(save, /putClient\(tx, record\)/);
   assert.doesNotMatch(save, /put\(shown\)/);
   assert.doesNotMatch(save, /put\(normalizeClient/);
 });

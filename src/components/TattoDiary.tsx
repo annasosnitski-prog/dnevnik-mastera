@@ -56,6 +56,7 @@ import {
 } from '../lib/storageMessages';
 import type { StoragePhase } from '../lib/storageRecovery';
 import { createStorageConnection, type StorageConnection } from '../storage/connection';
+import { getAllClients, putClient, deleteClientRecord } from '../storage/repos/clientsRepo';
 import { BUSY_ATTRIBUTE } from '../lib/appUpdate';
 import {
   MASTER_INFO_STORE,
@@ -1091,7 +1092,7 @@ export default function TattoDiary() {
   const loadClients = (database: IDBDatabase) => {
     const tx = openTx('clients', database, 'readonly', STORAGE_ACTIONS.loadClients);
     if (!tx) return;
-    const request = tx.objectStore('clients').getAll();
+    const request = getAllClients(tx);
     request.onsuccess = () => {
       setStoredClients((request.result || []).map(normalizeClient));
       setClientsLoaded(true);
@@ -1162,8 +1163,7 @@ export default function TattoDiary() {
     if (changed.length === 0) return Promise.resolve(0);
     const tx = openWriteTx('clients', database, STORAGE_ACTIONS.clearLegacyRecords);
     if (!tx) return Promise.resolve(null);
-    const store = tx.objectStore('clients');
-    for (const client of changed) store.put({ ...client, sessions: [], consultations: [] });
+    for (const client of changed) putClient(tx, { ...client, sessions: [], consultations: [] });
     return new Promise<number | null>((resolve) => {
       tx.oncomplete = () => {
         loadClients(database);
@@ -1539,7 +1539,7 @@ export default function TattoDiary() {
     withStorage(`client:${client.id}`, STORAGE_ACTIONS.saveClient, (database) => {
       const tx = openWriteTx('clients', database, STORAGE_ACTIONS.saveClient);
       if (!tx) return;
-      tx.objectStore('clients').put(record);
+      putClient(tx, record);
       tx.oncomplete = () => {
         // Записали ровно `record` — его и ставим в состояние, вместо getAll
         // по всему стору клиентов (см. saveProjects о цене такого чтения).
@@ -1572,7 +1572,7 @@ export default function TattoDiary() {
     withStorage(`client-delete:${id}`, STORAGE_ACTIONS.deleteClient, (database) => {
       const tx = openWriteTx('clients', database, STORAGE_ACTIONS.deleteClient);
       if (!tx) return;
-      tx.objectStore('clients').delete(id);
+      deleteClientRecord(tx, id);
       tx.oncomplete = () => {
         setStoredClients((current) => current.filter((c) => c.id !== id));
         diffAndSync(prevClient, null, calendarSync);

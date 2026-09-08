@@ -37,9 +37,9 @@ test('запись одной транзакцией на всех клиент�
   // одной карточки — очередь отложенных записей здесь неуместна.
   assert.doesNotMatch(fn, /withStorage\(/);
   assert.match(fn, /openWriteTx\('clients', database, STORAGE_ACTIONS\.clearLegacyRecords\)/);
-  // Один store.put на цикл, не отдельная транзакция на клиента.
+  // Один putClient на цикл, не отдельная транзакция на клиента.
   assert.equal((fn.match(/openWriteTx\(/g) ?? []).length, 1);
-  assert.match(fn, /for \(const client of changed\) store\.put\(\{ \.\.\.client, sessions: \[\], consultations: \[\] \}\)/);
+  assert.match(fn, /for \(const client of changed\) putClient\(tx, \{ \.\.\.client, sessions: \[\], consultations: \[\] \}\)/);
 });
 
 test('очищаются оба легаси-массива, а не только сессии', () => {
