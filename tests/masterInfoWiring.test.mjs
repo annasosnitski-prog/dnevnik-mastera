@@ -59,7 +59,12 @@ test('карточка лежит одной записью с постоянн�
 });
 
 test('стор заводится при обновлении схемы, не трогая существующие', () => {
-  assert.match(app, /if \(!db\.objectStoreNames\.contains\(MASTER_INFO_STORE\)\) \{\s*db\.createObjectStore\(MASTER_INFO_STORE, \{ keyPath: 'id' \}\);/);
+  // Открытие базы (и создание сторов) переехало в src/storage/connection.ts
+  // (Шаг 2 разбора, docs/DATA_LAYER_PLAN.md) — стор личного кабинета там
+  // заводится по литеральному имени 'masterInfo', совпадающему с
+  // MASTER_INFO_STORE из lib/masterInfoStore.ts.
+  const conn = readSource('../src/storage/connection.ts');
+  assert.match(conn, /if \(!db\.objectStoreNames\.contains\('masterInfo'\)\) \{\s*db\.createObjectStore\('masterInfo', \{ keyPath: 'id' \}\);/);
 });
 
 test('прежнего сообщения про переполнение localStorage больше нет', () => {

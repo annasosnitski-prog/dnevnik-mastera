@@ -118,8 +118,17 @@ export interface StorageConnection {
   // вызывающий код (репозиторий) просто ничего не делает, восстановление уже
   // идёт своим чередом.
   openTx(storeNames: string | string[], mode: IDBTransactionMode, action: string): IDBTransaction | null;
+  // Сообщить о потере соединения из кода, который сам не проходит через
+  // openTx/write — например contentJobQueue, у которого своя обёртка над
+  // теми же object store'ами (см. ContentJobDbUnavailableError). Запускает
+  // ту же тихую серию переподключений, что и внутренний обрыв.
+  reportConnectionLost(action: string, error?: unknown): void;
   getPhase(): StoragePhase;
   getDatabase(): IDBDatabase | null;
+  // Открытие (первое или очередная тихая попытка) уже идёт — вызывающая
+  // сторона может решить не дублировать реакцию (например, resume-обработчик
+  // не должен запускать вторую попытку поверх уже идущей).
+  isOpening(): boolean;
   destroy(): void;
 }
 
@@ -273,8 +282,10 @@ export function createStorageConnection(
     connect,
     write,
     openTx,
+    reportConnectionLost: handleConnectionLost,
     getPhase: () => phase,
     getDatabase: () => db,
+    isOpening: () => openInFlight,
     destroy: () => {
       destroyed = true;
       clearTimeout(reconnectTimer);

@@ -125,8 +125,11 @@ test('a failed content write DOES re-read — state ran ahead of the database', 
 });
 
 test('full reads stay where everything really changed: connect, import, migration, restore', () => {
-  // Подключение к базе — состояние пустое, читать обязательно.
-  const connect = slice('const connectDb = (', 'const scheduleReconnect');
+  // Подключение к базе — состояние пустое, читать обязательно. Само
+  // открытие соединения теперь в src/storage/connection.ts (Шаг 2 разбора,
+  // docs/DATA_LAYER_PLAN.md); здесь остаётся только колбэк onConnected,
+  // которым дневник реагирует на «связь появилась».
+  const connect = slice('onConnected: () => {', 'onFailure: (');
   assert.match(connect, /loadClients\(database\)/);
   assert.match(connect, /loadProjects\(database\)/);
   assert.match(connect, /loadContentEntries\(database\)/);

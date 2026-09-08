@@ -58,8 +58,13 @@ const result = {
 test('database version 4 and technical content job store are wired', () => {
   assert.equal(TATTO_DIARY_DB_VERSION, 4);
   assert.equal(CONTENT_INGEST_JOB_STORE, 'contentIngestJobs');
-  assert.match(diary, /indexedDB\.open\('TattoDiaryDB', TATTO_DIARY_DB_VERSION\)/);
-  assert.match(diary, /ensureContentIngestJobStore\(db\)/);
+  // Открытие базы и создание сторов переехали в src/storage/connection.ts
+  // (Шаг 2 разбора, docs/DATA_LAYER_PLAN.md); дневник передаёт версию как
+  // параметр, а не читает её на месте открытия.
+  const conn = readFileSync(new URL('../src/storage/connection.ts', import.meta.url), 'utf8');
+  assert.match(conn, /indexedDB\.open\(TATTO_DIARY_DB_NAME, dbVersion\)/);
+  assert.match(conn, /ensureContentIngestJobStore\(db\)/);
+  assert.match(diary, /createStorageConnection\(TATTO_DIARY_DB_VERSION,/);
 });
 
 test('completed create uses the preallocated entry id and keeps original photos', () => {

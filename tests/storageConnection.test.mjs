@@ -131,6 +131,17 @@ test('getDatabase() уже отдаёт живое соединение внут
     conn.destroy();
   }));
 
+test('isOpening() отражает открытие соединения в процессе', () =>
+  withIsolatedDb(async () => {
+    const conn = createStorageConnection(DB_VERSION);
+    assert.equal(conn.isOpening(), false);
+    conn.connect();
+    assert.equal(conn.isOpening(), true);
+    await waitFor(() => conn.getPhase() === 'ready');
+    assert.equal(conn.isOpening(), false);
+    conn.destroy();
+  }));
+
 test('openTx возвращает null, пока соединения нет, и не бросает исключение', () =>
   withIsolatedDb(async () => {
     const conn = createStorageConnection(DB_VERSION);

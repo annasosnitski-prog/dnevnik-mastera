@@ -18,7 +18,7 @@ test('о сбое хранилища сообщает ровно одно мес
   // формулировок про одно и то же.
   // Всего два вызова, и оба — внутри двух выделенных функций: показать сбой
   // и снять сообщение. Больше нигде текст не появляется.
-  const helpers = app.slice(app.indexOf('const reportStorageFailure ='), app.indexOf('// Падения, до которых не дотягивается'));
+  const helpers = app.slice(app.indexOf('const showStorageFailure ='), app.indexOf('// Падения, до которых не дотягивается'));
   assert.equal([...app.matchAll(/setDbError\(/g)].length, 2);
   assert.equal([...helpers.matchAll(/setDbError\(/g)].length, 2, 'setDbError вызывается вне выделенных функций');
   assert.match(app, /const reportStorageFailure = \(kind: StorageFailureKind, action: string, error\?: unknown, extra\?: string \| null\) => \{/);
