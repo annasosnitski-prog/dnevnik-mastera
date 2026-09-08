@@ -57,6 +57,7 @@ import {
 import type { StoragePhase } from '../lib/storageRecovery';
 import { createStorageConnection, type StorageConnection } from '../storage/connection';
 import { getAllClients, putClient, deleteClientRecord } from '../storage/repos/clientsRepo';
+import { getAllProjects, putProject, deleteProjectRecord } from '../storage/repos/projectsRepo';
 import { BUSY_ATTRIBUTE } from '../lib/appUpdate';
 import {
   MASTER_INFO_STORE,
@@ -1103,7 +1104,7 @@ export default function TattoDiary() {
   const loadProjects = (database: IDBDatabase) => {
     const tx = openTx('projects', database, 'readonly', STORAGE_ACTIONS.loadProjects);
     if (!tx) return;
-    const request = tx.objectStore('projects').getAll();
+    const request = getAllProjects(tx);
     request.onsuccess = () => {
       setProjects((request.result || []).map(normalizeProject));
       setProjectsLoaded(true);
@@ -1282,7 +1283,6 @@ export default function TattoDiary() {
   ) => {
     const tx = openWriteTx('projects', db, STORAGE_ACTIONS.saveProject);
     if (!tx) return;
-    const store = tx.objectStore('projects');
     // Бамп «последнего движения» — то же правило, что было в saveProject:
     // только значимые изменения (см. isMeaningfulProjectChange), новый проект
     // получает его всегда.
@@ -1292,7 +1292,7 @@ export default function TattoDiary() {
         prev && !isMeaningfulProjectChange(prev, project)
           ? project
           : { ...project, lastMeaningfulActivityAt: new Date().toISOString() };
-      store.put(next);
+      putProject(tx, next);
       return next;
     });
     tx.oncomplete = () => {
@@ -1340,7 +1340,7 @@ export default function TattoDiary() {
     withStorage(`project-delete:${id}`, STORAGE_ACTIONS.deleteProject, (database) => {
       const tx = openWriteTx('projects', database, STORAGE_ACTIONS.deleteProject);
       if (!tx) return;
-      tx.objectStore('projects').delete(id);
+      deleteProjectRecord(tx, id);
       tx.oncomplete = () => {
         // Удалили один проект — незачем перечитывать все остальные с их фото
         // (см. saveProjects выше о том, почему это дорого).
@@ -1383,9 +1383,8 @@ export default function TattoDiary() {
     const changed = new Set(result.changedProjectIds);
     const tx = openWriteTx('projects', db, STORAGE_ACTIONS.migrateRecords);
     if (!tx) return;
-    const store = tx.objectStore('projects');
     for (const project of result.projects) {
-      if (changed.has(project.id)) store.put(project);
+      if (changed.has(project.id)) putProject(tx, project);
     }
     tx.oncomplete = () => {
       recordsMigrationRanRef.current = true;
