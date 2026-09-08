@@ -29,7 +29,16 @@ test('первый и ручной синк обновляют видимый э
 
 test('runSync по-прежнему показывает syncing в UI и возвращает paired после завершения', () => {
   assert.match(source, /setPhase\('syncing'\);/);
-  assert.match(source, /finally \{\s*syncingRef\.current = false;\s*setPhase\('paired'\);/);
+  assert.match(source, /finally \{\s*syncingRef\.current = false;[\s\S]*?setPhase\(\(current\) => \(current === 'syncing' \? 'paired' : current\)\);/);
+});
+
+test('отвязка во время синка не откатывается его завершением', () => {
+  // Безусловный setPhase('paired') в finally возвращал устройство в
+  // привязанные, если «Отвязать» нажали, пока синк ещё шёл: syncEnabled
+  // снова становился true, таймер оживал, и отвязанный дневник продолжал
+  // ходить в облако. Возврат разрешён только из самого 'syncing'.
+  assert.match(source, /setPhase\(\(current\) => \(current === 'syncing' \? 'paired' : current\)\);/);
+  assert.doesNotMatch(source, /finally \{\s*syncingRef\.current = false;\s*setPhase\('paired'\);/);
 });
 
 test('переходник Supabase теперь ожидается асинхронно — он проверяет настоящую сессию', () => {

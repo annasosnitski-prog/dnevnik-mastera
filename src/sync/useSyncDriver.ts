@@ -122,7 +122,12 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
         setLastError(err instanceof Error ? err.message : 'Не удалось синхронизироваться.');
       } finally {
         syncingRef.current = false;
-        setPhase('paired');
+        // Возвращаем 'paired' ТОЛЬКО если за время синка привязку не сняли.
+        // Безусловный setPhase('paired') откатывал бы отвязку, нажатую пока
+        // синк ещё шёл: устройство снова считалось бы привязанным, syncEnabled
+        // становился true, эффект с таймером оживал — и отвязанный дневник
+        // продолжал бы ходить в облако.
+        setPhase((current) => (current === 'syncing' ? 'paired' : current));
       }
     },
     [getDatabase],
