@@ -38,7 +38,10 @@ test('putContentEntry сохраняет запись, доступную сле
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
-  assert.deepEqual(all, [{ id: 'e1', textDraft: 'Черновик' }]);
+  // updatedAt проставляет сам репозиторий (Шаг 1 синка) — сверяем поля записи.
+  assert.equal(all.length, 1);
+  assert.equal(all[0].id, 'e1');
+  assert.equal(all[0].textDraft, 'Черновик');
 });
 
 test('повторный putContentEntry с тем же id заменяет запись (апсерт)', async () => {

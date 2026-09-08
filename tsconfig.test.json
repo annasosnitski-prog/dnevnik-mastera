@@ -34,6 +34,7 @@
     "src/lib/storageRecovery.ts",
     "src/lib/storageBreakdown.ts",
     "src/storage/connection.ts",
+    "src/storage/updatedAt.ts",
     "src/storage/repos/clientsRepo.ts",
     "src/storage/repos/projectsRepo.ts",
     "src/storage/repos/contentRepo.ts",

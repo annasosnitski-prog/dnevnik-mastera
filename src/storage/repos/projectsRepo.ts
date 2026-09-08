@@ -6,12 +6,18 @@
 // как читать/писать/удалять в этом сторе.
 // ============================================================
 
+import { stampUpdatedAt, type StampOptions } from '../updatedAt.js';
+
 export function getAllProjects<T = unknown>(tx: IDBTransaction): IDBRequest<T[]> {
   return tx.objectStore('projects').getAll();
 }
 
-export function putProject<T extends { id: string }>(tx: IDBTransaction, record: T): void {
-  tx.objectStore('projects').put(record);
+// Время правки — здесь же, в единственной точке записи проекта (см.
+// src/storage/updatedAt.ts, Шаг 1 синка). Это НЕ замена
+// lastMeaningfulActivityAt: та про «последнее движение по работе» и
+// намеренно молчит о правке текста и фото, а эта — про саму запись.
+export function putProject<T extends { id: string }>(tx: IDBTransaction, record: T, options?: StampOptions): void {
+  tx.objectStore('projects').put(stampUpdatedAt(record, options));
 }
 
 export function deleteProjectRecord(tx: IDBTransaction, id: string): void {

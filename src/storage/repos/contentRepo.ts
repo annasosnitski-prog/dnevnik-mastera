@@ -7,13 +7,16 @@
 // значило бы развести два места, откуда контент можно удалить.
 // ============================================================
 
+import { stampUpdatedAt, type StampOptions } from '../updatedAt.js';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getAllContentEntries<T = any>(tx: IDBTransaction): IDBRequest<T[]> {
   return tx.objectStore('contentEntries').getAll();
 }
 
-export function putContentEntry<T extends { id: string }>(tx: IDBTransaction, record: T): void {
-  tx.objectStore('contentEntries').put(record);
+// Время правки — здесь же (см. src/storage/updatedAt.ts, Шаг 1 синка).
+export function putContentEntry<T extends { id: string }>(tx: IDBTransaction, record: T, options?: StampOptions): void {
+  tx.objectStore('contentEntries').put(stampUpdatedAt(record, options));
 }
 
 // Стор целиком под замену — только полное восстановление из резервной

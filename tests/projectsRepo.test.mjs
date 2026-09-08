@@ -38,7 +38,10 @@ test('putProject сохраняет запись, доступную следу�
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
-  assert.deepEqual(all, [{ id: 'c1', name: 'Проект А' }]);
+  // updatedAt проставляет сам репозиторий (Шаг 1 синка) — сверяем поля записи.
+  assert.equal(all.length, 1);
+  assert.equal(all[0].id, 'c1');
+  assert.equal(all[0].name, 'Проект А');
 });
 
 test('повторный putProject с тем же id заменяет запись (апсерт)', async () => {

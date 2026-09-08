@@ -10,6 +10,8 @@
 // вперемешку с состоянием React и синком календаря.
 // ============================================================
 
+import { stampUpdatedAt, type StampOptions } from '../updatedAt.js';
+
 // Нормализация (см. src/lib/normalize.ts) остаётся заботой вызывающей
 // стороны: она не про хранение, а про то, каким клиент должен выглядеть на
 // экране. Репозиторий типом записи не сужает — что сюда передали, то и
@@ -18,8 +20,11 @@ export function getAllClients<T = unknown>(tx: IDBTransaction): IDBRequest<T[]> 
   return tx.objectStore('clients').getAll();
 }
 
-export function putClient<T extends { id: string }>(tx: IDBTransaction, record: T): void {
-  tx.objectStore('clients').put(record);
+// Время правки проставляется здесь, а не на вызывающей стороне: это
+// единственная точка записи клиента, и поэтому отметка не может забыться
+// в новом месте (см. src/storage/updatedAt.ts, Шаг 1 синка).
+export function putClient<T extends { id: string }>(tx: IDBTransaction, record: T, options?: StampOptions): void {
+  tx.objectStore('clients').put(stampUpdatedAt(record, options));
 }
 
 export function deleteClientRecord(tx: IDBTransaction, id: string): void {

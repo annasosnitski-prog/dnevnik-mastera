@@ -1615,19 +1615,24 @@ export default function TattoDiary() {
     if (restoredMaster) stores.push(MASTER_INFO_STORE);
     const tx = openWriteTx(stores, db, STORAGE_ACTIONS.importData);
     if (!tx) return;
+    // preserveUpdatedAt: записи приехали из копии, а не были только что
+    // поправлены. Проштамповать их «сейчас» значило бы, что после
+    // восстановления они выиграют любое слияние с другого устройства и
+    // затрут там то, что действительно новее (см. src/storage/updatedAt.ts).
+    const fromBackup = { preserveUpdatedAt: true };
     clearClients(tx);
-    bundle.clients.forEach((c) => putClient(tx, c));
+    bundle.clients.forEach((c) => putClient(tx, c, fromBackup));
     if (bundle.projects) {
       clearProjects(tx);
-      bundle.projects.forEach((p) => putProject(tx, p));
+      bundle.projects.forEach((p) => putProject(tx, p, fromBackup));
     }
     if (bundle.contentEntries) {
       clearContentEntries(tx);
-      bundle.contentEntries.forEach((e) => putContentEntry(tx, e));
+      bundle.contentEntries.forEach((e) => putContentEntry(tx, e, fromBackup));
       clearContentIngestJobs(tx);
     }
     if (restoredMaster) {
-      putMasterInfoRecord(tx, restoredMaster);
+      putMasterInfoRecord(tx, restoredMaster, fromBackup);
     }
     tx.oncomplete = () => {
       loadClients(db);
@@ -1653,7 +1658,8 @@ export default function TattoDiary() {
     }
     const tx = openWriteTx('clients', db, STORAGE_ACTIONS.importData);
     if (!tx) return;
-    newClients.forEach((c) => putClient(tx, c));
+    // Тот же случай, что и в replaceAllData: клиенты приехали из файла.
+    newClients.forEach((c) => putClient(tx, c, { preserveUpdatedAt: true }));
     tx.oncomplete = () => loadClients(db);
     tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.importData);
   };
