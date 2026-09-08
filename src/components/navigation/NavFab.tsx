@@ -10,7 +10,12 @@ import "./NavFabMinimal.css";
 
 type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
 type NavItemId = "clients" | "gear" | "content" | "brush" | "sketchbook" | "profile";
-export type QuickCreateKind = "consultation" | "session" | "project";
+export type QuickCreateKind = "client" | "consultation" | "session" | "project" | "note";
+export interface QuickCreateOption {
+  kind: QuickCreateKind;
+  label: string;
+  color: string;
+}
 
 interface NavFabProps {
   active: AppScreen;
@@ -23,10 +28,12 @@ interface NavFabProps {
   adminBadges?: ("urgent" | "reminder")[];
   onCreate?: () => void;
   // Долгое нажатие на хаб — короткий путь мимо и главного веера, и шторки
-  // CreateChoiceSheet: сразу три самых частых варианта («Заметка»/«Проект»
-  // остаются доступны через обычный тап → «Создать»). Не показывается вовсе,
-  // если экран не поддерживает быстрое создание (см. её resolveQuickCreate в
-  // TattoDiary.tsx — undefined там, где контекст не определён).
+  // CreateChoiceSheet: сразу самые частые варианты для ТЕКУЩЕГО экрана,
+  // тем же набором, что предложила бы шторка (TattoDiary.tsx подбирает
+  // quickCreateOptions ровно так же, как options для CreateChoiceSheet —
+  // см. её quickCreateContext). Пустой/undefined список — долгое нажатие
+  // ничего не открывает (экран не поддерживает быстрое создание).
+  quickCreateOptions?: QuickCreateOption[];
   onQuickCreate?: (kind: QuickCreateKind) => void;
 }
 
@@ -93,13 +100,8 @@ const NAV_ITEMS = [
 const CREATE_DURATION_MS = 2400;
 // How long a hold on the hub counts as a long-press rather than a tap.
 const LONG_PRESS_MS = 480;
-const QUICK_ITEM_SIZE = 52;
-const QUICK_RADIUS = 84;
-const QUICK_CREATE_OPTIONS: { kind: QuickCreateKind; label: string; color: string }[] = [
-  { kind: "consultation", label: "Консультация", color: TERRITORY_COLORS.personal },
-  { kind: "session", label: "Сессия", color: TERRITORY_COLORS.clients },
-  { kind: "project", label: "Тату", color: TERRITORY_COLORS.projects },
-];
+const QUICK_ITEM_SIZE = 50;
+const QUICK_RADIUS = 108;
 const ITEM_HALF = 35;
 const HUB_HALF = 31;
 const HUB_SIZE = HUB_HALF * 2;
@@ -138,11 +140,13 @@ type PolygonVertex = {
   sourceIndex: number;
 };
 
-// Spread evenly across a 120° arc directly above the hub (-150°..-30°,
-// straight-up is -90°) — a compact upward fan, not the full circle the main
-// menu uses, since long-press is meant to feel quicker than opening it.
+// Spread evenly across an arc directly above the hub (straight-up is -90°)
+// — a compact upward fan, not the full circle the main menu uses, since
+// long-press is meant to feel quicker than opening it. Widens with the
+// option count (2 → 105°, 4 → 170°) so a 4-item fan's labels don't crowd
+// into each other the way a fixed 120° arc did.
 function quickCreateOffset(index: number, total: number): { dx: number; dy: number } {
-  const spreadDeg = 120;
+  const spreadDeg = Math.min(170, 70 + 35 * (total - 1));
   const startDeg = -90 - spreadDeg / 2;
   const angle = ((startDeg + (total <= 1 ? spreadDeg / 2 : (index * spreadDeg) / (total - 1))) * Math.PI) / 180;
   return {
@@ -247,7 +251,7 @@ function MinimalGlyph({ id, size }: { id: NavItemId; size: number }) {
   );
 }
 
-export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate, onQuickCreate }: NavFabProps) {
+export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate, quickCreateOptions, onQuickCreate }: NavFabProps) {
   const minimalism = useMinimalism();
   const [open, setOpen] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
@@ -270,7 +274,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
   };
   const handleHubPointerDown = () => {
     setPressedId("hub");
-    if (!onQuickCreate || open) return;
+    if (!onQuickCreate || !quickCreateOptions?.length || open) return;
     longPressFiredRef.current = false;
     clearLongPressTimer();
     longPressTimerRef.current = window.setTimeout(() => {
@@ -663,15 +667,16 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
           )}
         </button>
 
-        {/* Long-press quick-create — a compact upward fan of the three most
-            common create actions, bypassing both the main radial menu and
-            the CreateChoiceSheet bottom sheet. The hub itself stays put
+        {/* Long-press quick-create — a compact upward fan of this screen's
+            create options (the same set CreateChoiceSheet would offer —
+            see quickCreateOptions in TattoDiary.tsx), bypassing both the
+            main radial menu and that bottom sheet. The hub itself stays put
             (unlike the full menu, it never glides to screen centre), so
             this reads as a quick flick rather than the main menu's ceremony. */}
-        {quickCreateOpen && (
+        {quickCreateOpen && quickCreateOptions && quickCreateOptions.length > 0 && (
           <div className="nav-fab__quick-create" role="menu" aria-label="Быстрое создание">
-            {QUICK_CREATE_OPTIONS.map((option, index) => {
-              const { dx, dy } = quickCreateOffset(index, QUICK_CREATE_OPTIONS.length);
+            {quickCreateOptions.map((option, index) => {
+              const { dx, dy } = quickCreateOffset(index, quickCreateOptions.length);
               const id = `quick-${option.kind}`;
               return (
                 <button

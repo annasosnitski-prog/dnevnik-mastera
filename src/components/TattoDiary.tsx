@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
-import { NavFab } from './navigation/NavFab';
+import { NavFab, type QuickCreateKind } from './navigation/NavFab';
 import { TodayDateBadge } from './ui/TodayDateBadge';
 import {
   readSyncSettings,
@@ -109,7 +109,7 @@ import { normalizeClient, normalizeProject } from '../lib/normalize';
 // UI-примитивы вынесены в отдельные модули (PR 4 рефакторинга). Логика и
 // разметка не менялись — только перенос.
 import { TopStripe, RightStripe, GemCorner } from './ui/Stripes';
-import { COLORS, fs, setTextScale } from './ui/designTokens';
+import { COLORS, fs, setTextScale, TERRITORY_COLORS } from './ui/designTokens';
 export { COLORS, DONE_EMOJI, fs } from './ui/designTokens';
 // Bottom sheets вынесены в отдельные модули (PR 5 рефакторинга). Логика и
 // разметка не менялись — только перенос.
@@ -904,10 +904,14 @@ export default function TattoDiary() {
   // independent boolean per sheet) makes the steps mutually exclusive by
   // construction — two of these sheets can never both be "open" at once,
   // which a set of separate booleans could otherwise drift into.
+  // 'project' joined the two original kinds so the same client-then-form walk
+  // also serves the long-press quick-create fan's «Тату» option on screens
+  // that have no client already selected (see quickCreateContext below) —
+  // calendarCreateDate simply stays null there (no date to prefill).
   type CalendarWalkStep = 'kind' | 'clientKind' | 'clientPicker' | 'quickClient' | null;
   const [calendarWalkStep, setCalendarWalkStep] = useState<CalendarWalkStep>(null);
   const [calendarCreateDate, setCalendarCreateDate] = useState<string | null>(null);
-  const [calendarEventKind, setCalendarEventKind] = useState<'session' | 'consultation' | null>(null);
+  const [calendarEventKind, setCalendarEventKind] = useState<'session' | 'consultation' | 'project' | null>(null);
   // Cancels the calendar-creation walk from any step, clearing its state.
   const cancelCalendarWalk = () => {
     setCalendarWalkStep(null);
@@ -1897,12 +1901,16 @@ export default function TattoDiary() {
   // with the form already up and the date prefilled. Behind the form the
   // card sits on «Проекты» (its only entry point into work now that the
   // Сессии/Консультации tabs are gone).
-  const openPendingCalendarEvent = () => {
+  const openPendingCalendarEvent = (clientId: string) => {
     setScreen('detail');
     setActiveTab('projects');
     if (calendarEventKind === 'consultation') {
       setEditConsultation(null);
       setShowNewConsultationForm(true);
+    } else if (calendarEventKind === 'project') {
+      setEditProject(null);
+      setNewProjectClientId(clientId);
+      setShowNewProjectForm(true);
     } else {
       setEditSession(null);
       setShowNewSessionForm(true);
@@ -1939,7 +1947,7 @@ export default function TattoDiary() {
     setCalendarWalkStep(null);
     setCelebrationCount(clients.length + 1);
     setCelebrationKey((k) => k + 1);
-    openPendingCalendarEvent();
+    openPendingCalendarEvent(client.id);
   };
 
   const handleUpdateClient = (data: { name: string; surname: string; styles: string[]; color: string; clientType: ClientType; note: string }) => {
@@ -2695,12 +2703,17 @@ export default function TattoDiary() {
     }
   };
 
-  // Same resolution onCreate below uses to pick a createChoiceContext, minus
-  // the two screens (list/settings, summary) whose «Создать» does something
-  // else entirely (new client, note composer) rather than opening a
-  // session/consultation/project choice — quick-create only ever offers
-  // those three, so it has nothing to do on those screens.
-  const quickCreateContext: 'detail' | 'workshop' | 'viewProject' | 'admin' | null = viewProject
+  // Same resolution onCreate below uses to pick a createChoiceContext, plus
+  // 'list' (list/settings) — the one screen whose ordinary «Создать» does
+  // something else entirely (opens NewClientSheet directly, no choice
+  // sheet), but which long-press still supports: its own quick-create set
+  // swaps the «Заметка» slot for «Клиент» (see QUICK_CREATE_KINDS_BY_CONTEXT)
+  // and routes session/consultation/project through the calendar walk's
+  // client-picker (ClientKindChoiceSheet → existing/new), the only place
+  // that already knows how to ask "for which client?" before opening the
+  // form. 'summary' still has nothing to offer quick-create.
+  type QuickCreateContext = 'detail' | 'workshop' | 'viewProject' | 'admin' | 'list';
+  const quickCreateContext: QuickCreateContext | null = viewProject
     ? 'viewProject'
     : screen === 'admin'
       ? 'admin'
@@ -2708,7 +2721,49 @@ export default function TattoDiary() {
         ? 'detail'
         : screen === 'master' || screen === 'workshop'
           ? 'workshop'
-          : null;
+          : screen === 'list' || screen === 'settings'
+            ? 'list'
+            : null;
+
+  // The exact same 5 kinds (CreateOptionKind + 'client') cover the whole
+  // app; which subset (and in what order they fan out) mirrors the options
+  // CreateChoiceSheet would show for that context, so the two entry points
+  // never suggest different things.
+  const QUICK_CREATE_KINDS_BY_CONTEXT: Record<QuickCreateContext, QuickCreateKind[]> = {
+    viewProject: ['session', 'consultation', 'note'],
+    admin: ['project', 'session', 'consultation'],
+    detail: ['project', 'session', 'consultation', 'note'],
+    workshop: ['project', 'session', 'consultation', 'note'],
+    list: ['client', 'session', 'consultation', 'project'],
+  };
+  const QUICK_CREATE_META: Record<QuickCreateKind, { label: string; color: string }> = {
+    client: { label: 'Клиент', color: TERRITORY_COLORS.clients },
+    session: { label: 'Сессия', color: TERRITORY_COLORS.projects },
+    consultation: { label: 'Консультация', color: TERRITORY_COLORS.personal },
+    project: { label: 'Тату', color: TERRITORY_COLORS.admin },
+    note: { label: 'Заметка', color: TERRITORY_COLORS.notes },
+  };
+  const quickCreateOptions = quickCreateContext
+    ? QUICK_CREATE_KINDS_BY_CONTEXT[quickCreateContext].map((kind) => ({ kind, ...QUICK_CREATE_META[kind] }))
+    : undefined;
+
+  const handleQuickCreate = (kind: QuickCreateKind) => {
+    if (!quickCreateContext) return;
+    if (quickCreateContext === 'list') {
+      if (kind === 'client') {
+        runGated(clients.length === 0, () => setShowNewClientForm(true));
+        return;
+      }
+      if (kind === 'session' || kind === 'consultation' || kind === 'project') {
+        setCalendarEventKind(kind);
+        setCalendarCreateDate(null);
+        setCalendarWalkStep('clientKind');
+      }
+      return;
+    }
+    if (kind === 'client') return;
+    pickCreateOption(quickCreateContext, kind);
+  };
 
   return (
     <div
@@ -3340,12 +3395,11 @@ export default function TattoDiary() {
                       ? () => setCreateChoiceContext('workshop')
                       : undefined
           }
-          // Долгое нажатие на хаб — прямой путь к трём самым частым
-          // вариантам (Консультация/Сессия/Тату), минуя и обычный веер, и
-          // саму CreateChoiceSheet: quickCreateContext уже знает контекст,
-          // так что pickCreateOption вызывается сразу, без промежуточного
-          // состояния createChoiceContext.
-          onQuickCreate={quickCreateContext ? (kind) => pickCreateOption(quickCreateContext, kind) : undefined}
+          // Долгое нажатие на хаб — тот же набор вариантов, что предложила
+          // бы CreateChoiceSheet на этом экране (см. quickCreateOptions),
+          // только сразу, минуя и обычный веер, и саму шторку.
+          quickCreateOptions={quickCreateOptions}
+          onQuickCreate={quickCreateOptions ? handleQuickCreate : undefined}
         />
       )}
 
@@ -4043,7 +4097,7 @@ export default function TattoDiary() {
         onPick={(clientId) => {
           setSelectedId(clientId);
           setCalendarWalkStep(null);
-          openPendingCalendarEvent();
+          openPendingCalendarEvent(clientId);
         }}
       />
       <QuickClientSheet
