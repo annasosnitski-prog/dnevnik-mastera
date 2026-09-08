@@ -1,4 +1,5 @@
 import { DELETIONS_STORE, recordDeletion } from '../storage/repos/tombstonesRepo.js';
+import { putContentEntry } from '../storage/repos/contentRepo.js';
 import {
   ContentSyncError,
   getContentIngestJob,
@@ -192,14 +193,14 @@ export async function deleteContentEntryAndRefreshJobs(db: IDBDatabase, entryId:
   await transactionDone(tx);
 }
 
-export function createCompletedContentEntry(record: ContentCreateJobRecord, result: IngestResult): object {
+export function createCompletedContentEntry(record: ContentCreateJobRecord, result: IngestResult) {
   return {
     ...record.entry,
     contentDraft: result.media,
     visualArchetype: result.visual_archetype,
     textTriad: result.text_triad,
     textDraft: result.text_draft,
-    status: 'draft',
+    status: 'draft' as const,
     isExemplar: false,
   };
 }
@@ -225,12 +226,17 @@ export function applyCompletedContentIngestJob(
     let outcome: ContentJobApplyOutcome = 'applied';
 
     if (record.operation === 'create') {
-      entries.put(createCompletedContentEntry(record, result));
+      // ВАЖНО ДЛЯ DEVICE SYNC: завершение фоновой генерации — настоящая
+      // запись контента, поэтому она обязана пройти через тот же repo, что и
+      // ручные правки. Прямой entries.put раньше оставлял новый черновик без
+      // updatedAt, а refresh сохранял старый timestamp — другое устройство
+      // либо не могло отправить запись в Supabase, либо считало текст старым.
+      putContentEntry(tx, createCompletedContentEntry(record, result));
       jobs.delete(record.id);
     } else {
       const getEntry = entries.get(record.entryId);
       getEntry.onsuccess = () => {
-        const entry = getEntry.result as { status?: unknown; textDraft?: unknown } | undefined;
+        const entry = getEntry.result as ({ id: string; status?: unknown; textDraft?: unknown } & Record<string, unknown>) | undefined;
         if (!entry) {
           outcome = 'missing';
           jobs.delete(record.id);
@@ -247,7 +253,7 @@ export function applyCompletedContentIngestJob(
           });
           return;
         }
-        entries.put({ ...entry, textDraft: result.text_draft });
+        putContentEntry(tx, { ...entry, textDraft: result.text_draft });
         jobs.delete(record.id);
       };
     }
