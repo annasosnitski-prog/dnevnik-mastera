@@ -226,3 +226,20 @@ test('сбой во время тихого восстановления не п
     await waitFor(() => conn.getPhase() === 'ready');
     conn.destroy();
   }));
+
+test('StrictMode (setup → cleanup → setup на одном соединении) не оставляет дневник отключённым', () =>
+  withIsolatedDb(async () => {
+    // React 18 StrictMode в разработке вызывает эффект монтирования дважды
+    // на ОДНОМ И ТОМ ЖЕ смонтированном компоненте: setup → cleanup → setup.
+    // connRef переживает оба вызова (это один и тот же ref), значит и
+    // destroy() между ними не имеет права необратимо запереть соединение —
+    // иначе вторая попытка connect() была бы no-op'ом (регрессия, пойманная
+    // ревью Codex на PR).
+    const conn = createStorageConnection(DB_VERSION);
+    conn.connect(); // первый setup
+    conn.destroy(); // симулированный cleanup
+    conn.connect(); // второй setup — должен реально подключиться
+    await waitFor(() => conn.getPhase() === 'ready');
+    assert.ok(conn.getDatabase());
+    conn.destroy();
+  }));

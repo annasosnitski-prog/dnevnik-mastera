@@ -143,7 +143,6 @@ export function createStorageConnection(
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let connectedAt: number | null = null;
   let openInFlight = false;
-  let destroyed = false;
   let pendingWrites: PendingWrite[] = [];
 
   const setPhase = (next: StoragePhase) => {
@@ -209,7 +208,6 @@ export function createStorageConnection(
   };
 
   const connect = (options?: { manual?: boolean }) => {
-    if (destroyed) return;
     // «Повторить» руками — это всегда новая серия попыток, даже если
     // автоматические уже исчерпаны.
     if (options?.manual) reconnectAttempt = 0;
@@ -217,10 +215,6 @@ export function createStorageConnection(
     openInFlight = true;
     openWithRetry(dbVersion)
       .then((database) => {
-        if (destroyed) {
-          database.close();
-          return;
-        }
         openInFlight = false;
         recovering = false;
         reconnectAttempt = 0;
@@ -286,8 +280,15 @@ export function createStorageConnection(
     getPhase: () => phase,
     getDatabase: () => db,
     isOpening: () => openInFlight,
+    // Останавливает только запланированную тихую попытку — соединение не
+    // рвётся необратимо. В StrictMode-разработке React вызывает эффект
+    // setup → cleanup → setup на ОДНОМ и том же смонтированном компоненте
+    // (см. src/main.tsx): вторая setup обязана суметь достучаться заново, а
+    // необратимый флаг здесь сделал бы её no-op'ом и держал бы дневник
+    // отключённым до настоящей перезагрузки. Ровно так вело себя и
+    // исходное cleanup — clearTimeout(reconnectTimerRef.current), ничего
+    // больше.
     destroy: () => {
-      destroyed = true;
       clearTimeout(reconnectTimer);
     },
   };
