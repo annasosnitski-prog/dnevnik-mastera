@@ -72,7 +72,16 @@ function GemJumpRing({ active }: { active: boolean }) {
         left: '50%',
         width: 18,
         height: 14,
-        transform: 'translateX(-50%)',
+        // The ring's own paths are symmetric about its centre (see below),
+        // but its rest-state 3D transform (rotateY(58deg) at a tight
+        // perspective(80px), in the CSS below) foreshortens the far (rear)
+        // half far more than the near (front) half — the front wire's own
+        // brighter, thicker half then reads as the ring's actual centre,
+        // visibly left of where it's actually anchored. This +5px shifts
+        // the anchor right by the same amount that foreshortening biases
+        // the rendered ring left, so it settles visually centred over the
+        // gem and the rail segment above it instead of hanging off-centre.
+        transform: 'translateX(calc(-50% + 5px))',
         pointerEvents: 'none',
         zIndex: 3,
       }}
