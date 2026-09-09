@@ -298,18 +298,27 @@ test('оба устройства офлайн добавили разные ф�
 });
 
 test('устройство, чья правка победила, тоже получает себе чужое фото, которое подмешало в облако', async () => {
-  // Устройство Б офлайн добавило утреннее фото и синкнулось первым.
+  // Время правки — явное, а не реальные часы: кто победит, должно решать
+  // ТОЛЬКО оно, а не то, сколько миллисекунд занял предыдущий шаг теста.
   const deviceB = await openTestDb();
   const morning = `data:image/jpeg;base64,${'M'.repeat(500)}`;
-  await write(deviceB, ['projects', 'deletions'], (tx) => putProject(tx, { id: 'p1', title: 'Дракон', photos: [morning] }));
+  await write(deviceB, ['projects', 'deletions'], (tx) =>
+    putProject(tx, { id: 'p1', title: 'Дракон', photos: [morning], updatedAt: '2026-01-01T09:00:00.000Z' }, { preserveUpdatedAt: true }),
+  );
   const remote = fakeRemote();
   await runFullSync(deviceB, remote);
 
-  // Устройство А правит текст того же проекта (текст новее — значит,
+  // Устройство А правит текст того же проекта ПОЗЖЕ (время новее — значит,
   // при следующем синке ПОБЕДИТ версия А), но про утреннее фото Б ничего
   // не знает — оно на этом устройстве вообще не появлялось.
   const deviceA = await openTestDb();
-  await write(deviceA, ['projects', 'deletions'], (tx) => putProject(tx, { id: 'p1', title: 'Дракон и пионы', photos: [] }));
+  await write(deviceA, ['projects', 'deletions'], (tx) =>
+    putProject(
+      tx,
+      { id: 'p1', title: 'Дракон и пионы', photos: [], updatedAt: '2026-01-01T10:00:00.000Z' },
+      { preserveUpdatedAt: true },
+    ),
+  );
   await runFullSync(deviceA, remote);
 
   // В облаке фото Б подмешалось к тексту А — это уже проверено соседним
