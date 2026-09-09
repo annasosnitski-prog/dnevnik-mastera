@@ -1215,7 +1215,11 @@ export function ContentINKAScreen({
         <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        {/* The title block sits between two star dividers — one here, one
+            below the title — the same bracket every screen header now
+            uses instead of just the bottom one. */}
+        <StarDivider marginTop={0} />
+        <div style={{ display: 'flex', alignItems: 'center', marginTop: 10, marginBottom: 8 }}>
           <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} aria-label="Вернуться" title="Вернуться">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

@@ -145,11 +145,15 @@ export function AdminDashboardScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        {/* The title block sits between two star dividers — one here, one
+            below the subtitle — the same bracket every screen header now
+            uses instead of just the bottom one. */}
+        <StarDivider marginTop={0} />
         {/* Title row — the calendar badge sits as a flex sibling (not
             absolutely positioned like on other screens) so it centers
             vertically against «Админка» itself rather than the header
             block as a whole. */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
           <div
             style={{
               fontFamily: DROP_CAP_FONT,

@@ -184,6 +184,10 @@ export function MasterDashboardScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        {/* The title block sits between two star dividers — one here, one
+            below the subtitle — the same bracket every screen header now
+            uses instead of just the bottom one. */}
+        <StarDivider marginTop={0} />
         <div
           style={{
             fontFamily: DROP_CAP_FONT,
@@ -191,6 +195,7 @@ export function MasterDashboardScreen({
             color: COLORS.gold,
             letterSpacing: '5px',
             textTransform: 'uppercase',
+            marginTop: 10,
           }}
         >
           Личный кабинет
