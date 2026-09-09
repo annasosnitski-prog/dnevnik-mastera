@@ -22,7 +22,7 @@ import type {
 } from '../../reminders/types';
 import type { HealingCycleItem } from '../../reminders/healingCycle';
 import { todayISO } from '../../utils/dates';
-import { DROP_CAP_FONT } from '../InkaLogo';
+import { DROP_CAP_FONT, InkaTitleSuffix } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
@@ -155,12 +155,11 @@ export function AdminDashboardScreen({
               fontFamily: DROP_CAP_FONT,
               fontSize: fs(24),
               lineHeight: 1,
-              color: COLORS.gold,
-              letterSpacing: '5px',
-              textTransform: 'uppercase',
+              color: COLORS.textPrimary,
+              letterSpacing: '2px',
             }}
           >
-            Админка
+            Адм<InkaTitleSuffix fontSize={fs(24)} />
           </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>

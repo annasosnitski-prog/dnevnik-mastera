@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { InkaLogo } from '../InkaLogo';
+import { InkaTitleSuffix } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
@@ -1216,15 +1216,13 @@ export function ContentINKAScreen({
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-          <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+          <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} aria-label="Вернуться" title="Вернуться">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
           </div>
         </div>
-        <InkaLogo height={fs(15)} />
-        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>ContentINKA</div>
+        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>Content<InkaTitleSuffix fontSize={fs(24)} /></div>
         <StarDivider />
       </div>
 
