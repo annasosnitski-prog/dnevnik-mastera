@@ -334,3 +334,23 @@ test('устройство, чья правка победила, тоже по�
   const local = stored.find((p) => p.id === 'p1');
   assert.equal(local.photos.length, 1, 'устройство А должно увидеть фото Б у себя, а не только в облаке');
 });
+
+test('клиент, заведённый до появления updatedAt и ни разу не пересохранённый, всё равно синкается', async () => {
+  // Легаси-запись: пишем в стор НАПРЯМУЮ, мимо putClient — та штампует
+  // updatedAt на каждой записи, а здесь нужна ровно та ситуация, когда
+  // поля нет вовсе (клиент заведён до Шага 1 синка и с тех пор не правился).
+  const db = await openTestDb();
+  await write(db, ['clients'], (tx) => {
+    tx.objectStore('clients').put({ id: 'legacy-1', name: 'Аня', createdDate: '2024-03-01T00:00:00.000Z' });
+  });
+
+  const remote = fakeRemote();
+  const summary = await runFullSync(db, remote);
+
+  assert.equal(summary.clients.pushed, 1);
+  const cloudClient = remote._collections.clients.get('legacy-1');
+  assert.equal(cloudClient.name, 'Аня');
+  // «Ближайшее известное правдивое время» — дата создания, не «сейчас»
+  // (см. updatedAt.ts): «сейчас» выиграло бы любое слияние незаслуженно.
+  assert.equal(cloudClient.updatedAt, '2024-03-01T00:00:00.000Z');
+});

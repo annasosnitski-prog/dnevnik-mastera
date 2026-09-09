@@ -17,8 +17,15 @@ insert into storage.buckets (id, name, public)
 values ('sync-photos', 'sync-photos', false)
 on conflict (id) do nothing;
 
--- Читать, класть и удалять — только в своей папке. Публичного доступа нет:
--- ссылка на файл без входа в аккаунт ничего не даст.
+-- Читать, класть, ПЕРЕЗАПИСЫВАТЬ и удалять — только в своей папке.
+-- Публичного доступа нет: ссылка на файл без входа в аккаунт ничего не даст.
+--
+-- Политика на update ОБЯЗАТЕЛЬНА: загрузка снимка идёт через upsert
+-- (supabaseRemote.ts) — повторная заливка уже лежащего файла (обычное
+-- дело, набор загруженного в syncEngine.ts общий только на один прогон
+-- синка) делает Postgres INSERT ... ON CONFLICT DO UPDATE, а ветка UPDATE
+-- проверяется ОТДЕЛЬНОЙ политикой, не той же, что insert. Без неё каждая
+-- повторная загрузка падала с «new row violates row-level security policy».
 --
 -- drop перед create — чтобы файл можно было выполнить повторно. Без этого
 -- второй запуск падает на «policy already exists», причём уже ПОСЛЕ того,
@@ -26,6 +33,7 @@ on conflict (id) do nothing;
 -- нет, из такого состояния тяжело.
 drop policy if exists "sync photos: read own" on storage.objects;
 drop policy if exists "sync photos: write own" on storage.objects;
+drop policy if exists "sync photos: update own" on storage.objects;
 drop policy if exists "sync photos: delete own" on storage.objects;
 
 create policy "sync photos: read own"
@@ -34,6 +42,11 @@ create policy "sync photos: read own"
 
 create policy "sync photos: write own"
   on storage.objects for insert
+  with check (bucket_id = 'sync-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+create policy "sync photos: update own"
+  on storage.objects for update
+  using (bucket_id = 'sync-photos' and (storage.foldername(name))[1] = auth.uid()::text)
   with check (bucket_id = 'sync-photos' and (storage.foldername(name))[1] = auth.uid()::text);
 
 create policy "sync photos: delete own"
