@@ -154,7 +154,7 @@ test('a sourceType=session entry with no explicit link resolves to kind "session
 
 test('creating a session for a CLIENT ContentEntry lists that client\'s own projects, not clientless ones', () => {
   assert.match(projectSessionPickerSheetFn, /clientId \? projects\.filter\(\(p\) => p\.clientId === clientId\) : projects\.filter\(\(p\) => !p\.clientId\)/);
-  assert.match(projectSessionPickerSheetFn, /Пока нет проектов у этого клиента/);
+  assert.match(projectSessionPickerSheetFn, /Здесь пока тихо/);
   assert.match(projectSessionPickerSheetUsage, /clientId=\{pendingContentLinkRef\.current\?\.preferredClientId \?\? null\}/);
 });
 
