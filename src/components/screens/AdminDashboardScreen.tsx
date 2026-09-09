@@ -160,7 +160,7 @@ export function AdminDashboardScreen({
                 letterSpacing: '2px',
               }}
             >
-              Адм<InkaTitleSuffix fontSize={fs(24)} />
+              Admin<InkaTitleSuffix fontSize={fs(24)} />
             </div>
             <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
               Управление и статистика
