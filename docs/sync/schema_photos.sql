@@ -19,6 +19,15 @@ on conflict (id) do nothing;
 
 -- Читать, класть и удалять — только в своей папке. Публичного доступа нет:
 -- ссылка на файл без входа в аккаунт ничего не даст.
+--
+-- drop перед create — чтобы файл можно было выполнить повторно. Без этого
+-- второй запуск падает на «policy already exists», причём уже ПОСЛЕ того,
+-- как часть правил создалась: разобраться, что именно применилось, а что
+-- нет, из такого состояния тяжело.
+drop policy if exists "sync photos: read own" on storage.objects;
+drop policy if exists "sync photos: write own" on storage.objects;
+drop policy if exists "sync photos: delete own" on storage.objects;
+
 create policy "sync photos: read own"
   on storage.objects for select
   using (bucket_id = 'sync-photos' and (storage.foldername(name))[1] = auth.uid()::text);
