@@ -35,6 +35,10 @@ export function TodayDateBadge({ onOpen, size = 42 }: { onOpen: () => void; size
         borderRadius: 4,
         border: '1px solid rgba(var(--gold-rgb),0.3)',
         background: 'rgba(var(--gold-rgb),0.04)',
+        // Same soft gold halo as the client card gem corner (see GemCorner
+        // in ui/Stripes.tsx) — ties the calendar badge visually to the
+        // card family instead of sitting flat next to it.
+        boxShadow: '0 0 14px 2px rgba(var(--gold-rgb),0.35), inset 0 0 5px rgba(var(--gold-rgb),0.15)',
       }}
     >
       <div style={{ fontSize: 7 * scale, letterSpacing: '0.5px', textTransform: 'uppercase', color: COLORS.gold, marginBottom: 2 * scale }}>{parts.weekday}</div>

@@ -22,7 +22,7 @@ import type {
 } from '../../reminders/types';
 import type { HealingCycleItem } from '../../reminders/healingCycle';
 import { todayISO } from '../../utils/dates';
-import { DROP_CAP_FONT } from '../InkaLogo';
+import { DROP_CAP_FONT, InkaTitleSuffix } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
@@ -145,28 +145,30 @@ export function AdminDashboardScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        <div
-          style={{
-            fontFamily: DROP_CAP_FONT,
-            fontSize: fs(24),
-            color: COLORS.gold,
-            letterSpacing: '5px',
-            textTransform: 'uppercase',
-          }}
-        >
-          Админка
-        </div>
-        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Управление и статистика
-        </div>
-        <StarDivider />
-        {/* Back in its original top-right corner — nothing else in this
-            header shares that spot, so it no longer needs its own row
-            pushing the gem tabs down (see #267, which only had to move it
-            off Личный кабинет's gear and Мастерская's filter icon). */}
-        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
+        {/* The calendar badge is a flex sibling of the whole title+subtitle
+            column (not absolutely positioned) so it centers vertically
+            against the full header block's height, pinned to the right
+            edge — not just against the title's own line. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div
+              style={{
+                fontFamily: DROP_CAP_FONT,
+                fontSize: fs(24),
+                lineHeight: 1,
+                color: COLORS.gold,
+                letterSpacing: '2px',
+              }}
+            >
+              Admin<InkaTitleSuffix fontSize={fs(24)} />
+            </div>
+            <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+              Управление и статистика
+            </div>
+          </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
+        <StarDivider />
       </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента и личного

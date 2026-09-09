@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { InkaLogo } from '../InkaLogo';
+import { InkaTitleSuffix } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
@@ -1209,22 +1209,23 @@ export function ContentINKAScreen({
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       {/* ── Шапка ContentINKA ── */}
       <div style={{ padding: '6px 24px 12px', position: 'relative' }}>
-        {/* Absolute top-right corner, same spot on every screen (see
-            AdminDashboardScreen) rather than sharing an in-flow row with
-            other header controls. */}
-        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
+        {/* The calendar badge is a flex sibling of the whole back-row+title
+            column (not absolutely positioned) so it centers vertically
+            against the full header block's height, pinned to the right
+            edge. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} aria-label="Вернуться" title="Вернуться">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </div>
+            <div style={{ fontSize: fs(24), color: COLORS.gold, fontWeight: 300, letterSpacing: '1px' }}>Content<InkaTitleSuffix fontSize={fs(24)} /></div>
+          </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-          <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
-          </div>
-        </div>
-        <InkaLogo height={fs(15)} />
-        <div style={{ fontSize: fs(24), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px', marginTop: 6 }}>ContentINKA</div>
         <StarDivider />
       </div>
 

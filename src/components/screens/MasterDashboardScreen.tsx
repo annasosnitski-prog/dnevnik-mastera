@@ -155,6 +155,9 @@ export function MasterDashboardScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+        {/* No top star divider here (unlike screens without their own tab
+            row below) — it would double up with the gem tab bar's own
+            hardware right underneath. */}
         <div
           style={{
             fontFamily: DROP_CAP_FONT,
