@@ -358,13 +358,12 @@ export function DetailScreen({
       >
         {/* Status bar with back */}
         <div style={{ height: 56, padding: '18px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10 }}>
-          <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
-          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} aria-label="Вернуться" title="Вернуться">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
             {/* Export/import this one client — a single button, a menu picks
                 which. Same JSON shape the full backup uses (just a
                 single-client array), so an exported file round-trips back
@@ -460,15 +459,16 @@ export function DetailScreen({
             <div
               className="inka-back"
               onClick={onEditClient}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              aria-label="Править"
+              title="Править"
             >
-              <span style={{ fontSize: fs(15), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>править</span>
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                 <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
             </div>
-            <TodayDateBadge onOpen={onOpenCalendar} size={35} />
           </div>
+          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
 
         {headerCollapsed ? (
