@@ -61,7 +61,7 @@ export function ProjectFolderView({
 
       {folder.projects.length === 0 && (
         <div style={{ textAlign: 'center', fontSize: fs(14), fontStyle: 'italic', color: COLORS.textGhost, padding: '40px 40px 0' }}>
-          Пока нет проектов — нажмите «+» внизу, чтобы добавить первый
+          Пока нет проектов
         </div>
       )}
     </div>

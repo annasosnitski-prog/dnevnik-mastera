@@ -620,7 +620,7 @@ export function NextStepRow({
             {nextActionDate ? ` · ${formatDate(nextActionDate)}` : ''}
           </div>
         ) : (
-          <div style={{ fontSize: fs(14), color: COLORS.textFaint, fontStyle: 'italic' }}>Не задан — нажмите, чтобы добавить</div>
+          <div style={{ fontSize: fs(14), color: COLORS.textFaint, fontStyle: 'italic' }}>Не задан</div>
         )}
       </div>
     );

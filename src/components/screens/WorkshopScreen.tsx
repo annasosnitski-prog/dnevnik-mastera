@@ -171,7 +171,7 @@ export function WorkshopScreen({
 
       {projectsLoaded && projects.length === 0 && (
         <div style={{ position: 'absolute', top: 280, left: 0, right: 0, textAlign: 'center', fontSize: fs(15), fontStyle: 'italic', color: COLORS.textGhost, pointerEvents: 'none', padding: '0 40px' }}>
-          Пока нет проектов — нажмите «+» внизу, чтобы добавить первый
+          Пока нет проектов
         </div>
       )}
 
