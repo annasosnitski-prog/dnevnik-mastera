@@ -698,6 +698,30 @@ export function SettingsScreen({
       )}
 
       <div style={{ padding: embedded ? '4px 0 8px' : '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1 }}>
+        {/* Тема / Минимализм / Игровой режим — три независимых бинарных
+            переключателя без сопроводительного текста, поэтому сведены в
+            один компактный ряд вместо трёх полноширинных карточек. Стоит
+            первым разделом, до модулей — самые частые настройки сверху. */}
+        <div style={rowStyle}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <CompactToggle
+              label="Тема"
+              value={theme === 'light'}
+              sublabel={theme === 'dark' ? 'Тёмная' : 'Светлая'}
+              onChange={() => onToggleTheme()}
+            />
+            {/* Независим от темы (см. ui/minimalism.ts) — убирает декоративные
+                камни/подвески/лучи у NavFab и вкладок клиента поверх текущей
+                тёмной/светлой темы. */}
+            <CompactToggle label="Минимализм" value={minimalism} onChange={onChangeMinimalism} />
+            <CompactToggle
+              label="Игровой режим"
+              value={prefs.gameMode}
+              onChange={(v) => onChange({ ...prefs, gameMode: v })}
+            />
+          </div>
+        </div>
+
         {/* Modules — экраны поверх ядра (клиент → проект → сессии →
             консультации), которое всегда включено и в список не входит.
             Выключенный модуль исчезает из вкладок навигации, и его lazy-чанк
@@ -1520,32 +1544,6 @@ export function SettingsScreen({
               </div>
             </>
           )}
-        </div>
-
-        {/* Тема / Минимализм / Игровой режим — три независимых бинарных
-            переключателя без сопроводительного текста, поэтому сведены в
-            один компактный ряд вместо трёх полноширинных карточек. Стоит
-            последним разделом, после модулей/яркости/размера текста/
-            подключений/синка — самые частые настройки выше, эта тройка
-            меняется реже всего. */}
-        <div style={rowStyle}>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <CompactToggle
-              label="Тема"
-              value={theme === 'light'}
-              sublabel={theme === 'dark' ? 'Тёмная' : 'Светлая'}
-              onChange={() => onToggleTheme()}
-            />
-            {/* Независим от темы (см. ui/minimalism.ts) — убирает декоративные
-                камни/подвески/лучи у NavFab и вкладок клиента поверх текущей
-                тёмной/светлой темы. */}
-            <CompactToggle label="Минимализм" value={minimalism} onChange={onChangeMinimalism} />
-            <CompactToggle
-              label="Игровой режим"
-              value={prefs.gameMode}
-              onChange={(v) => onChange({ ...prefs, gameMode: v })}
-            />
-          </div>
         </div>
 
         {/* Reset */}
