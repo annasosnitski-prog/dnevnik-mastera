@@ -23,7 +23,7 @@ import * as clientsRepo from '../storage/repos/clientsRepo.js';
 import * as projectsRepo from '../storage/repos/projectsRepo.js';
 import * as contentRepo from '../storage/repos/contentRepo.js';
 import { getMasterInfoRecord, putMasterInfoRecord } from '../storage/repos/masterInfoRepo.js';
-import { externalizePhotos, internalizePhotos, type PhotoTransport } from './photoPayload.js';
+import { externalizePhotos, internalizePhotos, unionPhotoFields, type PhotoTransport } from './photoPayload.js';
 
 export interface RemoteRow extends MergeableRecord {
   [key: string]: unknown;
@@ -140,12 +140,21 @@ async function syncCollection(
   // Свои записи под рукой: приехавшая ссылка на снимок чаще всего
   // разворачивается из собственного фото, а не скачиванием (photoPayload.ts).
   const localById = new Map(local.map((record) => [record.id, record]));
+  // Облачные — под рукой для обратного случая: победила локальная правка,
+  // но снимки, добавленные с ДРУГОГО устройства офлайн, не должны потеряться.
+  const remoteById = new Map(remoteRecords.map((record) => [record.id, record]));
 
   // Снимки разворачиваются ДО открытия записи: транзакция IndexedDB живёт
   // до первого витка событий без запросов, а скачивание файла — это await
   // на сеть, который её гарантированно закроет.
   const toWriteLocally = await Promise.all(
-    merged.toWriteLocally.map((record) => internalizePhotos(kind, record, localById.get(record.id), photos)),
+    merged.toWriteLocally.map(async (record) => {
+      // Запись победила из облака, но локально по этому id могла быть своя
+      // версия — офлайн-добавленные в неё снимки складываются, а не теряются
+      // (см. unionPhotoFields).
+      const unioned = await unionPhotoFields(kind, record, localById.get(record.id));
+      return internalizePhotos(kind, unioned, localById.get(record.id), photos);
+    }),
   );
 
   if (merged.toWriteLocally.length || merged.toDeleteLocally.length || merged.tombstonesToStore.length) {
@@ -166,7 +175,13 @@ async function syncCollection(
     // Последовательно, не Promise.all: параллельная отправка всех записей
     // разом подняла бы в память столько снимков, сколько их набралось за
     // офлайн — ровно та беда, от которой уходим.
-    for (const record of merged.toPushRemotely) rows.push(await externalizePhotos(kind, record, photos, uploaded));
+    for (const record of merged.toPushRemotely) {
+      // Победила локальная версия, но в облаке по этому id уже могла лежать
+      // своя — снимки, добавленные там офлайн на другом устройстве, дописываются,
+      // а не затираются локальной версией целиком (см. unionPhotoFields).
+      const unioned = await unionPhotoFields(kind, record, remoteById.get(record.id));
+      rows.push(await externalizePhotos(kind, unioned, photos, uploaded));
+    }
     await remote.upsert(rows);
   }
   if (merged.tombstonesToPush.length) {

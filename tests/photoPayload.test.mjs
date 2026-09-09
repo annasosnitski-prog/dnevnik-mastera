@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { PHOTO_SHAPES, externalizePhotos, internalizePhotos } from '../.test-dist/src/sync/photoPayload.js';
+import { PHOTO_SHAPES, externalizePhotos, internalizePhotos, unionPhotoFields, unionById } from '../.test-dist/src/sync/photoPayload.js';
 import { hashToRef, photoContentHash } from '../.test-dist/src/sync/photoRefs.js';
 
 // Фото не влезают в Postgres: base64 внутри записей уложил бы всю
@@ -230,8 +230,8 @@ test('фото-поля здесь и в разборе «Куда ушло ме
 
 test('движок выносит снимки на отправке и разворачивает на приёме', () => {
   const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
-  assert.match(engine, /externalizePhotos\(kind, record, photos, uploaded\)/);
-  assert.match(engine, /internalizePhotos\(kind, record, localById\.get\(record\.id\), photos\)/);
+  assert.match(engine, /externalizePhotos\(kind, unioned, photos, uploaded\)/);
+  assert.match(engine, /internalizePhotos\(kind, unioned, localById\.get\(record\.id\), photos\)/);
   // Набор загруженного — один на весь прогон, иначе копии одного снимка в
   // разных сторах уехали бы в облако по разу за стор.
   assert.match(engine, /const uploaded = new Set<string>\(\);/);
@@ -245,4 +245,102 @@ test('снимки разворачиваются ДО открытия запи
   const prepare = engine.indexOf('const toWriteLocally = await Promise.all(');
   const open = engine.indexOf("db.transaction([adapter.store, DELETIONS_STORE], 'readwrite')");
   assert.ok(prepare > 0 && prepare < open);
+});
+
+// ── Слияние конфликтующих фото ────────────────────────────────────────────
+// mergeRecords решает победителя ЦЕЛОЙ записи по updatedAt. Отдельная
+// проблема: оба устройства офлайн независимо добавили в один проект РАЗНЫЕ
+// снимки. Взять только версию победителя значило бы потерять снимки
+// проигравшего устройства молча — ровно то, чего мастер и опасалась.
+
+test('победитель без конфликта возвращается как есть — сливать не с чем', async () => {
+  const winner = { id: 'p1', updatedAt: 'b', photos: [photo(500, 'x')] };
+  const merged = await unionPhotoFields('projects', winner, undefined);
+  assert.equal(merged, winner);
+});
+
+test('оба устройства офлайн добавили разные фото в один проект — оба остаются', async () => {
+  const shared = photo(500, 'cover');
+  const winner = { id: 'p1', updatedAt: '2026-01-01T12:00:00.000Z', title: 'Дракон', photos: [shared, photo(500, 'evening')] };
+  const loser = { id: 'p1', updatedAt: '2026-01-01T10:00:00.000Z', title: 'Дракон', photos: [shared, photo(500, 'morning')] };
+  const merged = await unionPhotoFields('projects', winner, loser);
+
+  // Текст остаётся от победителя — это по-прежнему решает mergeRecords.
+  assert.equal(merged.title, 'Дракон');
+  assert.equal(merged.photos.length, 3);
+  assert.ok(merged.photos.some((p) => p.includes('evening')));
+  assert.ok(merged.photos.some((p) => p.includes('morning')));
+  // Общий снимок не задублировался.
+  assert.equal(merged.photos.filter((p) => p === shared).length, 1);
+});
+
+test('слияние работает между локальной base64 и облачной ссылкой на один и тот же снимок', async () => {
+  // Ровно та ситуация из движка синка: местная версия ещё base64, облачная
+  // уже прислала photo:<hash>. Совпадение по содержимому должно найтись
+  // без единого скачивания.
+  const shot = photo(500, 'same');
+  const winner = { id: 'p1', updatedAt: 'b', photos: [await ref(shot)] };
+  const loser = { id: 'p1', updatedAt: 'a', photos: [shot] };
+  const merged = await unionPhotoFields('projects', winner, loser);
+  assert.equal(merged.photos.length, 1);
+});
+
+test('новый документ клиента с другого устройства не теряется', async () => {
+  const winner = {
+    id: 'c1',
+    updatedAt: 'b',
+    name: 'Аня (испр.)',
+    documents: [{ id: 'd1', name: 'Согласие', fileUrl: photo(500, 'd1') }],
+  };
+  const loser = {
+    id: 'c1',
+    updatedAt: 'a',
+    name: 'Аня',
+    documents: [
+      { id: 'd1', name: 'Согласие', fileUrl: photo(500, 'd1') },
+      { id: 'd2', name: 'Эскиз', fileUrl: photo(500, 'd2') },
+    ],
+  };
+  const merged = await unionPhotoFields('clients', winner, loser);
+  assert.equal(merged.name, 'Аня (испр.)');
+  assert.equal(merged.documents.length, 2);
+  assert.ok(merged.documents.some((d) => d.id === 'd2'));
+});
+
+test('кадр заживления с одинаковым id — берётся версия победителя, не дублируется', () => {
+  const winner = { id: 'p1', updatedAt: 'b', healingPhotos: [{ id: 'h1', day: 7, url: photo(500, 'new') }] };
+  const loser = { id: 'p1', updatedAt: 'a', healingPhotos: [{ id: 'h1', day: 7, url: photo(500, 'old') }] };
+  const merged = unionById(winner.healingPhotos, loser.healingPhotos);
+  assert.equal(merged.length, 1);
+  assert.ok(merged[0].url.includes('new'));
+});
+
+test('фото внутри одной и той же сессии на двух устройствах складываются', async () => {
+  const winner = {
+    id: 'p1',
+    updatedAt: 'b',
+    sessions: [{ id: 's1', notes: 'первый сеанс', photos: [photo(500, 'a')] }],
+  };
+  const loser = {
+    id: 'p1',
+    updatedAt: 'a',
+    sessions: [{ id: 's1', notes: 'первый сеанс', photos: [photo(500, 'b')] }],
+  };
+  const merged = await unionPhotoFields('projects', winner, loser);
+  assert.equal(merged.sessions[0].photos.length, 2);
+});
+
+test('сессия, которой нет у победителя, фото из неё не подмешиваются — это отдельная, более широкая проблема', async () => {
+  // unionPhotoFields не решает «какие сессии есть» — только фото внутри
+  // сессий, присутствующих по обе стороны. Документировано в самом коде.
+  const winner = { id: 'p1', updatedAt: 'b', sessions: [] };
+  const loser = { id: 'p1', updatedAt: 'a', sessions: [{ id: 's1', photos: [photo(500, 'x')] }] };
+  const merged = await unionPhotoFields('projects', winner, loser);
+  assert.deepEqual(merged.sessions, []);
+});
+
+test('движок сливает фото ДО выбора победителя целиком, в обе стороны', () => {
+  const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
+  assert.match(engine, /unionPhotoFields\(kind, record, localById\.get\(record\.id\)\)/);
+  assert.match(engine, /unionPhotoFields\(kind, record, remoteById\.get\(record\.id\)\)/);
 });
