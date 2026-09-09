@@ -153,13 +153,7 @@ export function SummaryScreen({
         <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        {/* The title block sits between two star dividers — one here, one
-            below the subtitle — the same bracket every screen header now
-            uses instead of just the bottom one. */}
-        <StarDivider marginTop={0} />
-        <div style={{ marginTop: 10 }}>
-          <InkaLogo height={fs(34)} />
-        </div>
+        <InkaLogo height={fs(34)} />
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Планнер
         </div>

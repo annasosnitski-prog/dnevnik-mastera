@@ -2746,16 +2746,12 @@ export default function TattoDiary() {
 
         {/* App header */}
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
-          {/* The title block sits between two star dividers — one here, one
-            below the subtitle — the same bracket every screen header now
-            uses instead of just the bottom one. */}
-          <StarDivider marginTop={0} />
           {/* Calendar badge sits as a flex sibling of the logo (not
               absolutely positioned) so it centers vertically against the
               INKA wordmark itself instead of the header block as a whole
               — see AdminDashboardScreen, which centers the same way
               against «Админка». */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <InkaLogo height={fs(34)} />
             <TodayDateBadge onOpen={() => setShowCalendar(true)} size={35} />
           </div>

@@ -536,11 +536,7 @@ export function SettingsScreen({
         <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        {/* The title block sits between two star dividers — one here, one
-            below the subtitle — the same bracket every screen header now
-            uses instead of just the bottom one. */}
-        <StarDivider marginTop={0} />
-        <div style={{ display: 'flex', alignItems: 'center', marginTop: 10, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
           <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
             <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
               <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
