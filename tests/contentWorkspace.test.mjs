@@ -116,9 +116,11 @@ test('a click on a project-content card passes the entry.id as a focus target, a
   assert.match(screen, /resolveContentFocusEntry\(contentEntries, focusEntryId\)/);
   assert.match(screen, /onFocusEntryApplied\(\)/);
   assert.match(source, /onFocusEntryApplied=\{\(\) => setContentFocusEntryId\(null\)\}/);
-  // The ordinary "open the ContentINKA section" entry points (dashboard,
-  // ContentPanel hand-off) are untouched — they still only flip the screen.
-  assert.match(source, /onOpenContent=\{\(\) => setScreen\('content'\)\}/);
+  // The ordinary "open the ContentINKA section" entry points (Настройки в
+  // Админке, ContentPanel hand-off) are untouched — they still only flip
+  // the screen. Настройки passes it as part of the settings prop bag now
+  // (embedded tab in AdminDashboardScreen), not a standalone JSX attribute.
+  assert.match(source, /onOpenContent: \(\) => setScreen\('content'\),/);
 });
 
 test('opening a removed-from-workspace entry via focusEntryId keeps it visible after the one-shot command is cleared', () => {

@@ -1,7 +1,6 @@
 import { useState, useEffect, type SVGProps } from 'react';
 import type * as React from 'react';
 import { DROP_CAP_FONT } from '../InkaLogo';
-import { ToolbarIcon } from '../navigation/ToolbarIcons';
 import { StarDivider } from '../icons/StarIcons';
 import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon } from '../icons/SocialIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
@@ -12,8 +11,6 @@ import { COLORS, fs } from '../ui/designTokens';
 import { INPUT_STYLE } from '../TattoDiary';
 import { ProjectCard } from '../project/ProjectCard';
 import { buildChatLink } from '../../lib/chatLink';
-import { syncActive, fetchBotBookings, DEFAULT_ENDPOINT, type CalendarSyncSettings } from '../../lib/calendarSync';
-import { type ContentSyncSettings } from '../../lib/contentSync';
 import { type MasterInfo, type MasterLink } from '../../lib/masterInfoStore';
 import { mostUsedStyle } from '../../domain/plannerSelectors';
 import { getWorkshopProjects } from '../../domain/projectSelectors';
@@ -33,12 +30,6 @@ export function MasterDashboardScreen({
   clients,
   masterInfo,
   onChangeMasterInfo,
-  onOpenSettings,
-  calendarSync,
-  onChangeCalendarSync,
-  contentSync,
-  onChangeContentSync,
-  onOpenContent,
   projects,
   onOpenProject,
   onCreateProject,
@@ -46,12 +37,6 @@ export function MasterDashboardScreen({
   clients: Client[];
   masterInfo: MasterInfo;
   onChangeMasterInfo: (m: MasterInfo) => void;
-  onOpenSettings: () => void;
-  calendarSync: CalendarSyncSettings;
-  onChangeCalendarSync: (s: CalendarSyncSettings) => void;
-  contentSync: ContentSyncSettings;
-  onChangeContentSync: (s: ContentSyncSettings) => void;
-  onOpenContent: () => void;
   // Проекты мастера без клиента («Мастерская») — тот же каркас вкладок, что
   // у карточки клиента (см. ClientCardTabBar), своя вкладка «Проекты».
   projects: Project[];
@@ -80,8 +65,8 @@ export function MasterDashboardScreen({
 
   // Tap-to-copy: a small "Скопировано ✓" chip fades in over the tapped card
   // for a moment, confirming the clipboard write without a blocking dialog.
-  const [copiedTag, setCopiedTag] = useState<'payment' | 'phone' | 'telegramBot' | null>(null);
-  const copyToClipboard = (text: string, tag: 'payment' | 'phone' | 'telegramBot') => {
+  const [copiedTag, setCopiedTag] = useState<'payment' | 'phone' | null>(null);
+  const copyToClipboard = (text: string, tag: 'payment' | 'phone') => {
     navigator.clipboard?.writeText(text).then(() => {
       setCopiedTag(tag);
       setTimeout(() => setCopiedTag((t) => (t === tag ? null : t)), 1400);
@@ -108,12 +93,6 @@ export function MasterDashboardScreen({
   const [phoneDraft, setPhoneDraft] = useState(masterInfo.phone);
   useEffect(() => setPhoneDraft(masterInfo.phone), [masterInfo.phone]);
 
-  // Бот в Telegram — своя ссылка внутри блока «Автоматизация»: master
-  // копирует и отправляет клиенту для брони.
-  const [editingTelegramBot, setEditingTelegramBot] = useState(false);
-  const [telegramBotDraft, setTelegramBotDraft] = useState(masterInfo.telegramBotLink);
-  useEffect(() => setTelegramBotDraft(masterInfo.telegramBotLink), [masterInfo.telegramBotLink]);
-
   // Личные ссылки мастера (сайт/соцсети/мессенджеры) — тот же пикер
   // платформ, что у контактов клиента, но тап по строке копирует ссылку в
   // буфер (а не открывает её), как и остальные блоки на этом экране.
@@ -133,24 +112,6 @@ export function MasterDashboardScreen({
   };
 
   const [colorsOpen, setColorsOpen] = useState(false);
-  const [showSyncSecret, setShowSyncSecret] = useState(false);
-  const [showContentSecret, setShowContentSecret] = useState(false);
-
-  // «Проверить соединение» прямо в настройках синхронизации — раньше
-  // единственным способом узнать, работает ли связь с ботом, было зайти
-  // в Админку и открыть «Брони от бота». Дёргаем тот же bot-bookings,
-  // что и тот виджет, но здесь просто нужен статус, а не список.
-  const [syncCheck, setSyncCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'error'; message?: string }>({
-    status: 'idle',
-  });
-  const checkCalendarSync = () => {
-    setSyncCheck({ status: 'checking' });
-    fetchBotBookings(calendarSync)
-      .then((b) => setSyncCheck({ status: 'ok', message: `подключено — записей от бота: ${b.length}.` }))
-      .catch((err) =>
-        setSyncCheck({ status: 'error', message: err instanceof Error ? err.message : 'не получилось проверить соединение.' })
-      );
-  };
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -201,31 +162,8 @@ export function MasterDashboardScreen({
         <StarDivider />
       </div>
 
-      {/* Settings now lives here rather than as its own top-level nav button
-          — the list screen keeps only the Мастер shortcut. Placed in its own
-          row below the divider, in normal flow (not overlaid on the header).
-          No «сегодня» calendar badge on this screen — «today» isn't a
-          relevant frame for the master's own profile. */}
-      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-        <div
-          onClick={onOpenSettings}
-          role="button"
-          aria-label="Настройки"
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: '50%',
-            border: '1px solid rgba(var(--gold-rgb),0.25)',
-            background: 'rgba(var(--gold-rgb),0.03)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <ToolbarIcon name="settingsGear" size={21} style={{ color: 'var(--gold)' }} />
-        </div>
-      </div>
+      {/* Кнопка «шестерёнка» отсюда убрана — Настройки переехали вкладкой в
+          Админку (фиолетовая гемма NavFab), см. AdminDashboardScreen. */}
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента (см. её
           собственный комментарий в client/ClientCardTabBar.tsx) — «оформим
@@ -441,299 +379,6 @@ export function MasterDashboardScreen({
             </div>
           ))}
           <AddChatLinkForm onAdd={addChatLink} />
-        </GoldFrame>
-
-        {/* Автоматизация — бот в Telegram (ссылка, которую мастер копирует
-            и отправляет клиенту для брони) + синхронизация с Инка-
-            календарём. Настоящий выключатель синхронизации — СЕКРЕТ: без
-            него переключатель ничего не делает (бот ответит 401), поэтому
-            другие пользователи приложения, не знающие секрета, писать в
-            чужой календарь не могут. Секрет живёт только в localStorage
-            этого устройства и НЕ попадает в резервную копию. */}
-        <GoldFrame plain style={{ padding: '14px 16px', position: 'relative' }}>
-          <div style={{ ...statLabelStyle, marginBottom: 10 }}>Автоматизация</div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px' }}>Бот в Telegram</div>
-            <span
-              onClick={() => {
-                if (editingTelegramBot && telegramBotDraft.trim() !== masterInfo.telegramBotLink) onChangeMasterInfo({ ...masterInfo, telegramBotLink: telegramBotDraft.trim() });
-                setEditingTelegramBot((v) => !v);
-              }}
-              role="button"
-              aria-label={editingTelegramBot ? 'Готово' : 'Редактировать ссылку на бота'}
-              style={editToggleStyle}
-            >
-              {editingTelegramBot ? 'Готово' : masterInfo.telegramBotLink ? 'Изменить' : 'Заполнить'}
-            </span>
-          </div>
-          {editingTelegramBot || !masterInfo.telegramBotLink ? (
-            <input
-              value={telegramBotDraft}
-              onChange={(e) => setTelegramBotDraft(e.target.value)}
-              onBlur={() => telegramBotDraft.trim() !== masterInfo.telegramBotLink && onChangeMasterInfo({ ...masterInfo, telegramBotLink: telegramBotDraft.trim() })}
-              placeholder="https://t.me/..."
-              style={{ ...INPUT_STYLE, marginBottom: 14 }}
-            />
-          ) : (
-            <div onClick={() => copyToClipboard(masterInfo.telegramBotLink, 'telegramBot')} role="button" aria-label="Скопировать ссылку на бота" style={{ cursor: 'pointer', marginBottom: 14 }}>
-              <div style={{ fontSize: fs(15), color: COLORS.textPrimary, wordBreak: 'break-all' }}>{masterInfo.telegramBotLink}</div>
-              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 6, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
-            </div>
-          )}
-          {copiedTag === 'telegramBot' && <div style={copiedChipStyle}>Скопировано ✓</div>}
-
-          <div style={{ height: 1, background: 'rgba(var(--gold-rgb),0.1)', margin: '4px 0 14px' }} />
-
-          <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 8 }}>Инка-календарь · Синхронизация</div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {([
-              { v: true, label: 'Включена' },
-              { v: false, label: 'Выключена' },
-            ] as { v: boolean; label: string }[]).map((o) => (
-              <div
-                key={String(o.v)}
-                onClick={() => onChangeCalendarSync({ ...calendarSync, enabled: o.v })}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontSize: fs(13),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  border: calendarSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: calendarSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: calendarSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
-          </div>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
-            <input
-              type={showSyncSecret ? 'text' : 'password'}
-              value={calendarSync.secret}
-              onChange={(e) => onChangeCalendarSync({ ...calendarSync, secret: e.target.value })}
-              placeholder="Секретный код синхронизации"
-              autoComplete="off"
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                padding: '10px 40px 10px 12px',
-                borderRadius: 2,
-                border: '1px solid rgba(var(--gold-rgb),0.2)',
-                background: 'rgba(var(--surface-rgb),0.03)',
-                color: 'var(--text-secondary)',
-                fontSize: fs(13),
-                outline: 'none',
-              }}
-            />
-            <span
-              onClick={() => setShowSyncSecret((v) => !v)}
-              role="button"
-              aria-label={showSyncSecret ? 'Скрыть код' : 'Показать код'}
-              style={{
-                position: 'absolute',
-                top: '50%',
-                right: 10,
-                transform: 'translateY(-50%)',
-                cursor: 'pointer',
-                color: COLORS.textGhost,
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              {showSyncSecret ? (
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
-                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
-                  <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                </svg>
-              ) : (
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
-                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
-                </svg>
-              )}
-            </span>
-          </div>
-          <input
-            type="text"
-            value={calendarSync.endpoint}
-            onChange={(e) => onChangeCalendarSync({ ...calendarSync, endpoint: e.target.value || DEFAULT_ENDPOINT })}
-            placeholder={DEFAULT_ENDPOINT}
-            autoComplete="off"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '10px 12px',
-              borderRadius: 2,
-              border: '1px solid rgba(var(--gold-rgb),0.2)',
-              background: 'rgba(var(--surface-rgb),0.03)',
-              color: 'var(--text-secondary)',
-              fontSize: fs(12),
-              outline: 'none',
-            }}
-          />
-          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
-            {syncActive(calendarSync)
-              ? 'записи и консультации улетают в календарь Инки при сохранении.'
-              : calendarSync.enabled
-              ? 'нужен секретный код — без него синхронизация не работает.'
-              : 'выключена: записи остаются только в дневнике.'}
-          </div>
-          {syncActive(calendarSync) && (
-            <div style={{ marginTop: 10 }}>
-              <span
-                onClick={syncCheck.status === 'checking' ? undefined : checkCalendarSync}
-                role="button"
-                aria-label="Проверить соединение с ботом"
-                style={{
-                  fontSize: fs(11),
-                  color: COLORS.gold,
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  cursor: syncCheck.status === 'checking' ? 'default' : 'pointer',
-                  opacity: syncCheck.status === 'checking' ? 0.5 : 1,
-                }}
-              >
-                {syncCheck.status === 'checking' ? 'проверяю…' : 'проверить соединение'}
-              </span>
-              {syncCheck.message && (
-                <div
-                  style={{
-                    marginTop: 6,
-                    fontSize: fs(11),
-                    fontStyle: 'italic',
-                    color: syncCheck.status === 'error' ? '#C99' : COLORS.textGhost,
-                  }}
-                >
-                  {syncCheck.message}
-                </div>
-              )}
-            </div>
-          )}
-        </GoldFrame>
-
-        {/* ContentINKA — тот же принцип, что «Инка-календарь» выше, свой
-            секрет и свой адрес сервиса (не тот же деплой, что у бота). */}
-        <GoldFrame plain style={{ padding: '14px 16px', marginTop: 12 }}>
-          <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 8 }}>ContentINKA · Отбор и текст</div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {([
-              { v: true, label: 'Включена' },
-              { v: false, label: 'Выключена' },
-            ] as { v: boolean; label: string }[]).map((o) => (
-              <div
-                key={String(o.v)}
-                onClick={() => onChangeContentSync({ ...contentSync, enabled: o.v })}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontSize: fs(13),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  border: contentSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: contentSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: contentSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
-          </div>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
-            <input
-              type={showContentSecret ? 'text' : 'password'}
-              value={contentSync.secret}
-              onChange={(e) => onChangeContentSync({ ...contentSync, secret: e.target.value })}
-              placeholder="Секретный код ContentINKA"
-              autoComplete="off"
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                padding: '10px 40px 10px 12px',
-                borderRadius: 2,
-                border: '1px solid rgba(var(--gold-rgb),0.2)',
-                background: 'rgba(var(--surface-rgb),0.03)',
-                color: 'var(--text-secondary)',
-                fontSize: fs(13),
-                outline: 'none',
-              }}
-            />
-            <span
-              onClick={() => setShowContentSecret((v) => !v)}
-              role="button"
-              aria-label={showContentSecret ? 'Скрыть код' : 'Показать код'}
-              style={{
-                position: 'absolute',
-                top: '50%',
-                right: 10,
-                transform: 'translateY(-50%)',
-                cursor: 'pointer',
-                color: COLORS.textGhost,
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              {showContentSecret ? (
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
-                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
-                  <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                </svg>
-              ) : (
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
-                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
-                </svg>
-              )}
-            </span>
-          </div>
-          <input
-            type="text"
-            value={contentSync.endpoint}
-            onChange={(e) => onChangeContentSync({ ...contentSync, endpoint: e.target.value })}
-            placeholder="https://contentinka-....vercel.app"
-            autoComplete="off"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '10px 12px',
-              borderRadius: 2,
-              border: '1px solid rgba(var(--gold-rgb),0.2)',
-              background: 'rgba(var(--surface-rgb),0.03)',
-              color: 'var(--text-secondary)',
-              fontSize: fs(12),
-              outline: 'none',
-            }}
-          />
-          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
-            {contentSync.enabled && contentSync.secret && contentSync.endpoint
-              ? '«Отправить в контент» доступна в карточке сессии/консультации.'
-              : 'нужны адрес сервиса и секретный код — без них кнопка «Отправить в контент» не сработает.'}
-          </div>
-          <div
-            onClick={onOpenContent}
-            role="button"
-            aria-label="Открыть ContentINKA"
-            style={{
-              marginTop: 12,
-              fontSize: fs(12),
-              color: COLORS.gold,
-              textAlign: 'center',
-              cursor: 'pointer',
-              textDecoration: 'underline',
-            }}
-          >
-            Открыть ContentINKA · контент мастерской
-          </div>
         </GoldFrame>
 
         {/* Обозначения цветов — collapsed by default, kept compact. */}

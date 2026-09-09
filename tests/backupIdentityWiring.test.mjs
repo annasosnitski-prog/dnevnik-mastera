@@ -12,7 +12,9 @@ const archive = readSource('../src/lib/backupArchive.ts');
 
 test('root creates one installation id and passes it only as backup identity', () => {
   assert.match(app, /const \[installationId\] = useState\(readOrCreateInstallationId\);/);
-  assert.match(app, /installationId=\{installationId\}/);
+  // Настройки — вкладка в Админке: installationId уезжает через объектный
+  // проп settings={{ ... }}, не JSX-атрибутом (см. AdminDashboardScreen).
+  assert.match(app, /\n\s*installationId,\n/);
 });
 
 test('new v6 archives carry installation id and master name in the manifest', () => {
