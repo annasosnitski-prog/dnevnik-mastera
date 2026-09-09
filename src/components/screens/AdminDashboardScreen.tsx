@@ -35,7 +35,6 @@ import { buildAdminWorkSummary } from './adminWorkSummary';
 import { AdminWorkSummary } from './AdminWorkSummary';
 import { buildUpcomingSchedule } from './upcomingSchedule';
 import { UpcomingScheduleSection } from './UpcomingScheduleSection';
-import { SettingsScreen, type SettingsScreenProps } from './SettingsScreen';
 
 // «Оформим по форме как карточка клиента» (см. ClientCardTabBar) — те же
 // геммы-иконки, что уже использует Личный кабинет (info/projects), плюс
@@ -43,17 +42,13 @@ import { SettingsScreen, type SettingsScreenProps } from './SettingsScreen';
 // одного экрана — лишняя работа под прототип. Порядок — от «требует
 // внимания прямо сейчас» к «справочному»: Напоминания первыми, Таймлайн
 // последним, он самый «посмотреть, а не подействовать».
-const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'summary' | 'timeline' | 'settings'>[] = [
+const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'summary' | 'timeline'>[] = [
   { id: 'reminders', kind: 'notes', label: 'Напоминания' },
   { id: 'schedule', kind: 'sessions', label: 'Расписание' },
   // Borrows the info icon, but this is the admin overview, not «личное» —
   // overrides KIND_COLORS' default (personal) with the admin territory red.
   { id: 'summary', kind: 'info', label: 'Сводка', color: TERRITORY_COLORS.admin },
   { id: 'timeline', kind: 'projects', label: 'Таймлайн' },
-  // Настройки переехали сюда из отдельного экрана (была кнопка-шестерёнка
-  // в Личном кабинете): экран с подключениями/бэкапом теперь вкладка под
-  // фиолетовой геммой Админки, а не отдельный маршрут.
-  { id: 'settings', kind: 'projects', label: 'Настройки', color: COLORS.gold },
 ];
 
 // ===================== ADMIN DASHBOARD =====================
@@ -93,7 +88,6 @@ export function AdminDashboardScreen({
   calendarSync,
   onOpenNotes,
   onOpenCalendar,
-  settings,
 }: {
   clients: Client[];
   projects: Project[];
@@ -131,14 +125,10 @@ export function AdminDashboardScreen({
   // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
   onOpenNotes: (urgency: UrgencyKey) => void;
   onOpenCalendar: () => void;
-  // Настройки — вкладка внутри Админки (см. ADMIN_TABS). embedded=true
-  // проставляется здесь же, не в TattoDiary.tsx, чтобы вызывающая сторона
-  // не должна была об этом помнить.
-  settings: Omit<SettingsScreenProps, 'embedded' | 'onBack'>;
 }) {
   // Открывая админку, мастер в первую очередь хочет увидеть, что происходит
   // с проектами прямо сейчас — таймлайн, а не расписание или напоминания.
-  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline' | 'settings'>('timeline');
+  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('timeline');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
   const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.statsWindowDays);
@@ -265,10 +255,6 @@ export function AdminDashboardScreen({
         )}
 
         {tab === 'timeline' && <ProjectTimelineList projects={projects} clients={clients} />}
-
-        {tab === 'settings' && (
-          <SettingsScreen {...settings} embedded onBack={() => setTab('timeline')} />
-        )}
       </div>
     </div>
   );

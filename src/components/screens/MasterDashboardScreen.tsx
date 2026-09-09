@@ -7,7 +7,8 @@ import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTab
 import { AddChatLinkForm, AddMasterLinkForm } from '../client/ClientControls';
 import { GoldFrame } from '../ui/Stripes';
 import { StatBlock } from '../ui/StatBlocks';
-import { COLORS, fs } from '../ui/designTokens';
+import { PendantIcon } from '../navigation/PendantIcon';
+import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
 import { INPUT_STYLE } from '../TattoDiary';
 import { ProjectCard } from '../project/ProjectCard';
 import { buildChatLink } from '../../lib/chatLink';
@@ -30,6 +31,7 @@ export function MasterDashboardScreen({
   clients,
   masterInfo,
   onChangeMasterInfo,
+  onOpenSettings,
   projects,
   onOpenProject,
   onCreateProject,
@@ -37,6 +39,7 @@ export function MasterDashboardScreen({
   clients: Client[];
   masterInfo: MasterInfo;
   onChangeMasterInfo: (m: MasterInfo) => void;
+  onOpenSettings: () => void;
   // Проекты мастера без клиента («Мастерская») — тот же каркас вкладок, что
   // у карточки клиента (см. ClientCardTabBar), своя вкладка «Проекты».
   projects: Project[];
@@ -162,8 +165,16 @@ export function MasterDashboardScreen({
         <StarDivider />
       </div>
 
-      {/* Кнопка «шестерёнка» отсюда убрана — Настройки переехали вкладкой в
-          Админку (фиолетовая гемма NavFab), см. AdminDashboardScreen. */}
+      {/* Настройки — та же геммовая эстетика, что у NavFab (см. PendantIcon),
+          а не плоский кружок-шестерёнка: фиолетовый (админ-территория)
+          самоцвет персонально для входа в Настройки прямо с экрана мастера.
+          У гранёного камня (не «plate») своего слота под глиф нет — как и
+          у геммы NavFab, значение читается по цвету и подписи, не иконкой. */}
+      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+        <div onClick={onOpenSettings} role="button" aria-label="Настройки" style={{ cursor: 'pointer' }}>
+          <PendantIcon color={TERRITORY_COLORS.admin} size={42} />
+        </div>
+      </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента (см. её
           собственный комментарий в client/ClientCardTabBar.tsx) — «оформим

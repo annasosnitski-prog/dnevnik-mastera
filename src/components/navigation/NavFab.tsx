@@ -8,7 +8,7 @@ import type { ModuleFlags, ModuleKey } from "../../modules/registry";
 import "./NavFabReveal.css";
 import "./NavFabMinimal.css";
 
-type AppScreen = "list" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
+type AppScreen = "list" | "settings" | "summary" | "master" | "admin" | "detail" | "workshop" | "content";
 type NavItemId = "clients" | "gear" | "content" | "brush" | "sketchbook" | "profile";
 export type QuickCreateKind = "client" | "consultation" | "session" | "project" | "note";
 export interface QuickCreateOption {
@@ -47,7 +47,7 @@ const NAV_ITEMS = [
     id: "clients",
     label: "Клиенты",
     screen: "list",
-    isActive: (active: AppScreen) => active === "list" || active === "detail",
+    isActive: (active: AppScreen) => active === "list" || active === "settings" || active === "detail",
     color: TERRITORY_COLORS.clients,
     durationMs: 2000,
     moduleKey: null as ModuleKey | null,
