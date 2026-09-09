@@ -661,7 +661,7 @@ function ClientContentTab({
     .filter((section) => section.items.length > 0);
 
   if (sources.length === 0 && projectContentSections.length === 0) {
-    return <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Сначала добавьте сессию или консультацию.</div>;
+    return <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Здесь пока тихо — еще никто ничего не создал.</div>;
   }
 
   return (
