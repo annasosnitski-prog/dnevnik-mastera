@@ -7,7 +7,6 @@ import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTab
 import { AddChatLinkForm, AddMasterLinkForm } from '../client/ClientControls';
 import { GoldFrame } from '../ui/Stripes';
 import { StatBlock } from '../ui/StatBlocks';
-import { PendantIcon } from '../navigation/PendantIcon';
 import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
 import { INPUT_STYLE } from '../TattoDiary';
 import { ProjectCard } from '../project/ProjectCard';
@@ -22,9 +21,13 @@ import { type Project } from '../../domain/project';
 // prop-driven контракта. Локальное состояние (активная вкладка, черновики
 // полей ввода, тап-копирование в буфер) сохранено как было.
 
-const MASTER_TABS: ClientCardTabDef<'info' | 'projects'>[] = [
+const MASTER_TABS: ClientCardTabDef<'info' | 'projects' | 'settings'>[] = [
   { id: 'info', kind: 'info', label: 'Инфо' },
   { id: 'projects', kind: 'projects', label: 'Проекты' },
+  // Не переключает контент ниже — ClientCardTabBar.onTab перехватывает этот
+  // id и вызывает onOpenSettings вместо setTab (см. её вызов ниже).
+  // Заимствует иконку notes (свободна в этой тройке) с админ-территорией.
+  { id: 'settings', kind: 'notes', label: 'Настройки', color: TERRITORY_COLORS.admin },
 ];
 
 export function MasterDashboardScreen({
@@ -165,26 +168,24 @@ export function MasterDashboardScreen({
         <StarDivider />
       </div>
 
-      {/* Настройки — та же геммовая эстетика, что у NavFab (см. PendantIcon),
-          а не плоский кружок-шестерёнка: фиолетовый (админ-территория)
-          самоцвет персонально для входа в Настройки прямо с экрана мастера.
-          У гранёного камня (не «plate») своего слота под глиф нет — как и
-          у геммы NavFab, значение читается по цвету и подписи, не иконкой. */}
-      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-        <div onClick={onOpenSettings} role="button" aria-label="Настройки" style={{ cursor: 'pointer' }}>
-          <PendantIcon color={TERRITORY_COLORS.admin} size={42} />
-        </div>
-      </div>
-
       {/* Та же строка вкладок-самоцветов, что у карточки клиента (см. её
           собственный комментарий в client/ClientCardTabBar.tsx) — «оформим
           личный кабинет по форме как карточка клиента»: Инфо — весь прежний
           профиль ниже, Проекты — «Проекты мастера» (без клиента), раньше
-          жившие только в общей Мастерской. */}
+          жившие только в общей Мастерской. Третья гемма — Настройки: та же
+          огранка и подвеска, что у остальных двух, фиолетовая (админ-
+          территория), но не переключает вкладку ниже — открывает отдельный
+          экран (см. onTab). */}
       <ClientCardTabBar
         tabs={MASTER_TABS}
         activeTab={tab}
-        onTab={setTab}
+        onTab={(t) => {
+          if (t === 'settings') {
+            onOpenSettings();
+            return;
+          }
+          setTab(t);
+        }}
         ariaLabel="Разделы личного кабинета"
       />
 

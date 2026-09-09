@@ -245,13 +245,17 @@ test('the client card wires its four tabs, Проекты first, via the shared 
   assert.doesNotMatch(listMatch[1], /kind: 'sessions'|kind: 'consultations'/);
 });
 
-test('Личный кабинет мастера reuses the same shared tab bar (Инфо/Проекты)', () => {
-  assert.match(masterDashboardScreen, /<ClientCardTabBar[\s\S]*?tabs=\{MASTER_TABS\}[\s\S]*?activeTab=\{tab\}[\s\S]*?onTab=\{setTab\}/);
+test('Личный кабинет мастера reuses the same shared tab bar (Инфо/Проекты/Настройки)', () => {
+  assert.match(masterDashboardScreen, /<ClientCardTabBar[\s\S]*?tabs=\{MASTER_TABS\}[\s\S]*?activeTab=\{tab\}[\s\S]*?onTab=\{/);
   const listMatch = masterDashboardScreen.match(/const MASTER_TABS: ClientCardTabDef<[^>]+>\[\] = \[([\s\S]*?)\];/);
   assert.ok(listMatch, 'MASTER_TABS array not found');
   const ids = [...listMatch[1].matchAll(/\{ id: '([^']+)', kind: '([^']+)'/g)].map(([, id, kind]) => [id, kind]);
   assert.deepEqual(ids, [
     ['info', 'info'],
     ['projects', 'projects'],
+    ['settings', 'notes'],
   ]);
+  // Третья гемма не переключает локальную вкладку — onTab перехватывает её
+  // id и уходит в onOpenSettings, а не в setTab.
+  assert.match(masterDashboardScreen, /onTab=\{\(t\) => \{\s*if \(t === 'settings'\) \{\s*onOpenSettings\(\);/);
 });
