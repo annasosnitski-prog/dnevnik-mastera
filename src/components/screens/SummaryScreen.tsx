@@ -148,14 +148,18 @@ export function SummaryScreen({
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       {/* Header — same formatting as the home screen: INKA logo + subtitle. */}
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        {/* Absolute top-right corner, same spot on every screen (see
-            AdminDashboardScreen). */}
-        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
+        {/* Calendar badge is a flex sibling of the whole logo+subtitle
+            column (not absolutely positioned) so it centers vertically
+            against the full header block's height, pinned to the right
+            edge — same treatment as every other screen header. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <InkaLogo height={fs(34)} />
+            <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+              Планнер
+            </div>
+          </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
-        </div>
-        <InkaLogo height={fs(34)} />
-        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Планнер
         </div>
         <StarDivider />
       </div>

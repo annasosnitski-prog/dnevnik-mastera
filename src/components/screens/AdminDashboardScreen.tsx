@@ -145,28 +145,28 @@ export function AdminDashboardScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        {/* Title row — the calendar badge sits as a flex sibling (not
-            absolutely positioned like on other screens) so it centers
-            vertically against «Админка» itself rather than the header
-            block as a whole. No top star divider here (unlike screens
-            without their own tab row below) — it would double up with
-            the gem tab bar's own hardware right underneath. */}
+        {/* The calendar badge is a flex sibling of the whole title+subtitle
+            column (not absolutely positioned) so it centers vertically
+            against the full header block's height, pinned to the right
+            edge — not just against the title's own line. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div
-            style={{
-              fontFamily: DROP_CAP_FONT,
-              fontSize: fs(24),
-              lineHeight: 1,
-              color: COLORS.textPrimary,
-              letterSpacing: '2px',
-            }}
-          >
-            Адм<InkaTitleSuffix fontSize={fs(24)} />
+          <div>
+            <div
+              style={{
+                fontFamily: DROP_CAP_FONT,
+                fontSize: fs(24),
+                lineHeight: 1,
+                color: COLORS.gold,
+                letterSpacing: '2px',
+              }}
+            >
+              Адм<InkaTitleSuffix fontSize={fs(24)} />
+            </div>
+            <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+              Управление и статистика
+            </div>
           </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
-        </div>
-        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Управление и статистика
         </div>
         <StarDivider />
       </div>

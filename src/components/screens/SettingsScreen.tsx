@@ -531,32 +531,36 @@ export function SettingsScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        {/* Absolute top-right corner, same spot on every screen (see
-            AdminDashboardScreen). */}
-        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
-          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-          <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-            <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-              <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
-            </svg>
-            <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+        {/* Calendar badge is a flex sibling of the whole back-row+title
+            column (not absolutely positioned) so it centers vertically
+            against the full header block's height, pinned to the right
+            edge — same treatment as every other screen header. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+              <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                  <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
+                </svg>
+                <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+              </div>
+            </div>
+            <div
+              style={{
+                fontFamily: DROP_CAP_FONT,
+                fontSize: fs(24),
+                color: COLORS.gold,
+                letterSpacing: '5px',
+                textTransform: 'uppercase',
+              }}
+            >
+              Настройки
+            </div>
+            <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+              Оформление
+            </div>
           </div>
-        </div>
-        <div
-          style={{
-            fontFamily: DROP_CAP_FONT,
-            fontSize: fs(24),
-            color: COLORS.gold,
-            letterSpacing: '5px',
-            textTransform: 'uppercase',
-          }}
-        >
-          Настройки
-        </div>
-        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Оформление
+          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
         <StarDivider />
       </div>

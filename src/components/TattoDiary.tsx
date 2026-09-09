@@ -2746,26 +2746,27 @@ export default function TattoDiary() {
 
         {/* App header */}
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
-          {/* Calendar badge sits as a flex sibling of the logo (not
-              absolutely positioned) so it centers vertically against the
-              INKA wordmark itself instead of the header block as a whole
-              — see AdminDashboardScreen, which centers the same way
-              against «Админка». */}
+          {/* Calendar badge is a flex sibling of the whole logo+subtitle
+              column (not absolutely positioned) so it centers vertically
+              against the full header block's height, pinned to the right
+              edge — same treatment as every other screen header. */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <InkaLogo height={fs(34)} />
+            <div>
+              <InkaLogo height={fs(34)} />
+              <div
+                style={{
+                  fontSize: fs(9.66),
+                  color: COLORS.textGhost,
+                  letterSpacing: `${fs(2.97)}px`,
+                  textTransform: 'uppercase',
+                  marginTop: 3,
+                  fontStyle: 'italic',
+                }}
+              >
+                Дневник Мастера
+              </div>
+            </div>
             <TodayDateBadge onOpen={() => setShowCalendar(true)} size={35} />
-          </div>
-          <div
-            style={{
-              fontSize: fs(9.66),
-              color: COLORS.textGhost,
-              letterSpacing: `${fs(2.97)}px`,
-              textTransform: 'uppercase',
-              marginTop: 3,
-              fontStyle: 'italic',
-            }}
-          >
-            Дневник Мастера
           </div>
           <StarDivider />
           {/* Below the divider, right-aligned — this whole row scrolls away
