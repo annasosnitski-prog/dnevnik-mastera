@@ -242,6 +242,23 @@ export async function unionPhotoFields(kind: PhotoKind, winner: RemoteRow, loser
   return out;
 }
 
+// unionPhotoFields иногда обогащает winner полями с ЧУЖОЙ стороны (снимками
+// проигравшего). Если это случилось на записи, которая едет ТОЛЬКО в одну
+// сторону (например, локальная правка победила и просто отправляется в
+// облако), устройство-отправитель обязано увидеть подмешанное и у себя —
+// иначе его updatedAt после отправки совпадёт с тем, что легло в облако,
+// mergeRecords сочтёт записи одинаковыми («ничего не делаем» при равенстве
+// времени) и устройство навсегда останется без чужого снимка, который само
+// же и отправило дальше. Дешёвая проверка по ссылкам: unionPhotoList и
+// unionById возвращают тот же массив, если добавлять было нечего.
+export function photoFieldsChanged(kind: PhotoKind, before: RemoteRow, after: RemoteRow): boolean {
+  const shape = PHOTO_SHAPES[kind];
+  for (const field of shape.direct) if (after[field] !== before[field]) return true;
+  for (const { field } of shape.objects) if (after[field] !== before[field]) return true;
+  for (const field of shape.nested) if (after[field] !== before[field]) return true;
+  return false;
+}
+
 async function photoIdentity(value: unknown): Promise<string | null> {
   if (isPhotoRef(value)) return refToHash(value);
   if (isInlinePhoto(value)) return photoContentHash(value);

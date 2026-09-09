@@ -296,3 +296,32 @@ test('оба устройства офлайн добавили разные ф�
   const stored = await read(deviceA, 'projects', (tx) => getAllProjects(tx));
   assert.equal(stored.find((p) => p.id === 'p1').photos.length, 2);
 });
+
+test('устройство, чья правка победила, тоже получает себе чужое фото, которое подмешало в облако', async () => {
+  // Устройство Б офлайн добавило утреннее фото и синкнулось первым.
+  const deviceB = await openTestDb();
+  const morning = `data:image/jpeg;base64,${'M'.repeat(500)}`;
+  await write(deviceB, ['projects', 'deletions'], (tx) => putProject(tx, { id: 'p1', title: 'Дракон', photos: [morning] }));
+  const remote = fakeRemote();
+  await runFullSync(deviceB, remote);
+
+  // Устройство А правит текст того же проекта (текст новее — значит,
+  // при следующем синке ПОБЕДИТ версия А), но про утреннее фото Б ничего
+  // не знает — оно на этом устройстве вообще не появлялось.
+  const deviceA = await openTestDb();
+  await write(deviceA, ['projects', 'deletions'], (tx) => putProject(tx, { id: 'p1', title: 'Дракон и пионы', photos: [] }));
+  await runFullSync(deviceA, remote);
+
+  // В облаке фото Б подмешалось к тексту А — это уже проверено соседним
+  // тестом. Вопрос в том, видит ли ЭТО ЖЕ устройство А теперь оба разом.
+  const cloudProject = remote._collections.projects.get('p1');
+  assert.equal(cloudProject.photos.length, 1, 'фото Б доехало в облако вместе с текстом А');
+
+  // Повторный синк А (ничего не редактируя) обязан подтянуть фото Б себе —
+  // иначе устройство А навсегда останется без снимка, который само же
+  // отправило в общее облако вместе со своей правкой текста.
+  await runFullSync(deviceA, remote);
+  const stored = await read(deviceA, 'projects', (tx) => getAllProjects(tx));
+  const local = stored.find((p) => p.id === 'p1');
+  assert.equal(local.photos.length, 1, 'устройство А должно увидеть фото Б у себя, а не только в облаке');
+});

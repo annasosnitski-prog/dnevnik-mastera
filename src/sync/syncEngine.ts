@@ -23,7 +23,7 @@ import * as clientsRepo from '../storage/repos/clientsRepo.js';
 import * as projectsRepo from '../storage/repos/projectsRepo.js';
 import * as contentRepo from '../storage/repos/contentRepo.js';
 import { getMasterInfoRecord, putMasterInfoRecord } from '../storage/repos/masterInfoRepo.js';
-import { externalizePhotos, internalizePhotos, unionPhotoFields, type PhotoTransport } from './photoPayload.js';
+import { externalizePhotos, internalizePhotos, photoFieldsChanged, unionPhotoFields, type PhotoTransport } from './photoPayload.js';
 
 export interface RemoteRow extends MergeableRecord {
   [key: string]: unknown;
@@ -157,9 +157,40 @@ async function syncCollection(
     }),
   );
 
-  if (merged.toWriteLocally.length || merged.toDeleteLocally.length || merged.tombstonesToStore.length) {
+  // Локальная правка победила, но в облаке по этому id уже могла лежать
+  // своя версия — снимки, добавленные там офлайн на другом устройстве,
+  // дописываются в отправляемую запись, а не затираются (unionPhotoFields).
+  //
+  // Если дописать было что, отправленная запись богаче, чем наша
+  // собственная локальная копия. Записать это только в облако мало: раз мы
+  // не меняем updatedAt (текст и так уже победил, время не при чём), при
+  // следующем синке mergeRecords увидит РАВНЫЕ updatedAt у себя и в облаке
+  // и ничего не сделает («ничего не делаем» при равенстве времени, см.
+  // mergeRecords.ts) — устройство навсегда останется без снимка, который
+  // само же отправило дальше. Поэтому обогащённая запись пишется и сюда же,
+  // локально, тем же самым updatedAt.
+  const pushRows: RemoteRow[] = [];
+  const photoEnrichedLocally: RemoteRow[] = [];
+  for (const record of merged.toPushRemotely) {
+    const unioned = await unionPhotoFields(kind, record, remoteById.get(record.id));
+    // Последовательно, не Promise.all: параллельная отправка всех записей
+    // разом подняла бы в память столько снимков, сколько их набралось за
+    // офлайн — ровно та беда, от которой уходим.
+    pushRows.push(await externalizePhotos(kind, unioned, photos, uploaded));
+    if (photoFieldsChanged(kind, record, unioned)) {
+      photoEnrichedLocally.push(await internalizePhotos(kind, unioned, record, photos));
+    }
+  }
+
+  if (
+    merged.toWriteLocally.length ||
+    merged.toDeleteLocally.length ||
+    merged.tombstonesToStore.length ||
+    photoEnrichedLocally.length
+  ) {
     const writeTx = db.transaction([adapter.store, DELETIONS_STORE], 'readwrite');
     for (const record of toWriteLocally) adapter.put(writeTx, record, { preserveUpdatedAt: true });
+    for (const record of photoEnrichedLocally) adapter.put(writeTx, record, { preserveUpdatedAt: true });
     for (const id of merged.toDeleteLocally) adapter.remove(writeTx, id);
     // Время следа — из облака (когда там удалили), а не «сейчас»: устройство
     // могло быть офлайн неделю, и «сейчас» соврало бы о том, когда это
@@ -170,20 +201,7 @@ async function syncCollection(
     await txDone(writeTx);
   }
 
-  if (merged.toPushRemotely.length) {
-    const rows = [];
-    // Последовательно, не Promise.all: параллельная отправка всех записей
-    // разом подняла бы в память столько снимков, сколько их набралось за
-    // офлайн — ровно та беда, от которой уходим.
-    for (const record of merged.toPushRemotely) {
-      // Победила локальная версия, но в облаке по этому id уже могла лежать
-      // своя — снимки, добавленные там офлайн на другом устройстве, дописываются,
-      // а не затираются локальной версией целиком (см. unionPhotoFields).
-      const unioned = await unionPhotoFields(kind, record, remoteById.get(record.id));
-      rows.push(await externalizePhotos(kind, unioned, photos, uploaded));
-    }
-    await remote.upsert(rows);
-  }
+  if (pushRows.length) await remote.upsert(pushRows);
   if (merged.tombstonesToPush.length) {
     await remoteTombstones.upsert(
       merged.tombstonesToPush.map((t) => ({ ...t, store: adapter.store, key: tombstoneKey(adapter.store, t.id) })),
