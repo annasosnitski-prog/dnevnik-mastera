@@ -44,6 +44,7 @@
     "src/storage/repos/masterInfoRepo.ts",
     "src/storage/repos/tombstonesRepo.ts",
     "src/sync/syncEngine.ts",
+    "src/sync/supabaseRemote.ts",
     "src/lib/appUpdate.ts",
     "src/lib/chatLink.ts",
     "src/lib/backupSerialize.ts",
