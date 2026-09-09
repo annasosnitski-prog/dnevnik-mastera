@@ -184,7 +184,7 @@ import {
 export { ACCENT_COLORS, MARKER_COLORS } from '../domain/client';
 // Чистые выборки/сортировки/агрегаты вынесены в domain/*Selectors и
 // utils/dates (PR 3 рефакторинга). Алгоритмы и результаты не менялись.
-import { ISO_DATE_RE, formatDate, todayISO } from '../utils/dates';
+import { todayISO } from '../utils/dates';
 import {
   getProjectById,
   getProjectsByClientId,
@@ -195,7 +195,6 @@ import {
 } from '../domain/projectSelectors';
 export { clientNameFor } from '../domain/projectSelectors';
 import {
-  nextPlannedSession,
   type SortMode,
   SORT_MODES,
   sortClients,
@@ -4107,8 +4106,6 @@ function TrialGate({
 
 // ===================== CLIENT GRID CARD =====================
 function ClientGridCard({ client, onClick }: { client: Client; onClick: () => void }) {
-  const plannedSession = nextPlannedSession(client);
-
   return (
     <div
       className="inka-card"
@@ -4221,56 +4218,16 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
           )}
         </div>
 
-        {/* Only an upcoming session belongs on the cover. Completed-session
-            dates remain available inside the client profile and timeline. */}
-        {plannedSession && ISO_DATE_RE.test(plannedSession.date) && (
-          <div style={{ marginBottom: 6, minWidth: 0 }}>
-            <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-              Следующая сессия
-            </div>
-            <div
-              style={{
-                fontSize: fs(12),
-                color: COLORS.textSecondary,
-                fontStyle: 'italic',
-                marginTop: 2,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {formatDate(plannedSession.date)}
-            </div>
-          </div>
-        )}
-
-        {/* Style tag (+ Модель/Другое badge, when not a plain client) */}
-        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          {client.clientType && client.clientType !== 'client' && (
+        {client.style && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <span
               style={{
-                fontSize: fs(10),
-                color: COLORS.textGhost,
-                border: '0.5px solid rgba(var(--gold-rgb),0.4)',
-                padding: '2px 7px',
-                borderRadius: 1,
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {CLIENT_TYPES.find((t) => t.value === client.clientType)?.label}
-            </span>
-          )}
-          {client.style ? (
-            <span
-              style={{
-                fontSize: fs(11),
+                fontSize: fs(9),
                 color: client.color,
                 border: `0.5px solid ${client.color}`,
-                padding: '2px 7px',
+                padding: '1px 5px',
                 borderRadius: 1,
-                letterSpacing: '1px',
+                letterSpacing: '0.5px',
                 textTransform: 'uppercase',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -4280,10 +4237,8 @@ function ClientGridCard({ client, onClick }: { client: Client; onClick: () => vo
             >
               {client.style}
             </span>
-          ) : (
-            <span style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', letterSpacing: '0.5px' }}>—</span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
