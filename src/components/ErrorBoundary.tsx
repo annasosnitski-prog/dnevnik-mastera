@@ -1,5 +1,5 @@
 import { Component, type CSSProperties, type ReactNode } from 'react';
-import { recordErrorEntry } from '../lib/errorLog';
+import { isModuleLoadError, recordErrorEntry } from '../lib/errorLog';
 
 interface Props {
   children: ReactNode;
@@ -50,7 +50,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.error) {
-      const canRetry = this.state.retries < MAX_RETRIES;
+      // Сорвавшаяся загрузка чанка (новый деплой убрал старый файл с
+      // сервера) — не тот сбой, который лечится перерисовкой: lazy()
+      // запоминает сорвавшийся промис навсегда и второй раз модуль не
+      // запросит. Единственное, что помогает, — перезагрузка страницы,
+      // поэтому «Попробовать снова» здесь не предлагаем вовсе.
+      const canRetry = this.state.retries < MAX_RETRIES && !isModuleLoadError(this.state.error);
       return (
         <div
           style={{

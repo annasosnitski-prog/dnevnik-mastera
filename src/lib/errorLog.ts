@@ -133,6 +133,27 @@ export function errorSourceLabel(source: DiaryErrorSource): string {
   return SOURCE_LABELS[source] ?? source;
 }
 
+// «Загрузка модуля сорвалась»: после нового деплоя старые файлы чанков
+// (screens/*, games/*) пропадают с сервера, а уже открытая вкладка всё ещё
+// пытается их импортировать по старым именам — lazy() бросает TypeError
+// вроде «Importing a module script failed» / «Failed to fetch dynamically
+// imported module». Отличаем этот случай, потому что «Попробовать снова» на
+// него не действует: React.lazy() запоминает сорвавшийся промис навсегда и
+// повторно модуль не запрашивает — помогает только перезагрузка страницы.
+const MODULE_LOAD_ERROR_PATTERNS = [
+  /importing a module script failed/i,
+  /failed to fetch dynamically imported module/i,
+  /error loading dynamically imported module/i,
+  // Явно «скрипт», а не голое «load failed» — иначе сюда бы попал и обрыв
+  // обычного fetch() (Safari описывает сетевую ошибку теми же словами).
+  /script .* load failed/i,
+];
+
+export function isModuleLoadError(error: unknown): boolean {
+  const message = describeError(error);
+  return MODULE_LOAD_ERROR_PATTERNS.some((pattern) => pattern.test(message));
+}
+
 // Человекочитаемый журнал одной строкой на запись — для показа в Настройках
 // и для пересылки. Дата в местном времени: разбирать сбой будут по тому
 // времени, которое мастер видела на своих часах.

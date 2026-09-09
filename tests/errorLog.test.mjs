@@ -9,6 +9,7 @@ import {
   parseErrorLog,
   formatErrorLog,
   errorSourceLabel,
+  isModuleLoadError,
 } from '../.test-dist/src/lib/errorLog.js';
 
 const entry = (over = {}) => ({
@@ -99,4 +100,18 @@ test('источники подписаны по-русски', () => {
   assert.equal(errorSourceLabel('crash'), 'сбой приложения');
   assert.equal(errorSourceLabel('promise'), 'фоновая задача');
   assert.equal(errorSourceLabel('sync'), 'синхронизация');
+});
+
+test('сорвавшаяся загрузка чанка узнаётся по тексту — retry на неё не действует', () => {
+  assert.ok(isModuleLoadError(new TypeError('Importing a module script failed')));
+  assert.ok(isModuleLoadError(new TypeError('Failed to fetch dynamically imported module')));
+  assert.ok(isModuleLoadError('error loading dynamically imported module: https://x/y.js'));
+  assert.ok(isModuleLoadError(new TypeError('Script https://dnevnik-mastera-xqxc.vercel.app/sw.js load failed')));
+});
+
+test('обычные сбои и обрывы сети чанком не считаются', () => {
+  assert.equal(isModuleLoadError(new Error('QuotaExceededError: нет места')), false);
+  assert.equal(isModuleLoadError(new TypeError('Load failed')), false);
+  assert.equal(isModuleLoadError(new TypeError('Failed to fetch')), false);
+  assert.equal(isModuleLoadError(null), false);
 });

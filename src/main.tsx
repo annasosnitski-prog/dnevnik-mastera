@@ -145,7 +145,14 @@ if (import.meta.env.PROD) {
       .register('/sw.js')
       .then((registration) => {
         document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') void registration.update();
+          // .catch, а не просто void: сеть на телефоне мастера бывает
+          // обрывается ровно в момент возврата из фона (см. registration.
+          // update() выше), и без .catch это падало необработанным
+          // промисом — журнал сбоев заполнялся транзитными сетевыми
+          // обрывами, ничего не значащими сами по себе.
+          if (document.visibilityState === 'visible') {
+            void registration.update().catch((err) => console.log('SW update failed:', err));
+          }
         });
       })
       .catch((err) => console.log('SW registration failed:', err));
