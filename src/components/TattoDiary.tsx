@@ -3142,7 +3142,7 @@ export default function TattoDiary() {
               padding: '0 40px',
             }}
           >
-            Пока нет клиентов
+            Здесь пока тихо — клиенты ещё не появились
           </div>
         )}
       </div>

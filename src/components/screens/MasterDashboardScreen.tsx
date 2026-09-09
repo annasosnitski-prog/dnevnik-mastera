@@ -776,7 +776,7 @@ export function MasterDashboardScreen({
           </div>
           {workshopProjects.length === 0 ? (
             <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
-              Пока нет своих проектов
+              Пока пусто — свои проекты ещё не начаты
             </div>
           ) : (
             <div className="inka-client-grid" style={{ display: 'grid', gap: 10 }}>
