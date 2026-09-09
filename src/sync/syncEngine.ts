@@ -19,6 +19,7 @@ import {
   type Tombstone,
 } from '../storage/repos/tombstonesRepo.js';
 import { mergeRecords, type MergeableRecord } from '../storage/mergeRecords.js';
+import { stampUpdatedAt } from '../storage/updatedAt.js';
 import * as clientsRepo from '../storage/repos/clientsRepo.js';
 import * as projectsRepo from '../storage/repos/projectsRepo.js';
 import * as contentRepo from '../storage/repos/contentRepo.js';
@@ -171,7 +172,14 @@ async function syncCollection(
   // локально, тем же самым updatedAt.
   const pushRows: RemoteRow[] = [];
   const photoEnrichedLocally: RemoteRow[] = [];
-  for (const record of merged.toPushRemotely) {
+  for (const record0 of merged.toPushRemotely) {
+    // Записи, заведённые до появления updatedAt (Шаг 1 синка) и ни разу с
+    // тех пор не пересохранённые, физически не имеют этого поля — put*
+    // репозиториев штампует его на ЗАПИСИ, а не на чтении. Отправить такую
+    // запись как есть значило бы отправить updated_at: undefined в столбец
+    // NOT NULL — облако отказывает целиком. Тот же fallback на createdDate,
+    // что и при восстановлении из бэкапа (см. updatedAt.ts).
+    const record = stampUpdatedAt(record0, { preserveUpdatedAt: true });
     const unioned = await unionPhotoFields(kind, record, remoteById.get(record.id));
     // Последовательно, не Promise.all: параллельная отправка всех записей
     // разом подняла бы в память столько снимков, сколько их набралось за
