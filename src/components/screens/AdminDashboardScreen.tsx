@@ -145,28 +145,28 @@ export function AdminDashboardScreen({
     <div style={{ minHeight: '100%' }}>
       <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
       <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        <div
-          style={{
-            fontFamily: DROP_CAP_FONT,
-            fontSize: fs(24),
-            color: COLORS.gold,
-            letterSpacing: '5px',
-            textTransform: 'uppercase',
-          }}
-        >
-          Админка
+        {/* Title row — the calendar badge sits as a flex sibling (not
+            absolutely positioned like on other screens) so it centers
+            vertically against «Админка» itself rather than the header
+            block as a whole. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div
+            style={{
+              fontFamily: DROP_CAP_FONT,
+              fontSize: fs(24),
+              color: COLORS.gold,
+              letterSpacing: '5px',
+              textTransform: 'uppercase',
+            }}
+          >
+            Админка
+          </div>
+          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Управление и статистика
         </div>
         <StarDivider />
-        {/* Back in its original top-right corner — nothing else in this
-            header shares that spot, so it no longer needs its own row
-            pushing the gem tabs down (see #267, which only had to move it
-            off Личный кабинет's gear and Мастерская's filter icon). */}
-        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
-          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
-        </div>
       </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента и личного
