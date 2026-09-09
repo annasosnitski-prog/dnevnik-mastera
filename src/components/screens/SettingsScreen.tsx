@@ -46,7 +46,7 @@ import {
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
-import { COLORS, fs, type Theme, type Prefs, DEFAULT_PREFS, INPUT_STYLE } from '../TattoDiary';
+import { COLORS, fs, type Theme, type Prefs, DEFAULT_PREFS } from '../TattoDiary';
 import type { SyncDriverState } from '../../sync/useSyncDriver';
 import { syncActive, fetchBotBookings, DEFAULT_ENDPOINT, type CalendarSyncSettings } from '../../lib/calendarSync';
 import { type ContentSyncSettings } from '../../lib/contentSync';
@@ -155,6 +155,63 @@ function CompactToggle({
     </div>
   );
 }
+
+// Та же тумблер-механика, что у CompactToggle, но в один ряд с подписью
+// слева — для секций «Автоматизация»/ContentINKA, где переключатель вкл/выкл
+// сопровождает заголовок раздела, а не стоит отдельной подписанной колонкой.
+function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div
+      onClick={() => onChange(!value)}
+      role="button"
+      aria-pressed={value}
+      aria-label={label}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, cursor: 'pointer' }}
+    >
+      <span style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px' }}>{label}</span>
+      <span
+        style={{
+          flexShrink: 0,
+          width: 40,
+          height: 22,
+          borderRadius: 11,
+          border: '1px solid rgba(var(--gold-rgb),0.35)',
+          background: value ? 'rgba(var(--gold-rgb),0.32)' : 'rgba(var(--gold-rgb),0.06)',
+          position: 'relative',
+          transition: 'background 0.2s ease',
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            top: 1.5,
+            left: value ? 20 : 2,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            background: value ? COLORS.gold : COLORS.textFaint,
+            transition: 'left 0.2s ease',
+          }}
+        />
+      </span>
+    </div>
+  );
+}
+
+// Единый компактный стиль для полей ввода секрета/адреса сервиса
+// («Автоматизация», ContentINKA) — уже, ниже, без крупных отступов
+// полноширинного INPUT_STYLE, который рассчитан на текстовые формы.
+const CONNECTION_FIELD_STYLE: React.CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '8px 10px',
+  borderRadius: 2,
+  border: '1px solid rgba(var(--gold-rgb),0.18)',
+  background: 'rgba(var(--surface-rgb),0.03)',
+  color: 'var(--text-secondary)',
+  fontSize: fs(12),
+  outline: 'none',
+};
 
 export interface SettingsScreenProps {
   theme: Theme;
@@ -800,63 +857,33 @@ export function SettingsScreen({
               onChange={(e) => setTelegramBotDraft(e.target.value)}
               onBlur={() => telegramBotDraft.trim() !== masterInfo.telegramBotLink && onChangeMasterInfo({ ...masterInfo, telegramBotLink: telegramBotDraft.trim() })}
               placeholder="https://t.me/..."
-              style={{ ...INPUT_STYLE, marginBottom: 14 }}
+              style={{ ...CONNECTION_FIELD_STYLE, marginBottom: 10 }}
             />
           ) : (
-            <div onClick={() => copyAutomationToClipboard(masterInfo.telegramBotLink, 'telegramBot')} role="button" aria-label="Скопировать ссылку на бота" style={{ cursor: 'pointer', marginBottom: 14 }}>
-              <div style={{ fontSize: fs(15), color: COLORS.textPrimary, wordBreak: 'break-all' }}>{masterInfo.telegramBotLink}</div>
-              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 6, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
+            <div onClick={() => copyAutomationToClipboard(masterInfo.telegramBotLink, 'telegramBot')} role="button" aria-label="Скопировать ссылку на бота" style={{ cursor: 'pointer', marginBottom: 10 }}>
+              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, wordBreak: 'break-all' }}>{masterInfo.telegramBotLink}</div>
+              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 4, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
             </div>
           )}
           {copiedAutomationTag === 'telegramBot' && <div style={copiedChipStyle}>Скопировано ✓</div>}
 
-          <div style={{ height: 1, background: 'rgba(var(--gold-rgb),0.1)', margin: '4px 0 14px' }} />
+          <div style={{ height: 1, background: 'rgba(var(--gold-rgb),0.1)', margin: '2px 0 12px' }} />
 
-          <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px', marginBottom: 8 }}>Инка-календарь · Синхронизация</div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {([
-              { v: true, label: 'Включена' },
-              { v: false, label: 'Выключена' },
-            ] as { v: boolean; label: string }[]).map((o) => (
-              <div
-                key={String(o.v)}
-                onClick={() => onChangeCalendarSync({ ...calendarSync, enabled: o.v })}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontSize: fs(13),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  border: calendarSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: calendarSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: calendarSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
+          <div style={{ marginBottom: 10 }}>
+            <ToggleRow
+              label="Инка-календарь · Синхронизация"
+              value={calendarSync.enabled}
+              onChange={(v) => onChangeCalendarSync({ ...calendarSync, enabled: v })}
+            />
           </div>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
+          <div style={{ position: 'relative', marginBottom: 6 }}>
             <input
               type={showSyncSecret ? 'text' : 'password'}
               value={calendarSync.secret}
               onChange={(e) => onChangeCalendarSync({ ...calendarSync, secret: e.target.value })}
               placeholder="Секретный код синхронизации"
               autoComplete="off"
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                padding: '10px 40px 10px 12px',
-                borderRadius: 2,
-                border: '1px solid rgba(var(--gold-rgb),0.2)',
-                background: 'rgba(var(--surface-rgb),0.03)',
-                color: 'var(--text-secondary)',
-                fontSize: fs(13),
-                outline: 'none',
-              }}
+              style={{ ...CONNECTION_FIELD_STYLE, paddingRight: 34 }}
             />
             <span
               onClick={() => setShowSyncSecret((v) => !v)}
@@ -865,7 +892,7 @@ export function SettingsScreen({
               style={{
                 position: 'absolute',
                 top: '50%',
-                right: 10,
+                right: 8,
                 transform: 'translateY(-50%)',
                 cursor: 'pointer',
                 color: COLORS.textGhost,
@@ -874,13 +901,13 @@ export function SettingsScreen({
               }}
             >
               {showSyncSecret ? (
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
                   <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                   <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
                   <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                 </svg>
               ) : (
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
                   <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                   <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
                 </svg>
@@ -893,19 +920,9 @@ export function SettingsScreen({
             onChange={(e) => onChangeCalendarSync({ ...calendarSync, endpoint: e.target.value || DEFAULT_ENDPOINT })}
             placeholder={DEFAULT_ENDPOINT}
             autoComplete="off"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '10px 12px',
-              borderRadius: 2,
-              border: '1px solid rgba(var(--gold-rgb),0.2)',
-              background: 'rgba(var(--surface-rgb),0.03)',
-              color: 'var(--text-secondary)',
-              fontSize: fs(12),
-              outline: 'none',
-            }}
+            style={CONNECTION_FIELD_STYLE}
           />
-          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
+          <div style={{ marginTop: 6, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
             {syncActive(calendarSync)
               ? 'записи и консультации улетают в календарь Инки при сохранении.'
               : calendarSync.enabled
@@ -913,7 +930,7 @@ export function SettingsScreen({
               : 'выключена: записи остаются только в дневнике.'}
           </div>
           {syncActive(calendarSync) && (
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 8 }}>
               <span
                 onClick={syncCheck.status === 'checking' ? undefined : checkCalendarSync}
                 role="button"
@@ -948,51 +965,21 @@ export function SettingsScreen({
         {/* ContentINKA — тот же принцип, что «Инка-календарь» выше, свой
             секрет и свой адрес сервиса (не тот же деплой, что у бота). */}
         <div style={rowStyle}>
-          <div style={labelStyle}>ContentINKA · Отбор и текст</div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {([
-              { v: true, label: 'Включена' },
-              { v: false, label: 'Выключена' },
-            ] as { v: boolean; label: string }[]).map((o) => (
-              <div
-                key={String(o.v)}
-                onClick={() => onChangeContentSync({ ...contentSync, enabled: o.v })}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontSize: fs(13),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  border: contentSync.enabled === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: contentSync.enabled === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: contentSync.enabled === o.v ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
+          <div style={{ marginBottom: 10 }}>
+            <ToggleRow
+              label="ContentINKA · Отбор и текст"
+              value={contentSync.enabled}
+              onChange={(v) => onChangeContentSync({ ...contentSync, enabled: v })}
+            />
           </div>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
+          <div style={{ position: 'relative', marginBottom: 6 }}>
             <input
               type={showContentSecret ? 'text' : 'password'}
               value={contentSync.secret}
               onChange={(e) => onChangeContentSync({ ...contentSync, secret: e.target.value })}
               placeholder="Секретный код ContentINKA"
               autoComplete="off"
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                padding: '10px 40px 10px 12px',
-                borderRadius: 2,
-                border: '1px solid rgba(var(--gold-rgb),0.2)',
-                background: 'rgba(var(--surface-rgb),0.03)',
-                color: 'var(--text-secondary)',
-                fontSize: fs(13),
-                outline: 'none',
-              }}
+              style={{ ...CONNECTION_FIELD_STYLE, paddingRight: 34 }}
             />
             <span
               onClick={() => setShowContentSecret((v) => !v)}
@@ -1001,7 +988,7 @@ export function SettingsScreen({
               style={{
                 position: 'absolute',
                 top: '50%',
-                right: 10,
+                right: 8,
                 transform: 'translateY(-50%)',
                 cursor: 'pointer',
                 color: COLORS.textGhost,
@@ -1010,13 +997,13 @@ export function SettingsScreen({
               }}
             >
               {showContentSecret ? (
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
                   <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                   <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
                   <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                 </svg>
               ) : (
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
                   <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                   <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
                 </svg>
@@ -1029,19 +1016,9 @@ export function SettingsScreen({
             onChange={(e) => onChangeContentSync({ ...contentSync, endpoint: e.target.value })}
             placeholder="https://contentinka-....vercel.app"
             autoComplete="off"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '10px 12px',
-              borderRadius: 2,
-              border: '1px solid rgba(var(--gold-rgb),0.2)',
-              background: 'rgba(var(--surface-rgb),0.03)',
-              color: 'var(--text-secondary)',
-              fontSize: fs(12),
-              outline: 'none',
-            }}
+            style={CONNECTION_FIELD_STYLE}
           />
-          <div style={{ marginTop: 8, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
+          <div style={{ marginTop: 6, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
             {contentSync.enabled && contentSync.secret && contentSync.endpoint
               ? '«Отправить в контент» доступна в карточке сессии/консультации.'
               : 'нужны адрес сервиса и секретный код — без них кнопка «Отправить в контент» не сработает.'}
@@ -1051,7 +1028,7 @@ export function SettingsScreen({
             role="button"
             aria-label="Открыть ContentINKA"
             style={{
-              marginTop: 12,
+              marginTop: 10,
               fontSize: fs(12),
               color: COLORS.gold,
               textAlign: 'center',
