@@ -60,7 +60,9 @@ test('карточка лежит одной записью с постоянн�
   assert.match(persistEffect, /putMasterInfoRecord\(tx, masterInfo\)/);
   assert.match(loadEffect, /getMasterInfoRecord\(tx\)/);
   const repo = readSource('../src/storage/repos/masterInfoRepo.ts');
-  assert.match(repo, /\.put\(\{ \.\.\.value, id: MASTER_INFO_RECORD_ID \}\)/);
+  // put обёрнут в stampUpdatedAt (Шаг 1 синка, src/storage/updatedAt.ts) —
+  // сам постоянный id от этого не изменился.
+  assert.match(repo, /\{ \.\.\.value, id: MASTER_INFO_RECORD_ID \}/);
   assert.match(repo, /\.get\(MASTER_INFO_RECORD_ID\)/);
 });
 
@@ -101,7 +103,9 @@ test('кабинет восстанавливается той же транза
   // Иначе восстановление могло пройти наполовину: клиенты новые, кабинет
   // старый, и понять это по экрану невозможно.
   assert.match(replaceAllData, /if \(restoredMaster\) stores\.push\(MASTER_INFO_STORE\);/);
-  assert.match(replaceAllData, /putMasterInfoRecord\(tx, restoredMaster\)/);
+  // fromBackup — сохранить время правки из копии, а не штамповать «сейчас»
+  // (иначе восстановленная копия выиграла бы слияние с другим устройством).
+  assert.match(replaceAllData, /putMasterInfoRecord\(tx, restoredMaster, fromBackup\)/);
 });
 
 test('старый файл с одними задачами не стирает имя и реквизиты', () => {

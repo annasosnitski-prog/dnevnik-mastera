@@ -73,6 +73,12 @@ function openOnce(dbVersion: number): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('masterInfo')) {
         db.createObjectStore('masterInfo', { keyPath: 'id' });
       }
+      // Следы удалений — Шаг 2 синка (docs/SYNC_PLAN.md). Заводится по
+      // литеральному имени, как и остальные: DELETIONS_STORE из
+      // repos/tombstonesRepo.ts держит то же значение.
+      if (!db.objectStoreNames.contains('deletions')) {
+        db.createObjectStore('deletions', { keyPath: 'key' });
+      }
       ensureContentIngestJobStore(db);
     };
   });

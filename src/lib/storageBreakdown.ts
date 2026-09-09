@@ -38,6 +38,16 @@ export interface StorageBreakdown {
   // Сколько записей просмотрено — чтобы отличить «фото нет» от «замер не
   // дошёл до стора».
   records: number;
+
+  // Сколько места заняли бы фото, если бы каждый снимок хранился ОДИН раз.
+  // Разделы выше складывают копии: одно фото сессии, попавшее в черновик
+  // контента и в незавершённую задачу, весит в них трижды. Для вопроса
+  // «влезет ли дневник в облако» важна именно эта цифра, а не сумма разделов.
+  unique: PhotoBucket;
+  // Отпечатки уже посчитанных снимков. Живёт только на время замера и в
+  // отчёте не используется — но лежит здесь, а не в замыкании, чтобы
+  // measure*-функции оставались проверяемыми по одной записи без IndexedDB.
+  seen: Set<string>;
 }
 
 export interface PhotoBucket {
@@ -55,6 +65,8 @@ export function emptyBreakdown(): StorageBreakdown {
     jobs: emptyBucket(),
     legacy: emptyBucket(),
     records: 0,
+    unique: emptyBucket(),
+    seen: new Set(),
   };
 }
 
@@ -66,31 +78,51 @@ export function photoBytes(value: unknown): number {
   return typeof value === 'string' ? value.length : 0;
 }
 
-function addPhotos(bucket: PhotoBucket, values: unknown): void {
+// Отпечаток снимка — чтобы узнать копию, не держа саму строку.
+//
+// Нестандартное решение, и намеренно: честный хэш по всей base64-строке — это
+// миллион шагов на каждое фото и секунды ожидания на телефоне, ровно там, где
+// мастер и так пришла разбираться с тормозами. Копии в дневнике возникают
+// КОПИРОВАНИЕМ строки (фото сессии уезжает в черновик, черновик — в задачу),
+// то есть совпадают посимвольно. Поэтому достаточно длины и трёх окон —
+// начало, середина, конец: одинаковые строки дадут одинаковый отпечаток
+// всегда, а разным снимкам пришлось бы совпасть длиной И всеми тремя окнами.
+const WINDOW = 64;
+
+export function photoFingerprint(value: string): string {
+  const middle = Math.max(0, Math.floor(value.length / 2) - WINDOW / 2);
+  return `${value.length}:${value.slice(0, WINDOW)}:${value.slice(middle, middle + WINDOW)}:${value.slice(-WINDOW)}`;
+}
+
+// Учитывает снимок и в его разделе, и в общем счёте уникальных.
+function addPhoto(into: StorageBreakdown, bucket: PhotoBucket, value: unknown): void {
+  const bytes = photoBytes(value);
+  if (bytes === 0) return;
+  bucket.bytes += bytes;
+  bucket.count += 1;
+
+  const fingerprint = photoFingerprint(value as string);
+  if (into.seen.has(fingerprint)) return;
+  into.seen.add(fingerprint);
+  into.unique.bytes += bytes;
+  into.unique.count += 1;
+}
+
+function addPhotos(into: StorageBreakdown, bucket: PhotoBucket, values: unknown): void {
   if (!Array.isArray(values)) return;
-  for (const value of values) {
-    const bytes = photoBytes(value);
-    if (bytes === 0) continue;
-    bucket.bytes += bytes;
-    bucket.count += 1;
-  }
+  for (const value of values) addPhoto(into, bucket, value);
 }
 
 // Фото в объектах с полем url (HealingPhoto) или fileUrl (документ клиента).
-function addPhotoObjects(bucket: PhotoBucket, values: unknown, field: 'url' | 'fileUrl'): void {
+function addPhotoObjects(into: StorageBreakdown, bucket: PhotoBucket, values: unknown, field: 'url' | 'fileUrl'): void {
   if (!Array.isArray(values)) return;
-  for (const value of values) {
-    const bytes = photoBytes((value as Record<string, unknown> | null)?.[field]);
-    if (bytes === 0) continue;
-    bucket.bytes += bytes;
-    bucket.count += 1;
-  }
+  for (const value of values) addPhoto(into, bucket, (value as Record<string, unknown> | null)?.[field]);
 }
 
 // Записи (сессии/консультации) внутри проекта — живые фото работ.
-function addRecordPhotos(bucket: PhotoBucket, records: unknown): void {
+function addRecordPhotos(into: StorageBreakdown, bucket: PhotoBucket, records: unknown): void {
   if (!Array.isArray(records)) return;
-  for (const record of records) addPhotos(bucket, (record as Record<string, unknown> | null)?.photos);
+  for (const record of records) addPhotos(into, bucket, (record as Record<string, unknown> | null)?.photos);
 }
 
 // ── Замер одной записи каждого вида ──────────────────────────────────────
@@ -100,33 +132,33 @@ function addRecordPhotos(bucket: PhotoBucket, records: unknown): void {
 export function measureClient(raw: unknown, into: StorageBreakdown): void {
   const client = (raw ?? {}) as Record<string, unknown>;
   into.records += 1;
-  addPhotoObjects(into.documents, client.documents, 'fileUrl');
+  addPhotoObjects(into, into.documents, client.documents, 'fileUrl');
   // Легаси-массивы: после Этапа 2 записи живут на проектах, а эти остались
   // страховкой и приложением не читаются.
-  addRecordPhotos(into.legacy, client.sessions);
-  addRecordPhotos(into.legacy, client.consultations);
+  addRecordPhotos(into, into.legacy, client.sessions);
+  addRecordPhotos(into, into.legacy, client.consultations);
 }
 
 export function measureProject(raw: unknown, into: StorageBreakdown): void {
   const project = (raw ?? {}) as Record<string, unknown>;
   into.records += 1;
-  addPhotos(into.works, project.photos);
-  addPhotoObjects(into.works, project.healingPhotos, 'url');
-  addRecordPhotos(into.works, project.sessions);
-  addRecordPhotos(into.works, project.consultations);
+  addPhotos(into, into.works, project.photos);
+  addPhotoObjects(into, into.works, project.healingPhotos, 'url');
+  addRecordPhotos(into, into.works, project.sessions);
+  addRecordPhotos(into, into.works, project.consultations);
 }
 
 export function measureContentEntry(raw: unknown, into: StorageBreakdown): void {
   const entry = (raw ?? {}) as Record<string, unknown>;
   into.records += 1;
-  addPhotos(into.content, entry.photos);
+  addPhotos(into, into.content, entry.photos);
 }
 
 export function measureJob(raw: unknown, into: StorageBreakdown): void {
   const job = (raw ?? {}) as Record<string, unknown>;
   into.records += 1;
   const entry = job.entry as Record<string, unknown> | undefined;
-  addPhotos(into.jobs, entry?.photos);
+  addPhotos(into, into.jobs, entry?.photos);
 }
 
 // ── Итоги и человеческий текст ───────────────────────────────────────────
@@ -146,6 +178,12 @@ export function totalPhotoBytes(breakdown: StorageBreakdown): number {
 // не опубликован, и решать по ним мастеру.
 export function reclaimableBytes(breakdown: StorageBreakdown): number {
   return breakdown.legacy.bytes;
+}
+
+// Вес копий: разница между суммой разделов и весом уникальных снимков.
+// Именно столько лишнего уехало бы в облако при синке «как есть».
+export function duplicateBytes(breakdown: StorageBreakdown): number {
+  return Math.max(0, totalPhotoBytes(breakdown) - breakdown.unique.bytes);
 }
 
 export interface BreakdownLine {

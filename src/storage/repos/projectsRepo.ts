@@ -6,15 +6,37 @@
 // как читать/писать/удалять в этом сторе.
 // ============================================================
 
+import { stampUpdatedAt, type StampOptions } from '../updatedAt.js';
+import { recordDeletion } from './tombstonesRepo.js';
+
 export function getAllProjects<T = unknown>(tx: IDBTransaction): IDBRequest<T[]> {
   return tx.objectStore('projects').getAll();
 }
 
-export function putProject<T extends { id: string }>(tx: IDBTransaction, record: T): void {
-  tx.objectStore('projects').put(record);
+// Время правки — здесь же, в единственной точке записи проекта (см.
+// src/storage/updatedAt.ts, Шаг 1 синка). Это НЕ замена
+// lastMeaningfulActivityAt: та про «последнее движение по работе» и
+// намеренно молчит о правке текста и фото, а эта — про саму запись.
+export function putProject<T extends { id: string }>(tx: IDBTransaction, record: T, options?: StampOptions): void {
+  tx.objectStore('projects').put(stampUpdatedAt(record, options));
 }
 
+// Удаление и его след — ОДНОЙ транзакцией (Шаг 2 синка). Поэтому
+// вызывающая сторона обязана открыть её и на DELETIONS_STORE: иначе
+// возможно «запись удалена, следа нет», и первое же слияние вернёт её
+// с другого устройства обратно.
 export function deleteProjectRecord(tx: IDBTransaction, id: string): void {
+  tx.objectStore('projects').delete(id);
+  recordDeletion(tx, 'projects', id);
+}
+
+// Только физическое удаление, БЕЗ следа — для движка синка (Шаг 5,
+// docs/SYNC_PLAN.md), который применяет удаление, пришедшее из облака.
+// Время в следе тогда обязано быть тем же, что и в облаке (когда там
+// удалили), а не «сейчас» — иначе устройство, которое было офлайн неделю,
+// перезаписало бы старый след свежим и следующее слияние решило бы, что
+// удаление только что случилось здесь.
+export function removeProjectRecordOnly(tx: IDBTransaction, id: string): void {
   tx.objectStore('projects').delete(id);
 }
 

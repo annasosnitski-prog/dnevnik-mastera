@@ -5,6 +5,7 @@ import { indexedDB } from 'fake-indexeddb';
 
 import {
   breakdownLines,
+  duplicateBytes,
   emptyBreakdown,
   measureClient,
   measureContentEntry,
@@ -12,6 +13,7 @@ import {
   measureProject,
   measureStorageBreakdown,
   photoBytes,
+  photoFingerprint,
   reclaimableBytes,
   totalPhotoBytes,
 } from '../.test-dist/src/lib/storageBreakdown.js';
@@ -232,4 +234,55 @@ test('the reclaimable line appears only when there is something to reclaim', () 
 test('the journal knows this operation by its own name', () => {
   const messages = readFileSync(new URL('../src/lib/storageMessages.ts', import.meta.url), 'utf8');
   assert.match(messages, /measureStorage: 'подсчёт занятого места'/);
+});
+
+// ── Уникальные снимки против копий ───────────────────────────────────────
+// Пункт 1 плана по фото (docs/SYNC_PLAN.md): прежде чем везти дневник в
+// облако, надо знать, сколько в нём РАЗНЫХ фото. Сумма разделов на это не
+// отвечает — один снимок в сессии, черновике и задаче весит в ней трижды.
+
+// Снимок с различимым содержимым той же длины, что и photo(bytes).
+const distinctPhoto = (bytes, seed) =>
+  `data:image/jpeg;base64,${seed}${'A'.repeat(Math.max(0, bytes - 23 - String(seed).length))}`;
+
+test('одно и то же фото в сессии, черновике и задаче считается уникальным один раз', () => {
+  const shared = photo(1000);
+  const into = emptyBreakdown();
+  measureProject({ sessions: [{ photos: [shared] }] }, into);
+  measureContentEntry({ photos: [shared] }, into);
+  measureJob({ entry: { photos: [shared] } }, into);
+
+  // По разделам — три копии, как и было: мастер должна видеть, где они лежат.
+  assert.equal(totalPhotoBytes(into), 3000);
+  // По сути — один снимок.
+  assert.equal(into.unique.count, 1);
+  assert.equal(into.unique.bytes, 1000);
+  assert.equal(duplicateBytes(into), 2000);
+});
+
+test('разные снимки одинакового веса не схлопываются в один', () => {
+  const into = emptyBreakdown();
+  measureProject({ photos: [distinctPhoto(1000, 'aaa'), distinctPhoto(1000, 'bbb')] }, into);
+  assert.equal(into.unique.count, 2);
+  assert.equal(into.unique.bytes, 2000);
+  assert.equal(duplicateBytes(into), 0);
+});
+
+test('отпечаток снимка не читает строку целиком — иначе замер вставал бы на телефоне', () => {
+  // Отпечаток обязан быть O(1) по длине: честный хэш по мегабайтной base64
+  // это миллион шагов на КАЖДОЕ фото, ровно там, где мастер и так пришла
+  // разбираться с тормозами. Длина + три окна дают ту же гарантию для копий
+  // (они посимвольно равны) без обхода строки.
+  const huge = 'A'.repeat(5_000_000);
+  assert.ok(photoFingerprint(huge).length < 500);
+  assert.equal(photoFingerprint(huge), photoFingerprint('A'.repeat(5_000_000)));
+  assert.notEqual(photoFingerprint(huge), photoFingerprint('B' + huge.slice(1)));
+});
+
+test('дневник без копий не показывает лишнюю строку — duplicateBytes равен нулю', () => {
+  const into = emptyBreakdown();
+  measureProject({ photos: [distinctPhoto(500, 'x')] }, into);
+  measureClient({ documents: [{ fileUrl: distinctPhoto(700, 'y') }] }, into);
+  assert.equal(duplicateBytes(into), 0);
+  assert.equal(into.unique.bytes, totalPhotoBytes(into));
 });

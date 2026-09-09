@@ -58,9 +58,11 @@ import {
 import type { StoragePhase } from '../lib/storageRecovery';
 import { createStorageConnection, type StorageConnection } from '../storage/connection';
 import { getAllClients, putClient, deleteClientRecord, clearClients } from '../storage/repos/clientsRepo';
+import { useSyncDriver } from '../sync/useSyncDriver';
 import { getAllProjects, putProject, deleteProjectRecord, clearProjects } from '../storage/repos/projectsRepo';
 import { getAllContentEntries, putContentEntry, clearContentEntries } from '../storage/repos/contentRepo';
 import { getMasterInfoRecord, putMasterInfoRecord } from '../storage/repos/masterInfoRepo';
+import { DELETIONS_STORE, forgetDeletion } from '../storage/repos/tombstonesRepo';
 import { BUSY_ATTRIBUTE } from '../lib/appUpdate';
 import {
   MASTER_INFO_STORE,
@@ -474,6 +476,12 @@ export default function TattoDiary() {
       onErrorLog: (action, error) => logError('storage', action, error),
     });
   }
+
+  // Синк между устройствами (docs/SYNC_PLAN.md) — живёт на верхнем уровне,
+  // а не внутри экрана настроек: часовая проверка обязана идти, пока
+  // мастер работает где угодно в дневнике, а не только пока открыты
+  // настройки. getDatabase — та же связь, что и у остального хранилища.
+  const syncDriver = useSyncDriver(() => connRef.current?.getDatabase() ?? null);
 
   // ── Журнал сбоев ─────────────────────────────────────────────────────────
   // Консоль браузера на телефоне не открыть, поэтому раньше сбой не оставлял
@@ -1344,7 +1352,9 @@ export default function TattoDiary() {
 
   const deleteProject = (id: string) => {
     withStorage(`project-delete:${id}`, STORAGE_ACTIONS.deleteProject, (database) => {
-      const tx = openWriteTx('projects', database, STORAGE_ACTIONS.deleteProject);
+      // DELETIONS_STORE — в той же транзакции: удаление и его след (Шаг 2
+      // синка) обязаны быть атомарны, см. deleteProjectRecord.
+      const tx = openWriteTx(['projects', DELETIONS_STORE], database, STORAGE_ACTIONS.deleteProject);
       if (!tx) return;
       deleteProjectRecord(tx, id);
       tx.oncomplete = () => {
@@ -1575,7 +1585,8 @@ export default function TattoDiary() {
     // записи (diffAndSync со "старое есть, нового нет" шлёт delete).
     const prevClient = clients.find((c) => c.id === id) ?? null;
     withStorage(`client-delete:${id}`, STORAGE_ACTIONS.deleteClient, (database) => {
-      const tx = openWriteTx('clients', database, STORAGE_ACTIONS.deleteClient);
+      // DELETIONS_STORE — в той же транзакции, см. deleteClientRecord.
+      const tx = openWriteTx(['clients', DELETIONS_STORE], database, STORAGE_ACTIONS.deleteClient);
       if (!tx) return;
       deleteClientRecord(tx, id);
       tx.oncomplete = () => {
@@ -1609,25 +1620,42 @@ export default function TattoDiary() {
       return;
     }
     const restoredMaster = bundle.master ? applyMasterInfoRestore(masterInfo, bundle.master) : null;
-    const stores = ['clients'];
+    // DELETIONS_STORE — потому что восстановление ВОЗВРАЩАЕТ записи, которые
+    // могли быть удалены: их след обязан уйти в той же транзакции, иначе
+    // ближайший синк удалит восстановленное снова (Шаг 2, docs/SYNC_PLAN.md).
+    const stores = ['clients', DELETIONS_STORE];
     if (bundle.projects) stores.push('projects');
     if (bundle.contentEntries) stores.push('contentEntries', CONTENT_INGEST_JOB_STORE);
     if (restoredMaster) stores.push(MASTER_INFO_STORE);
     const tx = openWriteTx(stores, db, STORAGE_ACTIONS.importData);
     if (!tx) return;
+    // preserveUpdatedAt: записи приехали из копии, а не были только что
+    // поправлены. Проштамповать их «сейчас» значило бы, что после
+    // восстановления они выиграют любое слияние с другого устройства и
+    // затрут там то, что действительно новее (см. src/storage/updatedAt.ts).
+    const fromBackup = { preserveUpdatedAt: true };
     clearClients(tx);
-    bundle.clients.forEach((c) => putClient(tx, c));
+    bundle.clients.forEach((c) => {
+      putClient(tx, c, fromBackup);
+      forgetDeletion(tx, 'clients', c.id);
+    });
     if (bundle.projects) {
       clearProjects(tx);
-      bundle.projects.forEach((p) => putProject(tx, p));
+      bundle.projects.forEach((p) => {
+        putProject(tx, p, fromBackup);
+        forgetDeletion(tx, 'projects', p.id);
+      });
     }
     if (bundle.contentEntries) {
       clearContentEntries(tx);
-      bundle.contentEntries.forEach((e) => putContentEntry(tx, e));
+      bundle.contentEntries.forEach((e) => {
+        putContentEntry(tx, e, fromBackup);
+        forgetDeletion(tx, 'contentEntries', e.id);
+      });
       clearContentIngestJobs(tx);
     }
     if (restoredMaster) {
-      putMasterInfoRecord(tx, restoredMaster);
+      putMasterInfoRecord(tx, restoredMaster, fromBackup);
     }
     tx.oncomplete = () => {
       loadClients(db);
@@ -1651,9 +1679,14 @@ export default function TattoDiary() {
       reportStorageFailure('lost', STORAGE_ACTIONS.importData);
       return;
     }
-    const tx = openWriteTx('clients', db, STORAGE_ACTIONS.importData);
+    const tx = openWriteTx(['clients', DELETIONS_STORE], db, STORAGE_ACTIONS.importData);
     if (!tx) return;
-    newClients.forEach((c) => putClient(tx, c));
+    // Тот же случай, что и в replaceAllData: клиенты приехали из файла, и
+    // след прошлого удаления с них снимается — иначе синк удалит их снова.
+    newClients.forEach((c) => {
+      putClient(tx, c, { preserveUpdatedAt: true });
+      forgetDeletion(tx, 'clients', c.id);
+    });
     tx.oncomplete = () => loadClients(db);
     tx.onerror = () => reportStorageFailure('write', STORAGE_ACTIONS.importData);
   };
@@ -3484,6 +3517,7 @@ export default function TattoDiary() {
               onChangeMinimalism={setMinimalism}
               onMeasureStorage={measureStorageUse}
               onClearLegacyRecords={clearLegacyClientRecords}
+              sync={syncDriver}
               prefs={prefs}
               onChange={setPrefs}
               onBack={() => setScreen('master')}

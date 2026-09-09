@@ -1,3 +1,5 @@
+import { DELETIONS_STORE, recordDeletion } from '../storage/repos/tombstonesRepo.js';
+import { putContentEntry } from '../storage/repos/contentRepo.js';
 import {
   ContentSyncError,
   getContentIngestJob,
@@ -9,7 +11,9 @@ import {
 // 4: добавился стор masterInfo — Личный кабинет переехал из localStorage,
 // где ему не хватало квоты под фото в задачах (см. lib/masterInfoStore.ts).
 // onupgradeneeded трогает только отсутствующие сторы, данные не пересоздаются.
-export const TATTO_DIARY_DB_VERSION = 4;
+// 4 → 5: добавлен стор 'deletions' (следы удалений, Шаг 2 синка —
+// docs/SYNC_PLAN.md). Существующие сторы onupgradeneeded не трогает.
+export const TATTO_DIARY_DB_VERSION = 5;
 export const CONTENT_INGEST_JOB_STORE = 'contentIngestJobs';
 export const CONTENT_ENTRY_STORE = 'contentEntries';
 
@@ -173,8 +177,12 @@ export async function deleteContentIngestJob(db: IDBDatabase, id: string): Promi
 }
 
 export async function deleteContentEntryAndRefreshJobs(db: IDBDatabase, entryId: string): Promise<void> {
-  const tx = openJobTx(db, [CONTENT_ENTRY_STORE, CONTENT_INGEST_JOB_STORE], 'readwrite');
+  // DELETIONS_STORE входит в ту же транзакцию: удаление и его след (Шаг 2
+  // синка, docs/SYNC_PLAN.md) обязаны быть атомарны — иначе синк вернёт
+  // удалённую запись с другого устройства обратно.
+  const tx = openJobTx(db, [CONTENT_ENTRY_STORE, CONTENT_INGEST_JOB_STORE, DELETIONS_STORE], 'readwrite');
   tx.objectStore(CONTENT_ENTRY_STORE).delete(entryId);
+  recordDeletion(tx, 'contentEntries', entryId);
   const jobsStore = tx.objectStore(CONTENT_INGEST_JOB_STORE);
   const request = jobsStore.getAll();
   request.onsuccess = () => {
@@ -185,14 +193,14 @@ export async function deleteContentEntryAndRefreshJobs(db: IDBDatabase, entryId:
   await transactionDone(tx);
 }
 
-export function createCompletedContentEntry(record: ContentCreateJobRecord, result: IngestResult): object {
+export function createCompletedContentEntry(record: ContentCreateJobRecord, result: IngestResult) {
   return {
     ...record.entry,
     contentDraft: result.media,
     visualArchetype: result.visual_archetype,
     textTriad: result.text_triad,
     textDraft: result.text_draft,
-    status: 'draft',
+    status: 'draft' as const,
     isExemplar: false,
   };
 }
@@ -218,12 +226,17 @@ export function applyCompletedContentIngestJob(
     let outcome: ContentJobApplyOutcome = 'applied';
 
     if (record.operation === 'create') {
-      entries.put(createCompletedContentEntry(record, result));
+      // ВАЖНО ДЛЯ DEVICE SYNC: завершение фоновой генерации — настоящая
+      // запись контента, поэтому она обязана пройти через тот же repo, что и
+      // ручные правки. Прямой entries.put раньше оставлял новый черновик без
+      // updatedAt, а refresh сохранял старый timestamp — другое устройство
+      // либо не могло отправить запись в Supabase, либо считало текст старым.
+      putContentEntry(tx, createCompletedContentEntry(record, result));
       jobs.delete(record.id);
     } else {
       const getEntry = entries.get(record.entryId);
       getEntry.onsuccess = () => {
-        const entry = getEntry.result as { status?: unknown; textDraft?: unknown } | undefined;
+        const entry = getEntry.result as ({ id: string; status?: unknown; textDraft?: unknown } & Record<string, unknown>) | undefined;
         if (!entry) {
           outcome = 'missing';
           jobs.delete(record.id);
@@ -240,7 +253,7 @@ export function applyCompletedContentIngestJob(
           });
           return;
         }
-        entries.put({ ...entry, textDraft: result.text_draft });
+        putContentEntry(tx, { ...entry, textDraft: result.text_draft });
         jobs.delete(record.id);
       };
     }
