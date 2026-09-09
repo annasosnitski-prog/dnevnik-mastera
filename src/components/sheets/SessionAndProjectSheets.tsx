@@ -463,7 +463,7 @@ export function ProjectSessionPickerSheet({
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {scope === 'all' ? (
           <>
-            {projects.length === 0 && <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Пока нет ни одного проекта — создайте первый.</div>}
+            {projects.length === 0 && <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Здесь пока тихо — еще никто ничего не создал.</div>}
             {clients.map((c) => {
               const clientProjects = projects.filter((p) => p.clientId === c.id);
               if (clientProjects.length === 0) return null;
@@ -476,7 +476,7 @@ export function ProjectSessionPickerSheet({
             })()}
           </>
         ) : eligible.length === 0 ? (
-          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{clientId ? 'Пока нет проектов у этого клиента — создайте первый.' : 'Пока нет проектов без клиента — создайте первый.'}</div>
+          <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Здесь пока тихо — еще никто ничего не создал.</div>
         ) : eligible.map(projectRow)}
         <div onClick={onCreateProject} style={{ textAlign: 'center', padding: '10px 0', color: COLORS.gold, fontSize: fs(13), letterSpacing: '0.5px', cursor: 'pointer', marginTop: 4 }}>+ Новый проект</div>
       </div>

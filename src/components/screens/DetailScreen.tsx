@@ -661,7 +661,7 @@ function ClientContentTab({
     .filter((section) => section.items.length > 0);
 
   if (sources.length === 0 && projectContentSections.length === 0) {
-    return <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Сначала добавьте сессию или консультацию.</div>;
+    return <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Здесь пока тихо — еще никто ничего не создал.</div>;
   }
 
   return (
@@ -908,7 +908,7 @@ function ProjectsTab({
 
       {clientProjects.length === 0 ? (
         <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
-          Пока нет проектов — нажмите «+ Новый», чтобы добавить первый
+          Пока пусто — еще никто ничего не создал
         </div>
       ) : visibleProjects.length === 0 ? (
         <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
@@ -1136,7 +1136,7 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
         </div>
       ) : (
         <div onClick={() => setEditing(true)} style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', cursor: 'text' }}>
-          Заметок пока нет — нажмите, чтобы добавить.
+          Здесь пока тихо — никто ничего не заметил.
         </div>
       )}
     </div>

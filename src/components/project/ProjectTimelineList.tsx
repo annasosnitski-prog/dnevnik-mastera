@@ -20,8 +20,7 @@ export function ProjectTimelineList({ projects, clients }: { projects: Project[]
   if (items.length === 0) {
     return (
       <div style={{ textAlign: 'center', fontSize: fs(14), fontStyle: 'italic', color: COLORS.textGhost, padding: '60px 40px 0' }}>
-        Пока нет активных проектов с заданным окном на первую сессию —
-        задайте его в форме проекта, чтобы он появился здесь
+        Здесь пока пусто — ни один проект ещё не ждёт своей первой сессии
       </div>
     );
   }
