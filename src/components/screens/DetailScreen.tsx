@@ -908,7 +908,7 @@ function ProjectsTab({
 
       {clientProjects.length === 0 ? (
         <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
-          Пока пусто — проекты ещё не начаты
+          Пока пусто — еще никто ничего не создал
         </div>
       ) : visibleProjects.length === 0 ? (
         <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
@@ -1136,7 +1136,7 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
         </div>
       ) : (
         <div onClick={() => setEditing(true)} style={{ fontSize: fs(15), color: COLORS.textGhost, fontStyle: 'italic', cursor: 'text' }}>
-          Здесь пока тихо — заметок ещё нет.
+          Здесь пока тихо — никто ничего не заметил.
         </div>
       )}
     </div>
