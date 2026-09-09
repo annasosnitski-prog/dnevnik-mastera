@@ -263,3 +263,74 @@ test('приехавшая из облака ссылка разворачива
   // Ни один экран дневника не знает, что он куда-то ездил.
   assert.equal(project.photos[0], shot);
 });
+
+test('оба устройства офлайн добавили разные фото в один проект — синк складывает, а не выбирает', async () => {
+  // Устройство А — уже привязано, добавило вечернюю фотографию и синкнулось.
+  const deviceA = await openTestDb();
+  const shared = `data:image/jpeg;base64,${'S'.repeat(500)}`;
+  await write(deviceA, ['projects', 'deletions'], (tx) =>
+    putProject(tx, { id: 'p1', title: 'Дракон', photos: [shared], updatedAt: '2026-01-01T09:00:00.000Z' }),
+  );
+  const remote = fakeRemote();
+  await runFullSync(deviceA, remote);
+
+  // Устройство Б было офлайн со СВОЕЙ более старой копией того же проекта
+  // (то же фото + утренний снимок) и синкается только теперь.
+  const deviceB = await openTestDb();
+  await write(deviceB, ['projects', 'deletions'], (tx) =>
+    putProject(tx, {
+      id: 'p1',
+      title: 'Дракон',
+      photos: [shared, `data:image/jpeg;base64,${'M'.repeat(500)}`],
+      updatedAt: '2026-01-01T08:00:00.000Z',
+    }),
+  );
+  await runFullSync(deviceB, remote);
+
+  const project = remote._collections.projects.get('p1');
+  // Утренний снимок с устройства Б не потерялся, хотя его версия старше.
+  assert.equal(project.photos.length, 2);
+
+  // И на самом устройстве А следующий синк подтянет утренний снимок обратно.
+  await runFullSync(deviceA, remote);
+  const stored = await read(deviceA, 'projects', (tx) => getAllProjects(tx));
+  assert.equal(stored.find((p) => p.id === 'p1').photos.length, 2);
+});
+
+test('устройство, чья правка победила, тоже получает себе чужое фото, которое подмешало в облако', async () => {
+  // Время правки — явное, а не реальные часы: кто победит, должно решать
+  // ТОЛЬКО оно, а не то, сколько миллисекунд занял предыдущий шаг теста.
+  const deviceB = await openTestDb();
+  const morning = `data:image/jpeg;base64,${'M'.repeat(500)}`;
+  await write(deviceB, ['projects', 'deletions'], (tx) =>
+    putProject(tx, { id: 'p1', title: 'Дракон', photos: [morning], updatedAt: '2026-01-01T09:00:00.000Z' }, { preserveUpdatedAt: true }),
+  );
+  const remote = fakeRemote();
+  await runFullSync(deviceB, remote);
+
+  // Устройство А правит текст того же проекта ПОЗЖЕ (время новее — значит,
+  // при следующем синке ПОБЕДИТ версия А), но про утреннее фото Б ничего
+  // не знает — оно на этом устройстве вообще не появлялось.
+  const deviceA = await openTestDb();
+  await write(deviceA, ['projects', 'deletions'], (tx) =>
+    putProject(
+      tx,
+      { id: 'p1', title: 'Дракон и пионы', photos: [], updatedAt: '2026-01-01T10:00:00.000Z' },
+      { preserveUpdatedAt: true },
+    ),
+  );
+  await runFullSync(deviceA, remote);
+
+  // В облаке фото Б подмешалось к тексту А — это уже проверено соседним
+  // тестом. Вопрос в том, видит ли ЭТО ЖЕ устройство А теперь оба разом.
+  const cloudProject = remote._collections.projects.get('p1');
+  assert.equal(cloudProject.photos.length, 1, 'фото Б доехало в облако вместе с текстом А');
+
+  // Повторный синк А (ничего не редактируя) обязан подтянуть фото Б себе —
+  // иначе устройство А навсегда останется без снимка, который само же
+  // отправило в общее облако вместе со своей правкой текста.
+  await runFullSync(deviceA, remote);
+  const stored = await read(deviceA, 'projects', (tx) => getAllProjects(tx));
+  const local = stored.find((p) => p.id === 'p1');
+  assert.equal(local.photos.length, 1, 'устройство А должно увидеть фото Б у себя, а не только в облаке');
+});

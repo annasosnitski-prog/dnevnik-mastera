@@ -77,7 +77,6 @@ import {
 } from '../lib/masterInfoStore';
 import {
   LAST_BACKUP_STORAGE_KEY,
-  backupStatus,
   type PersistenceState,
 } from '../lib/storageHealth';
 import type {
@@ -995,9 +994,6 @@ export default function TattoDiary() {
       return null;
     }
   });
-  // Плашку можно закрыть — но только до перезапуска: копия от этого не
-  // появляется, поэтому насовсем прятать напоминание нечем.
-  const [backupNoticeHidden, setBackupNoticeHidden] = useState(false);
   const markBackupDone = () => {
     const now = new Date().toISOString();
     try {
@@ -2437,8 +2433,6 @@ export default function TattoDiary() {
   // Один снимок времени на все четыре ленты — раньше каждая читала часы сама
   // (todayISO()/Date.now()); поведение то же, но теперь оно детерминировано.
   const remindersNow = new Date();
-  // Возраст резервной копии — то же «состояние дневника», что и dbError выше.
-  const backupState = backupStatus(lastBackupAt, remindersNow);
   const visibleOverdue = filterVisibleReminders(overdueEntries(clients, remindersNow), overdueReminderKey, reminderState, remindersNow);
   // Цикл заживления считается от проектов (там физически лежат сессии), а
   // deprecated healingReminders — от клиентов; клиенты сюда подаются только
@@ -2732,66 +2726,6 @@ export default function TattoDiary() {
           }}
         >
           Восстанавливаем связь с хранилищем — записи сохранятся сами.
-        </div>
-      )}
-
-      {/* Копии давно не было. Намеренно НЕ карточка в «Напоминаниях»: те про
-          работу с клиентами, а это про состояние самого дневника — как и
-          плашка хранилища выше, и по той же причине видна на всех экранах.
-          Прячется, пока открыта шторка, чтобы не спорить с формой, и пока
-          показывается ошибка хранилища — там сообщение важнее.
-          Закрывается на сессию: настойчивость здесь уместнее вежливости,
-          но не до степени, когда её нечем убрать. */}
-      {!dbError && !recoveryVisible && !sheetOpen && !backupNoticeHidden && backupState.kind !== 'fresh' && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(env(safe-area-inset-top) + 12px)',
-            left: 16,
-            right: 16,
-            padding: '10px 14px',
-            borderRadius: 3,
-            border: '1px solid rgba(var(--gold-rgb),0.45)',
-            // Непрозрачная подложка, а не золотая плёнка: плашка ложится
-            // поверх логотипа и бейджа календаря, и сквозь полупрозрачный фон
-            // её собственный текст было не прочитать.
-            background: COLORS.sheet,
-            boxShadow: '0 10px 28px rgba(0,0,0,0.45)',
-            display: 'flex',
-            gap: 10,
-            alignItems: 'center',
-            zIndex: 49,
-          }}
-        >
-          <span style={{ flex: 1, fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic' }}>
-            {backupState.kind === 'never'
-              ? 'Копии дневника ещё нет — данные есть только в этом телефоне'
-              : `Копии нет ${backupState.days} дн. — данные есть только в этом телефоне`}
-          </span>
-          <button
-            onClick={() => {
-              setBackupNoticeHidden(true);
-              setScreen('settings');
-            }}
-            style={{
-              background: 'none',
-              border: '1px solid rgba(var(--gold-rgb),0.5)',
-              borderRadius: 2,
-              padding: '2px 8px',
-              color: COLORS.gold,
-              fontSize: fs(13),
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            Сделать
-          </button>
-          <button
-            onClick={() => setBackupNoticeHidden(true)}
-            style={{ background: 'none', border: 'none', color: COLORS.gold, cursor: 'pointer', flexShrink: 0 }}
-          >
-            ✕
-          </button>
         </div>
       )}
 

@@ -40,26 +40,15 @@ test('отметка о копии ставится только на реаль
   assert.ok(handleExport.indexOf('onBackupDone()') > handleExport.indexOf('await shareOrDownloadFile'));
 });
 
-test('напоминание о копии видно на всех экранах, но не спорит с другими', () => {
-  const banner = app.slice(app.indexOf('{!dbError && !recoveryVisible && !sheetOpen && !backupNoticeHidden'), app.indexOf('{/* ═══════════ LIST SCREEN ═══════════ */}'));
-  // Не карточка в «Напоминаниях»: те про работу с клиентами, это про дневник.
-  assert.match(banner, /position: 'absolute'/);
-  assert.match(banner, /данные есть только в этом телефоне/);
-  // Уступает и ошибке хранилища, и строке восстановления связи (обе рисуются
-  // в том же углу), и не лезет поверх открытой формы.
-  assert.match(app, /\{!dbError && !recoveryVisible && !sheetOpen && !backupNoticeHidden && backupState\.kind !== 'fresh' && \(/);
-});
-
-test('закрыть напоминание можно только до перезапуска', () => {
-  // Копия от закрытия плашки не появляется, поэтому «больше не показывать»
-  // здесь было бы обманом.
-  assert.match(app, /const \[backupNoticeHidden, setBackupNoticeHidden\] = useState\(false\);/);
-  assert.doesNotMatch(app, /localStorage\.setItem\([^)]*backupNotice/);
-});
-
-test('«Сделать» ведёт в Настройки, а не просто прячет плашку', () => {
-  const banner = app.slice(app.indexOf('{!dbError && !recoveryVisible && !sheetOpen && !backupNoticeHidden'), app.indexOf('{/* ═══════════ LIST SCREEN ═══════════ */}'));
-  assert.match(banner, /setScreen\('settings'\)/);
+test('плашка-напоминание о копии на главном экране убрана — синк уже служит фоновым бэкапом', () => {
+  // Раньше здесь была настойчивая плашка поверх дневника («Копии нет N
+  // дн. — данные есть только в этом телефоне»). С появлением синка
+  // (docs/SYNC_PLAN.md) привязанное устройство и так отправляет всё в
+  // облако раз в час — настаивать на РУЧНОЙ копии для всех подряд больше
+  // не по адресу. Сама кнопка ручного бэкапа в Настройках никуда не делась
+  // (см. соседний тест про onBackupDone) — убрано только напоминание.
+  assert.doesNotMatch(app, /backupNoticeHidden/);
+  assert.doesNotMatch(app, /данные есть только в этом телефоне/);
 });
 
 test('в Настройках видно и состояние хранилища, и возраст копии', () => {

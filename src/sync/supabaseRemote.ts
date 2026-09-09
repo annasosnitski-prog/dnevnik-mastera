@@ -105,15 +105,23 @@ function makePhotos(client: SupabaseClient, ownerId: string): PhotoTransport {
   return {
     async upload(hash, dataUrl) {
       const blob = dataUrlToBlob(dataUrl);
-      const { error } = await client.storage
-        .from(PHOTO_BUCKET)
-        .upload(pathOf(hash), blob, { contentType: blob.type, upsert: false });
-      if (!error) return;
-      // Содержимое адресуется хэшем: файл с этим именем — это ровно этот же
-      // снимок. Повтор означает «уже загружено», а не сбой.
-      const message = error.message.toLowerCase();
-      if (message.includes('exists') || message.includes('duplicate')) return;
-      throw error;
+      // upsert: true, а не ловля «уже существует» по тексту ошибки. Имя
+      // файла — хэш его содержимого, поэтому перезаписать существующий файл
+      // с тем же именем значит записать ТЕ ЖЕ САМЫЕ байты поверх себя же —
+      // безопасно всегда, и то, что реально происходит при каждом повторном
+      // синке того же снимка (набор uploaded общий только на один прогон,
+      // см. syncEngine.ts, — при следующем прогоне снимок пробуют залить снова).
+      //
+      // Раньше здесь ловили конфликт по upsert:false и тексту ошибки
+      // («exists»/«duplicate»). На реальном Supabase конфликт иногда
+      // приходит сырой ошибкой Postgres («duplicate key value violates
+      // unique constraint», код 23505) под HTTP 400, а не ожидаемым 409 —
+      // и не всегда с тем текстом, который проверка ждала. Один
+      // непойманный случай ронял синк целиком: sync падал каждый раз на
+      // объёмной библиотеке, где почти все снимки уже лежат в Storage
+      // с прошлой попытки.
+      const { error } = await client.storage.from(PHOTO_BUCKET).upload(pathOf(hash), blob, { contentType: blob.type, upsert: true });
+      if (error) throw error;
     },
 
     async download(hash) {

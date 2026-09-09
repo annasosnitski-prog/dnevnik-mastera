@@ -206,6 +206,125 @@ export async function internalizePhotos(
   return out;
 }
 
+// ── Слияние конфликтующих фото — сверх выбора «чья версия победила» ──────
+//
+// mergeRecords.ts решает победителя между двумя версиями ОДНОЙ И ТОЙ ЖЕ
+// записи по updatedAt — целиком, вся запись разом (см. его собственный
+// комментарий про то, почему не «последний победил» по всему набору).
+// У списков фото есть случай, который это не покрывает: оба устройства
+// были офлайн и НЕЗАВИСИМО добавили в один и тот же проект РАЗНЫЕ снимки.
+// Взять только версию победителя значило бы молча потерять снимки
+// проигравшего устройства — то самое «синк съел фото».
+//
+// Здесь версии не выбирают, а СКЛАДЫВАЮТ: списки фото объединяются (по
+// содержимому — совпадающие ложатся один раз), элементы с id (документы,
+// заживление) — по id. Текст, даты и связи по-прежнему решает только
+// updatedAt-победитель — это делает mergeRecords, здесь не трогается.
+//
+// Сравнение работает с ОБЕИХ форм снимка сразу: local ещё хранит base64,
+// remote уже прислал ссылку photo:<hash> — идентичность в обоих случаях
+// сводится к одному и тому же hash, поэтому сравнивать можно, не скачивая
+// файл заранее.
+export async function unionPhotoFields(kind: PhotoKind, winner: RemoteRow, loser: RemoteRow | undefined): Promise<RemoteRow> {
+  if (!loser) return winner;
+  const shape = PHOTO_SHAPES[kind];
+  const out: RemoteRow = { ...winner };
+
+  for (const field of shape.direct) {
+    out[field] = await unionPhotoList(out[field], loser[field]);
+  }
+  for (const { field } of shape.objects) {
+    out[field] = unionById(out[field], loser[field]);
+  }
+  for (const field of shape.nested) {
+    out[field] = await unionNestedPhotos(out[field], loser[field]);
+  }
+  return out;
+}
+
+// unionPhotoFields иногда обогащает winner полями с ЧУЖОЙ стороны (снимками
+// проигравшего). Если это случилось на записи, которая едет ТОЛЬКО в одну
+// сторону (например, локальная правка победила и просто отправляется в
+// облако), устройство-отправитель обязано увидеть подмешанное и у себя —
+// иначе его updatedAt после отправки совпадёт с тем, что легло в облако,
+// mergeRecords сочтёт записи одинаковыми («ничего не делаем» при равенстве
+// времени) и устройство навсегда останется без чужого снимка, который само
+// же и отправило дальше. Дешёвая проверка по ссылкам: unionPhotoList и
+// unionById возвращают тот же массив, если добавлять было нечего.
+export function photoFieldsChanged(kind: PhotoKind, before: RemoteRow, after: RemoteRow): boolean {
+  const shape = PHOTO_SHAPES[kind];
+  for (const field of shape.direct) if (after[field] !== before[field]) return true;
+  for (const { field } of shape.objects) if (after[field] !== before[field]) return true;
+  for (const field of shape.nested) if (after[field] !== before[field]) return true;
+  return false;
+}
+
+async function photoIdentity(value: unknown): Promise<string | null> {
+  if (isPhotoRef(value)) return refToHash(value);
+  if (isInlinePhoto(value)) return photoContentHash(value);
+  return null;
+}
+
+// Список голых base64/ссылок (project.photos, вложенное item.photos):
+// объединение по содержимому, порядок победителя сохраняется, новые снимки
+// проигравшего дописываются в конец.
+async function unionPhotoList(winnerList: unknown, loserList: unknown): Promise<unknown> {
+  if (!Array.isArray(winnerList) && !Array.isArray(loserList)) return winnerList;
+  const winner = Array.isArray(winnerList) ? winnerList : [];
+  const loser = Array.isArray(loserList) ? loserList : [];
+  if (loser.length === 0) return winnerList;
+
+  const seen = new Set<string>();
+  for (const value of winner) {
+    const id = await photoIdentity(value);
+    if (id) seen.add(id);
+  }
+  const extra: unknown[] = [];
+  for (const value of loser) {
+    const id = await photoIdentity(value);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    extra.push(value);
+  }
+  return extra.length ? [...winner, ...extra] : winnerList;
+}
+
+// Список объектов с собственным id (документы клиента, кадры заживления):
+// новый элемент — это добавленный документ/кадр, а не правка существующего,
+// поэтому объединение по id, без сравнения содержимого снимка внутри.
+export function unionById(winnerList: unknown, loserList: unknown): unknown {
+  if (!Array.isArray(winnerList) && !Array.isArray(loserList)) return winnerList;
+  const winner = Array.isArray(winnerList) ? winnerList : [];
+  const loser = Array.isArray(loserList) ? loserList : [];
+  if (loser.length === 0) return winnerList;
+
+  const ids = new Set(winner.map((item) => String((item as Record<string, unknown> | null)?.id)));
+  const extra = loser.filter((item) => !ids.has(String((item as Record<string, unknown> | null)?.id)));
+  return extra.length ? [...winner, ...extra] : winnerList;
+}
+
+// Сессии/консультации: сама пара «какие сессии есть» — отдельная, более
+// широкая проблема (не только фото), её эта функция не решает. Но фото
+// ВНУТРИ сессии, которая есть по обе стороны, объединяются как обычный
+// список — если в одной и той же сессии на двух устройствах добавили
+// разные снимки, обе версии остаются.
+async function unionNestedPhotos(winnerList: unknown, loserList: unknown): Promise<unknown> {
+  if (!Array.isArray(winnerList)) return winnerList;
+  const loserById = byId(loserList);
+  if (loserById.size === 0) return winnerList;
+
+  return Promise.all(
+    winnerList.map(async (item) => {
+      const item0 = item as Record<string, unknown> | null;
+      if (!item0 || !Array.isArray(item0.photos)) return item;
+      const loserItem = loserById.get(String(item0.id));
+      if (!loserItem) return item;
+      const photos = await unionPhotoList(item0.photos, loserItem.photos);
+      return photos === item0.photos ? item : { ...item0, photos };
+    }),
+  );
+}
+
 function byId(list: unknown): Map<string, Record<string, unknown>> {
   const map = new Map<string, Record<string, unknown>>();
   if (!Array.isArray(list)) return map;
