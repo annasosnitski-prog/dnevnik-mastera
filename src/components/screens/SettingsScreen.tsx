@@ -48,6 +48,8 @@ import { StarDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, type Theme, type Prefs, DEFAULT_PREFS } from '../TattoDiary';
 import type { SyncDriverState } from '../../sync/useSyncDriver';
+import { syncActive, fetchBotBookings, DEFAULT_ENDPOINT, type CalendarSyncSettings } from '../../lib/calendarSync';
+import { type ContentSyncSettings } from '../../lib/contentSync';
 
 // Вынесено из TattoDiary.tsx (PR 9 рефакторинга). Логика и разметка не
 // менялись — только перенос в отдельный модуль. Экран prop-driven; тема и
@@ -97,31 +99,121 @@ function SettingSlider({
   );
 }
 
-export function SettingsScreen({
-  theme,
-  onToggleTheme,
-  minimalism,
-  onChangeMinimalism,
-  prefs,
+// Компактный вкл/выкл-тумблер для трёх бинарных переключателей (Тема,
+// Минимализм, Игровой режим), поставленных в один ряд вместо трёх
+// полноширинных карточек — они не требуют ни описания, ни текста
+// подтверждения, только состояние.
+function CompactToggle({
+  label,
+  sublabel,
+  value,
   onChange,
-  onBack,
-  masterInfo,
-  onChangeMasterInfo,
-  installationId,
-  onPrepareBackup,
-  persistence,
-  storageEstimate,
-  lastBackupAt,
-  onBackupDone,
-  errorLog,
-  onClearErrorLog,
-  onImport,
-  onImportArchive,
-  onOpenCalendar,
-  onMeasureStorage,
-  onClearLegacyRecords,
-  sync,
 }: {
+  label: string;
+  sublabel?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+      <div style={{ fontSize: fs(11), color: COLORS.textFaint, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 9 }}>
+        {label}
+      </div>
+      <div
+        onClick={() => onChange(!value)}
+        role="button"
+        aria-pressed={value}
+        aria-label={label}
+        style={{
+          margin: '0 auto',
+          width: 44,
+          height: 24,
+          borderRadius: 12,
+          border: '1px solid rgba(var(--gold-rgb),0.35)',
+          background: value ? 'rgba(var(--gold-rgb),0.32)' : 'rgba(var(--gold-rgb),0.06)',
+          position: 'relative',
+          cursor: 'pointer',
+          transition: 'background 0.2s ease',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: 2,
+            left: value ? 22 : 2,
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: value ? COLORS.gold : COLORS.textFaint,
+            transition: 'left 0.2s ease',
+          }}
+        />
+      </div>
+      <div style={{ fontSize: fs(10.5), color: value ? COLORS.gold : COLORS.textGhost, fontStyle: 'italic', marginTop: 7 }}>
+        {sublabel ?? (value ? 'Включён' : 'Выключен')}
+      </div>
+    </div>
+  );
+}
+
+// Та же тумблер-механика, что у CompactToggle, но в один ряд с подписью
+// слева — для секций «Автоматизация»/ContentINKA, где переключатель вкл/выкл
+// сопровождает заголовок раздела, а не стоит отдельной подписанной колонкой.
+function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div
+      onClick={() => onChange(!value)}
+      role="button"
+      aria-pressed={value}
+      aria-label={label}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, cursor: 'pointer' }}
+    >
+      <span style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px' }}>{label}</span>
+      <span
+        style={{
+          flexShrink: 0,
+          width: 40,
+          height: 22,
+          borderRadius: 11,
+          border: '1px solid rgba(var(--gold-rgb),0.35)',
+          background: value ? 'rgba(var(--gold-rgb),0.32)' : 'rgba(var(--gold-rgb),0.06)',
+          position: 'relative',
+          transition: 'background 0.2s ease',
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            top: 1.5,
+            left: value ? 20 : 2,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            background: value ? COLORS.gold : COLORS.textFaint,
+            transition: 'left 0.2s ease',
+          }}
+        />
+      </span>
+    </div>
+  );
+}
+
+// Единый компактный стиль для полей ввода секрета/адреса сервиса
+// («Автоматизация», ContentINKA) — уже, ниже, без крупных отступов
+// полноширинного INPUT_STYLE, который рассчитан на текстовые формы.
+const CONNECTION_FIELD_STYLE: React.CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '8px 10px',
+  borderRadius: 2,
+  border: '1px solid rgba(var(--gold-rgb),0.18)',
+  background: 'rgba(var(--surface-rgb),0.03)',
+  color: 'var(--text-secondary)',
+  fontSize: fs(12),
+  outline: 'none',
+};
+
+export interface SettingsScreenProps {
   theme: Theme;
   onToggleTheme: () => void;
   // Независим от темы (см. ui/minimalism.ts) — убирает декоративные камни/
@@ -183,7 +275,51 @@ export function SettingsScreen({
   // Собирает старые сессии/консультации (без projectId) в проекты-корзины
   // по клиенту. Возвращает сводку для показа результата.
   onOpenCalendar: () => void;
-}) {
+  // Бот в Telegram + синхронизация с Инка-календарём и ContentINKA —
+  // переехали сюда из Личного кабинета (PR «перегруппировка настроек»):
+  // это данные для подключения внешних сервисов, а не профиль мастера.
+  calendarSync: CalendarSyncSettings;
+  onChangeCalendarSync: (s: CalendarSyncSettings) => void;
+  contentSync: ContentSyncSettings;
+  onChangeContentSync: (s: ContentSyncSettings) => void;
+  onOpenContent: () => void;
+  // true — экран рендерится как вкладка «Настройки» в Личном кабинете (та
+  // же ClientCardTabBar, что у Инфо/Проекты), не отдельный маршрут: без
+  // собственной шапки/заголовка/«вернуться», просто список секций.
+  embedded?: boolean;
+}
+
+export function SettingsScreen({
+  theme,
+  onToggleTheme,
+  minimalism,
+  onChangeMinimalism,
+  prefs,
+  onChange,
+  onBack,
+  masterInfo,
+  onChangeMasterInfo,
+  installationId,
+  onPrepareBackup,
+  persistence,
+  storageEstimate,
+  lastBackupAt,
+  onBackupDone,
+  errorLog,
+  onClearErrorLog,
+  onImport,
+  onImportArchive,
+  onOpenCalendar,
+  onMeasureStorage,
+  onClearLegacyRecords,
+  sync,
+  calendarSync,
+  onChangeCalendarSync,
+  contentSync,
+  onChangeContentSync,
+  onOpenContent,
+  embedded,
+}: SettingsScreenProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
   // Успех восстановления пережил перезагрузку дневника — см. confirmImport.
@@ -232,6 +368,55 @@ export function SettingsScreen({
   );
 
   const [logCopied, setLogCopied] = useState<string | null>(null);
+
+  // Бот в Telegram + синхронизация (Инка-календарь, ContentINKA) — см.
+  // комментарий у пропа calendarSync выше.
+  const [editingTelegramBot, setEditingTelegramBot] = useState(false);
+  const [telegramBotDraft, setTelegramBotDraft] = useState(masterInfo.telegramBotLink);
+  useEffect(() => setTelegramBotDraft(masterInfo.telegramBotLink), [masterInfo.telegramBotLink]);
+  const [copiedAutomationTag, setCopiedAutomationTag] = useState<'telegramBot' | null>(null);
+  const copyAutomationToClipboard = (text: string, tag: 'telegramBot') => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopiedAutomationTag(tag);
+      setTimeout(() => setCopiedAutomationTag((t) => (t === tag ? null : t)), 1400);
+    }).catch(() => {});
+  };
+  const [showSyncSecret, setShowSyncSecret] = useState(false);
+  const [showContentSecret, setShowContentSecret] = useState(false);
+  // «Проверить соединение» — дёргает тот же bot-bookings, что виджет
+  // «Брони от бота» в Админке, но здесь нужен только статус, а не список.
+  const [syncCheck, setSyncCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'error'; message?: string }>({
+    status: 'idle',
+  });
+  const checkCalendarSync = () => {
+    setSyncCheck({ status: 'checking' });
+    fetchBotBookings(calendarSync)
+      .then((b) => setSyncCheck({ status: 'ok', message: `подключено — записей от бота: ${b.length}.` }))
+      .catch((err) =>
+        setSyncCheck({ status: 'error', message: err instanceof Error ? err.message : 'не получилось проверить соединение.' })
+      );
+  };
+  const editToggleStyle: React.CSSProperties = {
+    fontSize: fs(11),
+    color: COLORS.gold,
+    cursor: 'pointer',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    flexShrink: 0,
+  };
+  const copiedChipStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: 40,
+    right: 14,
+    fontSize: fs(11),
+    color: COLORS.gold,
+    background: 'rgba(var(--gold-rgb),0.14)',
+    border: '1px solid rgba(var(--gold-rgb),0.4)',
+    borderRadius: 2,
+    padding: '4px 9px',
+    zIndex: 1,
+  };
+
   const backup = backupStatus(lastBackupAt, new Date());
   const storageUsedText = formatMegabytes(storageEstimate?.usage);
 
@@ -529,104 +714,72 @@ export function SettingsScreen({
 
   return (
     <div style={{ minHeight: '100%' }}>
-      <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
-      <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        {/* Calendar badge is a flex sibling of the whole back-row+title
-            column (not absolutely positioned) so it centers vertically
-            against the full header block's height, pinned to the right
-            edge — same treatment as every other screen header. */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-              <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                  <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
-                </svg>
-                <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+      {/* embedded — Настройки живут третьей вкладкой в Личном кабинете (та
+          же ClientCardTabBar, что у Инфо/Проекты): переключает вкладку сама
+          гемма-подвеска, поэтому собственные заголовок/шапка/«вернуться»
+          здесь лишние. */}
+      {!embedded && (
+        <>
+          <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+          <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+            {/* Calendar badge is a flex sibling of the whole back-row+title
+                column (not absolutely positioned) so it centers vertically
+                against the full header block's height, pinned to the right
+                edge — same treatment as every other screen header. */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+                  <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                      <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
+                    </svg>
+                    <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontFamily: DROP_CAP_FONT,
+                    fontSize: fs(24),
+                    color: COLORS.gold,
+                    letterSpacing: '5px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Настройки
+                </div>
+                <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+                  Оформление
+                </div>
               </div>
+              <TodayDateBadge onOpen={onOpenCalendar} size={35} />
             </div>
-            <div
-              style={{
-                fontFamily: DROP_CAP_FONT,
-                fontSize: fs(24),
-                color: COLORS.gold,
-                letterSpacing: '5px',
-                textTransform: 'uppercase',
-              }}
-            >
-              Настройки
-            </div>
-            <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-              Оформление
-            </div>
+            <StarDivider />
           </div>
-          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
-        </div>
-        <StarDivider />
-      </div>
+        </>
+      )}
 
-      <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1 }}>
-        {/* Theme */}
+      <div style={{ padding: embedded ? '4px 0 8px' : '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1 }}>
+        {/* Тема / Минимализм / Игровой режим — три независимых бинарных
+            переключателя без сопроводительного текста, поэтому сведены в
+            один компактный ряд вместо трёх полноширинных карточек. Стоит
+            первым разделом, до модулей — самые частые настройки сверху. */}
         <div style={rowStyle}>
-          <div style={labelStyle}>Тема</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {(['dark', 'light'] as Theme[]).map((t) => (
-              <div
-                key={t}
-                onClick={() => t !== theme && onToggleTheme()}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontSize: fs(13),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  border: theme === t ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: theme === t ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: theme === t ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {t === 'dark' ? 'Тёмная' : 'Светлая'}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Minimalism — independent of theme; keeps whichever theme is active,
-            just strips the decorative gems/pendants/rays down to a plain
-            functional layer (NavFab + client tabs). */}
-        <div style={rowStyle}>
-          <div style={labelStyle}>Минимализм</div>
-          <div style={{ fontSize: fs(12), color: COLORS.textFaint, fontStyle: 'italic', marginBottom: 10 }}>
-            Убрать камни, бабочек и декоративные эффекты
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {([
-              { v: true, label: 'Включён' },
-              { v: false, label: 'Выключен' },
-            ] as { v: boolean; label: string }[]).map((o) => (
-              <div
-                key={String(o.v)}
-                onClick={() => onChangeMinimalism(o.v)}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontSize: fs(13),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  border: minimalism === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: minimalism === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: minimalism === o.v ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <CompactToggle
+              label="Тема"
+              value={theme === 'light'}
+              sublabel={theme === 'dark' ? 'Тёмная' : 'Светлая'}
+              onChange={() => onToggleTheme()}
+            />
+            {/* Независим от темы (см. ui/minimalism.ts) — убирает декоративные
+                камни/подвески/лучи у NavFab и вкладок клиента поверх текущей
+                тёмной/светлой темы. */}
+            <CompactToggle label="Минимализм" value={minimalism} onChange={onChangeMinimalism} />
+            <CompactToggle
+              label="Игровой режим"
+              value={prefs.gameMode}
+              onChange={(v) => onChange({ ...prefs, gameMode: v })}
+            />
           </div>
         </div>
 
@@ -673,6 +826,221 @@ export function SettingsScreen({
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Подключения — всё, что нужно для связи с внешними сервисами
+            (бот в Telegram, синхронизация с Инка-календарём, ContentINKA):
+            переехало сюда из Личного кабинета — это разовая настройка
+            подключения, а не то, что мастер правит на каждом визите в
+            профиль. Настоящий выключатель синхронизации — СЕКРЕТ: без
+            него переключатель ничего не делает (бот ответит 401), поэтому
+            другие пользователи приложения, не знающие секрета, писать в
+            чужой календарь не могут. Секрет живёт только в localStorage
+            этого устройства и НЕ попадает в резервную копию. */}
+        <div style={{ ...rowStyle, position: 'relative' }}>
+          <div style={labelStyle}>Автоматизация</div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: fs(12), color: COLORS.gold, letterSpacing: '0.3px' }}>Бот в Telegram</div>
+            <span
+              onClick={() => {
+                if (editingTelegramBot && telegramBotDraft.trim() !== masterInfo.telegramBotLink) onChangeMasterInfo({ ...masterInfo, telegramBotLink: telegramBotDraft.trim() });
+                setEditingTelegramBot((v) => !v);
+              }}
+              role="button"
+              aria-label={editingTelegramBot ? 'Готово' : 'Редактировать ссылку на бота'}
+              style={editToggleStyle}
+            >
+              {editingTelegramBot ? 'Готово' : masterInfo.telegramBotLink ? 'Изменить' : 'Заполнить'}
+            </span>
+          </div>
+          {editingTelegramBot || !masterInfo.telegramBotLink ? (
+            <input
+              value={telegramBotDraft}
+              onChange={(e) => setTelegramBotDraft(e.target.value)}
+              onBlur={() => telegramBotDraft.trim() !== masterInfo.telegramBotLink && onChangeMasterInfo({ ...masterInfo, telegramBotLink: telegramBotDraft.trim() })}
+              placeholder="https://t.me/..."
+              style={{ ...CONNECTION_FIELD_STYLE, marginBottom: 10 }}
+            />
+          ) : (
+            <div onClick={() => copyAutomationToClipboard(masterInfo.telegramBotLink, 'telegramBot')} role="button" aria-label="Скопировать ссылку на бота" style={{ cursor: 'pointer', marginBottom: 10 }}>
+              <div style={{ fontSize: fs(13), color: COLORS.textPrimary, wordBreak: 'break-all' }}>{masterInfo.telegramBotLink}</div>
+              <div style={{ fontSize: fs(10.5), color: COLORS.textGhost, marginTop: 4, fontStyle: 'italic' }}>Нажмите, чтобы скопировать</div>
+            </div>
+          )}
+          {copiedAutomationTag === 'telegramBot' && <div style={copiedChipStyle}>Скопировано ✓</div>}
+
+          <div style={{ height: 1, background: 'rgba(var(--gold-rgb),0.1)', margin: '2px 0 12px' }} />
+
+          <div style={{ marginBottom: 10 }}>
+            <ToggleRow
+              label="Инка-календарь · Синхронизация"
+              value={calendarSync.enabled}
+              onChange={(v) => onChangeCalendarSync({ ...calendarSync, enabled: v })}
+            />
+          </div>
+          <div style={{ position: 'relative', marginBottom: 6 }}>
+            <input
+              type={showSyncSecret ? 'text' : 'password'}
+              value={calendarSync.secret}
+              onChange={(e) => onChangeCalendarSync({ ...calendarSync, secret: e.target.value })}
+              placeholder="Секретный код синхронизации"
+              autoComplete="off"
+              style={{ ...CONNECTION_FIELD_STYLE, paddingRight: 34 }}
+            />
+            <span
+              onClick={() => setShowSyncSecret((v) => !v)}
+              role="button"
+              aria-label={showSyncSecret ? 'Скрыть код' : 'Показать код'}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                right: 8,
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                color: COLORS.textGhost,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {showSyncSecret ? (
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              )}
+            </span>
+          </div>
+          <input
+            type="text"
+            value={calendarSync.endpoint}
+            onChange={(e) => onChangeCalendarSync({ ...calendarSync, endpoint: e.target.value || DEFAULT_ENDPOINT })}
+            placeholder={DEFAULT_ENDPOINT}
+            autoComplete="off"
+            style={CONNECTION_FIELD_STYLE}
+          />
+          <div style={{ marginTop: 6, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
+            {syncActive(calendarSync)
+              ? 'записи и консультации улетают в календарь Инки при сохранении.'
+              : calendarSync.enabled
+              ? 'нужен секретный код — без него синхронизация не работает.'
+              : 'выключена: записи остаются только в дневнике.'}
+          </div>
+          {syncActive(calendarSync) && (
+            <div style={{ marginTop: 8 }}>
+              <span
+                onClick={syncCheck.status === 'checking' ? undefined : checkCalendarSync}
+                role="button"
+                aria-label="Проверить соединение с ботом"
+                style={{
+                  fontSize: fs(11),
+                  color: COLORS.gold,
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  cursor: syncCheck.status === 'checking' ? 'default' : 'pointer',
+                  opacity: syncCheck.status === 'checking' ? 0.5 : 1,
+                }}
+              >
+                {syncCheck.status === 'checking' ? 'проверяю…' : 'проверить соединение'}
+              </span>
+              {syncCheck.message && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: fs(11),
+                    fontStyle: 'italic',
+                    color: syncCheck.status === 'error' ? '#C99' : COLORS.textGhost,
+                  }}
+                >
+                  {syncCheck.message}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ContentINKA — тот же принцип, что «Инка-календарь» выше, свой
+            секрет и свой адрес сервиса (не тот же деплой, что у бота). */}
+        <div style={rowStyle}>
+          <div style={{ marginBottom: 10 }}>
+            <ToggleRow
+              label="ContentINKA · Отбор и текст"
+              value={contentSync.enabled}
+              onChange={(v) => onChangeContentSync({ ...contentSync, enabled: v })}
+            />
+          </div>
+          <div style={{ position: 'relative', marginBottom: 6 }}>
+            <input
+              type={showContentSecret ? 'text' : 'password'}
+              value={contentSync.secret}
+              onChange={(e) => onChangeContentSync({ ...contentSync, secret: e.target.value })}
+              placeholder="Секретный код ContentINKA"
+              autoComplete="off"
+              style={{ ...CONNECTION_FIELD_STYLE, paddingRight: 34 }}
+            />
+            <span
+              onClick={() => setShowContentSecret((v) => !v)}
+              role="button"
+              aria-label={showContentSecret ? 'Скрыть код' : 'Показать код'}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                right: 8,
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                color: COLORS.textGhost,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {showContentSecret ? (
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
+                  <path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              )}
+            </span>
+          </div>
+          <input
+            type="text"
+            value={contentSync.endpoint}
+            onChange={(e) => onChangeContentSync({ ...contentSync, endpoint: e.target.value })}
+            placeholder="https://contentinka-....vercel.app"
+            autoComplete="off"
+            style={CONNECTION_FIELD_STYLE}
+          />
+          <div style={{ marginTop: 6, fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', lineHeight: 1.5 }}>
+            {contentSync.enabled && contentSync.secret && contentSync.endpoint
+              ? '«Отправить в контент» доступна в карточке сессии/консультации.'
+              : 'нужны адрес сервиса и секретный код — без них кнопка «Отправить в контент» не сработает.'}
+          </div>
+          <div
+            onClick={onOpenContent}
+            role="button"
+            aria-label="Открыть ContentINKA"
+            style={{
+              marginTop: 10,
+              fontSize: fs(12),
+              color: COLORS.gold,
+              textAlign: 'center',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+            }}
+          >
+            Открыть ContentINKA · контент мастерской
           </div>
         </div>
 
@@ -727,37 +1095,6 @@ export function SettingsScreen({
                   border: prefs.textBright === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
                   background: prefs.textBright === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
                   color: prefs.textBright === o.v ? COLORS.gold : COLORS.textFaint,
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Game mode — the rock-paper-scissors gate before creating things. */}
-        <div style={rowStyle}>
-          <div style={labelStyle}>Игровой режим</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {([
-              { v: true, label: 'Включён' },
-              { v: false, label: 'Выключен' },
-            ] as { v: boolean; label: string }[]).map((o) => (
-              <div
-                key={String(o.v)}
-                onClick={() => onChange({ ...prefs, gameMode: o.v })}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px 0',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontSize: fs(13),
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                  border: prefs.gameMode === o.v ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                  background: prefs.gameMode === o.v ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                  color: prefs.gameMode === o.v ? COLORS.gold : COLORS.textFaint,
                 }}
               >
                 {o.label}

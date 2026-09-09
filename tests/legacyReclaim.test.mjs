@@ -66,7 +66,9 @@ test('ошибка транзакции сообщает через reportStorag
 });
 
 test('проп подключён к вызову экрана', () => {
-  assert.match(app, /onClearLegacyRecords=\{clearLegacyClientRecords\}/);
+  // Настройки — вкладка в Личном кабинете: проп передаётся через объектный
+  // settings bag, не JSX-атрибутом (см. MasterDashboardScreen).
+  assert.match(app, /onClearLegacyRecords: clearLegacyClientRecords,/);
 });
 
 // ── Экран: SettingsScreen.tsx ────────────────────────────────────────────
