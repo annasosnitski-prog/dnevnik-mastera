@@ -154,6 +154,7 @@ export function AdminDashboardScreen({
             style={{
               fontFamily: DROP_CAP_FONT,
               fontSize: fs(24),
+              lineHeight: 1,
               color: COLORS.gold,
               letterSpacing: '5px',
               textTransform: 'uppercase',

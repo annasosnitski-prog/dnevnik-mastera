@@ -2746,14 +2746,15 @@ export default function TattoDiary() {
 
         {/* App header */}
         <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 10 }}>
-          {/* Absolute top-right corner, same spot on every screen (see
-              AdminDashboardScreen) — no longer scrolls away with the header
-              row below, but that row's own icons (search/filter/sort) still
-              do. */}
-          <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 11 }}>
+          {/* Calendar badge sits as a flex sibling of the logo (not
+              absolutely positioned) so it centers vertically against the
+              INKA wordmark itself instead of the header block as a whole
+              — see AdminDashboardScreen, which centers the same way
+              against «Админка». */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <InkaLogo height={fs(34)} />
             <TodayDateBadge onOpen={() => setShowCalendar(true)} size={35} />
           </div>
-          <InkaLogo height={fs(34)} />
           <div
             style={{
               fontSize: fs(9.66),
