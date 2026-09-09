@@ -246,7 +246,10 @@ test('the client card wires its four tabs, Проекты first, via the shared 
 });
 
 test('Личный кабинет мастера reuses the same shared tab bar (Инфо/Проекты/Настройки)', () => {
-  assert.match(masterDashboardScreen, /<ClientCardTabBar[\s\S]*?tabs=\{MASTER_TABS\}[\s\S]*?activeTab=\{tab\}[\s\S]*?onTab=\{/);
+  // Третья гемма (Настройки) переключает вкладку точно так же, как
+  // Инфо/Проекты — onTab остаётся простым setTab, своего экрана и
+  // отдельной логики перехода у Настроек больше нет.
+  assert.match(masterDashboardScreen, /<ClientCardTabBar[\s\S]*?tabs=\{MASTER_TABS\}[\s\S]*?activeTab=\{tab\}[\s\S]*?onTab=\{setTab\}/);
   const listMatch = masterDashboardScreen.match(/const MASTER_TABS: ClientCardTabDef<[^>]+>\[\] = \[([\s\S]*?)\];/);
   assert.ok(listMatch, 'MASTER_TABS array not found');
   const ids = [...listMatch[1].matchAll(/\{ id: '([^']+)', kind: '([^']+)'/g)].map(([, id, kind]) => [id, kind]);
@@ -255,7 +258,7 @@ test('Личный кабинет мастера reuses the same shared tab bar 
     ['projects', 'projects'],
     ['settings', 'notes'],
   ]);
-  // Третья гемма не переключает локальную вкладку — onTab перехватывает её
-  // id и уходит в onOpenSettings, а не в setTab.
-  assert.match(masterDashboardScreen, /onTab=\{\(t\) => \{\s*if \(t === 'settings'\) \{\s*onOpenSettings\(\);/);
+  // Настройки рендерятся как третье содержимое вкладки (embedded), не
+  // через отдельный экран/навигацию.
+  assert.match(masterDashboardScreen, /\{tab === 'settings' && <SettingsScreen \{\.\.\.settings\} embedded onBack=\{\(\) => setTab\('info'\)\} \/>\}/);
 });

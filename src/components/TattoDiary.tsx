@@ -141,7 +141,6 @@ import {
 // клиентов. React.lazy откладывает загрузку каждого экрана до первого
 // перехода на него.
 const WorkshopScreen = lazy(() => import('./screens/WorkshopScreen').then((m) => ({ default: m.WorkshopScreen })));
-const SettingsScreen = lazy(() => import('./screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen })));
 const SummaryScreen = lazy(() => import('./screens/SummaryScreen').then((m) => ({ default: m.SummaryScreen })));
 const AdminDashboardScreen = lazy(() => import('./screens/AdminDashboardScreen').then((m) => ({ default: m.AdminDashboardScreen })));
 const ContentINKAScreen = lazy(() => import('./screens/ContentINKAScreen').then((m) => ({ default: m.ContentINKAScreen })));
@@ -717,7 +716,7 @@ export default function TattoDiary() {
   const handleHideAllHealing = (it: HealingCycleItem) =>
     setReminderState((prev) => healingCycleReminderKeysForIteration(it).reduce((s, k) => dismissReminder(s, k), prev));
 
-  const [screen, setScreen] = useState<'list' | 'detail' | 'settings' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
+  const [screen, setScreen] = useState<'list' | 'detail' | 'summary' | 'master' | 'admin' | 'workshop' | 'content'>('list');
   const [contentNavigation, setContentNavigation] = useState<ContentWorkspaceNavigation | null>(null);
   // Узкий navigation target «открыть вот эту запись» по entry.id — для
   // клика по карточке в разделе «Контент» экрана проекта, где записи могут
@@ -2577,7 +2576,7 @@ export default function TattoDiary() {
         ? 'detail'
         : screen === 'master' || screen === 'workshop'
           ? 'workshop'
-          : screen === 'list' || screen === 'settings'
+          : screen === 'list'
             ? 'list'
             : null;
 
@@ -3154,7 +3153,7 @@ export default function TattoDiary() {
           underneath it on purpose: «Создать» is the only entry point for
           adding a session/consultation to the open project (see onCreate
           below), so the main button has to stay reachable over it. */}
-      {(screen === 'list' || screen === 'settings' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop' || screen === 'content') && !navFabHidden && (
+      {(screen === 'list' || screen === 'summary' || screen === 'master' || screen === 'admin' || screen === 'detail' || screen === 'workshop' || screen === 'content') && !navFabHidden && (
         <NavFab
           active={screen}
           onNavigate={(s) => {
@@ -3185,7 +3184,7 @@ export default function TattoDiary() {
           onCreate={
             viewProject
               ? () => setCreateChoiceContext('viewProject')
-              : screen === 'list' || screen === 'settings'
+              : screen === 'list'
               ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
               : screen === 'summary'
                 ? () => setShowSummaryComposer(true)
@@ -3298,13 +3297,41 @@ export default function TattoDiary() {
               clients={clients}
               masterInfo={masterInfo}
               onChangeMasterInfo={setMasterInfo}
-              onOpenSettings={() => setScreen('settings')}
               projects={projects}
               onOpenProject={(project) => setViewProject(project)}
               onCreateProject={() => {
                 setEditProject(null);
                 setNewProjectClientId(null);
                 setShowNewProjectForm(true);
+              }}
+              settings={{
+                theme,
+                onToggleTheme: toggleTheme,
+                minimalism,
+                onChangeMinimalism: setMinimalism,
+                onMeasureStorage: measureStorageUse,
+                onClearLegacyRecords: clearLegacyClientRecords,
+                sync: syncDriver,
+                prefs,
+                onChange: setPrefs,
+                masterInfo,
+                onChangeMasterInfo: setMasterInfo,
+                installationId,
+                onPrepareBackup: prepareFullBackup,
+                persistence,
+                storageEstimate,
+                lastBackupAt,
+                onBackupDone: markBackupDone,
+                errorLog,
+                onClearErrorLog: clearErrorLog,
+                onImport: replaceAllData,
+                onImportArchive: restoreFullBackup,
+                onOpenCalendar: () => setShowCalendar(true),
+                calendarSync,
+                onChangeCalendarSync: setCalendarSync,
+                contentSync,
+                onChangeContentSync: setContentSync,
+                onOpenContent: () => setScreen('content'),
               }}
             />
           </Suspense>
@@ -3400,53 +3427,6 @@ export default function TattoDiary() {
         )}
       </div>
 
-      {/* ═══════════ SETTINGS SCREEN ═══════════ */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          transform: screen === 'settings' ? 'translateX(0)' : 'translateX(110%)',
-          transition: 'transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          zIndex: 3,
-        }}
-      >
-        {screen === 'settings' && (
-          <Suspense fallback={null}>
-            <SettingsScreen
-              theme={theme}
-              onToggleTheme={toggleTheme}
-              minimalism={minimalism}
-              onChangeMinimalism={setMinimalism}
-              onMeasureStorage={measureStorageUse}
-              onClearLegacyRecords={clearLegacyClientRecords}
-              sync={syncDriver}
-              prefs={prefs}
-              onChange={setPrefs}
-              onBack={() => setScreen('master')}
-              masterInfo={masterInfo}
-              onChangeMasterInfo={setMasterInfo}
-              installationId={installationId}
-              onPrepareBackup={prepareFullBackup}
-              persistence={persistence}
-              storageEstimate={storageEstimate}
-              lastBackupAt={lastBackupAt}
-              onBackupDone={markBackupDone}
-              errorLog={errorLog}
-              onClearErrorLog={clearErrorLog}
-              onImport={replaceAllData}
-              onImportArchive={restoreFullBackup}
-              onOpenCalendar={() => setShowCalendar(true)}
-              calendarSync={calendarSync}
-              onChangeCalendarSync={setCalendarSync}
-              contentSync={contentSync}
-              onChangeContentSync={setContentSync}
-              onOpenContent={() => setScreen('content')}
-            />
-          </Suspense>
-        )}
-      </div>
 
       {/* ═══════════ ТВОРЧЕСКАЯ МАСТЕРСКАЯ ═══════════ */}
       <div

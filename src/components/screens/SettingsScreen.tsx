@@ -226,6 +226,10 @@ export interface SettingsScreenProps {
   contentSync: ContentSyncSettings;
   onChangeContentSync: (s: ContentSyncSettings) => void;
   onOpenContent: () => void;
+  // true — экран рендерится как вкладка «Настройки» в Личном кабинете (та
+  // же ClientCardTabBar, что у Инфо/Проекты), не отдельный маршрут: без
+  // собственной шапки/заголовка/«вернуться», просто список секций.
+  embedded?: boolean;
 }
 
 export function SettingsScreen({
@@ -257,6 +261,7 @@ export function SettingsScreen({
   contentSync,
   onChangeContentSync,
   onOpenContent,
+  embedded,
 }: SettingsScreenProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -652,39 +657,47 @@ export function SettingsScreen({
 
   return (
     <div style={{ minHeight: '100%' }}>
-      <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
-      <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
-        {/* Absolute top-right corner, same spot on every screen (see
-            AdminDashboardScreen). */}
-        <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
-          <TodayDateBadge onOpen={onOpenCalendar} size={35} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-          <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-            <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-              <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
-            </svg>
-            <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+      {/* embedded — Настройки живут третьей вкладкой в Личном кабинете (та
+          же ClientCardTabBar, что у Инфо/Проекты): переключает вкладку сама
+          гемма-подвеска, поэтому собственные заголовок/шапка/«вернуться»
+          здесь лишние. */}
+      {!embedded && (
+        <>
+          <div style={{ height: 'calc(env(safe-area-inset-top) + 18px)' }} />
+          <div style={{ padding: '6px 24px 12px', position: 'relative', zIndex: 1 }}>
+            {/* Absolute top-right corner, same spot on every screen (see
+                AdminDashboardScreen). */}
+            <div style={{ position: 'absolute', top: 6, right: 24, zIndex: 2 }}>
+              <TodayDateBadge onOpen={onOpenCalendar} size={35} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+              <div className="inka-back" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                  <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: COLORS.gold }} />
+                </svg>
+                <span style={{ fontSize: fs(14), color: COLORS.gold, fontStyle: 'italic', letterSpacing: '0.3px' }}>вернуться</span>
+              </div>
+            </div>
+            <div
+              style={{
+                fontFamily: DROP_CAP_FONT,
+                fontSize: fs(24),
+                color: COLORS.gold,
+                letterSpacing: '5px',
+                textTransform: 'uppercase',
+              }}
+            >
+              Настройки
+            </div>
+            <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
+              Оформление
+            </div>
+            <StarDivider />
           </div>
-        </div>
-        <div
-          style={{
-            fontFamily: DROP_CAP_FONT,
-            fontSize: fs(24),
-            color: COLORS.gold,
-            letterSpacing: '5px',
-            textTransform: 'uppercase',
-          }}
-        >
-          Настройки
-        </div>
-        <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
-          Оформление
-        </div>
-        <StarDivider />
-      </div>
+        </>
+      )}
 
-      <div style={{ padding: '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1 }}>
+      <div style={{ padding: embedded ? '4px 0 8px' : '4px 20px calc(env(safe-area-inset-bottom, 0px) + 84px)', position: 'relative', zIndex: 1 }}>
         {/* Modules — экраны поверх ядра (клиент → проект → сессии →
             консультации), которое всегда включено и в список не входит.
             Выключенный модуль исчезает из вкладок навигации, и его lazy-чанк

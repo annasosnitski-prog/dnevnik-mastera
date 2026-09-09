@@ -5,6 +5,7 @@ import { StarDivider } from '../icons/StarIcons';
 import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon } from '../icons/SocialIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { AddChatLinkForm, AddMasterLinkForm } from '../client/ClientControls';
+import { SettingsScreen, type SettingsScreenProps } from './SettingsScreen';
 import { GoldFrame } from '../ui/Stripes';
 import { StatBlock } from '../ui/StatBlocks';
 import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
@@ -24,9 +25,9 @@ import { type Project } from '../../domain/project';
 const MASTER_TABS: ClientCardTabDef<'info' | 'projects' | 'settings'>[] = [
   { id: 'info', kind: 'info', label: 'Инфо' },
   { id: 'projects', kind: 'projects', label: 'Проекты' },
-  // Не переключает контент ниже — ClientCardTabBar.onTab перехватывает этот
-  // id и вызывает onOpenSettings вместо setTab (см. её вызов ниже).
-  // Заимствует иконку notes (свободна в этой тройке) с админ-территорией.
+  // Так же, как Инфо/Проекты — переключает контент ниже, не отдельный
+  // экран. Заимствует иконку notes (свободна в этой тройке), цвет —
+  // админ-территория (фиолетовый).
   { id: 'settings', kind: 'notes', label: 'Настройки', color: TERRITORY_COLORS.admin },
 ];
 
@@ -34,22 +35,25 @@ export function MasterDashboardScreen({
   clients,
   masterInfo,
   onChangeMasterInfo,
-  onOpenSettings,
   projects,
   onOpenProject,
   onCreateProject,
+  settings,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
   onChangeMasterInfo: (m: MasterInfo) => void;
-  onOpenSettings: () => void;
   // Проекты мастера без клиента («Мастерская») — тот же каркас вкладок, что
   // у карточки клиента (см. ClientCardTabBar), своя вкладка «Проекты».
   projects: Project[];
   onOpenProject: (project: Project) => void;
   onCreateProject: () => void;
+  // Настройки — третья вкладка этого экрана (см. MASTER_TABS), не отдельный
+  // маршрут: embedded=true и onBack проставляются здесь же, вызывающей
+  // стороне (TattoDiary.tsx) не нужно об этом помнить.
+  settings: Omit<SettingsScreenProps, 'embedded' | 'onBack'>;
 }) {
-  const [tab, setTab] = useState<'info' | 'projects'>('info');
+  const [tab, setTab] = useState<'info' | 'projects' | 'settings'>('info');
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
 
@@ -174,18 +178,12 @@ export function MasterDashboardScreen({
           профиль ниже, Проекты — «Проекты мастера» (без клиента), раньше
           жившие только в общей Мастерской. Третья гемма — Настройки: та же
           огранка и подвеска, что у остальных двух, фиолетовая (админ-
-          территория), но не переключает вкладку ниже — открывает отдельный
-          экран (см. onTab). */}
+          территория), и переключает контент ниже точно так же, как Инфо и
+          Проекты — свой экран Настройкам больше не нужен. */}
       <ClientCardTabBar
         tabs={MASTER_TABS}
         activeTab={tab}
-        onTab={(t) => {
-          if (t === 'settings') {
-            onOpenSettings();
-            return;
-          }
-          setTab(t);
-        }}
+        onTab={setTab}
         ariaLabel="Разделы личного кабинета"
       />
 
@@ -444,6 +442,7 @@ export function MasterDashboardScreen({
           )}
         </>
       )}
+      {tab === 'settings' && <SettingsScreen {...settings} embedded onBack={() => setTab('info')} />}
       </div>
     </div>
   );
