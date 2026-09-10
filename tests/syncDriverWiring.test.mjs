@@ -21,7 +21,7 @@ test('часовой таймер не перезапускается на пе�
 
 test('первый и ручной синк обновляют видимый экран только когда реально что-то приехало', () => {
   assert.match(source, /const pulledSomething =/);
-  assert.match(source, /if \(refreshVisibleData && pulledSomething\) \{\s*window\.location\.reload\(\);/);
+  assert.match(source, /if \(refreshVisibleData && pulledSomething && !reloadedRecently\(\)\) \{/);
   assert.match(timerEffect, /void runSync\(true\);/);
   assert.match(timerEffect, /setInterval\(\(\) => void runSync\(false\), SYNC_INTERVAL_MS\)/);
   assert.match(source, /syncNow: \(\) => runSync\(true\)/);
@@ -66,10 +66,33 @@ test('защита от петли: отметка о прогоне снима�
 test('автозапуск пропускается, если отметка осталась от несостоявшегося прогона, но кнопка остаётся рабочей', () => {
   assert.match(source, /const \[initialStaleSyncFlag\] = useState\(hasSyncInProgressFlag\);/);
   assert.match(source, /if \(staleSyncFlagRef\.current\) \{\s*\n\s*staleSyncFlagRef\.current = false;\s*\n\s*clearSyncInProgressFlag\(\);/);
-  assert.match(source, /\} else \{\s*\n\s*void runSync\(true\);\s*\n\s*\}/);
   // Часовой таймер заводится в обоих случаях — пропускается только сам
   // немедленный автозапуск, а не периодический синк вообще.
   assert.match(source, /onErrorLog\?\.\(\s*\n\s*'автозапуск',/);
+});
+
+test('автозапуск не повторяет полный прогон, если синк только что прошёл', () => {
+  // В логах облака было пять полных прогонов за полторы минуты: дневник
+  // почти всё время был занят синком, а не работой мастера.
+  assert.match(source, /const AUTO_SYNC_MIN_GAP_MS = 5 \* 60 \* 1000;/);
+  assert.match(source, /\} else if \(!lastSyncWithin\(AUTO_SYNC_MIN_GAP_MS\)\) \{\s*\n[\s\S]*?void runSync\(true\);/);
+  // Кнопка и часовой таймер порогом не ограничены — синхронизироваться
+  // принудительно можно всегда.
+  assert.match(source, /syncNow: \(\) => runSync\(true\)/);
+  assert.match(source, /setInterval\(\(\) => void runSync\(false\), SYNC_INTERVAL_MS\)/);
+});
+
+test('возврат к вкладке не запускает полный прогон, если синк только что прошёл', () => {
+  const resume = source.slice(source.indexOf('const onResume = () => {'), source.indexOf('document.addEventListener(\'visibilitychange\', onResume)'));
+  assert.match(resume, /if \(lastSyncWithin\(AUTO_SYNC_MIN_GAP_MS\)\) return;/);
+  assert.match(resume, /void runSync\(false\);/);
+});
+
+test('перезагрузка ради показа приехавших данных не может уйти в круг', () => {
+  // Если приехавшее почему-то не ложится в базу, следующий прогон привезёт
+  // то же самое — и без этой отметки перезагружал бы страницу снова и снова.
+  assert.match(source, /if \(refreshVisibleData && pulledSomething && !reloadedRecently\(\)\) \{\s*\n\s*rememberReload\(\);\s*\n\s*window\.location\.reload\(\);/);
+  assert.match(source, /sessionStorage\.setItem\(RELOAD_GUARD_KEY, String\(Date\.now\(\)\)\)/);
 });
 
 test('повтор из #302 сузили до ошибок авторизации — любая другая ошибка не запускает прогон второй раз', () => {
