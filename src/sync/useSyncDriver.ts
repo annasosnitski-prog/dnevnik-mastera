@@ -15,10 +15,19 @@
 // нечего. Загружается по требованию: только если устройство уже было
 // привязано раньше (тогда без него дневник и не откроется офлайн-первым
 // экраном) или мастер сама нажимает «Привязать»/«Синхронизировать».
+//
+// Два добавления поверх этого: (1) каждый сбой синка теперь уходит в общий
+// журнал (lib/errorLog.ts, источник 'sync') через onErrorLog — раньше он
+// оседал только в lastError и пропадал при следующей перезагрузке; (2)
+// защита от петли падений — см. lib/syncCrashGuard.ts за тем, ПОЧЕМУ она
+// вообще понадобилась, здесь только её исполнение поверх localStorage.
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isCodeTooWeak } from '../lib/syncIdentity.js';
+import { decideSyncStartup, syncCrashExplanation, syncCrashLogMessage, SYNC_STARTED_AT_KEY } from '../lib/syncCrashGuard.js';
+import { isAuthLikeSyncError } from './syncRetryPolicy.js';
+import { SYNC_ACTIONS } from './syncMessages.js';
 
 const SUPABASE_AUTH_STORAGE_KEY = 'inka-sync-auth';
 
@@ -56,7 +65,13 @@ export interface SyncDriverState {
   syncNow: () => Promise<void>;
 }
 
-export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriverState {
+export function useSyncDriver(
+  getDatabase: () => IDBDatabase | null,
+  // Необязательный: сюда прокидывается общий журнал сбоев (TattoDiary.tsx
+  // передаёт logError с источником 'sync'). Необязательность — чтобы хук
+  // оставался вызываемым и без журнала, как и раньше.
+  onErrorLog?: (action: string, error: unknown) => void,
+): SyncDriverState {
   const [phase, setPhase] = useState<SyncPhase>(() => (hasStoredSession() ? 'checking' : 'unpaired'));
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(() => {
     try {
@@ -68,12 +83,48 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
   const [lastError, setLastError] = useState<string | null>(null);
   const syncingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  // Замок от петли падений (см. lib/syncCrashGuard.ts). Ref, а не state:
+  // должен быть виден сразу внутри уже живущих замыканий (часовой интервал,
+  // обработчик возврата из фона) без пересоздания их эффектов, и не обязан
+  // переживать «просто ещё один рендер» как настоящее состояние компонента.
+  const autoSyncLockedRef = useRef(false);
 
   // paired и syncing — два UI-состояния одной и той же привязки.
   // Для таймера это ОБА «синк включён»: если считать syncing выключением,
   // каждая синхронизация сама очистит эффект, а возврат в paired тут же
   // создаст его заново и немедленно запустит следующий синк — бесконечный цикл.
   const syncEnabled = phase === 'paired' || phase === 'syncing';
+
+  // Однократная проверка при монтировании: если отметка «прогон начался»
+  // (SYNC_STARTED_AT_KEY) осталась висеть, предыдущий прогон не долетел до
+  // своего finally — вкладка упала прямо во время синка (см.
+  // lib/syncCrashGuard.ts). Обычный try/catch этого не ловит: процесс
+  // страницы не бросает исключение, он просто исчезает вместе со всем
+  // стеком вызовов.
+  //
+  // Реакция — не молчать и не пытаться снова тем же способом: заблокировать
+  // автозапуск (эффекты ниже это проверяют), объяснить в lastError, что
+  // нужно нажать «Синхронизировать сейчас» самой, и оставить в журнале
+  // сбоев доказательство, которого раньше не было вообще.
+  useEffect(() => {
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(SYNC_STARTED_AT_KEY);
+    } catch {
+      raw = null;
+    }
+    const decision = decideSyncStartup(raw);
+    if (decision.kind !== 'crashed') return;
+    autoSyncLockedRef.current = true;
+    setLastError(syncCrashExplanation(decision.startedAt));
+    onErrorLog?.(SYNC_ACTIONS.runSync, syncCrashLogMessage(decision.startedAt));
+    try {
+      localStorage.removeItem(SYNC_STARTED_AT_KEY);
+    } catch {
+      /* не страшно — свою службу отметка уже сослужила (лог записан) */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const runSync = useCallback(
     async (refreshVisibleData = false) => {
@@ -83,22 +134,38 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
         setLastError('Локальное хранилище ещё не готово. Попробуйте синхронизацию ещё раз через несколько секунд.');
         return;
       }
+      // Любой настоящий прогон — в том числе автоматический, но он попадает
+      // сюда, только если эффекты ниже уже сами проверили замок, — снимает
+      // его: это новая попытка синка, а не продолжение прежней зависшей.
+      // Иначе одна упавшая по памяти синхронизация отключила бы автосинк
+      // навсегда, хотя мастер уже вручную попробовала снова.
+      autoSyncLockedRef.current = false;
       syncingRef.current = true;
       setPhase('syncing');
       try {
+        localStorage.setItem(SYNC_STARTED_AT_KEY, new Date().toISOString());
+      } catch {
+        /* нет localStorage — защита от петли не сработает, но сам синк не страдает */
+      }
+      try {
         const { getSupabaseClient, createSupabaseRemote, runFullSync } = await loadSyncModules();
         const client = getSupabaseClient();
-        // Один повтор через паузу при сбое: сразу после входа (см.
-        // pairWithCode) Supabase иногда отвечает 401 на первый же запрос
-        // данных — токен уже выдан, но ещё не везде распространился; через
-        // секунду-другую тот же запрос проходит сам (в логах соседний вызов
-        // той же секунды уже 200). Слияние идемпотентно (см. syncEngine.ts),
-        // поэтому повторить весь прогон безопасно — задвоить данные нечем.
+        // Один повтор через паузу — но только при сбое, похожем на ошибку
+        // авторизации (см. syncRetryPolicy.ts за тем, почему сужено): сразу
+        // после входа (pairWithCode) Supabase иногда отвечает 401 на первый
+        // же запрос данных — токен уже выдан, но ещё не везде
+        // распространился; через секунду-другую тот же запрос проходит сам.
+        // Слияние идемпотентно (см. syncEngine.ts), поэтому повторить весь
+        // прогон в этом случае безопасно. Любую другую причину сбоя (в
+        // частности — нехватку памяти) тут же повторять нельзя: тяжёлый
+        // прогон удвоил бы пиковое потребление в момент, когда её и так не
+        // хватило.
         let summary;
         try {
           const remote = await createSupabaseRemote(client);
           summary = await runFullSync(database, remote);
-        } catch {
+        } catch (err) {
+          if (!isAuthLikeSyncError(err)) throw err;
           await new Promise((resolve) => setTimeout(resolve, 1500));
           const remote = await createSupabaseRemote(client);
           summary = await runFullSync(database, remote);
@@ -127,13 +194,34 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
           summary.contentEntries.pulled > 0 ||
           summary.contentEntries.deletedLocally > 0 ||
           summary.masterInfo === 'pulled';
+
+        // Отметку снимаем ЗДЕСЬ, до перезагрузки, а не полагаемся на finally
+        // ниже: reload() не обрывает синхронный JS немедленно, но полагаться
+        // на это не стоит — если снятие отметки хоть иногда не долетит до
+        // перезагрузки, каждая штатная синхронизация с перезагрузкой будет
+        // выглядеть как падение, и автосинк отключится навсегда своими же
+        // руками.
+        try {
+          localStorage.removeItem(SYNC_STARTED_AT_KEY);
+        } catch {
+          /* см. комментарий у localStorage.setItem выше по установке отметки */
+        }
         if (refreshVisibleData && pulledSomething) {
           window.location.reload();
           return;
         }
       } catch (err) {
         setLastError(err instanceof Error ? err.message : 'Не удалось синхронизироваться.');
+        onErrorLog?.(SYNC_ACTIONS.runSync, err);
       } finally {
+        // Идемпотентно: при успехе отметка уже снята выше, здесь просто
+        // подчищаем путь сбоя (и подстраховываем путь успеха, если он
+        // почему-то до сюда дошёл).
+        try {
+          localStorage.removeItem(SYNC_STARTED_AT_KEY);
+        } catch {
+          /* см. комментарий выше */
+        }
         syncingRef.current = false;
         // Возвращаем 'paired' ТОЛЬКО если за время синка привязку не сняли.
         // Безусловный setPhase('paired') откатывал бы отвязку, нажатую пока
@@ -143,7 +231,7 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
         setPhase((current) => (current === 'syncing' ? 'paired' : current));
       }
     },
-    [getDatabase],
+    [getDatabase, onErrorLog],
   );
 
   useEffect(() => {
@@ -158,6 +246,7 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
       } catch (err) {
         if (cancelled) return;
         setLastError(err instanceof Error ? err.message : 'Не удалось проверить привязку синка.');
+        onErrorLog?.(SYNC_ACTIONS.checkPairing, err);
         setPhase('unpaired');
       }
     })();
@@ -170,13 +259,23 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
   // Первый синк после запуска/привязки обновляет видимый экран, если из
   // облака реально приехали изменения. Часовые фоновые проверки НЕ должны
   // внезапно перезагружать приложение во время работы.
+  //
+  // Замок от петли падений подчиняется тому же правилу и здесь, и в
+  // обработчике возврата из фона ниже: если прошлый прогон не долетел до
+  // конца, ни первый синк после запуска, ни часовой таймер не должны
+  // попробовать тем же способом снова сами. Кнопка «Синхронизировать
+  // сейчас» (syncNow → runSync) замок не проверяет и сама его снимает —
+  // сюда достаточно ручной попытки мастера, а не ещё одной автоматической.
   useEffect(() => {
     if (!syncEnabled) {
       clearInterval(timerRef.current);
       return;
     }
-    void runSync(true);
-    timerRef.current = setInterval(() => void runSync(false), SYNC_INTERVAL_MS);
+    if (!autoSyncLockedRef.current) void runSync(true);
+    timerRef.current = setInterval(() => {
+      if (autoSyncLockedRef.current) return;
+      void runSync(false);
+    }, SYNC_INTERVAL_MS);
     return () => clearInterval(timerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncEnabled]);
@@ -184,7 +283,7 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
   useEffect(() => {
     const onResume = () => {
       if (document.visibilityState !== 'visible') return;
-      if (phase === 'paired') void runSync(false);
+      if (phase === 'paired' && !autoSyncLockedRef.current) void runSync(false);
     };
     document.addEventListener('visibilitychange', onResume);
     return () => document.removeEventListener('visibilitychange', onResume);
@@ -208,8 +307,9 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
             ? 'Supabase не выдал сессию. В Authentication → Sign In / Providers → Email выключите Confirm email, затем привяжите устройство заново.'
             : result.message || 'Не удалось привязать устройство. Попробуйте ещё раз.';
     setLastError(message);
+    onErrorLog?.(SYNC_ACTIONS.pairDevice, result.message || message);
     return { ok: false, message };
-  }, []);
+  }, [onErrorLog]);
 
   const unpair = useCallback(async () => {
     const { getSupabaseClient, unpairDevice } = await loadSyncModules();
