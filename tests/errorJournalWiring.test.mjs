@@ -48,6 +48,13 @@ test('падения вне try/catch тоже оставляют след', () 
   assert.match(app, /window\.removeEventListener\('unhandledrejection', onRejection\)/);
 });
 
+test('сбои синка тоже пишутся в тот же журнал, тем же logError', () => {
+  // useSyncDriver — отдельный файл без доступа к React-состоянию TattoDiary,
+  // поэтому пишет через переданный колбэк, а не напрямую в localStorage:
+  // иначе журнал в Настройках не увидел бы свежую запись без перезагрузки.
+  assert.match(app, /useSyncDriver\(\s*\(\)\s*=>\s*connRef\.current\?\.getDatabase\(\)\s*\?\?\s*null,\s*\(action, error\) => logError\('sync', action, error\),\s*\)/);
+});
+
 test('журнал живёт в localStorage — он нужен именно когда база недоступна', () => {
   assert.match(app, /parseErrorLog\(localStorage\.getItem\(ERROR_LOG_KEY\)\)/);
   assert.match(app, /localStorage\.setItem\(ERROR_LOG_KEY, JSON\.stringify\(next\)\)/);

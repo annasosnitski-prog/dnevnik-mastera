@@ -44,3 +44,35 @@ test('отвязка во время синка не откатывается е
 test('переходник Supabase теперь ожидается асинхронно — он проверяет настоящую сессию', () => {
   assert.match(source, /const remote = await createSupabaseRemote\(client\);/);
 });
+
+test('сбои синка попадают в журнал через onErrorLog, а не только в lastError', () => {
+  // Раньше ошибка синка оседала только в lastError и пропадала вместе с
+  // закрытой вкладкой — разобрать «у меня что-то упало» было нечем.
+  assert.match(source, /onErrorLog\?: \(action: string, error: unknown\) => void,/);
+  assert.match(source, /setLastError\(err instanceof Error \? err\.message : 'Не удалось синхронизироваться\.'\);\s*\n\s*onErrorLog\?\.\('', err\);/);
+  assert.match(source, /setLastError\(err instanceof Error \? err\.message : 'Не удалось проверить привязку синка\.'\);\s*\n\s*onErrorLog\?\.\('проверка привязки', err\);/);
+  assert.match(source, /setLastError\(message\);\s*\n\s*onErrorLog\?\.\('привязка устройства', message\);/);
+});
+
+test('защита от петли: отметка о прогоне снимается в finally, а не отдельной строкой после него', () => {
+  // Успешный синк сам вызывает window.location.reload() и не доходит до кода
+  // после try/catch/finally — снятие отметки ВНЕ finally оставило бы её
+  // висеть навсегда и выключило бы автосинк насовсем.
+  const runSyncBody = source.slice(source.indexOf('const runSync = useCallback('), source.indexOf("useEffect(() => {\n    if (phase !== 'checking')"));
+  assert.match(runSyncBody, /syncingRef\.current = true;\s*\n\s*setSyncInProgressFlag\(\);/);
+  assert.match(runSyncBody, /\} finally \{\s*\n\s*syncingRef\.current = false;[\s\S]*?clearSyncInProgressFlag\(\);/);
+});
+
+test('автозапуск пропускается, если отметка осталась от несостоявшегося прогона, но кнопка остаётся рабочей', () => {
+  assert.match(source, /const \[initialStaleSyncFlag\] = useState\(hasSyncInProgressFlag\);/);
+  assert.match(source, /if \(staleSyncFlagRef\.current\) \{\s*\n\s*staleSyncFlagRef\.current = false;\s*\n\s*clearSyncInProgressFlag\(\);/);
+  assert.match(source, /\} else \{\s*\n\s*void runSync\(true\);\s*\n\s*\}/);
+  // Часовой таймер заводится в обоих случаях — пропускается только сам
+  // немедленный автозапуск, а не периодический синк вообще.
+  assert.match(source, /onErrorLog\?\.\(\s*\n\s*'автозапуск',/);
+});
+
+test('повтор из #302 сузили до ошибок авторизации — любая другая ошибка не запускает прогон второй раз', () => {
+  assert.match(source, /function isAuthPropagationFailure\(error: unknown\): boolean \{/);
+  assert.match(source, /if \(!isAuthPropagationFailure\(err\)\) throw err;/);
+});

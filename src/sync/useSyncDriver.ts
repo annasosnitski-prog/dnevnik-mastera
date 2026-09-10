@@ -44,6 +44,55 @@ async function loadSyncModules() {
 const SYNC_INTERVAL_MS = 60 * 60 * 1000;
 const LAST_SYNC_KEY = 'inka-sync-last-at';
 
+// Отметка «прогон идёт». Ставится перед runFullSync, снимается в finally —
+// то есть переживает и успех, и сбой. Если при старте хука отметка уже на
+// месте, значит вкладка умерла ПОСЕРЕДИНЕ синка (не успела дойти до finally):
+// автозапуск в этом случае пропускается (см. эффект ниже), чтобы дневник не
+// перезапускал тот же сбой на каждой перезагрузке. Западня, из-за которой
+// снятие отметки живёт именно в finally, а не отдельной строкой после него:
+// успешный синк сам вызывает window.location.reload() (см. runSync) —
+// код после try/catch/finally в этом случае просто не выполнится, и отметка
+// осталась бы навсегда, выключив автосинк насовсем.
+const SYNC_IN_PROGRESS_KEY = 'inka-sync-in-progress';
+
+function hasSyncInProgressFlag(): boolean {
+  try {
+    return localStorage.getItem(SYNC_IN_PROGRESS_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function setSyncInProgressFlag(): void {
+  try {
+    localStorage.setItem(SYNC_IN_PROGRESS_KEY, '1');
+  } catch {
+    /* защита от петли не сработает, но сам синк это не остановит */
+  }
+}
+
+function clearSyncInProgressFlag(): void {
+  try {
+    localStorage.removeItem(SYNC_IN_PROGRESS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// Ошибка, ради которой вообще завели повтор в #302: сразу после входа
+// Supabase иногда отвечает 401 на первый же запрос — токен уже выдан, но ещё
+// не везде распространился. Повтор оправдан ТОЛЬКО для этого случая: любая
+// другая ошибка (сеть легла, RLS не пускает, таблицы нет) второй раз сама
+// себя не починит, а повторный тяжёлый прогон поверх первого — лишняя
+// нагрузка и лишний источник рассинхрона.
+function isAuthPropagationFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { status?: unknown; code?: unknown; message?: unknown };
+  if (e.status === 401) return true;
+  if (typeof e.code === 'string' && e.code.toUpperCase().includes('JWT')) return true;
+  return typeof e.message === 'string' && /\b401\b|JWT/i.test(e.message);
+}
+
 export type SyncPhase = 'checking' | 'unpaired' | 'paired' | 'syncing';
 
 export interface SyncDriverState {
@@ -56,7 +105,14 @@ export interface SyncDriverState {
   syncNow: () => Promise<void>;
 }
 
-export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriverState {
+// onErrorLog — та же проводка, что и onErrorLog у createStorageConnection:
+// хук пишет закрытым текстом в React-состояние экрана настроек (см.
+// TattoDiary.tsx, logError), а не сам в localStorage — иначе журнал в
+// Настройках не увидел бы свежую запись без перезагрузки.
+export function useSyncDriver(
+  getDatabase: () => IDBDatabase | null,
+  onErrorLog?: (action: string, error: unknown) => void,
+): SyncDriverState {
   const [phase, setPhase] = useState<SyncPhase>(() => (hasStoredSession() ? 'checking' : 'unpaired'));
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(() => {
     try {
@@ -68,6 +124,12 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
   const [lastError, setLastError] = useState<string | null>(null);
   const syncingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  // Значение отметки НА МОМЕНТ ОТКРЫТИЯ хука — до того, как runSync успеет её
+  // хоть раз выставить в этом сеансе. Читается лениво (один раз), кладётся в
+  // ref: эффект ниже снимает её сам при использовании, а ref, в отличие от
+  // state, не просит лишний рендер ради этого.
+  const [initialStaleSyncFlag] = useState(hasSyncInProgressFlag);
+  const staleSyncFlagRef = useRef(initialStaleSyncFlag);
 
   // paired и syncing — два UI-состояния одной и той же привязки.
   // Для таймера это ОБА «синк включён»: если считать syncing выключением,
@@ -84,21 +146,25 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
         return;
       }
       syncingRef.current = true;
+      setSyncInProgressFlag();
       setPhase('syncing');
       try {
         const { getSupabaseClient, createSupabaseRemote, runFullSync } = await loadSyncModules();
         const client = getSupabaseClient();
-        // Один повтор через паузу при сбое: сразу после входа (см.
-        // pairWithCode) Supabase иногда отвечает 401 на первый же запрос
-        // данных — токен уже выдан, но ещё не везде распространился; через
-        // секунду-другую тот же запрос проходит сам (в логах соседний вызов
-        // той же секунды уже 200). Слияние идемпотентно (см. syncEngine.ts),
-        // поэтому повторить весь прогон безопасно — задвоить данные нечем.
+        // Один повтор через паузу — но только при 401 сразу после входа (см.
+        // isAuthPropagationFailure): токен уже выдан, но ещё не везде
+        // распространился, и через секунду-другую тот же запрос проходит сам
+        // (в логах соседний вызов той же секунды уже 200). Слияние
+        // идемпотентно (см. syncEngine.ts), поэтому повторить прогон в этом
+        // случае безопасно. Любая другая ошибка не подходит: она не пройдёт
+        // и вторым разом, а тяжёлый прогон запустился бы поверх первого,
+        // который мог успеть что-то отправить или записать локально.
         let summary;
         try {
           const remote = await createSupabaseRemote(client);
           summary = await runFullSync(database, remote);
-        } catch {
+        } catch (err) {
+          if (!isAuthPropagationFailure(err)) throw err;
           await new Promise((resolve) => setTimeout(resolve, 1500));
           const remote = await createSupabaseRemote(client);
           summary = await runFullSync(database, remote);
@@ -133,8 +199,13 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
         }
       } catch (err) {
         setLastError(err instanceof Error ? err.message : 'Не удалось синхронизироваться.');
+        onErrorLog?.('', err);
       } finally {
         syncingRef.current = false;
+        // Снимается здесь, а не отдельной строкой после try/catch: путь
+        // успеха уходит на reload и до кода после finally не доходит (см.
+        // комментарий у SYNC_IN_PROGRESS_KEY).
+        clearSyncInProgressFlag();
         // Возвращаем 'paired' ТОЛЬКО если за время синка привязку не сняли.
         // Безусловный setPhase('paired') откатывал бы отвязку, нажатую пока
         // синк ещё шёл: устройство снова считалось бы привязанным, syncEnabled
@@ -143,7 +214,7 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
         setPhase((current) => (current === 'syncing' ? 'paired' : current));
       }
     },
-    [getDatabase],
+    [getDatabase, onErrorLog],
   );
 
   useEffect(() => {
@@ -158,6 +229,7 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
       } catch (err) {
         if (cancelled) return;
         setLastError(err instanceof Error ? err.message : 'Не удалось проверить привязку синка.');
+        onErrorLog?.('проверка привязки', err);
         setPhase('unpaired');
       }
     })();
@@ -170,12 +242,29 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
   // Первый синк после запуска/привязки обновляет видимый экран, если из
   // облака реально приехали изменения. Часовые фоновые проверки НЕ должны
   // внезапно перезагружать приложение во время работы.
+  //
+  // Исключение — тот самый автозапуск: если отметка SYNC_IN_PROGRESS_KEY уже
+  // стояла на момент открытия хука (staleSyncFlag, снят один раз ниже), значит
+  // предыдущий прогон не дожил до конца — вкладка умерла во время синка.
+  // Запускать его немедленно снова значило бы воспроизвести тот же сбой на
+  // каждой перезагрузке. Пропускаем только этот один автозапуск: кнопка
+  // «Синхронизировать сейчас» остаётся рабочей, а часовой таймер заводится
+  // как обычно.
   useEffect(() => {
     if (!syncEnabled) {
       clearInterval(timerRef.current);
       return;
     }
-    void runSync(true);
+    if (staleSyncFlagRef.current) {
+      staleSyncFlagRef.current = false;
+      clearSyncInProgressFlag();
+      onErrorLog?.(
+        'автозапуск',
+        'предыдущий синк не завершился — вкладка закрылась во время синхронизации; автозапуск пропущен',
+      );
+    } else {
+      void runSync(true);
+    }
     timerRef.current = setInterval(() => void runSync(false), SYNC_INTERVAL_MS);
     return () => clearInterval(timerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -208,8 +297,9 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
             ? 'Supabase не выдал сессию. В Authentication → Sign In / Providers → Email выключите Confirm email, затем привяжите устройство заново.'
             : result.message || 'Не удалось привязать устройство. Попробуйте ещё раз.';
     setLastError(message);
+    onErrorLog?.('привязка устройства', message);
     return { ok: false, message };
-  }, []);
+  }, [onErrorLog]);
 
   const unpair = useCallback(async () => {
     const { getSupabaseClient, unpairDevice } = await loadSyncModules();
