@@ -34,15 +34,28 @@ self.addEventListener('install', (event) => {
 });
 
 // Activate event
+//
+// Кэш предыдущей сборки удаляем НЕ сразу. Новый воркер активируется, пока у
+// мастера открыта страница ПРЕДЫДУЩЕЙ сборки — а все её экраны лежат именно
+// в старом кэше и на сервере под старыми именами уже не существуют. Снося
+// кэш немедленно, мы ломали ровно то, что сейчас у неё на экране: первое же
+// переключение экрана падало с «Importing a module script failed».
+//
+// Поэтому оставляем последний предыдущий кэш и убираем всё, что старше.
+// Имя кэша — время сборки в 36-ричной записи (см. vite.config.ts), одной и
+// той же длины, поэтому обычная сортировка строк ставит их по возрасту.
+// Чужие кэши не трогаем вовсе — раньше удалялось всё подряд.
+const CACHE_PREFIX = 'inka-';
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
+      const previous = cacheNames
+        .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
+        .sort();
+      const keepPrevious = previous[previous.length - 1];
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
+        previous.filter((name) => name !== keepPrevious).map((name) => caches.delete(name))
       );
     })
   );
