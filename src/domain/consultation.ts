@@ -49,8 +49,17 @@ export interface Consultation {
   // cancelled в plannerSelectors.ts/buildReminders.ts продолжали работать
   // без отдельной правки под новый статус).
   done: boolean;
-  // See Session.cancelled — same meaning, set only via the overdue
-  // reminder's «Отменить» action.
+  // See Session.cancelled — same meaning, set via the overdue reminder's
+  // «Отменить» action and unset via restoreConsultation in TattoDiary.tsx
+  // (the «Восстановить» control in TimelineViewSheet, for an accidental
+  // cancel) — the only two writers; an ordinary form save leaves it alone
+  // (see consultationFields in lib/consultationSave.ts). Doesn't gate the
+  // consultation chain (previousConsultationId/nextConsultationId) or its
+  // «Назначить следующую» control — a cancelled consultation is the normal
+  // «client didn't show up, reschedule» case, not a dead end; it does still
+  // gate «Перевести в сессию» (see isConsultationDeletable's neighbour,
+  // ConsultationRow/TimelineViewSheet) — a meeting that didn't happen has
+  // nothing to convert.
   cancelled: boolean;
   status: ConsultationStatus;
   // Проставляется вместе со status:'converted' — id сессии, в которую эта

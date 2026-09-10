@@ -2237,6 +2237,24 @@ export default function TattoDiary() {
     }
   };
 
+  // Обратное действие к markEntryCancelled — единственный способ снять
+  // cancelled: без него отменённая запись остаётся в этом состоянии навсегда
+  // (обычное сохранение формы поле не трогает, см. consultationFields в
+  // lib/consultationSave.ts), а пока cancelled===true, у неё скрыты все
+  // действия цепочки/конвертации («Перевести в сессию», «Назначить
+  // следующую…», см. ConsultationRow/SessionRow в DetailScreen.tsx и
+  // RecordViewSheet ниже) — снаружи это выглядит как «опция пропала».
+  const restoreConsultation = (consultationId: string) => {
+    updateConsultation(consultationId, (cn) => ({
+      ...cn,
+      cancelled: false,
+      history: [...cn.history, { id: crypto.randomUUID(), date: new Date().toISOString(), note: 'Восстановлена' }],
+    }));
+  };
+  const restoreSession = (sessionId: string) => {
+    updateSession(sessionId, (s) => ({ ...s, cancelled: false }));
+  };
+
   // Shared navigation: land on the client's own card and pop the edit form
   // open for that session/consultation — used both by the Мастер dashboard's
   // upcoming list and the reminder quick-actions (reschedule an overdue
@@ -3818,7 +3836,9 @@ export default function TattoDiary() {
             : undefined
         }
         onOpenNextConsultation={
-          viewedConsultation?.nextConsultationId && viewEntry
+          viewedConsultation?.nextConsultationId &&
+          viewEntry &&
+          viewClient?.consultations.some((c) => c.id === viewedConsultation.nextConsultationId)
             ? () => setViewEntry({ kind: 'consultation', clientId: viewEntry.clientId, id: viewedConsultation.nextConsultationId! })
             : undefined
         }
@@ -3831,10 +3851,16 @@ export default function TattoDiary() {
             : undefined
         }
         onOpenNextSession={
-          viewedSession?.nextSessionId && viewEntry
+          viewedSession?.nextSessionId &&
+          viewEntry &&
+          viewClient?.sessions.some((s) => s.id === viewedSession.nextSessionId)
             ? () => setViewEntry({ kind: 'session', clientId: viewEntry.clientId, id: viewedSession.nextSessionId! })
             : undefined
         }
+        onRestoreConsultation={
+          viewedConsultation?.cancelled ? () => restoreConsultation(viewedConsultation.id) : undefined
+        }
+        onRestoreSession={viewedSession?.cancelled ? () => restoreSession(viewedSession.id) : undefined}
         onSaveNextStep={(text, date, type) => {
           const projectId = (viewedConsultation ?? viewedSession)?.projectId ?? null;
           const current = projectId ? getProjectById(projects, projectId) : null;

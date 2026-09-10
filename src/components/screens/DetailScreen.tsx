@@ -1749,26 +1749,27 @@ function ConsultationRow({
             )}
             {/* «Назначить следующую консультацию» — консультация никогда не
                 заменяется другой (см. Consultation.previousConsultationId),
-                доступно независимо от «Перевести в сессию» и не зависит от
-                статуса. Once a next one exists, taps open it instead of
-                creating a duplicate branch. Hidden only for a cancelled
-                consultation — nothing to continue. */}
-            {!consultation.cancelled && (
-              <div
-                className="inka-back"
-                onClick={onOpenNext ?? onChainNext}
-                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-                title={onOpenNext ? 'Открыть следующую консультацию' : 'Назначить следующую консультацию'}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                  {onOpenNext ? (
-                    <path d="M4 3L11 8L4 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  ) : (
-                    <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  )}
-                </svg>
-              </div>
-            )}
+                доступно независимо от «Перевести в сессию» и статуса, и
+                независимо от cancelled: отменённая встреча — как раз
+                типичный повод перенести на другую дату новой записью (см.
+                статус-строку «Отменена · Восстановить» в TimelineViewSheet,
+                ContentAndCalendarSheets.tsx, если нужно откатить саму
+                отметку, а не продолжать цепочку). Once a next one exists,
+                taps open it instead of creating a duplicate branch. */}
+            <div
+              className="inka-back"
+              onClick={onOpenNext ?? onChainNext}
+              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+              title={onOpenNext ? 'Открыть следующую консультацию' : 'Назначить следующую консультацию'}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                {onOpenNext ? (
+                  <path d="M4 3L11 8L4 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                ) : (
+                  <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                )}
+              </svg>
+            </div>
             <div
               className="inka-back"
               onClick={() => onEdit(consultation)}
@@ -1938,25 +1939,26 @@ function SessionRow({
             )}
             {session.duration && <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>{session.duration}</span>}
             {/* «Назначить следующую сессию» — сессия никогда не заменяется
-                другой (см. Session.previousSessionId). Once a next one
-                exists, taps open it instead of creating a duplicate branch.
-                Hidden only for a cancelled session — nothing to continue. */}
-            {!session.cancelled && (
-              <div
-                className="inka-back"
-                onClick={onOpenNext ?? onChainNext}
-                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
-                title={onOpenNext ? 'Открыть следующую сессию' : 'Назначить следующую сессию'}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
-                  {onOpenNext ? (
-                    <path d="M4 3L11 8L4 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  ) : (
-                    <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  )}
-                </svg>
-              </div>
-            )}
+                другой (см. Session.previousSessionId), независимо от
+                cancelled: отменённая встреча — типичный повод перенести на
+                другую дату новой записью (откат самой отметки — см.
+                «Отменена · Восстановить» в TimelineViewSheet,
+                ContentAndCalendarSheets.tsx). Once a next one exists, taps
+                open it instead of creating a duplicate branch. */}
+            <div
+              className="inka-back"
+              onClick={onOpenNext ?? onChainNext}
+              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.75 }}
+              title={onOpenNext ? 'Открыть следующую сессию' : 'Назначить следующую сессию'}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold }}>
+                {onOpenNext ? (
+                  <path d="M4 3L11 8L4 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                ) : (
+                  <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                )}
+              </svg>
+            </div>
             <div
               className="inka-back"
               onClick={() => onEdit(session)}
