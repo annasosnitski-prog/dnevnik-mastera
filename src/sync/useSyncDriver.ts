@@ -44,6 +44,66 @@ async function loadSyncModules() {
 const SYNC_INTERVAL_MS = 60 * 60 * 1000;
 const LAST_SYNC_KEY = 'inka-sync-last-at';
 
+// Сколько дневник считает синк «только что прошедшим».
+//
+// Полный прогон перечитывает ВСЮ библиотеку — все записи целиком, со
+// снимками, и всё это на главном потоке, том самом, который рисует экран.
+// Пока он идёт, дневник заметно тормозит на любом нажатии. Запускать его
+// на каждом открытии вкладки и на каждом возврате к ней нельзя: в логах
+// облака видно пять полных прогонов за полторы минуты — дневник почти всё
+// время был занят синком, а не работой.
+//
+// Поэтому автозапуск (при старте и при возврате к вкладке) пропускается,
+// если последний УСПЕШНЫЙ прогон был меньше этого срока назад. Часовая
+// проверка и кнопка «Синхронизировать сейчас» работают как работали:
+// принудительно синхронизироваться можно всегда.
+const AUTO_SYNC_MIN_GAP_MS = 5 * 60 * 1000;
+
+function lastSyncWithin(gapMs: number): boolean {
+  try {
+    const raw = localStorage.getItem(LAST_SYNC_KEY);
+    if (!raw) return false;
+    const since = Date.now() - new Date(raw).getTime();
+    // Отметка из будущего (переведённые часы) — не повод пропускать синк
+    // навсегда, поэтому отрицательная разница не считается «только что».
+    return since >= 0 && since < gapMs;
+  } catch {
+    return false;
+  }
+}
+
+// Отметка о перезагрузке ради показа приехавших данных. В sessionStorage:
+// она обязана пережить саму перезагрузку и обнулиться, когда мастер
+// откроет дневник заново — ровно как отметка обновления версии
+// (см. lib/appUpdate.ts).
+const RELOAD_GUARD_KEY = 'inka-sync-last-reload';
+
+// Успешный синк, привёзший изменения, перезагружает страницу, чтобы экран
+// показал приехавшее. Если приехавшее почему-то НЕ ложится в базу (запись
+// не прошла, соединение с хранилищем переоткрылось), следующий прогон
+// привезёт то же самое и перезагрузит снова — дневник уходит в круг
+// «чёрный экран → загрузка → перезагрузка». Одной перезагрузки на этот
+// срок достаточно всегда: она нужна, чтобы показать данные, а не чтобы их
+// сохранить — в базе они уже лежат.
+function reloadedRecently(): boolean {
+  try {
+    const raw = sessionStorage.getItem(RELOAD_GUARD_KEY);
+    if (!raw) return false;
+    const since = Date.now() - Number(raw);
+    return Number.isFinite(since) && since >= 0 && since < AUTO_SYNC_MIN_GAP_MS;
+  } catch {
+    return false;
+  }
+}
+
+function rememberReload(): void {
+  try {
+    sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
+  } catch {
+    /* без отметки останется прежнее поведение — перезагрузка на каждый приезд */
+  }
+}
+
 // Отметка «прогон идёт». Ставится перед runFullSync, снимается в finally —
 // то есть переживает и успех, и сбой. Если при старте хука отметка уже на
 // месте, значит вкладка умерла ПОСЕРЕДИНЕ синка (не успела дойти до finally):
@@ -193,7 +253,8 @@ export function useSyncDriver(
           summary.contentEntries.pulled > 0 ||
           summary.contentEntries.deletedLocally > 0 ||
           summary.masterInfo === 'pulled';
-        if (refreshVisibleData && pulledSomething) {
+        if (refreshVisibleData && pulledSomething && !reloadedRecently()) {
+          rememberReload();
           window.location.reload();
           return;
         }
@@ -262,7 +323,10 @@ export function useSyncDriver(
         'автозапуск',
         'предыдущий синк не завершился — вкладка закрылась во время синхронизации; автозапуск пропущен',
       );
-    } else {
+    } else if (!lastSyncWithin(AUTO_SYNC_MIN_GAP_MS)) {
+      // Синк только что прошёл — второй прогон подряд ничего не привезёт,
+      // а экран будет тормозить всё время, пока он идёт. В журнал это не
+      // пишется: пропуск по свежести — не сбой, а штатное решение.
       void runSync(true);
     }
     timerRef.current = setInterval(() => void runSync(false), SYNC_INTERVAL_MS);
@@ -273,7 +337,12 @@ export function useSyncDriver(
   useEffect(() => {
     const onResume = () => {
       if (document.visibilityState !== 'visible') return;
-      if (phase === 'paired') void runSync(false);
+      if (phase !== 'paired') return;
+      // Возврат к вкладке — не повод перечитывать всю библиотеку заново.
+      // Раньше синк шёл на КАЖДОЕ переключение окна, и дневник тормозил
+      // ровно тогда, когда мастер к нему вернулась и начала работать.
+      if (lastSyncWithin(AUTO_SYNC_MIN_GAP_MS)) return;
+      void runSync(false);
     };
     document.addEventListener('visibilitychange', onResume);
     return () => document.removeEventListener('visibilitychange', onResume);
