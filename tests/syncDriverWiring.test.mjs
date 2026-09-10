@@ -95,6 +95,20 @@ test('перезагрузка ради показа приехавших дан
   assert.match(source, /sessionStorage\.setItem\(RELOAD_GUARD_KEY, String\(Date\.now\(\)\)\)/);
 });
 
+test('штатный уход страницы не выдаётся за падение вкладки', () => {
+  // Иначе журнал считал падением и закрытие дневника мастером, и нашу же
+  // перезагрузку на новую версию — а синк идёт десятки секунд и стартует
+  // сразу при открытии, так что попасть под это очень легко.
+  assert.match(source, /const onLeave = \(\) => clearSyncInProgressFlag\(\);/);
+  assert.match(source, /window\.addEventListener\('pagehide', onLeave\);/);
+  // Заморозку с возвратом (уход в фон) падением тоже не считаем, но отметку
+  // возвращаем: прогон продолжается, и его падение мы всё ещё хотим увидеть.
+  assert.match(source, /if \(syncingRef\.current\) setSyncInProgressFlag\(\);/);
+  assert.match(source, /window\.addEventListener\('pageshow', onRestore\);/);
+  assert.match(source, /window\.removeEventListener\('pagehide', onLeave\);/);
+  assert.match(source, /window\.removeEventListener\('pageshow', onRestore\);/);
+});
+
 test('повтор из #302 сузили до ошибок авторизации — любая другая ошибка не запускает прогон второй раз', () => {
   assert.match(source, /function isAuthPropagationFailure\(error: unknown\): boolean \{/);
   assert.match(source, /if \(!isAuthPropagationFailure\(err\)\) throw err;/);
