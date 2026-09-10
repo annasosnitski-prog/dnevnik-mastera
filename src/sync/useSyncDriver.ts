@@ -88,8 +88,21 @@ export function useSyncDriver(getDatabase: () => IDBDatabase | null): SyncDriver
       try {
         const { getSupabaseClient, createSupabaseRemote, runFullSync } = await loadSyncModules();
         const client = getSupabaseClient();
-        const remote = await createSupabaseRemote(client);
-        const summary = await runFullSync(database, remote);
+        // Один повтор через паузу при сбое: сразу после входа (см.
+        // pairWithCode) Supabase иногда отвечает 401 на первый же запрос
+        // данных — токен уже выдан, но ещё не везде распространился; через
+        // секунду-другую тот же запрос проходит сам (в логах соседний вызов
+        // той же секунды уже 200). Слияние идемпотентно (см. syncEngine.ts),
+        // поэтому повторить весь прогон безопасно — задвоить данные нечем.
+        let summary;
+        try {
+          const remote = await createSupabaseRemote(client);
+          summary = await runFullSync(database, remote);
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          const remote = await createSupabaseRemote(client);
+          summary = await runFullSync(database, remote);
+        }
         const now = new Date().toISOString();
         setLastSyncAt(now);
         setLastError(null);
