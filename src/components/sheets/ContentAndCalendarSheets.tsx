@@ -97,6 +97,8 @@ export function TimelineViewSheet({
   onOpenNextConsultation,
   onChainNextSession,
   onOpenNextSession,
+  onRestoreConsultation,
+  onRestoreSession,
   onSaveNextStep,
 }: {
   open: boolean;
@@ -137,6 +139,15 @@ export function TimelineViewSheet({
   // Следующая сессия уже назначена (Session.nextSessionId) — рендерится
   // вместо «Назначить следующую сессию →».
   onOpenNextSession?: () => void;
+  // Снять cancelled — единственный способ вернуть отменённую консультацию
+  // (Consultation.cancelled, проставляется только через overdue-напоминание,
+  // см. markEntryCancelled в TattoDiary.tsx) обратно в обычный оборот: пока
+  // cancelled===true, у записи скрыты и «Перевести в сессию», и «Назначить
+  // следующую…» — снаружи это выглядит как «опции пропали», а не как
+  // «запись отменена». Рендерится вместо всего того блока.
+  onRestoreConsultation?: () => void;
+  // Тот же смысл для сессии (Session.cancelled).
+  onRestoreSession?: () => void;
   // Единственный next step ПРОЕКТА (не сессии/консультации — см.
   // NextStepRow) — рендерится только когда запись привязана к проекту
   // (currentProject ниже), пишет напрямую в тот же объект Project.
@@ -246,11 +257,36 @@ export function TimelineViewSheet({
                 </div>
               )
             )}
-            {/* «Назначить следующую консультацию» — независимо от статуса
-                конвертации выше: консультация никогда не заменяется другой
-                (см. Consultation.previousConsultationId). Скрыто только для
-                отменённой — продолжать нечего. */}
-            {!consultation.cancelled &&
+            {/* Отменённая консультация не может ни конвертироваться, ни
+                продолжить цепочку (см. блоки выше/ниже) — без явного выхода
+                отсюда она остаётся cancelled навсегда, поскольку обычное
+                сохранение формы это поле не трогает (см. consultationFields
+                в lib/consultationSave.ts). */}
+            {consultation.cancelled ? (
+              onRestoreConsultation && (
+                <div
+                  onClick={onRestoreConsultation}
+                  role="button"
+                  style={{
+                    textAlign: 'center',
+                    padding: '9px 12px',
+                    border: '1px solid rgba(var(--gold-rgb),0.3)',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    color: COLORS.gold,
+                    fontSize: fs(12),
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Восстановить консультацию
+                </div>
+              )
+            ) : (
+              /* «Назначить следующую консультацию» — независимо от статуса
+                 конвертации выше: консультация никогда не заменяется другой
+                 (см. Consultation.previousConsultationId). */
               (onOpenNextConsultation ? (
                 <div
                   onClick={onOpenNextConsultation}
@@ -291,7 +327,7 @@ export function TimelineViewSheet({
                     Назначить следующую консультацию →
                   </div>
                 )
-              ))}
+              )))}
             {consultation.history.length > 0 && (
               <div>
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
@@ -326,10 +362,33 @@ export function TimelineViewSheet({
             <ViewField label="Краски" value={session.colors} />
             <ViewField label="Иглы" value={session.needles} />
             <ViewField label="Реакция кожи" value={session.skinReaction} />
-            {/* «Назначить следующую сессию» — сессия никогда не заменяется
-                другой (см. Session.previousSessionId). Скрыто только для
-                отменённой — продолжать нечего. */}
-            {!session.cancelled &&
+            {/* Отменённая сессия не может продолжить цепочку — без явного
+                выхода отсюда cancelled остаётся навсегда (обычное
+                сохранение формы это поле не трогает). */}
+            {session.cancelled ? (
+              onRestoreSession && (
+                <div
+                  onClick={onRestoreSession}
+                  role="button"
+                  style={{
+                    textAlign: 'center',
+                    padding: '9px 12px',
+                    border: '1px solid rgba(var(--gold-rgb),0.3)',
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    color: COLORS.gold,
+                    fontSize: fs(12),
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  Восстановить сессию
+                </div>
+              )
+            ) : (
+              /* «Назначить следующую сессию» — сессия никогда не заменяется
+                 другой (см. Session.previousSessionId). */
               (onOpenNextSession ? (
                 <div
                   onClick={onOpenNextSession}
@@ -370,7 +429,7 @@ export function TimelineViewSheet({
                     Назначить следующую сессию →
                   </div>
                 )
-              ))}
+              )))}
             <ContentPanel
               clientId={clientId}
               sourceType="session"
