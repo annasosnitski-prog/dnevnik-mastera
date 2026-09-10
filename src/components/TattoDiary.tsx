@@ -3815,7 +3815,9 @@ export default function TattoDiary() {
             : undefined
         }
         onOpenNextConsultation={
-          viewedConsultation?.nextConsultationId && viewEntry
+          viewedConsultation?.nextConsultationId &&
+          viewEntry &&
+          viewClient?.consultations.some((c) => c.id === viewedConsultation.nextConsultationId)
             ? () => setViewEntry({ kind: 'consultation', clientId: viewEntry.clientId, id: viewedConsultation.nextConsultationId! })
             : undefined
         }
@@ -3828,7 +3830,9 @@ export default function TattoDiary() {
             : undefined
         }
         onOpenNextSession={
-          viewedSession?.nextSessionId && viewEntry
+          viewedSession?.nextSessionId &&
+          viewEntry &&
+          viewClient?.sessions.some((s) => s.id === viewedSession.nextSessionId)
             ? () => setViewEntry({ kind: 'session', clientId: viewEntry.clientId, id: viewedSession.nextSessionId! })
             : undefined
         }
