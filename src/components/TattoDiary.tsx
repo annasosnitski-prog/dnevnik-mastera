@@ -478,7 +478,10 @@ export default function TattoDiary() {
   // а не внутри экрана настроек: часовая проверка обязана идти, пока
   // мастер работает где угодно в дневнике, а не только пока открыты
   // настройки. getDatabase — та же связь, что и у остального хранилища.
-  const syncDriver = useSyncDriver(() => connRef.current?.getDatabase() ?? null);
+  const syncDriver = useSyncDriver(
+    () => connRef.current?.getDatabase() ?? null,
+    (action, error) => logError('sync', action, error),
+  );
 
   // ── Журнал сбоев ─────────────────────────────────────────────────────────
   // Консоль браузера на телефоне не открыть, поэтому раньше сбой не оставлял
