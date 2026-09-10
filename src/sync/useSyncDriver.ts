@@ -321,7 +321,7 @@ export function useSyncDriver(
       clearSyncInProgressFlag();
       onErrorLog?.(
         'автозапуск',
-        'предыдущий синк не завершился — вкладка закрылась во время синхронизации; автозапуск пропущен',
+        'вкладка не пережила синхронизацию — прогон оборвался на середине; автозапуск пропущен',
       );
     } else if (!lastSyncWithin(AUTO_SYNC_MIN_GAP_MS)) {
       // Синк только что прошёл — второй прогон подряд ничего не привезёт,
@@ -347,6 +347,36 @@ export function useSyncDriver(
     document.addEventListener('visibilitychange', onResume);
     return () => document.removeEventListener('visibilitychange', onResume);
   }, [phase, runSync]);
+
+  // Отличаем «вкладку убило» от «страница ушла штатно».
+  //
+  // Отметка о прогоне ставится перед синком и снимается по завершении, а
+  // оставшаяся отметка означает, что прогон не дожил. Но не дожить он мог
+  // и без всякого падения: мастер закрыла дневник, или дневник сам
+  // перезагрузился, подхватив новую версию (см. main.tsx) — а синк идёт
+  // десятки секунд и начинается сразу при открытии, так что попасть под
+  // это легко. Обе ночи подряд журнал ловил именно такие, ложные случаи.
+  //
+  // pagehide приходит при любом штатном уходе страницы — закрытии,
+  // переходе, перезагрузке — и НЕ приходит, когда систему убивает вкладку
+  // по памяти. Поэтому снимаем отметку здесь: после этого уцелевшая
+  // отметка значит ровно одно — вкладка не пережила синхронизацию.
+  //
+  // pageshow возвращает её обратно: страницу могли заморозить (уход в фон)
+  // и вернуть, а прогон при этом продолжается — и его падение мы всё ещё
+  // хотим увидеть.
+  useEffect(() => {
+    const onLeave = () => clearSyncInProgressFlag();
+    const onRestore = () => {
+      if (syncingRef.current) setSyncInProgressFlag();
+    };
+    window.addEventListener('pagehide', onLeave);
+    window.addEventListener('pageshow', onRestore);
+    return () => {
+      window.removeEventListener('pagehide', onLeave);
+      window.removeEventListener('pageshow', onRestore);
+    };
+  }, []);
 
   const pairWithCode = useCallback(async (code: string) => {
     const { getSupabaseClient, pairDeviceWithCode } = await loadSyncModules();
