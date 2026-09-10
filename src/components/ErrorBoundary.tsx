@@ -32,6 +32,19 @@ interface State {
 //     несколько секунд и потеря всего, что мастер успела набрать в форме.
 const MAX_RETRIES = 2;
 
+// Протухший чанк после деплоя: вкладка ещё живёт на старой сборке (её JS уже
+// в памяти), а /assets/* этой сборки на сервере больше нет — Vercel отдаёт
+// только файлы последнего деплоя (см. также проверку версии в main.tsx).
+// Браузеры формулируют это по-разному, но смысл один и тот же — старой
+// вкладке нечего чинить в своём коде, ей нужна свежая страница.
+const STALE_CHUNK_RELOAD_KEY = 'inka-stale-chunk-reload';
+
+function isStaleChunkError(error: Error): boolean {
+  return /Unable to preload CSS|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
+    error.message || '',
+  );
+}
+
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null, retries: 0 };
 
@@ -42,6 +55,26 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: { componentStack: string }) {
     console.error('Необработанная ошибка интерфейса:', error, info.componentStack);
     recordErrorEntry('crash', '', error);
+
+    // Это не настоящий сбой дневника, а признак нового деплоя — вместо
+    // пугающей плашки тихо перезагружаемся на свежую сборку. Один раз за
+    // вкладку: если чанк не грузится и после перезагрузки, дело не в
+    // протухшем деплое, и мастер увидит обычный экран сбоя, а не цикл
+    // перезагрузок.
+    if (isStaleChunkError(error)) {
+      let canReload = false;
+      try {
+        if (sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY) !== '1') {
+          sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, '1');
+          canReload = true;
+        }
+      } catch {
+        /* sessionStorage недоступен — не рискуем циклом, показываем обычный сбой */
+      }
+      if (canReload) {
+        window.location.reload();
+      }
+    }
   }
 
   private retry = () => {
