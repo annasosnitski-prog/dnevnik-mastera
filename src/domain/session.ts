@@ -30,10 +30,15 @@ export interface Session {
   // спрашивается — там ответ известен заранее. Выполненная коррекция тоже
   // приходит сюда с true: она перезапускает цикл от своей даты.
   isLastSession: boolean;
-  // Set only via the overdue reminder's «Отменить» quick action — a planned
-  // session that won't happen and won't be rescheduled, distinct from
-  // `done`. Excluded from upcoming/overdue lists; shown as «Отменена» in
-  // the client's history instead of just disappearing.
+  // Set via the overdue reminder's «Отменить» quick action — a planned
+  // session that didn't happen, distinct from `done`. Excluded from
+  // upcoming/overdue lists; shown as «Отменена» instead of just
+  // disappearing. Unset via restoreSession in TattoDiary.tsx (the
+  // «Восстановить» control in TimelineViewSheet, for an accidental cancel)
+  // — the only two writers, an ordinary form save leaves it alone. Doesn't
+  // gate the session chain (previousSessionId/nextSessionId) or its
+  // «Назначить следующую» control — a cancelled session is the normal
+  // «client didn't show up, reschedule» case, not a dead end.
   cancelled: boolean;
   // Ссылка на Project (Этап 2, link-подход): сессия физически остаётся у
   // клиента, но может принадлежать проекту. null = без проекта. НЕ входит

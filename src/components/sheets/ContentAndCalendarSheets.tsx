@@ -235,6 +235,9 @@ export function TimelineViewSheet({
                 Переведена в сессию{onOpenConvertedSession ? ' →' : ''}
               </div>
             ) : (
+              // Отменённая встреча не состоялась — конвертировать нечего;
+              // единственный путь отсюда — «Восстановить» ниже, потом уже
+              // «Перевести в сессию» (см. блок cancelled выше).
               onConvertToSession &&
               !consultation.cancelled && (
                 <div
@@ -257,15 +260,62 @@ export function TimelineViewSheet({
                 </div>
               )
             )}
-            {/* Отменённая консультация не может ни конвертироваться, ни
-                продолжить цепочку (см. блоки выше/ниже) — без явного выхода
-                отсюда она остаётся cancelled навсегда, поскольку обычное
-                сохранение формы это поле не трогает (см. consultationFields
-                в lib/consultationSave.ts). */}
-            {consultation.cancelled ? (
-              onRestoreConsultation && (
+            {/* Отменённая консультация — просто статус-строка, не гейт.
+                cancelled нигде за пределами напоминаний/планировщика не
+                значит «цепочку продолжать нельзя» (см. plannerSelectors.ts,
+                buildReminders.ts) — и «Назначить следующую» ниже доступно
+                независимо от него: это основной путь «клиент не пришёл →
+                перенесём». Восстановление — только на случай, если
+                «Отменить» нажали по ошибке и хотят вернуть именно эту
+                запись в напоминания (единственный способ снять cancelled,
+                см. restoreConsultation в TattoDiary.tsx — обычное
+                сохранение формы это поле не трогает). */}
+            {consultation.cancelled && (
+              <div
+                onClick={onRestoreConsultation}
+                role={onRestoreConsultation ? 'button' : undefined}
+                style={{
+                  textAlign: 'center',
+                  padding: '9px 12px',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  borderRadius: 2,
+                  cursor: onRestoreConsultation ? 'pointer' : 'default',
+                  color: COLORS.textFaint,
+                  fontSize: fs(12),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                Отменена{onRestoreConsultation ? ' · Восстановить' : ''}
+              </div>
+            )}
+            {/* «Назначить следующую консультацию» — независимо от статуса
+                конвертации/отмены выше: консультация никогда не заменяется
+                другой (см. Consultation.previousConsultationId). */}
+            {onOpenNextConsultation ? (
+              <div
+                onClick={onOpenNextConsultation}
+                role="button"
+                style={{
+                  textAlign: 'center',
+                  padding: '9px 12px',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  color: COLORS.textFaint,
+                  fontSize: fs(12),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                Следующая консультация →
+              </div>
+            ) : (
+              onChainNextConsultation && (
                 <div
-                  onClick={onRestoreConsultation}
+                  onClick={onChainNextConsultation}
                   role="button"
                   style={{
                     textAlign: 'center',
@@ -280,54 +330,10 @@ export function TimelineViewSheet({
                     fontStyle: 'italic',
                   }}
                 >
-                  Восстановить консультацию
+                  Назначить следующую консультацию →
                 </div>
               )
-            ) : (
-              /* «Назначить следующую консультацию» — независимо от статуса
-                 конвертации выше: консультация никогда не заменяется другой
-                 (см. Consultation.previousConsultationId). */
-              (onOpenNextConsultation ? (
-                <div
-                  onClick={onOpenNextConsultation}
-                  role="button"
-                  style={{
-                    textAlign: 'center',
-                    padding: '9px 12px',
-                    border: '1px solid rgba(var(--gold-rgb),0.15)',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                    color: COLORS.textFaint,
-                    fontSize: fs(12),
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                    fontStyle: 'italic',
-                  }}
-                >
-                  Следующая консультация →
-                </div>
-              ) : (
-                onChainNextConsultation && (
-                  <div
-                    onClick={onChainNextConsultation}
-                    role="button"
-                    style={{
-                      textAlign: 'center',
-                      padding: '9px 12px',
-                      border: '1px solid rgba(var(--gold-rgb),0.3)',
-                      borderRadius: 2,
-                      cursor: 'pointer',
-                      color: COLORS.gold,
-                      fontSize: fs(12),
-                      letterSpacing: '1px',
-                      textTransform: 'uppercase',
-                      fontStyle: 'italic',
-                    }}
-                  >
-                    Назначить следующую консультацию →
-                  </div>
-                )
-              )))}
+            )}
             {consultation.history.length > 0 && (
               <div>
                 <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
@@ -362,13 +368,56 @@ export function TimelineViewSheet({
             <ViewField label="Краски" value={session.colors} />
             <ViewField label="Иглы" value={session.needles} />
             <ViewField label="Реакция кожи" value={session.skinReaction} />
-            {/* Отменённая сессия не может продолжить цепочку — без явного
-                выхода отсюда cancelled остаётся навсегда (обычное
-                сохранение формы это поле не трогает). */}
-            {session.cancelled ? (
-              onRestoreSession && (
+            {/* Та же статус-строка, что у консультации выше — cancelled не
+                блокирует «Назначить следующую», восстановление только на
+                случай ошибочной отмены (единственный способ снять cancelled,
+                см. restoreSession в TattoDiary.tsx). */}
+            {session.cancelled && (
+              <div
+                onClick={onRestoreSession}
+                role={onRestoreSession ? 'button' : undefined}
+                style={{
+                  textAlign: 'center',
+                  padding: '9px 12px',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  borderRadius: 2,
+                  cursor: onRestoreSession ? 'pointer' : 'default',
+                  color: COLORS.textFaint,
+                  fontSize: fs(12),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                Отменена{onRestoreSession ? ' · Восстановить' : ''}
+              </div>
+            )}
+            {/* «Назначить следующую сессию» — независимо от cancelled выше:
+                сессия никогда не заменяется другой (см.
+                Session.previousSessionId). */}
+            {onOpenNextSession ? (
+              <div
+                onClick={onOpenNextSession}
+                role="button"
+                style={{
+                  textAlign: 'center',
+                  padding: '9px 12px',
+                  border: '1px solid rgba(var(--gold-rgb),0.15)',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  color: COLORS.textFaint,
+                  fontSize: fs(12),
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  fontStyle: 'italic',
+                }}
+              >
+                Следующая сессия →
+              </div>
+            ) : (
+              onChainNextSession && (
                 <div
-                  onClick={onRestoreSession}
+                  onClick={onChainNextSession}
                   role="button"
                   style={{
                     textAlign: 'center',
@@ -383,53 +432,10 @@ export function TimelineViewSheet({
                     fontStyle: 'italic',
                   }}
                 >
-                  Восстановить сессию
+                  Назначить следующую сессию →
                 </div>
               )
-            ) : (
-              /* «Назначить следующую сессию» — сессия никогда не заменяется
-                 другой (см. Session.previousSessionId). */
-              (onOpenNextSession ? (
-                <div
-                  onClick={onOpenNextSession}
-                  role="button"
-                  style={{
-                    textAlign: 'center',
-                    padding: '9px 12px',
-                    border: '1px solid rgba(var(--gold-rgb),0.15)',
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                    color: COLORS.textFaint,
-                    fontSize: fs(12),
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                    fontStyle: 'italic',
-                  }}
-                >
-                  Следующая сессия →
-                </div>
-              ) : (
-                onChainNextSession && (
-                  <div
-                    onClick={onChainNextSession}
-                    role="button"
-                    style={{
-                      textAlign: 'center',
-                      padding: '9px 12px',
-                      border: '1px solid rgba(var(--gold-rgb),0.3)',
-                      borderRadius: 2,
-                      cursor: 'pointer',
-                      color: COLORS.gold,
-                      fontSize: fs(12),
-                      letterSpacing: '1px',
-                      textTransform: 'uppercase',
-                      fontStyle: 'italic',
-                    }}
-                  >
-                    Назначить следующую сессию →
-                  </div>
-                )
-              )))}
+            )}
             <ContentPanel
               clientId={clientId}
               sourceType="session"
