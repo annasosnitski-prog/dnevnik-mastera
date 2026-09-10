@@ -1,4 +1,7 @@
-import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+// Не React.lazy напрямую: экран, чей файл исчез после деплоя, чинится
+// перезагрузкой, а не экраном сбоя (см. lib/lazyChunk.ts).
+import { lazyScreen } from '../lib/lazyChunk';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab, type QuickCreateKind } from './navigation/NavFab';
 import { TodayDateBadge } from './ui/TodayDateBadge';
@@ -140,18 +143,18 @@ import {
 // сборке), и устройство разбирало и выполняло их код ещё до отрисовки списка
 // клиентов. React.lazy откладывает загрузку каждого экрана до первого
 // перехода на него.
-const WorkshopScreen = lazy(() => import('./screens/WorkshopScreen').then((m) => ({ default: m.WorkshopScreen })));
-const SummaryScreen = lazy(() => import('./screens/SummaryScreen').then((m) => ({ default: m.SummaryScreen })));
-const AdminDashboardScreen = lazy(() => import('./screens/AdminDashboardScreen').then((m) => ({ default: m.AdminDashboardScreen })));
-const ContentINKAScreen = lazy(() => import('./screens/ContentINKAScreen').then((m) => ({ default: m.ContentINKAScreen })));
-const MasterDashboardScreen = lazy(() => import('./screens/MasterDashboardScreen').then((m) => ({ default: m.MasterDashboardScreen })));
+const WorkshopScreen = lazyScreen(() => import('./screens/WorkshopScreen').then((m) => ({ default: m.WorkshopScreen })));
+const SummaryScreen = lazyScreen(() => import('./screens/SummaryScreen').then((m) => ({ default: m.SummaryScreen })));
+const AdminDashboardScreen = lazyScreen(() => import('./screens/AdminDashboardScreen').then((m) => ({ default: m.AdminDashboardScreen })));
+const ContentINKAScreen = lazyScreen(() => import('./screens/ContentINKAScreen').then((m) => ({ default: m.ContentINKAScreen })));
+const MasterDashboardScreen = lazyScreen(() => import('./screens/MasterDashboardScreen').then((m) => ({ default: m.MasterDashboardScreen })));
 // Кластер «карточка клиента» вынесен в отдельный модуль (PR 11 рефакторинга) —
 // самый большой из экранов (2600+ строк), поэтому лениво (см. выше про
 // остальные экраны). AddChatLinkForm/AddMasterLinkForm (используются в
 // MasterDashboardScreen) живут в client/ClientControls, а не здесь и не в
 // screens/DetailScreen — иначе статический импорт утянул бы весь тот экран
 // обратно в основной бандл.
-const DetailScreen = lazy(() => import('./screens/DetailScreen').then((m) => ({ default: m.DetailScreen })));
+const DetailScreen = lazyScreen(() => import('./screens/DetailScreen').then((m) => ({ default: m.DetailScreen })));
 // Только тип (стирается при сборке) — ленивый чанк карточки клиента от этого
 // в основной бандл не возвращается.
 import type { ClientCardTab } from './screens/DetailScreen';
@@ -161,10 +164,10 @@ import type { ClientCardTab } from './screens/DetailScreen';
 // клиента, иначе шанс сработать 15% на создание карточки/сессии/заметки или
 // на возврат в приложение) — поэтому тоже лениво.
 import { StarDivider } from './icons/StarIcons';
-const RPSGame = lazy(() => import('./games/RPSGame').then((m) => ({ default: m.RPSGame })));
-const RPSTauntFace = lazy(() => import('./games/RPSGame').then((m) => ({ default: m.RPSTauntFace })));
-const CupsGame = lazy(() => import('./games/CupsGame').then((m) => ({ default: m.CupsGame })));
-const BlackjackGame = lazy(() => import('./games/BlackjackGame').then((m) => ({ default: m.BlackjackGame })));
+const RPSGame = lazyScreen(() => import('./games/RPSGame').then((m) => ({ default: m.RPSGame })));
+const RPSTauntFace = lazyScreen(() => import('./games/RPSGame').then((m) => ({ default: m.RPSTauntFace })));
+const CupsGame = lazyScreen(() => import('./games/CupsGame').then((m) => ({ default: m.CupsGame })));
+const BlackjackGame = lazyScreen(() => import('./games/BlackjackGame').then((m) => ({ default: m.BlackjackGame })));
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.

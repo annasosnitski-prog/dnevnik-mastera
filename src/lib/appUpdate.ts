@@ -85,6 +85,33 @@ export function decideUpdate(input: {
   };
 }
 
+// ── Пропавший после деплоя кусок приложения ──────────────────────────────
+// Экраны грузятся отдельными файлами по требованию (см. lib/lazyChunk.ts).
+// Если деплой случился, пока дневник открыт, страница продолжает ссылаться
+// на файлы со старыми именами — их на сервере уже нет, и первое же
+// переключение экрана падает «Importing a module script failed». Лечится
+// перезагрузкой: свежий index.html сошлётся на новые имена.
+//
+// Второй раз подряд не перезагружаемся: если перезагрузка не помогла,
+// причина не в деплое (например, оборвалась сеть), и круг перезапусков
+// был бы хуже честного экрана сбоя.
+export const CHUNK_RELOAD_GUARD_MS = 60_000;
+
+export function shouldReloadForStaleChunk(input: {
+  // Когда в этой же вкладке уже перезагружались из-за пропавшего куска.
+  lastReloadAt: number | null;
+  now: number;
+  guardMs?: number;
+}): boolean {
+  const guardMs = input.guardMs ?? CHUNK_RELOAD_GUARD_MS;
+  if (input.lastReloadAt === null) return true;
+  const since = input.now - input.lastReloadAt;
+  // Отметка из будущего (переведённые часы) не должна запретить
+  // перезагрузку навсегда.
+  if (since < 0) return true;
+  return since >= guardMs;
+}
+
 export function parseReloadGuard(raw: string | null): ReloadGuard | null {
   if (!raw) return null;
   try {

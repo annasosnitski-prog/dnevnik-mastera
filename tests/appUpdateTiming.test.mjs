@@ -8,6 +8,8 @@ import {
   BUSY_ATTRIBUTE,
   UPDATE_RELOAD_GUARD_MS,
   UPDATE_RELOAD_MAX_ATTEMPTS,
+  CHUNK_RELOAD_GUARD_MS,
+  shouldReloadForStaleChunk,
 } from '../.test-dist/src/lib/appUpdate.js';
 
 const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
@@ -113,4 +115,53 @@ test('the service worker takeover obeys the same rules as the version check', ()
 test('the two resume events do not cost two version requests', () => {
   // visibilitychange и pageshow при возврате из фона приходят оба.
   assert.match(main, /checkInFlight/);
+});
+
+// ── Пропавший после деплоя кусок приложения ──────────────────────────────
+// Деплой во время работы: страница ссылается на файлы экранов со старыми
+// именами, на сервере их уже нет, и переключение экрана падало с
+// «Importing a module script failed» — дневник открывался, но любое
+// нажатие в меню выбрасывало экран сбоя.
+
+test('первый пропавший кусок чинится перезагрузкой', () => {
+  assert.equal(shouldReloadForStaleChunk({ lastReloadAt: null, now: 1_000_000 }), true);
+});
+
+test('второй раз подряд не перезагружаемся — это был бы круг перезапусков', () => {
+  assert.equal(shouldReloadForStaleChunk({ lastReloadAt: 1_000_000, now: 1_000_500 }), false);
+  assert.equal(
+    shouldReloadForStaleChunk({ lastReloadAt: 1_000_000, now: 1_000_000 + CHUNK_RELOAD_GUARD_MS - 1 }),
+    false,
+  );
+});
+
+test('через отведённый срок перезагрузка снова разрешена — это уже другой сбой', () => {
+  assert.equal(
+    shouldReloadForStaleChunk({ lastReloadAt: 1_000_000, now: 1_000_000 + CHUNK_RELOAD_GUARD_MS }),
+    true,
+  );
+});
+
+test('отметка из будущего не запрещает перезагрузку навсегда', () => {
+  // Переведённые часы: без этого дневник остался бы со сломанными экранами
+  // до конца сеанса.
+  assert.equal(shouldReloadForStaleChunk({ lastReloadAt: 5_000_000, now: 1_000_000 }), true);
+});
+
+test('экраны грузятся через lazyScreen, а не через React.lazy напрямую', () => {
+  assert.match(diary, /import \{ lazyScreen \} from '\.\.\/lib\/lazyChunk';/);
+  for (const screen of ['WorkshopScreen', 'DetailScreen', 'AdminDashboardScreen', 'MasterDashboardScreen']) {
+    assert.match(diary, new RegExp(`const ${screen} = lazyScreen\\(\\(\\) =>`));
+  }
+  // Ни один экран не должен остаться на голом lazy(: именно он и падал.
+  assert.doesNotMatch(diary, /= lazy\(\(\) =>/);
+});
+
+test('воркер не сносит кэш предыдущей сборки из-под открытой страницы', () => {
+  const sw = readFileSync(new URL('../src/sw.template.js', import.meta.url), 'utf8');
+  // Экраны открытой страницы лежат в старом кэше и на сервере уже не
+  // существуют — удалять его сразу значит ломать то, что сейчас на экране.
+  assert.match(sw, /const keepPrevious = previous\[previous\.length - 1\];/);
+  assert.match(sw, /previous\.filter\(\(name\) => name !== keepPrevious\)\.map\(\(name\) => caches\.delete\(name\)\)/);
+  assert.doesNotMatch(sw, /cacheNames\.map\(\(cacheName\) => \{\s*if \(cacheName !== CACHE_NAME\)/);
 });
