@@ -8,23 +8,25 @@ function readSource(path) {
 
 const source = readSource('../src/sync/useSyncDriver.ts');
 const timerEffect = source.slice(
-  source.indexOf('  // Первый синк после запуска/привязки'),
-  source.indexOf('  useEffect(() => {\n    const onResume'),
+  source.indexOf('  // ОТКРЫТИЕ ДНЕВНИКА СИНК НЕ ЗАПУСКАЕТ'),
+  source.indexOf('  // Отметка, пережившая закрытие дневника'),
 );
 
-test('часовой таймер не перезапускается на переходе paired → syncing → paired', () => {
+test('таймер не перезапускается на переходе paired → syncing → paired', () => {
   assert.match(source, /const syncEnabled = phase === 'paired' \|\| phase === 'syncing';/);
   assert.match(timerEffect, /if \(!syncEnabled\)/);
   assert.match(timerEffect, /\}, \[syncEnabled\]\);/);
   assert.doesNotMatch(timerEffect, /\[phase === 'paired'\]/);
 });
 
-test('первый и ручной синк обновляют видимый экран только когда реально что-то приехало', () => {
+test('экран перезагружается только после нажатой кнопки и только если что-то приехало', () => {
   assert.match(source, /const pulledSomething =/);
-  assert.match(source, /if \(refreshVisibleData && pulledSomething && !reloadedRecently\(\)\) \{/);
-  assert.match(timerEffect, /void runSync\(true\);/);
-  assert.match(timerEffect, /setInterval\(\(\) => void runSync\(false\), SYNC_INTERVAL_MS\)/);
+  assert.match(source, /if \(refreshVisibleData && pulledSomething\) \{\s*\n\s*window\.location\.reload\(\);/);
+  // refreshVisibleData=true остался ровно у кнопки; повторяющаяся проверка
+  // не имеет права внезапно перезагрузить дневник во время работы.
   assert.match(source, /syncNow: \(\) => runSync\(true\)/);
+  assert.match(timerEffect, /setInterval\(\(\) => void runSync\(false\), SYNC_INTERVAL_MS\)/);
+  assert.doesNotMatch(timerEffect, /void runSync\(true\)/);
 });
 
 test('runSync по-прежнему показывает syncing в UI и возвращает paired после завершения', () => {
@@ -63,36 +65,25 @@ test('защита от петли: отметка о прогоне снима�
   assert.match(runSyncBody, /\} finally \{\s*\n\s*syncingRef\.current = false;[\s\S]*?clearSyncInProgressFlag\(\);/);
 });
 
-test('автозапуск пропускается, если отметка осталась от несостоявшегося прогона, но кнопка остаётся рабочей', () => {
+test('оборванный прогон остаётся в журнале — это доказательство, что телефон не тянет синк', () => {
   assert.match(source, /const \[initialStaleSyncFlag\] = useState\(hasSyncInProgressFlag\);/);
-  assert.match(source, /if \(staleSyncFlagRef\.current\) \{\s*\n\s*staleSyncFlagRef\.current = false;\s*\n\s*clearSyncInProgressFlag\(\);/);
-  // Часовой таймер заводится в обоих случаях — пропускается только сам
-  // немедленный автозапуск, а не периодический синк вообще.
-  assert.match(source, /onErrorLog\?\.\(\s*\n\s*'автозапуск',/);
+  assert.match(source, /if \(!staleSyncFlagRef\.current\) return;\s*\n\s*staleSyncFlagRef\.current = false;\s*\n\s*clearSyncInProgressFlag\(\);/);
+  assert.match(source, /onErrorLog\?\.\('', 'вкладка не пережила синхронизацию — прогон оборвался на середине'\);/);
 });
 
-test('автозапуск не повторяет полный прогон, если синк только что прошёл', () => {
-  // В логах облака было пять полных прогонов за полторы минуты: дневник
-  // почти всё время был занят синком, а не работой мастера.
-  assert.match(source, /const AUTO_SYNC_MIN_GAP_MS = 5 \* 60 \* 1000;/);
-  assert.match(source, /\} else if \(!lastSyncWithin\(AUTO_SYNC_MIN_GAP_MS\)\) \{\s*\n[\s\S]*?void runSync\(true\);/);
-  // Кнопка и часовой таймер порогом не ограничены — синхронизироваться
-  // принудительно можно всегда.
+test('открытие дневника синк не запускает — только таймер раз в шесть часов и кнопка', () => {
+  // Полный прогон занимает главный поток на десятки секунд. Раньше он шёл и
+  // при открытии, и при каждом возврате к вкладке (на телефоне это ещё и
+  // каждое переключение приложения) — дневник тормозил ровно тогда, когда к
+  // нему вернулись работать, а телефон успевал убить вкладку по памяти.
+  assert.match(source, /const SYNC_INTERVAL_MS = 6 \* 60 \* 60 \* 1000;/);
+  assert.doesNotMatch(timerEffect, /runSync\(true\)/);
+  // Возврата к вкладке как повода для синка больше нет вовсе.
+  assert.doesNotMatch(source, /visibilitychange', onResume/);
+  assert.doesNotMatch(source, /lastSyncWithin/);
+  // Кнопка — единственный способ синхронизироваться немедленно, и она
+  // по-прежнему обновляет экран.
   assert.match(source, /syncNow: \(\) => runSync\(true\)/);
-  assert.match(source, /setInterval\(\(\) => void runSync\(false\), SYNC_INTERVAL_MS\)/);
-});
-
-test('возврат к вкладке не запускает полный прогон, если синк только что прошёл', () => {
-  const resume = source.slice(source.indexOf('const onResume = () => {'), source.indexOf('document.addEventListener(\'visibilitychange\', onResume)'));
-  assert.match(resume, /if \(lastSyncWithin\(AUTO_SYNC_MIN_GAP_MS\)\) return;/);
-  assert.match(resume, /void runSync\(false\);/);
-});
-
-test('перезагрузка ради показа приехавших данных не может уйти в круг', () => {
-  // Если приехавшее почему-то не ложится в базу, следующий прогон привезёт
-  // то же самое — и без этой отметки перезагружал бы страницу снова и снова.
-  assert.match(source, /if \(refreshVisibleData && pulledSomething && !reloadedRecently\(\)\) \{\s*\n\s*rememberReload\(\);\s*\n\s*window\.location\.reload\(\);/);
-  assert.match(source, /sessionStorage\.setItem\(RELOAD_GUARD_KEY, String\(Date\.now\(\)\)\)/);
 });
 
 test('штатный уход страницы не выдаётся за падение вкладки', () => {
