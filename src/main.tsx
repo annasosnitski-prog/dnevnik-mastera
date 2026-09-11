@@ -145,7 +145,15 @@ if (import.meta.env.PROD) {
       .register('/sw.js')
       .then((registration) => {
         document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') void registration.update();
+          if (document.visibilityState !== 'visible') return;
+          // Ошибку глотаем намеренно. update() отклоняется, когда sw.js не
+          // скачался (сеть моргнула, деплой как раз выкатывается) — это не
+          // сбой дневника, а обычное дело на телефоне. Без этого отказ
+          // всплывал необработанным промисом и попадал в журнал сбоев
+          // строкой «Script /sw.js load failed», забивая журнал, по которому
+          // мы ищем настоящие поломки. Обновление от этого не теряется:
+          // версию независимо проверяет /version.json.
+          registration.update().catch(() => undefined);
         });
       })
       .catch((err) => console.log('SW registration failed:', err));
