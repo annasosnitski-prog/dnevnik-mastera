@@ -40,6 +40,10 @@ function readLastReload(): number | null {
 }
 
 function reloadForStaleChunk(): boolean {
+  // Офлайн перезагружаться бессмысленно и вредно: свежий index.html скачать
+  // неоткуда, страница исчезнет и вернётся ровно в то же состояние. Лучше
+  // честный экран сбоя — из него хотя бы видно, что дневник жив.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
   if (!shouldReloadForStaleChunk({ lastReloadAt: readLastReload(), now: Date.now() })) return false;
   try {
     sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
