@@ -125,20 +125,28 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Return cached version if network fails
-        return caches.match(event.request).then((response) => {
-          if (response) {
-            return response;
-          }
-          // Return offline page or generic offline response
-          return new Response('Offline - cached version not available', {
-            status: 503,
-            statusText: 'Service Unavailable',
-            headers: new Headers({
-              'Content-Type': 'text/plain'
-            })
+        // Офлайн отдаём кэш ТЕКУЩЕЙ сборки, а уже потом любой другой.
+        // caches.match без имени ищет по всем кэшам подряд и первым находит
+        // самый старый — а с тех пор, как кэш предыдущей сборки намеренно
+        // переживает деплой (см. activate), это значило бы отдавать офлайн
+        // вчерашний index.html, хотя новый давно скачан.
+        return caches
+          .open(CACHE_NAME)
+          .then((cache) => cache.match(event.request))
+          .then((fresh) => fresh || caches.match(event.request))
+          .then((response) => {
+            if (response) {
+              return response;
+            }
+            // Return offline page or generic offline response
+            return new Response('Offline - cached version not available', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: new Headers({
+                'Content-Type': 'text/plain'
+              })
+            });
           });
-        });
       })
   );
 });
