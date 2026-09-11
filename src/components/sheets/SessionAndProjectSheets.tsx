@@ -744,6 +744,13 @@ export function ProjectViewSheet({
               {project.state !== 'active' && (
                 <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
               )}
+              {/* Дата создания — точка отсчёта производного таймлайна
+                  (getProjectPipelineSegments), иначе видимая только в расчёте. */}
+              {project.createdDate && (
+                <span style={{ ...chipStyle, color: COLORS.textGhost, border: 'none', padding: '3px 0' }}>
+                  создан {formatDate(project.createdDate.slice(0, 10))}
+                </span>
+              )}
             </div>
 
             <NextStepRow nextActionText={project.nextActionText} nextActionDate={project.nextActionDate} nextActionType={project.nextActionType} onSave={onSaveNextStep} />

@@ -13,7 +13,16 @@ import { ProjectTimelineRow } from './ProjectTimelineRow';
 export function ProjectTimelineList({ projects, clients }: { projects: Project[]; clients: Client[] }) {
   const items = projects
     .filter((p) => p.status === 'active')
-    .map((project) => ({ project, segments: getProjectPipelineSegments(project) }))
+    .map((project) => {
+      // Записи проекта физически лежат в разных местах в зависимости от
+      // того, привязан ли проект к клиенту (см. комментарий у getClientSessions
+      // в projectSelectors.ts) — тот же приём резолва, что уже использует
+      // SessionAndProjectSheets для linkedSessions/ownSessions.
+      const linkedClient = project.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
+      const sessions = linkedClient ? linkedClient.sessions : project.sessions;
+      const consultations = linkedClient ? linkedClient.consultations : project.consultations;
+      return { project, segments: getProjectPipelineSegments(project, sessions, consultations) };
+    })
     .filter((item): item is { project: Project; segments: NonNullable<ReturnType<typeof getProjectPipelineSegments>> } => item.segments !== null)
     .sort((a, b) => a.segments[a.segments.length - 1].targetDate.localeCompare(b.segments[b.segments.length - 1].targetDate));
 
@@ -27,8 +36,8 @@ export function ProjectTimelineList({ projects, clients }: { projects: Project[]
 
   return (
     <div style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}>
-      {items.map(({ project }) => (
-        <ProjectTimelineRow key={project.id} project={project} clientName={clientNameFor(clients, project.clientId)} />
+      {items.map(({ project, segments }) => (
+        <ProjectTimelineRow key={project.id} project={project} clientName={clientNameFor(clients, project.clientId)} segments={segments} />
       ))}
     </div>
   );

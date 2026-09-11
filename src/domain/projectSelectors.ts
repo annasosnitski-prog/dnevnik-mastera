@@ -6,7 +6,7 @@
 // (filter/find возвращают новые массивы/ссылки), нет обращений к React,
 // IndexedDB и localStorage.
 
-import type { Project, ProjectCategory, ProjectState } from './project';
+import type { NextActionType, Project, ProjectCategory, ProjectState } from './project';
 import type { Session } from './session';
 import type { Consultation } from './consultation';
 import type { Client } from './client';
@@ -242,10 +242,58 @@ export function hasOverdueWork(project: Project, sessions: Session[], consultati
 // ===================== ПРОИЗВОДНЫЙ ТАЙМЛАЙН «ЗАПРОС → ПЕРВАЯ СЕССИЯ» =====================
 export type PipelineSegmentKey = 'moodboard' | 'sketch' | 'consultation' | 'session';
 
+// Источник даты точки — приоритет строго убывающий:
+//  'actual'    — есть настоящая запись (сессия/консультация) этого проекта,
+//                дата берётся из неё;
+//  'committed' — записи нет, но next step проекта структурно указывает на эту
+//                веху (см. NEXT_STEP_STAGE ниже) и у него есть дата — это
+//                осознанное обещание мастера, а не догадка;
+//  'forecast'  — ничего нет, дата — старый пропорциональный расчёт от окна.
+// Раньше всё было 'forecast': шкала рисовала точки, которых не было в
+// реальности, и подпись «Сессия 1 сен» подменяла собой факт (см. разбор
+// проекта «Спина Паучьих Лилий» — там нет ни одной сессии вовсе, а шкала
+// уверенно рисовала дату для несуществующей). 'actual'/'committed' решают
+// это, ничего не выдумывая сверх того, что уже есть в данных.
+export type PipelineSegmentSource = 'actual' | 'committed' | 'forecast';
+
 export interface ProjectPipelineSegment {
   key: PipelineSegmentKey;
   targetDate: string; // yyyy-mm-dd
+  source: PipelineSegmentSource;
+  // Что нужно сделать на этом отрезке — ответ на «что», а не только «когда».
+  // 'actual': null/null — запись уже существует, предлагать её «назначить»
+  // нечестно (ровно то, что раздражало в старой шкале). 'committed': тип и
+  // текст next step проекта как есть. 'forecast': default-действие для
+  // стадии (см. STAGE_DEFAULT_ACTION) и пустой текст — это подсказка
+  // приложения, а не собственная формулировка мастера.
+  actionType: NextActionType | null;
+  actionText: string | null;
 }
+
+// Куда указывает next step структурно — используется только для 'committed'
+// точек. Не все типы имеют смысл на шкале «запрос → первая сессия»:
+// contact_client/check_healing/schedule_next_session/review_project/other
+// либо не относятся к вехам ДО первой сессии, либо (schedule_next_session,
+// check_healing) заведомо относятся к периоду ПОСЛЕ неё — им намеренно нет
+// соответствия здесь.
+const NEXT_ACTION_TO_STAGE: Partial<Record<NextActionType, PipelineSegmentKey>> = {
+  collect_information: 'moodboard',
+  prepare_design: 'sketch',
+  schedule_consultation: 'consultation',
+  schedule_session: 'session',
+  prepare_session: 'session',
+};
+
+// Обратное направление — default-действие для 'forecast' точки стадии, когда
+// next step ни на что не указывает. Не полный inverse NEXT_ACTION_TO_STAGE
+// (там на 'session' указывают два типа) — здесь на стадию нужен ровно один,
+// самый естественный: «назначить», а не «подготовиться».
+const STAGE_DEFAULT_ACTION: Record<PipelineSegmentKey, NextActionType> = {
+  moodboard: 'collect_information',
+  sketch: 'prepare_design',
+  consultation: 'schedule_consultation',
+  session: 'schedule_session',
+};
 
 function parseProjectCreatedDate(createdDate: string): Date | null {
   const dateOnly = toDateOnly(createdDate);
@@ -286,10 +334,41 @@ function resolveFirstSessionTargetDate(project: Project, start: Date): Date | nu
     : addCalendarMonthsClamped(start, amount);
 }
 
-export function getProjectPipelineSegments(project: Project): ProjectPipelineSegment[] | null {
+// Самая ранняя ОТКРЫТАЯ консультация проекта с валидной датой — «открытая»
+// в том же смысле, что и isOpenConsultation выше (не done, не cancelled, не
+// converted), чтобы отменённая консультация не притворялась фактом на шкале.
+// На шкале ровно один слот 'consultation', даже если консультаций несколько
+// (см. «Спина Паучьих Лилий» — их там две) — показ всех веером меняет
+// раскладку и намеренно вынесен в отдельную задачу, здесь берём только
+// самую раннюю.
+function firstActualConsultationDate(consultations: Consultation[], projectId: string): string | null {
+  const sequence = getConsultationSequence(consultations, projectId).filter(
+    (c) => isOpenConsultation(c) && isValidISODate(c.date),
+  );
+  return sequence.length > 0 ? sequence[0].date : null;
+}
+
+// Зеркало firstActualConsultationDate для сессий — самая ранняя открытая
+// сессия проекта с валидной датой.
+function firstActualSessionDate(sessions: Session[], projectId: string): string | null {
+  const projectSessions = getSessionsByProjectId(sessions, projectId)
+    .filter((s) => isOpenSession(s) && isValidISODate(s.date))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return projectSessions.length > 0 ? projectSessions[0].date : null;
+}
+
+export function getProjectPipelineSegments(
+  project: Project,
+  sessions: Session[],
+  consultations: Consultation[],
+): ProjectPipelineSegment[] | null {
   const start = parseProjectCreatedDate(project.createdDate);
   if (!start) return null;
 
+  // Прогнозная база (окно/точная дата) остаётся ОБЯЗАТЕЛЬНОЙ даже теперь,
+  // когда часть точек может прийти из фактов: без неё нет ни отправной точки
+  // для 'forecast'-веток, ни самого решения «показывать ли этот проект на
+  // шкале вообще» — гвард не меняется, см. комментарий у ProjectTimelineList.
   const target = resolveFirstSessionTargetDate(project, start);
   if (!target) return null;
   const meeting = project.preSessionMeeting ?? 'consultation';
@@ -298,11 +377,38 @@ export function getProjectPipelineSegments(project: Project): ProjectPipelineSeg
     : ['moodboard', 'sketch', 'consultation', 'session'];
   const totalMs = target.getTime() - start.getTime();
 
+  const actualConsultationDate = firstActualConsultationDate(consultations, project.id);
+  const actualSessionDate = firstActualSessionDate(sessions, project.id);
+  // nextActionType===null — совершенно нормальное состояние (next step задан
+  // только текстом/датой, без выбранного типа): тогда его некуда привязать
+  // структурно, и он просто не анкерит ни одну стадию (остаётся 'forecast'),
+  // без попытки угадать тип по тексту.
+  const nextActionType = project.nextActionType;
+  const nextActionDate = project.nextActionDate;
+  const nextStepStage: PipelineSegmentKey | null =
+    project.nextActionText.trim() !== '' && nextActionDate !== null && nextActionType !== null
+      ? NEXT_ACTION_TO_STAGE[nextActionType] ?? null
+      : null;
+
   return keys.map((key, index) => {
     const isLast = index === keys.length - 1;
-    const offset = isLast ? totalMs : Math.floor((totalMs * (index + 1)) / keys.length);
-    const targetDate = new Date(start.getTime() + offset).toISOString().slice(0, 10);
-    return { key, targetDate };
+    const forecastOffset = isLast ? totalMs : Math.floor((totalMs * (index + 1)) / keys.length);
+    const forecastDate = new Date(start.getTime() + forecastOffset).toISOString().slice(0, 10);
+
+    // Приоритет: факт > обещание (next step) > прогноз — см. комментарий
+    // у PipelineSegmentSource.
+    const actualDate = key === 'consultation' ? actualConsultationDate : key === 'session' ? actualSessionDate : null;
+    if (actualDate) return { key, targetDate: actualDate, source: 'actual', actionType: null, actionText: null };
+    if (nextStepStage === key) {
+      return {
+        key,
+        targetDate: nextActionDate as string,
+        source: 'committed',
+        actionType: nextActionType,
+        actionText: project.nextActionText,
+      };
+    }
+    return { key, targetDate: forecastDate, source: 'forecast', actionType: STAGE_DEFAULT_ACTION[key], actionText: null };
   });
 }
 
