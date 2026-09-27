@@ -3416,7 +3416,6 @@ export default function TattoDiary() {
             <AdminDashboardScreen
               clients={clients}
               projects={projects}
-              masterNotes={masterInfo.notes}
               prefs={prefs}
               onChangePrefs={setPrefs}
               onOpenSession={openEntryForEdit}
@@ -3442,10 +3441,6 @@ export default function TattoDiary() {
               onAddHealingPhoto={openHealingGallery}
               onScheduleCorrection={startHealingCorrection}
               onHideAllHealing={handleHideAllHealing}
-              onOpenNotes={(urgency) => {
-                setSummaryFilter(urgency);
-                setScreen('summary');
-              }}
               onOpenCalendar={() => setShowCalendar(true)}
             />
           </Suspense>
