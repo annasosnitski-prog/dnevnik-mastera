@@ -31,7 +31,15 @@ export interface RemoteRow extends MergeableRecord {
 }
 
 export interface RemoteCollection {
-  list(): Promise<RemoteRow[]>;
+  // Дёшево: id и updatedAt каждой строки, БЕЗ data — Postgres даже не
+  // достаёт jsonb-колонку. Этого достаточно, чтобы решить, что вообще
+  // разошлось (Шаг 7, docs/SYNC_PLAN.md): mergeRecords сравнивает только
+  // updatedAt, поэтому на метаданных он даёт тот же ответ, что и на телах.
+  listMetadata(): Promise<MergeableRecord[]>;
+  // Тела — только тех записей, что реально понадобились по итогам
+  // сравнения метаданных: обычная синхронизация — это горстка id, а не
+  // вся библиотека.
+  getByIds(ids: string[]): Promise<RemoteRow[]>;
   upsert(rows: RemoteRow[]): Promise<void>;
   // Убрать устаревшую строку из облака, когда туда уезжает более свежий
   // след удаления. Не обязательно для корректности слияния (след с более
@@ -63,7 +71,6 @@ export interface RemoteApi {
 
 interface CollectionAdapter {
   store: DeletableStore;
-  getAll(tx: IDBTransaction): IDBRequest<RemoteRow[]>;
   put(tx: IDBTransaction, record: RemoteRow, options: { preserveUpdatedAt: true }): void;
   remove(tx: IDBTransaction, id: string): void;
 }
@@ -71,19 +78,16 @@ interface CollectionAdapter {
 const adapters: Record<'clients' | 'projects' | 'contentEntries', CollectionAdapter> = {
   clients: {
     store: 'clients',
-    getAll: clientsRepo.getAllClients,
     put: clientsRepo.putClient,
     remove: clientsRepo.removeClientRecordOnly,
   },
   projects: {
     store: 'projects',
-    getAll: projectsRepo.getAllProjects,
     put: projectsRepo.putProject,
     remove: projectsRepo.removeProjectRecordOnly,
   },
   contentEntries: {
     store: 'contentEntries',
-    getAll: contentRepo.getAllContentEntries,
     put: contentRepo.putContentEntry,
     remove: contentRepo.removeContentEntryRecordOnly,
   },
@@ -93,6 +97,58 @@ function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
+  });
+}
+
+// Метаданные локального стора одним курсором, а не getAll(). В базе нет ни
+// одного индекса, только ключ id (см. storage/connection.ts), поэтому
+// курсор всё равно достаёт каждую запись целиком — но по одной, и тут же
+// отпускает: в памяти держится только { id, updatedAt } на N записей, а не
+// N тел со снимками разом. Индекс по updatedAt (Шаг 7, docs/SYNC_PLAN.md)
+// убрал бы и это чтение тела, но это отдельный шаг с миграцией версии базы.
+function getLocalMetadata(tx: IDBTransaction, store: DeletableStore): Promise<MergeableRecord[]> {
+  return new Promise((resolve, reject) => {
+    const result: MergeableRecord[] = [];
+    const request = tx.objectStore(store).openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(result);
+        return;
+      }
+      const value = cursor.value as RemoteRow;
+      const updatedAt = value.updatedAt;
+      result.push({ id: value.id as string, updatedAt: typeof updatedAt === 'string' ? updatedAt : undefined });
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Тела ПО СПИСКУ id — точечными get(), а не getAll() всего стора. Своя
+// транзакция: readTx выше к этому моменту уже мог закрыться (await на сеть
+// между метаданными и этим вызовом — см. комментарий у SYNC_IN_PROGRESS_KEY
+// в useSyncDriver.ts про ту же западню с IndexedDB).
+function getLocalRecordsByIds(db: IDBDatabase, store: DeletableStore, ids: string[]): Promise<RemoteRow[]> {
+  if (ids.length === 0) return Promise.resolve([]);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const objectStore = tx.objectStore(store);
+    const result: RemoteRow[] = [];
+    let pending = ids.length;
+    for (const id of ids) {
+      const request = objectStore.get(id);
+      request.onsuccess = () => {
+        // Запись могла исчезнуть между чтением метаданных и этим чтением
+        // (мастер удалила её ровно в этот момент) — редкая гонка, не повод
+        // валить прогон: пропускаем, след удаления обычным путём доедет до
+        // облака на следующем синке.
+        if (request.result) result.push(request.result as RemoteRow);
+        pending -= 1;
+        if (pending === 0) resolve(result);
+      };
+      request.onerror = () => reject(request.error);
+    }
   });
 }
 
@@ -122,40 +178,69 @@ async function syncCollection(
 ): Promise<CollectionSyncSummary> {
   const adapter = adapters[kind];
 
+  // Шаг 7А (docs/SYNC_PLAN.md): сначала дёшево узнаём, что вообще
+  // разошлось. Ни здесь, ни в облаке тела ещё не читаются — только
+  // id/updatedAt, считаные килобайты даже на библиотеке в сотни мегабайт.
   const readTx = db.transaction([adapter.store, DELETIONS_STORE], 'readonly');
-  const [local, localTombstonesAll] = await Promise.all([
-    requestToPromise(adapter.getAll(readTx)),
+  const [localMeta, localTombstonesAll] = await Promise.all([
+    getLocalMetadata(readTx, adapter.store),
     requestToPromise(getAllTombstones(readTx)),
   ]);
   const localTombstones = localTombstonesAll.filter((t) => t.store === adapter.store);
 
-  const [remoteRecords, remoteTombstoneRows] = await Promise.all([remote.list(), remoteTombstones.list(adapter.store)]);
+  const [remoteMeta, remoteTombstoneRows] = await Promise.all([remote.listMetadata(), remoteTombstones.list(adapter.store)]);
 
   const merged = mergeRecords({
-    local,
-    remote: remoteRecords,
+    local: localMeta,
+    remote: remoteMeta,
     localTombstones,
     remoteTombstones: remoteTombstoneRows,
   });
 
+  // Теперь — тела, но только тех id, что реально разошлись. Обычная
+  // синхронизация — это горстка записей, а не вся библиотека: именно
+  // загрузка ВСЕЙ библиотеки разом (getAll/list целиком) убивала вкладку на
+  // телефоне при заметном объёме данных.
+  const pullIds = merged.toWriteLocally.map((r) => r.id);
+  const pushIds = merged.toPushRemotely.map((r) => r.id);
+  // На отправляемую запись тело из облака нужно, только если там вообще
+  // есть что-то под этим id — иначе объединять со снимками не с чем, и
+  // спрашивать облако не о чем (частый случай: только что созданный
+  // клиент/проект, которого в облаке ещё никогда не было).
+  const remoteIdSet = new Set(remoteMeta.map((r) => r.id));
+  const idsNeedingRemoteBody = pullIds.concat(pushIds.filter((id) => remoteIdSet.has(id)));
+  const idsNeedingLocalBody = pullIds.concat(pushIds);
+
+  const [remoteBodies, localBodies] = await Promise.all([
+    remote.getByIds(idsNeedingRemoteBody),
+    getLocalRecordsByIds(db, adapter.store, idsNeedingLocalBody),
+  ]);
   // Свои записи под рукой: приехавшая ссылка на снимок чаще всего
   // разворачивается из собственного фото, а не скачиванием (photoPayload.ts).
-  const localById = new Map(local.map((record) => [record.id, record]));
+  const localById = new Map(localBodies.map((record) => [record.id, record]));
   // Облачные — под рукой для обратного случая: победила локальная правка,
   // но снимки, добавленные с ДРУГОГО устройства офлайн, не должны потеряться.
-  const remoteById = new Map(remoteRecords.map((record) => [record.id, record]));
+  const remoteById = new Map(remoteBodies.map((record) => [record.id, record]));
 
   // Снимки разворачиваются ДО открытия записи: транзакция IndexedDB живёт
   // до первого витка событий без запросов, а скачивание файла — это await
   // на сеть, который её гарантированно закроет.
+  //
+  // remoteById.get(id) может не найтись, если запись пропала из облака
+  // между чтением метаданных и этим чтением (её удалили с другого
+  // устройства ровно сейчас) — пропускаем, следующий синк подтянет след
+  // удаления обычным путём.
   const toWriteLocally = await Promise.all(
-    merged.toWriteLocally.map(async (record) => {
-      // Запись победила из облака, но локально по этому id могла быть своя
-      // версия — офлайн-добавленные в неё снимки складываются, а не теряются
-      // (см. unionPhotoFields).
-      const unioned = await unionPhotoFields(kind, record, localById.get(record.id));
-      return internalizePhotos(kind, unioned, localById.get(record.id), photos);
-    }),
+    pullIds
+      .map((id) => remoteById.get(id))
+      .filter((record): record is RemoteRow => record !== undefined)
+      .map(async (record) => {
+        // Запись победила из облака, но локально по этому id могла быть своя
+        // версия — офлайн-добавленные в неё снимки складываются, а не теряются
+        // (см. unionPhotoFields).
+        const unioned = await unionPhotoFields(kind, record, localById.get(record.id));
+        return internalizePhotos(kind, unioned, localById.get(record.id), photos);
+      }),
   );
 
   // Локальная правка победила, но в облаке по этому id уже могла лежать
@@ -172,7 +257,12 @@ async function syncCollection(
   // локально, тем же самым updatedAt.
   const pushRows: RemoteRow[] = [];
   const photoEnrichedLocally: RemoteRow[] = [];
-  for (const record0 of merged.toPushRemotely) {
+  for (const id of pushIds) {
+    // Запись успели удалить локально между решением и чтением тела —
+    // редкая гонка, не повод валить прогон: пропускаем, след удаления
+    // обычным путём доедет до облака на следующем синке.
+    const record0 = localById.get(id);
+    if (!record0) continue;
     // Записи, заведённые до появления updatedAt (Шаг 1 синка) и ни разу с
     // тех пор не пересохранённые, физически не имеют этого поля — put*
     // репозиториев штампует его на ЗАПИСИ, а не на чтении. Отправить такую
@@ -191,7 +281,7 @@ async function syncCollection(
   }
 
   if (
-    merged.toWriteLocally.length ||
+    toWriteLocally.length ||
     merged.toDeleteLocally.length ||
     merged.tombstonesToStore.length ||
     photoEnrichedLocally.length
@@ -218,8 +308,11 @@ async function syncCollection(
   }
 
   return {
-    pulled: merged.toWriteLocally.length,
-    pushed: merged.toPushRemotely.length,
+    // Реально применённое, а не только решённое: если тело пропало из-за
+    // гонки (см. фильтры выше), запись не в счёт — она просто не долетела в
+    // этот раз, следующий синк доведёт дело до конца.
+    pulled: toWriteLocally.length,
+    pushed: pushRows.length,
     deletedLocally: merged.toDeleteLocally.length,
     tombstonesPulled: merged.tombstonesToStore.length,
     tombstonesPushed: merged.tombstonesToPush.length,

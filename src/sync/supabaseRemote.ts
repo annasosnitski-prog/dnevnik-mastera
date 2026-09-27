@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RemoteApi, RemoteRow } from './syncEngine.js';
 import type { PhotoTransport } from './photoPayload.js';
+import type { MergeableRecord } from '../storage/mergeRecords.js';
 import type { DeletableStore, Tombstone } from '../storage/repos/tombstonesRepo.js';
 
 const TABLE_BY_STORE: Record<'clients' | 'projects' | 'contentEntries', string> = {
@@ -24,13 +25,39 @@ const TABLE_BY_STORE: Record<'clients' | 'projects' | 'contentEntries', string> 
   contentEntries: 'sync_content_entries',
 };
 
+// Сколько id за один запрос в .in(...) — Шаг 7 синка (docs/SYNC_PLAN.md).
+// Список тел, которые реально понадобились, обычно горстка, но после
+// долгого офлайна может набраться много сразу; чанк защищает от одного
+// огромного URL и от того, чтобы держать в памяти тела всех чанков разом
+// (ходим за ними по очереди, не Promise.all).
+const ID_CHUNK_SIZE = 200;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 function makeCollection(client: SupabaseClient, ownerId: string, kind: 'clients' | 'projects' | 'contentEntries') {
   const table = TABLE_BY_STORE[kind];
   return {
-    async list(): Promise<RemoteRow[]> {
-      const { data, error } = await client.from(table).select('id, data, updated_at');
+    async listMetadata(): Promise<MergeableRecord[]> {
+      // Без data: Postgres не достаёт jsonb-колонку вовсе, а не просто не
+      // отдаёт её клиенту. Даже на библиотеке в сотни мегабайт — это
+      // считаные килобайты.
+      const { data, error } = await client.from(table).select('id, updated_at');
       if (error) throw error;
-      return (data ?? []).map((row) => row.data as RemoteRow);
+      return (data ?? []).map((row) => ({ id: row.id as string, updatedAt: row.updated_at as string }));
+    },
+    async getByIds(ids: string[]): Promise<RemoteRow[]> {
+      if (ids.length === 0) return [];
+      const rows: RemoteRow[] = [];
+      for (const part of chunk(ids, ID_CHUNK_SIZE)) {
+        const { data, error } = await client.from(table).select('id, data, updated_at').in('id', part);
+        if (error) throw error;
+        for (const row of data ?? []) rows.push(row.data as RemoteRow);
+      }
+      return rows;
     },
     async upsert(rows: RemoteRow[]): Promise<void> {
       if (rows.length === 0) return;
