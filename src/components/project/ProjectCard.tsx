@@ -2,6 +2,7 @@ import { DROP_CAP_FONT } from '../InkaLogo';
 import { type Project, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../../domain/project';
 import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
 import { COLORS, fs } from '../ui/designTokens';
+import { formatDate } from '../../utils/dates';
 
 // Project cover card intentionally has no per-project colour marker. Client
 // colour remains a client-level visual identifier; projects use the shared
@@ -30,6 +31,26 @@ export function ProjectCard({
         flexDirection: 'column',
       }}
     >
+      {/* Дата создания проекта — точка отсчёта, от которой считается весь
+          производный таймлайн (getProjectPipelineSegments). Раньше была видна
+          только внутри расчёта, а не на обложке — сейчас всегда на виду. */}
+      {project.createdDate && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 10,
+            zIndex: 3,
+            fontSize: fs(9.5),
+            color: COLORS.textGhost,
+            letterSpacing: '0.5px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {formatDate(project.createdDate.slice(0, 10))}
+        </div>
+      )}
+
       <div
         style={{
           padding: '10px 12px',

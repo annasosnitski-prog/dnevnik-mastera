@@ -1,5 +1,5 @@
-import { type Project } from '../../domain/project';
-import { getProjectPipelineSegments, type PipelineSegmentKey } from '../../domain/projectSelectors';
+import { NEXT_ACTION_TYPES, type Project } from '../../domain/project';
+import { type PipelineSegmentKey, type ProjectPipelineSegment } from '../../domain/projectSelectors';
 import { isRTL, firstLetter } from '../../lib/textFormat';
 import { formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
@@ -11,6 +11,21 @@ const SEGMENT_LABELS: Record<PipelineSegmentKey, string> = {
   consultation: 'Консультация',
   session: 'Сессия',
 };
+
+const NEXT_ACTION_LABELS: Record<string, string> = Object.fromEntries(
+  NEXT_ACTION_TYPES.map((a) => [a.key, a.label]),
+);
+
+// Что написать над точкой текущего отрезка — своя формулировка мастера
+// (actionText), если она есть, иначе стандартная подпись типа действия
+// (actionType). Для 'actual' обе всегда null (см. getProjectPipelineSegments)
+// — там и рендерить нечего, показывать «Назначить консультацию» под уже
+// назначенной консультацией как раз и было нечестно в старой версии шкалы.
+function actionLabel(segment: ProjectPipelineSegment): string | null {
+  if (segment.actionText) return segment.actionText;
+  if (segment.actionType) return NEXT_ACTION_LABELS[segment.actionType] ?? null;
+  return null;
+}
 
 // Прототип шкалы «Запрос → первая сессия» (§17/§22 pipeline-документа) —
 // один проект = одна горизонтальная строка. Точки стоят через равные
@@ -33,31 +48,72 @@ function indexPosition(index: number, count: number): number {
 // внутри пары точек, между которыми сегодня оказалось, а не по всему
 // диапазону сразу, так что заливка линии остаётся согласованной с
 // индексными позициями точек выше.
+//
+// С появлением 'actual'/'committed' точек даты сегментов больше НЕ обязаны
+// идти по возрастанию — например, у уже прошедшей реальной консультации
+// (индекс 2) дата может оказаться позже, чем у ещё не наступившей прогнозной
+// «Сессии» (индекс 3, forecast всегда равен исходной целевой дате окна), и
+// наоборот. Наивный проход по соседним парам в порядке индекса (как было
+// раньше) в таком случае мог сравнить не ту пару и либо зациклиться на
+// невalidном диапазоне, либо просто не найти пару и молча вернуть 100%.
+// Вместо этого ищем САМЫЙ ПОЗДНИЙ по индексу сегмент, чья дата уже <=
+// сегодня (проверяя все, а не полагаясь на порядок) — это и есть точка,
+// докуда закрашивать. Следующий по индексу сегмент по построению всегда
+// окажется в будущем (иначе он сам стал бы этим самым «самым поздним»), так
+// что пара для интерполяции внутри отрезка всегда корректна.
 function todayPosition(segments: { targetDate: string }[], today: string): number {
   const count = segments.length;
   if (count === 0) return 0;
-  if (today <= segments[0].targetDate) return 0;
-  if (today >= segments[count - 1].targetDate) return 100;
-  for (let i = 0; i < count - 1; i++) {
-    const a = segments[i].targetDate;
-    const b = segments[i + 1].targetDate;
-    if (today >= a && today <= b) {
-      const aMs = new Date(`${a}T00:00:00.000Z`).getTime();
-      const bMs = new Date(`${b}T00:00:00.000Z`).getTime();
-      const todayMs = new Date(`${today}T00:00:00.000Z`).getTime();
-      const frac = bMs > aMs ? (todayMs - aMs) / (bMs - aMs) : 0;
-      return indexPosition(i, count) + frac * (indexPosition(i + 1, count) - indexPosition(i, count));
-    }
+  let lastPassedIndex = -1;
+  for (let i = 0; i < count; i++) {
+    if (segments[i].targetDate <= today) lastPassedIndex = i;
   }
-  return 100;
+  if (lastPassedIndex === -1) return 0;
+  if (lastPassedIndex === count - 1) return 100;
+  const nextIndex = lastPassedIndex + 1;
+  const aMs = new Date(`${segments[lastPassedIndex].targetDate}T00:00:00.000Z`).getTime();
+  const bMs = new Date(`${segments[nextIndex].targetDate}T00:00:00.000Z`).getTime();
+  const todayMs = new Date(`${today}T00:00:00.000Z`).getTime();
+  const frac = bMs > aMs ? (todayMs - aMs) / (bMs - aMs) : 0;
+  return indexPosition(lastPassedIndex, count) + frac * (indexPosition(nextIndex, count) - indexPosition(lastPassedIndex, count));
 }
 
-export function ProjectTimelineRow({ project, clientName }: { project: Project; clientName: string | null }) {
-  const segments = getProjectPipelineSegments(project);
-  if (!segments || segments.length === 0) return null;
+// Оформление точки по источнику даты (см. PipelineSegmentSource) — это и
+// есть весь смысл переделки: факт, обещание и прогноз должны читаться
+// по-разному с первого взгляда, а не сливаться в одинаковые точки на линии.
+function dotStyle(source: ProjectPipelineSegment['source']): React.CSSProperties {
+  if (source === 'actual') {
+    // Факт — сплошная золотая точка, как раньше выглядела «пройденная».
+    return { border: `1.5px solid ${COLORS.gold}`, background: COLORS.gold };
+  }
+  if (source === 'committed') {
+    // Обещание мастера — золотое кольцо с прозрачной серединой: уже не
+    // догадка, но ещё не свершившийся факт.
+    return { border: `1.5px solid ${COLORS.gold}`, background: 'transparent' };
+  }
+  // Прогноз — тускло, полая точка: это проекция, а не факт и не обещание.
+  return { border: '1.5px solid rgba(var(--gold-rgb),0.4)', background: 'transparent' };
+}
+
+export function ProjectTimelineRow({
+  project,
+  clientName,
+  segments,
+}: {
+  project: Project;
+  clientName: string | null;
+  segments: ProjectPipelineSegment[];
+}) {
+  if (segments.length === 0) return null;
 
   const today = todayISO();
   const todayPct = todayPosition(segments, today);
+  // Текущий отрезок — самая ранняя точка, которая ещё не факт: именно там
+  // нужна подсказка «что делать», остальные либо уже случились (нечего
+  // подсказывать), либо и так станут актуальными позже. Если факт вообще
+  // всё (весь путь до первой сессии уже пройден записями) — подсказку не
+  // показываем нигде, currentStretchIndex останется -1.
+  const currentStretchIndex = segments.findIndex((s) => s.source !== 'actual');
 
   return (
     <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)' }}>
@@ -97,14 +153,16 @@ export function ProjectTimelineRow({ project, clientName }: { project: Project; 
 
         {segments.map((segment, index) => {
           const pct = indexPosition(index, segments.length);
-          const passed = segment.targetDate <= today;
           // Подпись у крайних точек анкерится к своему краю, а не к центру
           // (иначе текст первой/последней точки вылезал бы за пределы
           // строки) — на саму точку на линии это не влияет, она всегда точно
           // по центру своего `pct`.
           const anchor = pct < 10 ? 'left' : pct > 90 ? 'right' : 'center';
+          const isForecast = segment.source === 'forecast';
+          const labelColor = isForecast ? COLORS.textGhost : COLORS.textSecondary;
+          const action = index === currentStretchIndex ? actionLabel(segment) : null;
           return (
-            <div key={segment.key}>
+            <div key={segment.key} style={{ opacity: isForecast ? 0.55 : 1 }}>
               <div
                 style={{
                   position: 'absolute',
@@ -114,8 +172,7 @@ export function ProjectTimelineRow({ project, clientName }: { project: Project; 
                   width: 9,
                   height: 9,
                   borderRadius: '50%',
-                  border: `1.5px solid ${passed ? COLORS.gold : 'rgba(var(--gold-rgb),0.4)'}`,
-                  background: passed ? COLORS.gold : 'transparent',
+                  ...dotStyle(segment.source),
                 }}
               />
               <div
@@ -128,12 +185,19 @@ export function ProjectTimelineRow({ project, clientName }: { project: Project; 
                   whiteSpace: 'nowrap',
                 }}
               >
-                <div style={{ fontSize: fs(9.5), color: passed ? COLORS.textSecondary : COLORS.textGhost }}>
+                <div style={{ fontSize: fs(9.5), color: labelColor }}>
                   {SEGMENT_LABELS[segment.key]}
                 </div>
-                <div style={{ fontSize: fs(9), color: COLORS.textGhost, marginTop: 1 }}>
-                  {formatDate(segment.targetDate)}
+                <div style={{ fontSize: fs(9), color: COLORS.textGhost, marginTop: 1, fontStyle: isForecast ? 'italic' : 'normal' }}>
+                  {/* Прогноз всегда помечен «~» — дата не факт, а проекция, и
+                      её нельзя перепутать с настоящей (см. разбор бага). */}
+                  {isForecast ? '~' : ''}{formatDate(segment.targetDate)}
                 </div>
+                {action && (
+                  <div style={{ fontSize: fs(9), color: COLORS.gold, marginTop: 2, maxWidth: 110, whiteSpace: 'normal' }}>
+                    {action}
+                  </div>
+                )}
               </div>
             </div>
           );

@@ -2,8 +2,6 @@ import { useState } from 'react';
 import type * as React from 'react';
 import type { Client } from '../../domain/client';
 import type { Project } from '../../domain/project';
-import type { ClientNote } from '../../domain/task';
-import type { UrgencyKey } from '../../domain/urgency';
 import { upcomingItems } from '../../domain/plannerSelectors';
 import {
   fetchBotBookings,
@@ -26,13 +24,12 @@ import { DROP_CAP_FONT, InkaTitleSuffix } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
+import { AllProjectsList } from '../project/AllProjectsList';
 import { ProjectTimelineList } from '../project/ProjectTimelineList';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
 import { type Prefs } from '../ui/preferences';
-import { buildAdminWorkSummary } from './adminWorkSummary';
-import { AdminWorkSummary } from './AdminWorkSummary';
 import { buildUpcomingSchedule } from './upcomingSchedule';
 import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 
@@ -47,7 +44,10 @@ const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'summary' | 'timel
   { id: 'schedule', kind: 'sessions', label: 'Расписание' },
   // Borrows the info icon, but this is the admin overview, not «личное» —
   // overrides KIND_COLORS' default (personal) with the admin territory red.
-  { id: 'summary', kind: 'info', label: 'Сводка', color: TERRITORY_COLORS.admin },
+  // «Все проекты» (было «Сводка» — рабочая статистика уехала без замены,
+  // см. AllProjectsList): список абсолютно всех активных проектов, а не
+  // только тех, у кого задано окно/точная дата — в отличие от «Таймлайна».
+  { id: 'summary', kind: 'info', label: 'Все проекты', color: TERRITORY_COLORS.admin },
   { id: 'timeline', kind: 'projects', label: 'Таймлайн' },
 ];
 
@@ -60,7 +60,6 @@ const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'summary' | 'timel
 export function AdminDashboardScreen({
   clients,
   projects,
-  masterNotes,
   prefs,
   onChangePrefs,
   onOpenSession,
@@ -86,12 +85,10 @@ export function AdminDashboardScreen({
   onScheduleCorrection,
   onHideAllHealing,
   calendarSync,
-  onOpenNotes,
   onOpenCalendar,
 }: {
   clients: Client[];
   projects: Project[];
-  masterNotes: ClientNote[];
   prefs: Prefs;
   onChangePrefs: (p: Prefs) => void;
   onOpenSession: (clientId: string, itemId: string, kind: 'session' | 'consultation') => void;
@@ -121,9 +118,6 @@ export function AdminDashboardScreen({
   onScheduleCorrection: (project: Project) => void;
   onHideAllHealing: (it: HealingCycleItem) => void;
   calendarSync: CalendarSyncSettings;
-  // Tapping a «Срочно»/«Важно» count — client or personal — jumps to
-  // Блокнот pre-filtered to that urgency, rather than landing unfiltered.
-  onOpenNotes: (urgency: UrgencyKey) => void;
   onOpenCalendar: () => void;
 }) {
   // Открывая админку, мастер в первую очередь хочет увидеть, что происходит
@@ -131,7 +125,6 @@ export function AdminDashboardScreen({
   const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('timeline');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
-  const workSummary = buildAdminWorkSummary(clients, masterNotes, prefs.statsWindowDays);
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: fs(11),
@@ -244,17 +237,11 @@ export function AdminDashboardScreen({
           </>
         )}
 
-        {tab === 'summary' && (
-          /* Рабочая сводка (M5B) — компактная замена прежней россыпи рамок:
-             тумблер периода статистики + карточка «Клиентов» + два
-             SplitStatBlock. Все семь чисел прежние, посчитаны снаружи. */
-          <AdminWorkSummary
-            model={workSummary}
-            selectedWindowDays={prefs.statsWindowDays}
-            onChangeWindowDays={(days) => onChangePrefs({ ...prefs, statsWindowDays: days })}
-            onOpenNotes={onOpenNotes}
-          />
-        )}
+        {/* «Все проекты» — полный список активных проектов, с датами и без
+            (см. AllProjectsList): прежняя рабочая статистика (клиенты/
+            нагрузка/блокнот), которая тут раньше была, уехала без замены —
+            это осознанная замена вкладки, а не временная заглушка. */}
+        {tab === 'summary' && <AllProjectsList projects={projects} clients={clients} />}
 
         {tab === 'timeline' && <ProjectTimelineList projects={projects} clients={clients} />}
       </div>
