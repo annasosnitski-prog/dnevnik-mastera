@@ -51,15 +51,27 @@ function read(db, stores, run) {
 
 // Поддельное «облако»: те же формы данных, что и настоящие таблицы
 // Supabase (id, data целиком, updatedAt), без сети.
+//
+// _metadataCalls/_getByIdsCalls — счётчики обращений, а не байт: ровно то,
+// чем Шаг 7 (docs/SYNC_PLAN.md) предлагает проверять «в памяти не больше
+// одного тела за раз» — считать не размер, а сколько раз и с какими id
+// ходили за телами.
 function fakeRemote() {
   const collections = { clients: new Map(), projects: new Map(), contentEntries: new Map() };
   const tombstones = [];
   const photoFiles = new Map();
+  const metadataCalls = { clients: 0, projects: 0, contentEntries: 0 };
+  const getByIdsCalls = { clients: [], projects: [], contentEntries: [] };
   let masterInfo = null;
 
   const makeCollection = (name) => ({
-    async list() {
-      return [...collections[name].values()];
+    async listMetadata() {
+      metadataCalls[name] += 1;
+      return [...collections[name].values()].map((row) => ({ id: row.id, updatedAt: row.updatedAt }));
+    },
+    async getByIds(ids) {
+      getByIdsCalls[name].push([...ids]);
+      return ids.map((id) => collections[name].get(id)).filter((row) => row !== undefined);
     },
     async upsert(rows) {
       for (const row of rows) collections[name].set(row.id, row);
@@ -73,6 +85,8 @@ function fakeRemote() {
     _collections: collections,
     _tombstones: tombstones,
     _photoFiles: photoFiles,
+    _metadataCalls: metadataCalls,
+    _getByIdsCalls: getByIdsCalls,
     photos: {
       async upload(hash, dataUrl) {
         photoFiles.set(hash, dataUrl);
@@ -353,4 +367,67 @@ test('клиент, заведённый до появления updatedAt и н
   // «Ближайшее известное правдивое время» — дата создания, не «сейчас»
   // (см. updatedAt.ts): «сейчас» выиграло бы любое слияние незаслуженно.
   assert.equal(cloudClient.updatedAt, '2024-03-01T00:00:00.000Z');
+});
+
+// ── Шаг 7: слияние по метаданным, тела — только для делты ────────────────
+// (docs/SYNC_PLAN.md). До этого шага решение «что синкать» само требовало
+// загрузить в память ВСЮ библиотеку с обеих сторон — на телефоне с большой
+// библиотекой это и убивало вкладку. Ниже — тесты не «результат тот же»
+// (это и так проверяют все тесты выше, они ни разу не изменились), а
+// «дорога к результату стала дешёвой»: тела запрашиваются только по
+// точному списку id, а не всем стором/всей таблицей разом.
+
+test('решение о том, что синкать, идёт через listMetadata — телами облако ещё не спрашивали', async () => {
+  const db = await openTestDb();
+  await write(db, ['clients', 'deletions'], (tx) => putClient(tx, { id: 'c1', name: 'Аня' }));
+
+  const remote = fakeRemote();
+  await runFullSync(db, remote);
+
+  assert.ok(remote._metadataCalls.clients >= 1, 'список для сравнения запрашивался без тел (listMetadata)');
+});
+
+test('за телами облако ходит только по id, которые реально разошлись — не по всей коллекции', async () => {
+  const db = await openTestDb();
+  // Десять клиентов уже дожили до первого синка — они там же, где и облако.
+  for (let i = 0; i < 10; i += 1) {
+    await write(db, ['clients', 'deletions'], (tx) => putClient(tx, { id: `c${i}`, name: `Клиент ${i}` }));
+  }
+  const remote = fakeRemote();
+  await runFullSync(db, remote);
+  remote._getByIdsCalls.clients = [];
+
+  // Меняется только один клиент из десяти.
+  await write(db, ['clients', 'deletions'], (tx) => putClient(tx, { id: 'c3', name: 'Клиент 3 (правка)' }));
+  await runFullSync(db, remote);
+
+  const requestedIds = remote._getByIdsCalls.clients.flat();
+  assert.deepEqual(requestedIds, ['c3'], 'запрошено тело только изменившейся записи, а не всех десяти');
+});
+
+test('новый локальный клиент не тянет своё же облачное отсутствие отдельным запросом с пустым результатом зря', async () => {
+  // Оптимизация из Шага 7: если id нет даже в метаданных облака, спрашивать
+  // getByIds не о чем — сливать со снимками нечего, а расходовать запрос на
+  // заведомо пустой ответ незачем.
+  const db = await openTestDb();
+  await write(db, ['clients', 'deletions'], (tx) => putClient(tx, { id: 'new-1', name: 'Новый' }));
+
+  const remote = fakeRemote();
+  await runFullSync(db, remote);
+
+  const requestedIds = remote._getByIdsCalls.clients.flat();
+  assert.deepEqual(requestedIds, [], 'ни один id не запрошен — у нового клиента нет облачного контрагента, спрашивать не о чем');
+  assert.ok(remote._collections.clients.has('new-1'), 'при этом сама запись всё равно уехала в облако');
+});
+
+test('повторный синк без изменений не запрашивает ни одного тела — делта пустая', async () => {
+  const db = await openTestDb();
+  await write(db, ['clients', 'deletions'], (tx) => putClient(tx, { id: 'c1', name: 'Аня' }));
+  const remote = fakeRemote();
+  await runFullSync(db, remote);
+  remote._getByIdsCalls.clients = [];
+
+  await runFullSync(db, remote);
+
+  assert.deepEqual(remote._getByIdsCalls.clients.flat(), [], 'ничего не изменилось — ни один id не запрошен');
 });
