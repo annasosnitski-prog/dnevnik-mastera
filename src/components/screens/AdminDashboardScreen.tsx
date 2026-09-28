@@ -24,7 +24,7 @@ import { DROP_CAP_FONT, InkaTitleSuffix } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
-import { AllProjectsList } from '../project/AllProjectsList';
+import { DatelessProjectsList } from '../project/DatelessProjectsList';
 import { ProjectTimelineList } from '../project/ProjectTimelineList';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
@@ -39,16 +39,19 @@ import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 // одного экрана — лишняя работа под прототип. Порядок — от «требует
 // внимания прямо сейчас» к «справочному»: Напоминания первыми, Таймлайн
 // последним, он самый «посмотреть, а не подействовать».
+// «Таймлайн» и «Без окна» — пара, разделяющая активные проекты по одному
+// признаку: задано ли окно/точная дата первой сессии (getProjectPipelineSegments
+// способен посчитать шкалу) или нет. Раньше это была одна вкладка «Все
+// проекты», смешивавшая оба случая и попутно дублировавшая «Таймлайн» — Аня
+// попросила развести их обратно, но уже без прежней потери «Все проекты»
+// целиком в тёмный список dateless-строк ниже датированных: теперь у каждого
+// случая своя вкладка. Цвет — не по kind (оба «info»/«projects» тут не при
+// делах), а буквально «зелёный = проект на рельсах» / «синий = ещё нет».
 const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'summary' | 'timeline'>[] = [
   { id: 'reminders', kind: 'notes', label: 'Напоминания' },
   { id: 'schedule', kind: 'sessions', label: 'Расписание' },
-  // Borrows the info icon, but this is the admin overview, not «личное» —
-  // overrides KIND_COLORS' default (personal) with the admin territory red.
-  // «Все проекты» (было «Сводка» — рабочая статистика уехала без замены,
-  // см. AllProjectsList): список абсолютно всех активных проектов, а не
-  // только тех, у кого задано окно/точная дата — в отличие от «Таймлайна».
-  { id: 'summary', kind: 'info', label: 'Все проекты', color: TERRITORY_COLORS.admin },
-  { id: 'timeline', kind: 'projects', label: 'Таймлайн' },
+  { id: 'summary', kind: 'info', label: 'Без окна', color: TERRITORY_COLORS.projects },
+  { id: 'timeline', kind: 'projects', label: 'Таймлайн', color: TERRITORY_COLORS.clients },
 ];
 
 // ===================== ADMIN DASHBOARD =====================
@@ -237,11 +240,11 @@ export function AdminDashboardScreen({
           </>
         )}
 
-        {/* «Все проекты» — полный список активных проектов, с датами и без
-            (см. AllProjectsList): прежняя рабочая статистика (клиенты/
-            нагрузка/блокнот), которая тут раньше была, уехала без замены —
-            это осознанная замена вкладки, а не временная заглушка. */}
-        {tab === 'summary' && <AllProjectsList projects={projects} clients={clients} />}
+        {/* «Без окна» — активные проекты, для которых не задано окно/точная
+            дата первой сессии (см. DatelessProjectsList): прежняя рабочая
+            статистика (клиенты/нагрузка/блокнот), которая тут раньше была,
+            уехала без замены — это осознанная замена вкладки. */}
+        {tab === 'summary' && <DatelessProjectsList projects={projects} clients={clients} />}
 
         {tab === 'timeline' && <ProjectTimelineList projects={projects} clients={clients} />}
       </div>

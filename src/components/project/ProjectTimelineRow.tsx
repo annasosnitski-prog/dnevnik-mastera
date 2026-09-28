@@ -114,6 +114,16 @@ export function ProjectTimelineRow({
   // всё (весь путь до первой сессии уже пройден записями) — подсказку не
   // показываем нигде, currentStretchIndex останется -1.
   const currentStretchIndex = segments.findIndex((s) => s.source !== 'actual');
+  // Подсказка действия — это третья строка под точкой (label + дата + это),
+  // и при переносе в maxWidth:110 она может занять две собственные строки.
+  // Фиксированная высота 48 (без подсказки) не учитывала такое разрастание:
+  // подсказка была position:absolute и просто вылезала ЗА пределы этого
+  // блока, наезжая на заголовок следующего проекта в списке (см. скриншот
+  // с «Собрать» поверх «Спина Паучьих Лилий»). Резервируем высоту заранее,
+  // а не подгоняем постфактум — единственный способ узнать её точно
+  // потребовал бы измерения DOM, а здесь фиксированная оценка достаточна.
+  const hasActionHint = currentStretchIndex !== -1 && actionLabel(segments[currentStretchIndex]) !== null;
+  const scaleHeight = hasActionHint ? 74 : 48;
 
   return (
     <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)' }}>
@@ -142,7 +152,7 @@ export function ProjectTimelineRow({
         )}
       </div>
 
-      <div style={{ position: 'relative', height: 48, margin: '0 40px' }}>
+      <div style={{ position: 'relative', height: scaleHeight, margin: '0 40px' }}>
         {/* Та же подвесочная штанга (ClientCardTabBar's PendantRail), только
             заполняемая по прогрессу вместо провисания между камнями —
             закрашенная часть («сегодня уже здесь») светится тем же
