@@ -2053,7 +2053,7 @@ export default function TattoDiary() {
       saveProject({ ...editProject, ...data });
     } else {
       const newProjectId = crypto.randomUUID();
-      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], consultations: [], healingPhotos: [], ...data });
+      saveProject({ id: newProjectId, createdDate: new Date().toISOString(), lastMeaningfulActivityAt: new Date().toISOString(), sessions: [], consultations: [], healingPhotos: [], moodboard: null, ...data });
       // Проект создан из ContentLinkPickerSheet «Сохранить в…».
       if (pendingContentLinkRef.current) {
         if (pendingContentLinkRef.current.target === 'project') {
