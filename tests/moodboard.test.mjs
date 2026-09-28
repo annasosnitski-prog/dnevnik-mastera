@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { hasMoodboardContent, moodboardPhotoSrcs, withMoodboardPhotoSrcs } from '../.test-dist/src/domain/project.js';
+import { hasMoodboardContent, moodboardPhotoSrcs, withMoodboardPhotoSrcs, withMoodboardStatus } from '../.test-dist/src/domain/project.js';
 
 // hasMoodboardContent — «есть ли что показать», а не «заведён ли мудборд»:
 // null (не заведён) и заведённый-но-пустой (0 items) обе читаются как
@@ -95,4 +95,30 @@ test('withMoodboardPhotoSrcs keeps an empty-but-meaningful moodboard alive (sent
   assert.notEqual(next, null);
   assert.equal(next.status, 'sent');
   assert.deepEqual(next.items, []);
+});
+
+// ── withMoodboardStatus ─────────────────────────────────────────────
+
+test('withMoodboardStatus stamps sentAt only when moving to "sent"', () => {
+  const mb = { id: 'mb1', caption: '', status: 'draft', sentAt: null, approvedAt: null, updatedAt: '2026-01-01', items: [] };
+  const next = withMoodboardStatus(mb, 'sent');
+  assert.equal(next.status, 'sent');
+  assert.ok(next.sentAt);
+  assert.equal(next.approvedAt, null);
+});
+
+test('withMoodboardStatus stamps approvedAt only when moving to "approved"', () => {
+  const mb = { id: 'mb1', caption: '', status: 'sent', sentAt: '2026-01-01T00:00:00Z', approvedAt: null, updatedAt: '2026-01-01', items: [] };
+  const next = withMoodboardStatus(mb, 'approved');
+  assert.equal(next.status, 'approved');
+  assert.equal(next.sentAt, '2026-01-01T00:00:00Z');
+  assert.ok(next.approvedAt);
+});
+
+test('withMoodboardStatus does not clear a previously stamped sentAt/approvedAt when moving to rework', () => {
+  const mb = { id: 'mb1', caption: '', status: 'approved', sentAt: '2026-01-01T00:00:00Z', approvedAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-01', items: [] };
+  const next = withMoodboardStatus(mb, 'rework');
+  assert.equal(next.status, 'rework');
+  assert.equal(next.sentAt, '2026-01-01T00:00:00Z');
+  assert.equal(next.approvedAt, '2026-01-02T00:00:00Z');
 });

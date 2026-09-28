@@ -22,10 +22,13 @@ import {
   findFirstSessionWindowOption,
   type Project,
   type Moodboard,
+  type MoodboardStatus,
+  MOODBOARD_STATUSES,
   hasMoodboardContent,
   moodboardPhotoSrcs,
   withMoodboardPhotoSrcs,
 } from '../../domain/project';
+import { shareMoodboard } from '../../lib/moodboardShare';
 import { getSessionsByProjectId, getConsultationSequence } from '../../domain/projectSelectors';
 import { getTasksByProjectId, urgencyMeta } from '../../domain/taskSelectors';
 import { getContentEntriesForProject, type ProjectContentItem } from '../../lib/contentProject';
@@ -677,6 +680,7 @@ export function ProjectViewSheet({
   onOpenContentEntry,
   onSaveNextStep,
   onSaveHealingPhotos,
+  onSetMoodboardStatus,
 }: {
   open: boolean;
   project: Project | null;
@@ -709,7 +713,30 @@ export function ProjectViewSheet({
   // и onSaveNextStep. Первое фото закрывает цикл заживления и переводит
   // проект в «Завершён» (решает вызывающий код, а не эта форма).
   onSaveHealingPhotos: (urls: string[]) => void;
+  // Смена статуса мудборда — ручная (select ниже) или автоматическая после
+  // успешной отдачи через «Поделиться» (см. handleSendMoodboard). Пишет
+  // напрямую в проект тем же saveProject, что и остальные правки здесь.
+  onSetMoodboardStatus: (status: MoodboardStatus) => void;
 }) {
+  const [sendingMoodboard, setSendingMoodboard] = useState(false);
+  const [moodboardShareNote, setMoodboardShareNote] = useState<string | null>(null);
+
+  const handleSendMoodboard = async () => {
+    if (!project?.moodboard || sendingMoodboard) return;
+    setSendingMoodboard(true);
+    setMoodboardShareNote(null);
+    try {
+      const result = await shareMoodboard(project.moodboard, project.id);
+      if (result === 'shared') {
+        onSetMoodboardStatus('sent');
+      } else if (result === 'copied') {
+        setMoodboardShareNote('Подпись скопирована — фото отправьте из галереи');
+      }
+    } finally {
+      setSendingMoodboard(false);
+    }
+  };
+
   const clientName = project ? clientNameFor(clients, project.clientId) : null;
   const linkedClient = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
   const linkedSessions = linkedClient && project ? getSessionsByProjectId(linkedClient.sessions, project.id).slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')) : [];
@@ -760,12 +787,41 @@ export function ProjectViewSheet({
             <NextStepRow nextActionText={project.nextActionText} nextActionDate={project.nextActionDate} nextActionType={project.nextActionType} onSave={onSaveNextStep} />
             {project.photos.length > 0 && <SessionPhotos photos={project.photos} onChange={() => {}} allowDelete={false} readOnly />}
 
-            {hasMoodboardContent(project.moodboard) && (
+            {hasMoodboardContent(project.moodboard) && project.moodboard && (
               <div>
-                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
-                  Мудборд
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span>Мудборд</span>
+                  {/* Ручная смена статуса — та же схема, что у статуса проекта
+                      выше: мастер сама отмечает «Одобрен»/«На доработку»,
+                      «Отправлен» обычно проставляется автоматически кнопкой
+                      ниже, но доступен и вручную (например, отправила не
+                      через это меню — в мессенджере отдельным сообщением). */}
+                  <select
+                    value={project.moodboard.status}
+                    onChange={(e) => onSetMoodboardStatus(e.target.value as MoodboardStatus)}
+                    style={{ ...INPUT_STYLE, width: 'auto', padding: '3px 6px', fontSize: fs(10), textTransform: 'none', letterSpacing: 'normal' }}
+                  >
+                    {MOODBOARD_STATUSES.map((s) => (
+                      <option key={s.key} value={s.key}>{s.label}</option>
+                    ))}
+                  </select>
                 </div>
                 <SessionPhotos photos={moodboardPhotoSrcs(project.moodboard)} onChange={() => {}} allowDelete={false} readOnly />
+                <div
+                  onClick={handleSendMoodboard}
+                  style={{
+                    fontSize: fs(12),
+                    color: sendingMoodboard ? COLORS.textGhost : COLORS.gold,
+                    fontStyle: 'italic',
+                    cursor: sendingMoodboard ? 'default' : 'pointer',
+                    marginTop: 4,
+                  }}
+                >
+                  {sendingMoodboard ? 'Отправка…' : 'Отправить клиенту'}
+                </div>
+                {moodboardShareNote && (
+                  <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>{moodboardShareNote}</div>
+                )}
               </div>
             )}
 

@@ -227,6 +227,23 @@ export interface Moodboard {
   updatedAt: string; // ISO timestamp последнего изменения items/caption
 }
 
+// Смена статуса мудборда — sentAt/approvedAt проставляются вместе со своим
+// статусом (факт пишется в момент перехода, тот же принцип, что у
+// Consultation.history), остальные поля не трогаются. Тот же единый вход
+// для ручной смены статуса (мастер сама отметила «Одобрен»/«На доработку»)
+// и для «отметить отправленным» после успешной отдачи через системное
+// «Поделиться» — см. lib/moodboardShare.ts.
+export function withMoodboardStatus(moodboard: Moodboard, status: MoodboardStatus): Moodboard {
+  const now = new Date().toISOString();
+  return {
+    ...moodboard,
+    status,
+    sentAt: status === 'sent' ? now : moodboard.sentAt,
+    approvedAt: status === 'approved' ? now : moodboard.approvedAt,
+    updatedAt: now,
+  };
+}
+
 // null = мудборд ещё не заводили — обычное состояние проекта без него,
 // отличное от Moodboard с пустым items (тот уже создан, но пуст).
 export function hasMoodboardContent(moodboard: Moodboard | null): boolean {
