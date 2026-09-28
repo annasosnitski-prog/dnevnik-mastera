@@ -231,7 +231,10 @@ test('фото-поля здесь и в разборе «Куда ушло ме
 test('движок выносит снимки на отправке и разворачивает на приёме', () => {
   const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
   assert.match(engine, /externalizePhotos\(kind, unioned, photos, uploaded\)/);
-  assert.match(engine, /internalizePhotos\(kind, unioned, localById\.get\(record\.id\), photos\)/);
+  // Приём — по одной записи (Шаг 7Б, docs/SYNC_PLAN.md): контрагент читается
+  // локально сам по себе (getLocalRecordById), а не пакетом со всеми pullIds,
+  // — иначе большая делта держала бы в памяти все старые тела разом.
+  assert.match(engine, /internalizePhotos\(kind, unioned, localCounterpart, photos\)/);
   // Набор загруженного — один на весь прогон, иначе копии одного снимка в
   // разных сторах уехали бы в облако по разу за стор.
   assert.match(engine, /const uploaded = new Set<string>\(\);/);
@@ -345,6 +348,7 @@ test('сессия, которой нет у победителя, фото из
 
 test('движок сливает фото ДО выбора победителя целиком, в обе стороны', () => {
   const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
-  assert.match(engine, /unionPhotoFields\(kind, record, localById\.get\(record\.id\)\)/);
+  // Приём — контрагент из getLocalRecordById (Шаг 7Б), не из общего localById.
+  assert.match(engine, /unionPhotoFields\(kind, record, localCounterpart\)/);
   assert.match(engine, /unionPhotoFields\(kind, record, remoteById\.get\(record\.id\)\)/);
 });

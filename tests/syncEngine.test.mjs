@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { indexedDB } from 'fake-indexeddb';
 
 globalThis.indexedDB = indexedDB;
@@ -504,4 +505,18 @@ test('за один прогон разворачивается не больш�
   await runFullSync(device, remote);
 
   assert.equal(maxConcurrent, 1, 'снимки разворачивались по одному, а не все разом');
+});
+
+test('локальный контрагент для приезжающих записей читается по одной, а не пакетом со всеми pullIds', () => {
+  // Ревью нашло реальный пробел в первой версии Шага 7Б: пакетный локальный
+  // запрос (getLocalRecordsByIds) звался с pullIds ТОЖЕ — а раз локальные
+  // тела лежат не ссылками, а настоящим base64 (в отличие от облачных), это
+  // держало бы в памяти ВСЕ старые версии разошедшихся записей разом, если
+  // устройство с уже большой библиотекой долго было офлайн. Проверяем сам
+  // источник, а не только поведение на маленьких тестовых данных, где
+  // разница не всплыла бы.
+  const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
+  assert.match(engine, /const idsNeedingLocalBody = pushIds;/);
+  assert.match(engine, /const localCounterpart = await getLocalRecordById\(db, adapter\.store, record\.id\);/);
+  assert.doesNotMatch(engine, /idsNeedingLocalBody = pullIds/);
 });

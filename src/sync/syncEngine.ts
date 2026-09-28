@@ -152,6 +152,22 @@ function getLocalRecordsByIds(db: IDBDatabase, store: DeletableStore, ids: strin
   });
 }
 
+// Один локальный контрагент — для unionPhotoFields при пуле ОДНОЙ приезжающей
+// записи, не пакетом со всеми pullIds сразу. Если у устройства уже была
+// большая библиотека и после долгого офлайна побеждает облако сразу у многих
+// записей, пакетный запрос держал бы в памяти ВСЕ их старые тела со снимками
+// разом — ту же беду, от которой Шаг 7Б (docs/SYNC_PLAN.md) уводит сами
+// приезжающие тела. Своя транзакция на каждый вызов: предыдущая уже могла
+// закрыться (await на сеть — скачивание снимка — между вызовами).
+function getLocalRecordById(db: IDBDatabase, store: DeletableStore, id: string): Promise<RemoteRow | undefined> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const request = tx.objectStore(store).get(id);
+    request.onsuccess = () => resolve(request.result as RemoteRow | undefined);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 function txDone(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
@@ -209,14 +225,18 @@ async function syncCollection(
   // клиент/проект, которого в облаке ещё никогда не было).
   const remoteIdSet = new Set(remoteMeta.map((r) => r.id));
   const idsNeedingRemoteBody = pullIds.concat(pushIds.filter((id) => remoteIdSet.has(id)));
-  const idsNeedingLocalBody = pullIds.concat(pushIds);
+  // Локально пакетом — ТОЛЬКО то, что реально нужно отправить (pushIds): эти
+  // тела всё равно едут в облако целиком, батч их не размножает. Контрагент
+  // для приезжающих записей (pullIds) читается по одному, внутри цикла ниже
+  // (getLocalRecordById) — см. комментарий там.
+  const idsNeedingLocalBody = pushIds;
 
   const [remoteBodies, localBodies] = await Promise.all([
     remote.getByIds(idsNeedingRemoteBody),
     getLocalRecordsByIds(db, adapter.store, idsNeedingLocalBody),
   ]);
-  // Свои записи под рукой: приехавшая ссылка на снимок чаще всего
-  // разворачивается из собственного фото, а не скачиванием (photoPayload.ts).
+  // Свои записи под рукой: нужны для отправки (pushIds) и как контрагент для
+  // unionPhotoFields на стороне облака (см. remoteIdSet выше).
   const localById = new Map(localBodies.map((record) => [record.id, record]));
   // Облачные — под рукой для обратного случая: победила локальная правка,
   // но снимки, добавленные с ДРУГОГО устройства офлайн, не должны потеряться.
@@ -247,9 +267,12 @@ async function syncCollection(
     if (!record) continue;
     // Запись победила из облака, но локально по этому id могла быть своя
     // версия — офлайн-добавленные в неё снимки складываются, а не теряются
-    // (см. unionPhotoFields).
-    const unioned = await unionPhotoFields(kind, record, localById.get(record.id));
-    const expanded = await internalizePhotos(kind, unioned, localById.get(record.id), photos);
+    // (см. unionPhotoFields). Читаем контрагента здесь же, по одному
+    // (getLocalRecordById), а не из общего localById — см. комментарий у
+    // idsNeedingLocalBody выше.
+    const localCounterpart = await getLocalRecordById(db, adapter.store, record.id);
+    const unioned = await unionPhotoFields(kind, record, localCounterpart);
+    const expanded = await internalizePhotos(kind, unioned, localCounterpart, photos);
     const writeTx = db.transaction(adapter.store, 'readwrite');
     adapter.put(writeTx, expanded, { preserveUpdatedAt: true });
     await txDone(writeTx);
