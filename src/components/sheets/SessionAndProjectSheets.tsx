@@ -21,6 +21,10 @@ import {
   FIRST_SESSION_WINDOW_OPTIONS,
   findFirstSessionWindowOption,
   type Project,
+  type Moodboard,
+  hasMoodboardContent,
+  moodboardPhotoSrcs,
+  withMoodboardPhotoSrcs,
 } from '../../domain/project';
 import { getSessionsByProjectId, getConsultationSequence } from '../../domain/projectSelectors';
 import { getTasksByProjectId, urgencyMeta } from '../../domain/taskSelectors';
@@ -756,6 +760,15 @@ export function ProjectViewSheet({
             <NextStepRow nextActionText={project.nextActionText} nextActionDate={project.nextActionDate} nextActionType={project.nextActionType} onSave={onSaveNextStep} />
             {project.photos.length > 0 && <SessionPhotos photos={project.photos} onChange={() => {}} allowDelete={false} readOnly />}
 
+            {hasMoodboardContent(project.moodboard) && (
+              <div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
+                  Мудборд
+                </div>
+                <SessionPhotos photos={moodboardPhotoSrcs(project.moodboard)} onChange={() => {}} allowDelete={false} readOnly />
+              </div>
+            )}
+
             {/* Галерея заживления — фото зажившей работы, одна на проект (см.
                 Project.healingPhotos). В отличие от «Фотографий» выше она
                 редактируемая прямо здесь: добавить снимок — это и есть
@@ -896,6 +909,7 @@ export function NewProjectSheet({
     creative: string;
     inspirationSources: string;
     photos: string[];
+    moodboard: Moodboard | null;
   }) => void;
   // Present only when editing an existing project — omitted for a new one.
   onDelete?: () => void;
@@ -929,6 +943,12 @@ export function NewProjectSheet({
   const [creative, setCreative] = useState('');
   const [inspirationSources, setInspirationSources] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
+  // Мудборд заводится/правится прямо здесь, рядом с «Фотографии» — та же
+  // точка входа, где мастер уже привыкла добавлять снимки при создании
+  // проекта (см. moodboardPhotoSrcs/withMoodboardPhotoSrcs в domain/project.ts
+  // — мост между этим string[] и Project.moodboard.items). Не-photo items
+  // (ссылки/цвета) и статус/подпись мудборда этой формой не трогаются.
+  const [moodboardPhotos, setMoodboardPhotos] = useState<string[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // See NewSessionSheet's justSaved — same «крестик превращается в зелёную
   // галочку» подтверждение, единообразно для всех форм редактирования.
@@ -981,6 +1001,7 @@ export function NewProjectSheet({
       setCreative(initial?.creative ?? '');
       setInspirationSources(initial?.inspirationSources ?? '');
       setPhotos(initial?.photos ?? []);
+      setMoodboardPhotos(moodboardPhotoSrcs(initial?.moodboard ?? null));
       setConfirmingDelete(false);
       setJustSaved(false);
     }
@@ -999,6 +1020,11 @@ export function NewProjectSheet({
       <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
         <div className="inka-consult-left">
           <div style={{ marginBottom: 16 }}><FieldLabel>Фотографии</FieldLabel><SessionPhotos photos={photos} onChange={setPhotos} buttonFirst /></div>
+          {/* Отобранная подборка для клиента — отдельно от общей корзины
+              «Фотографии» выше (см. domain/project.ts: Moodboard vs
+              Project.photos). Отправка и статус «отправлен/одобрен» — не
+              этот шаг, здесь только собрать и упорядочить. */}
+          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst /></div>
         </div>
 
         <div className="inka-consult-right">
@@ -1166,6 +1192,7 @@ export function NewProjectSheet({
               creative,
               inspirationSources,
               photos,
+              moodboard: withMoodboardPhotoSrcs(initial?.moodboard ?? null, moodboardPhotos),
             };
             if (isEdit) {
               setJustSaved(true);

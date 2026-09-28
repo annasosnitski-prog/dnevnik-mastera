@@ -233,6 +233,49 @@ export function hasMoodboardContent(moodboard: Moodboard | null): boolean {
   return moodboard !== null && moodboard.items.length > 0;
 }
 
+// ── Мост к SessionPhotos ────────────────────────────────────────────
+// Форма проекта заводит мудборд прямо там, где уже есть «Добавить фото»
+// (то же место, что у Project.photos/healingPhotos) — SessionPhotos знает
+// только про string[], а мудборд хранит MoodboardItem[] со своим kind.
+// Эти две функции — мост в обе стороны, тот же принцип, что у
+// reconcileHealingPhotos выше: чужой (не-photo) items не трогаем.
+
+// В форму — только src фотографий, в их порядке на доске.
+export function moodboardPhotoSrcs(moodboard: Moodboard | null): string[] {
+  return moodboard ? moodboard.items.filter((it) => it.kind === 'photo').map((it) => it.src) : [];
+}
+
+// Из формы — SessionPhotos отдаёт новый string[] целиком (add/remove/reorder
+// неразличимы дальше первого расхождения). Сверяем со старыми photo-items по
+// src, чтобы сохранить id/note там, где фото не поменялось, и заводим новый
+// item только для реально нового src — остальные (link/color) items остаются
+// на своих местах, этой правкой не задеты.
+export function withMoodboardPhotoSrcs(moodboard: Moodboard | null, srcs: string[]): Moodboard | null {
+  const otherItems = moodboard ? moodboard.items.filter((it) => it.kind !== 'photo') : [];
+  const remaining = moodboard ? moodboard.items.filter((it) => it.kind === 'photo') : [];
+  const photoItems: MoodboardItem[] = srcs.map((src) => {
+    const i = remaining.findIndex((it) => it.src === src);
+    if (i !== -1) return remaining.splice(i, 1)[0];
+    return { id: crypto.randomUUID(), kind: 'photo', src, url: '', hex: '', note: '' };
+  });
+  const items = [...otherItems, ...photoItems];
+  // Пустой мудборд без единого признака жизни (ни items, ни подписи, ни
+  // сдвинутого статуса) — то же «не заведён», что и moodboard===null, а не
+  // пустая заведённая карточка (см. hasMoodboardContent выше).
+  if (items.length === 0 && !moodboard?.caption && (!moodboard || moodboard.status === 'draft')) {
+    return null;
+  }
+  return {
+    id: moodboard?.id ?? crypto.randomUUID(),
+    items,
+    caption: moodboard?.caption ?? '',
+    status: moodboard?.status ?? 'draft',
+    sentAt: moodboard?.sentAt ?? null,
+    approvedAt: moodboard?.approvedAt ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 // Галерея редактируется тем же SessionPhotos, что и остальные фото в
 // приложении, а он знает только про массив data-URL. Эта функция — мост
 // обратно: сопоставляет присланный список url с уже существующими
