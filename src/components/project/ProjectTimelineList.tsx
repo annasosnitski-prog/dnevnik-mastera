@@ -10,7 +10,15 @@ import { ProjectTimelineRow } from './ProjectTimelineRow';
 // смысла этой шкалы) — и только те, у кого задано окно или точная дата
 // (иначе getProjectPipelineSegments не может вычислить ни одной точки, см.
 // его собственный комментарий).
-export function ProjectTimelineList({ projects, clients }: { projects: Project[]; clients: Client[] }) {
+export function ProjectTimelineList({
+  projects,
+  clients,
+  onOpenProject,
+}: {
+  projects: Project[];
+  clients: Client[];
+  onOpenProject: (project: Project) => void;
+}) {
   const items = projects
     .filter((p) => p.status === 'active')
     .map((project) => {
@@ -37,7 +45,13 @@ export function ProjectTimelineList({ projects, clients }: { projects: Project[]
   return (
     <div style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}>
       {items.map(({ project, segments }) => (
-        <ProjectTimelineRow key={project.id} project={project} clientName={clientNameFor(clients, project.clientId)} segments={segments} />
+        <ProjectTimelineRow
+          key={project.id}
+          project={project}
+          clientName={clientNameFor(clients, project.clientId)}
+          segments={segments}
+          onOpen={onOpenProject}
+        />
       ))}
     </div>
   );

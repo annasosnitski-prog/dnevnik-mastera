@@ -43,13 +43,24 @@ function ProjectRowHeader({ project, clientName }: { project: Project; clientNam
 // Строка проекта без окна/точной даты первой сессии — вместо шкалы честно
 // показывается только то, что мастер сама поставила как следующий шаг (тип
 // действия ± свой текст), ни одной придуманной даты.
-function DatelessProjectRow({ project, clientName }: { project: Project; clientName: string | null }) {
+function DatelessProjectRow({
+  project,
+  clientName,
+  onOpen,
+}: {
+  project: Project;
+  clientName: string | null;
+  onOpen: (project: Project) => void;
+}) {
   const actionType = project.nextActionType;
   const actionText = project.nextActionText.trim();
   const label = actionText || (actionType ? NEXT_ACTION_LABELS[actionType] ?? null : null);
 
   return (
-    <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)' }}>
+    <div
+      onClick={() => onOpen(project)}
+      style={{ padding: '14px 16px', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)', cursor: 'pointer' }}
+    >
       <ProjectRowHeader project={project} clientName={clientName} />
       {label ? (
         <div style={{ fontSize: fs(12), color: COLORS.gold, marginLeft: 34 }}>{label}</div>
@@ -68,7 +79,15 @@ function DatelessProjectRow({ project, clientName }: { project: Project; clientN
 // разделение: «Таймлайн» — только проекты с заданным окном/точной датой
 // первой сессии (getProjectPipelineSegments вернул сегменты), здесь — только
 // те, для кого она не задана и посчитать шкалу нечем.
-export function DatelessProjectsList({ projects, clients }: { projects: Project[]; clients: Client[] }) {
+export function DatelessProjectsList({
+  projects,
+  clients,
+  onOpenProject,
+}: {
+  projects: Project[];
+  clients: Client[];
+  onOpenProject: (project: Project) => void;
+}) {
   const items = projects
     .filter((p) => p.status === 'active')
     .filter((project) => {
@@ -93,7 +112,12 @@ export function DatelessProjectsList({ projects, clients }: { projects: Project[
   return (
     <div style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}>
       {items.map((project) => (
-        <DatelessProjectRow key={project.id} project={project} clientName={clientNameFor(clients, project.clientId)} />
+        <DatelessProjectRow
+          key={project.id}
+          project={project}
+          clientName={clientNameFor(clients, project.clientId)}
+          onOpen={onOpenProject}
+        />
       ))}
     </div>
   );
