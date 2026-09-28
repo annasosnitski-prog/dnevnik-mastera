@@ -99,10 +99,16 @@ export function ProjectTimelineRow({
   project,
   clientName,
   segments,
+  onOpen,
 }: {
   project: Project;
   clientName: string | null;
   segments: ProjectPipelineSegment[];
+  // Тап по строке открывает карточку проекта — тот же переход, что и с
+  // обложки проекта или из напоминаний (см. onOpenProject в
+  // AdminDashboardScreen). Опционален только чтобы не ломать превью/тесты,
+  // которые рендерят строку саму по себе без экрана-обёртки.
+  onOpen?: (project: Project) => void;
 }) {
   if (segments.length === 0) return null;
 
@@ -126,7 +132,10 @@ export function ProjectTimelineRow({
   const scaleHeight = hasActionHint ? 74 : 48;
 
   return (
-    <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)' }}>
+    <div
+      onClick={onOpen ? () => onOpen(project) : undefined}
+      style={{ padding: '14px 16px', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)', cursor: onOpen ? 'pointer' : undefined }}
+    >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12, direction: isRTL(project.title) ? 'rtl' : 'ltr' }}>
         <span
           style={{

@@ -244,9 +244,9 @@ export function AdminDashboardScreen({
             дата первой сессии (см. DatelessProjectsList): прежняя рабочая
             статистика (клиенты/нагрузка/блокнот), которая тут раньше была,
             уехала без замены — это осознанная замена вкладки. */}
-        {tab === 'summary' && <DatelessProjectsList projects={projects} clients={clients} />}
+        {tab === 'summary' && <DatelessProjectsList projects={projects} clients={clients} onOpenProject={onOpenProject} />}
 
-        {tab === 'timeline' && <ProjectTimelineList projects={projects} clients={clients} />}
+        {tab === 'timeline' && <ProjectTimelineList projects={projects} clients={clients} onOpenProject={onOpenProject} />}
       </div>
     </div>
   );
