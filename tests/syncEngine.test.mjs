@@ -10,7 +10,7 @@ import { putClient, getAllClients, deleteClientRecord } from '../.test-dist/src/
 import { putProject, getAllProjects } from '../.test-dist/src/storage/repos/projectsRepo.js';
 import { putMasterInfoRecord, getMasterInfoRecord } from '../.test-dist/src/storage/repos/masterInfoRepo.js';
 import { getAllTombstones } from '../.test-dist/src/storage/repos/tombstonesRepo.js';
-import { refToHash } from '../.test-dist/src/sync/photoRefs.js';
+import { refToHash, photoContentHash } from '../.test-dist/src/sync/photoRefs.js';
 
 let dbCounter = 0;
 
@@ -507,16 +507,101 @@ test('за один прогон разворачивается не больш�
   assert.equal(maxConcurrent, 1, 'снимки разворачивались по одному, а не все разом');
 });
 
-test('локальный контрагент для приезжающих записей читается по одной, а не пакетом со всеми pullIds', () => {
+test('локальное тело — и приезжающих, и отправляемых записей — читается по одной, без пакетного запроса', () => {
   // Ревью нашло реальный пробел в первой версии Шага 7Б: пакетный локальный
-  // запрос (getLocalRecordsByIds) звался с pullIds ТОЖЕ — а раз локальные
-  // тела лежат не ссылками, а настоящим base64 (в отличие от облачных), это
-  // держало бы в памяти ВСЕ старые версии разошедшихся записей разом, если
-  // устройство с уже большой библиотекой долго было офлайн. Проверяем сам
-  // источник, а не только поведение на маленьких тестовых данных, где
-  // разница не всплыла бы.
+  // запрос звался с pullIds ТОЖЕ — а раз локальные тела лежат не ссылками, а
+  // настоящим base64 (в отличие от облачных), это держало бы в памяти ВСЕ
+  // старые версии разошедшихся записей разом, если устройство с уже большой
+  // библиотекой долго было офлайн. Шаг 7В убрал пакетное локальное чтение
+  // совсем — тела и на приём, и на отправку читаются одной и той же точечной
+  // функцией. Проверяем сам источник, а не только поведение на маленьких
+  // тестовых данных, где разница не всплыла бы.
   const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
-  assert.match(engine, /const idsNeedingLocalBody = pushIds;/);
+  assert.doesNotMatch(engine, /getLocalRecordsByIds/, 'пакетного локального чтения по списку id больше не должно быть');
+  assert.doesNotMatch(engine, /idsNeedingLocalBody/, 'батча локальных тел на делту больше нет — читаем по одному');
   assert.match(engine, /const localCounterpart = await getLocalRecordById\(db, adapter\.store, record\.id\);/);
-  assert.doesNotMatch(engine, /idsNeedingLocalBody = pullIds/);
+  assert.match(engine, /const record0 = await getLocalRecordById\(db, adapter\.store, id\);/);
+});
+
+// ── Шаг 7В: отправляемые записи — тоже по одной, каждая своим upsert
+// (docs/SYNC_PLAN.md). Симметрично Шагу 7Б, но для направления «местная
+// правка победила».
+
+test('push, оборванный на записи посередине, не откатывает уже отправленные — повтор довозит остальное', async () => {
+  const device = await openTestDb();
+  const remote = fakeRemote();
+  const hashes = {};
+  for (const suffix of ['1', '2', '3']) {
+    const dataUrl = `data:image/jpeg;base64,${suffix.repeat(500)}`;
+    hashes[suffix] = await photoContentHash(dataUrl);
+    await write(device, ['projects', 'deletions'], (tx) =>
+      putProject(tx, { id: `p${suffix}`, title: `Проект ${suffix}`, photos: [dataUrl] }),
+    );
+  }
+
+  // Курсор IndexedDB идёт в порядке ключей (p1 < p2 < p3 — гарантия
+  // спецификации), поэтому p1 отправляется и применяется раньше, чем
+  // ломается отправка снимка p2.
+  const originalUpload = remote.photos.upload.bind(remote.photos);
+  remote.photos.upload = async (hash, dataUrl) => {
+    if (hash === hashes['2']) throw new Error('сеть моргнула ровно на этом снимке');
+    return originalUpload(hash, dataUrl);
+  };
+
+  await assert.rejects(() => runFullSync(device, remote));
+
+  assert.deepEqual(
+    [...remote._collections.projects.keys()].sort(),
+    ['p1'],
+    'p1 отправился своей отдельной операцией раньше и не откатился; p2 и p3 ещё не доехали',
+  );
+
+  // Сеть починилась, мастер синхронизируется ещё раз.
+  remote.photos.upload = originalUpload;
+  await runFullSync(device, remote);
+
+  assert.deepEqual(
+    [...remote._collections.projects.keys()].sort(),
+    ['p1', 'p2', 'p3'],
+    'повтор довёз остальное — без повторной работы над уже отправленным p1',
+  );
+});
+
+test('за один прогон отправляется не больше одной записи разом', async () => {
+  const device = await openTestDb();
+  const remote = fakeRemote();
+  for (const suffix of ['1', '2', '3', '4']) {
+    await write(device, ['projects', 'deletions'], (tx) =>
+      putProject(tx, { id: `p${suffix}`, title: `Проект ${suffix}`, photos: [`data:image/jpeg;base64,${suffix.repeat(500)}`] }),
+    );
+  }
+
+  let concurrent = 0;
+  let maxConcurrent = 0;
+  const originalUpload = remote.photos.upload.bind(remote.photos);
+  remote.photos.upload = async (hash, dataUrl) => {
+    concurrent += 1;
+    maxConcurrent = Math.max(maxConcurrent, concurrent);
+    // Уступаем событийный цикл: будь отправка запущена параллельно, здесь
+    // пересеклось бы ещё несколько вызовов.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    concurrent -= 1;
+    return originalUpload(hash, dataUrl);
+  };
+
+  await runFullSync(device, remote);
+
+  assert.equal(maxConcurrent, 1, 'снимки отправлялись по одному, а не все разом');
+});
+
+test('обогащённая чужими снимками запись пишется локально ДО отправки в облако', () => {
+  // Обратный порядок в случае обрыва между записью и отправкой навсегда
+  // лишил бы устройство собственного же снимка: updatedAt после отправки
+  // совпал бы с обликом в облаке, и mergeRecords решил бы, что расхождения
+  // больше нет («ничего не делаем» при равенстве времени).
+  const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
+  const pushLoop = engine.slice(engine.indexOf('let pushedCount = 0;'), engine.indexOf('// Удаления и следы удаления'));
+  const write_ = pushLoop.indexOf("db.transaction(adapter.store, 'readwrite')");
+  const send = pushLoop.indexOf('await remote.upsert([pushRow]);');
+  assert.ok(write_ > 0 && write_ < send);
 });
