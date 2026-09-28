@@ -231,20 +231,27 @@ test('фото-поля здесь и в разборе «Куда ушло ме
 test('движок выносит снимки на отправке и разворачивает на приёме', () => {
   const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
   assert.match(engine, /externalizePhotos\(kind, unioned, photos, uploaded\)/);
-  assert.match(engine, /internalizePhotos\(kind, unioned, localById\.get\(record\.id\), photos\)/);
+  // Приём — по одной записи (Шаг 7Б, docs/SYNC_PLAN.md): контрагент читается
+  // локально сам по себе (getLocalRecordById), а не пакетом со всеми pullIds,
+  // — иначе большая делта держала бы в памяти все старые тела разом.
+  assert.match(engine, /internalizePhotos\(kind, unioned, localCounterpart, photos\)/);
   // Набор загруженного — один на весь прогон, иначе копии одного снимка в
   // разных сторах уехали бы в облако по разу за стор.
   assert.match(engine, /const uploaded = new Set<string>\(\);/);
 });
 
-test('снимки разворачиваются ДО открытия записи в IndexedDB', () => {
+test('снимки разворачиваются ДО открытия записи в IndexedDB — по каждой приезжающей записи отдельно', () => {
   // Транзакция IndexedDB закрывается на первом витке событий без запросов.
   // Скачать файл внутри неё — это await на сеть, то есть гарантированный
-  // TransactionInactiveError на записи.
+  // TransactionInactiveError на записи. Шаг 7Б (docs/SYNC_PLAN.md) пишет
+  // приезжающие записи по одной, каждую своей транзакцией, — но порядок
+  // «сначала развернуть, потом открыть» внутри одной итерации цикла должен
+  // сохраниться так же строго, как раньше сохранялся для всего пакета.
   const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
-  const prepare = engine.indexOf('const toWriteLocally = await Promise.all(');
-  const open = engine.indexOf("db.transaction([adapter.store, DELETIONS_STORE], 'readwrite')");
-  assert.ok(prepare > 0 && prepare < open);
+  const loopBody = engine.slice(engine.indexOf('for (const id of pullIds) {'), engine.indexOf('// Локальная правка победила'));
+  const expand = loopBody.indexOf('const expanded = await internalizePhotos(');
+  const open = loopBody.indexOf("db.transaction(adapter.store, 'readwrite')");
+  assert.ok(expand > 0 && expand < open);
 });
 
 // ── Слияние конфликтующих фото ────────────────────────────────────────────
@@ -341,6 +348,7 @@ test('сессия, которой нет у победителя, фото из
 
 test('движок сливает фото ДО выбора победителя целиком, в обе стороны', () => {
   const engine = readFileSync(new URL('../src/sync/syncEngine.ts', import.meta.url), 'utf8');
-  assert.match(engine, /unionPhotoFields\(kind, record, localById\.get\(record\.id\)\)/);
+  // Приём — контрагент из getLocalRecordById (Шаг 7Б), не из общего localById.
+  assert.match(engine, /unionPhotoFields\(kind, record, localCounterpart\)/);
   assert.match(engine, /unionPhotoFields\(kind, record, remoteById\.get\(record\.id\)\)/);
 });

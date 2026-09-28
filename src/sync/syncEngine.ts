@@ -152,6 +152,22 @@ function getLocalRecordsByIds(db: IDBDatabase, store: DeletableStore, ids: strin
   });
 }
 
+// Один локальный контрагент — для unionPhotoFields при пуле ОДНОЙ приезжающей
+// записи, не пакетом со всеми pullIds сразу. Если у устройства уже была
+// большая библиотека и после долгого офлайна побеждает облако сразу у многих
+// записей, пакетный запрос держал бы в памяти ВСЕ их старые тела со снимками
+// разом — ту же беду, от которой Шаг 7Б (docs/SYNC_PLAN.md) уводит сами
+// приезжающие тела. Своя транзакция на каждый вызов: предыдущая уже могла
+// закрыться (await на сеть — скачивание снимка — между вызовами).
+function getLocalRecordById(db: IDBDatabase, store: DeletableStore, id: string): Promise<RemoteRow | undefined> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const request = tx.objectStore(store).get(id);
+    request.onsuccess = () => resolve(request.result as RemoteRow | undefined);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 function txDone(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
@@ -209,39 +225,59 @@ async function syncCollection(
   // клиент/проект, которого в облаке ещё никогда не было).
   const remoteIdSet = new Set(remoteMeta.map((r) => r.id));
   const idsNeedingRemoteBody = pullIds.concat(pushIds.filter((id) => remoteIdSet.has(id)));
-  const idsNeedingLocalBody = pullIds.concat(pushIds);
+  // Локально пакетом — ТОЛЬКО то, что реально нужно отправить (pushIds): эти
+  // тела всё равно едут в облако целиком, батч их не размножает. Контрагент
+  // для приезжающих записей (pullIds) читается по одному, внутри цикла ниже
+  // (getLocalRecordById) — см. комментарий там.
+  const idsNeedingLocalBody = pushIds;
 
   const [remoteBodies, localBodies] = await Promise.all([
     remote.getByIds(idsNeedingRemoteBody),
     getLocalRecordsByIds(db, adapter.store, idsNeedingLocalBody),
   ]);
-  // Свои записи под рукой: приехавшая ссылка на снимок чаще всего
-  // разворачивается из собственного фото, а не скачиванием (photoPayload.ts).
+  // Свои записи под рукой: нужны для отправки (pushIds) и как контрагент для
+  // unionPhotoFields на стороне облака (см. remoteIdSet выше).
   const localById = new Map(localBodies.map((record) => [record.id, record]));
   // Облачные — под рукой для обратного случая: победила локальная правка,
   // но снимки, добавленные с ДРУГОГО устройства офлайн, не должны потеряться.
   const remoteById = new Map(remoteBodies.map((record) => [record.id, record]));
 
+  // Шаг 7Б (docs/SYNC_PLAN.md): каждая приезжающая запись разворачивается и
+  // пишется СВОЕЙ транзакцией — по одной, не Promise.all и не один большой
+  // writeTx на всю делту. Если делта размером во всю библиотеку (первая
+  // привязка нового устройства к уже большой библиотеке, очень долгий
+  // офлайн), это единственное, что не даёт всем её снимкам оказаться в
+  // памяти разом — снимки лежат base64-строками внутри записей, и именно
+  // это убивало вкладку на телефоне.
+  //
+  // Плата — идемпотентность вместо скорости: обрыв на записи N оставляет
+  // 1..N-1 уже применёнными (каждая — отдельная завершённая транзакция), а
+  // повторный синк заново решит на метаданных, что осталось разошедшимся, и
+  // довезёт остальное без повторной работы над уже приехавшим.
+  //
   // Снимки разворачиваются ДО открытия записи: транзакция IndexedDB живёт
   // до первого витка событий без запросов, а скачивание файла — это await
   // на сеть, который её гарантированно закроет.
-  //
-  // remoteById.get(id) может не найтись, если запись пропала из облака
-  // между чтением метаданных и этим чтением (её удалили с другого
-  // устройства ровно сейчас) — пропускаем, следующий синк подтянет след
-  // удаления обычным путём.
-  const toWriteLocally = await Promise.all(
-    pullIds
-      .map((id) => remoteById.get(id))
-      .filter((record): record is RemoteRow => record !== undefined)
-      .map(async (record) => {
-        // Запись победила из облака, но локально по этому id могла быть своя
-        // версия — офлайн-добавленные в неё снимки складываются, а не теряются
-        // (см. unionPhotoFields).
-        const unioned = await unionPhotoFields(kind, record, localById.get(record.id));
-        return internalizePhotos(kind, unioned, localById.get(record.id), photos);
-      }),
-  );
+  let pulledCount = 0;
+  for (const id of pullIds) {
+    const record = remoteById.get(id);
+    // Запись пропала из облака между чтением метаданных и этим чтением (её
+    // удалили с другого устройства ровно сейчас) — пропускаем, следующий
+    // синк подтянет след удаления обычным путём.
+    if (!record) continue;
+    // Запись победила из облака, но локально по этому id могла быть своя
+    // версия — офлайн-добавленные в неё снимки складываются, а не теряются
+    // (см. unionPhotoFields). Читаем контрагента здесь же, по одному
+    // (getLocalRecordById), а не из общего localById — см. комментарий у
+    // idsNeedingLocalBody выше.
+    const localCounterpart = await getLocalRecordById(db, adapter.store, record.id);
+    const unioned = await unionPhotoFields(kind, record, localCounterpart);
+    const expanded = await internalizePhotos(kind, unioned, localCounterpart, photos);
+    const writeTx = db.transaction(adapter.store, 'readwrite');
+    adapter.put(writeTx, expanded, { preserveUpdatedAt: true });
+    await txDone(writeTx);
+    pulledCount += 1;
+  }
 
   // Локальная правка победила, но в облаке по этому id уже могла лежать
   // своя версия — снимки, добавленные там офлайн на другом устройстве,
@@ -280,14 +316,12 @@ async function syncCollection(
     }
   }
 
-  if (
-    toWriteLocally.length ||
-    merged.toDeleteLocally.length ||
-    merged.tombstonesToStore.length ||
-    photoEnrichedLocally.length
-  ) {
+  // Записи из PUSH-направления (photoEnrichedLocally) и удаления — по-прежнему
+  // одной транзакцией: ни те, ни другие не тянут за собой чужой фотобиблиотеки
+  // (удаление — это id и след, без тела; photoEnrichedLocally придёт по одной
+  // записи вместо пакета в Шаге 7В), так что батч здесь не опасен.
+  if (merged.toDeleteLocally.length || merged.tombstonesToStore.length || photoEnrichedLocally.length) {
     const writeTx = db.transaction([adapter.store, DELETIONS_STORE], 'readwrite');
-    for (const record of toWriteLocally) adapter.put(writeTx, record, { preserveUpdatedAt: true });
     for (const record of photoEnrichedLocally) adapter.put(writeTx, record, { preserveUpdatedAt: true });
     for (const id of merged.toDeleteLocally) adapter.remove(writeTx, id);
     // Время следа — из облака (когда там удалили), а не «сейчас»: устройство
@@ -311,7 +345,7 @@ async function syncCollection(
     // Реально применённое, а не только решённое: если тело пропало из-за
     // гонки (см. фильтры выше), запись не в счёт — она просто не долетела в
     // этот раз, следующий синк доведёт дело до конца.
-    pulled: toWriteLocally.length,
+    pulled: pulledCount,
     pushed: pushRows.length,
     deletedLocally: merged.toDeleteLocally.length,
     tombstonesPulled: merged.tombstonesToStore.length,
