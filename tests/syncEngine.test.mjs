@@ -9,6 +9,7 @@ import { putClient, getAllClients, deleteClientRecord } from '../.test-dist/src/
 import { putProject, getAllProjects } from '../.test-dist/src/storage/repos/projectsRepo.js';
 import { putMasterInfoRecord, getMasterInfoRecord } from '../.test-dist/src/storage/repos/masterInfoRepo.js';
 import { getAllTombstones } from '../.test-dist/src/storage/repos/tombstonesRepo.js';
+import { refToHash } from '../.test-dist/src/sync/photoRefs.js';
 
 let dbCounter = 0;
 
@@ -430,4 +431,77 @@ test('повторный синк без изменений не запраши�
   await runFullSync(db, remote);
 
   assert.deepEqual(remote._getByIdsCalls.clients.flat(), [], 'ничего не изменилось — ни один id не запрошен');
+});
+
+// ── Шаг 7Б: тела приезжающих записей — по одной, каждая своей транзакцией
+// (docs/SYNC_PLAN.md). Раньше единственным способом проверить «в памяти не
+// больше одного тела разом» было поверить комментарию. Теперь это видно по
+// поведению: обрыв прогона не откатывает уже применённое, а скачивание
+// снимков не пересекается по времени.
+
+test('прогон, оборванный на записи посередине, не откатывает уже применённые — повтор довозит остальное', async () => {
+  // Три проекта уже лежат в облаке (как будто другое устройство их туда
+  // отправило) — новому устройству нужно забрать все три.
+  const donor = await openTestDb();
+  const remote = fakeRemote();
+  for (const suffix of ['1', '2', '3']) {
+    await write(donor, ['projects', 'deletions'], (tx) =>
+      putProject(tx, { id: `p${suffix}`, title: `Проект ${suffix}`, photos: [`data:image/jpeg;base64,${suffix.repeat(500)}`] }),
+    );
+  }
+  await runFullSync(donor, remote);
+
+  const p2Hash = refToHash(remote._collections.projects.get('p2').photos[0]);
+
+  // Курсор IndexedDB идёт в порядке ключей (p1 < p2 < p3 — гарантия
+  // спецификации, не деталь реализации), поэтому p1 обрабатывается и
+  // применяется раньше, чем ломается скачивание фото p2.
+  const device = await openTestDb();
+  const originalDownload = remote.photos.download.bind(remote.photos);
+  remote.photos.download = async (hash) => {
+    if (hash === p2Hash) throw new Error('сеть моргнула ровно на этом снимке');
+    return originalDownload(hash);
+  };
+
+  await assert.rejects(() => runFullSync(device, remote));
+
+  const afterCrash = (await read(device, 'projects', (tx) => getAllProjects(tx))).map((p) => p.id).sort();
+  assert.deepEqual(afterCrash, ['p1'], 'p1 применился своей отдельной транзакцией раньше и не откатился; p2 и p3 ещё не доехали');
+
+  // Сеть починилась, мастер синхронизируется ещё раз.
+  remote.photos.download = originalDownload;
+  await runFullSync(device, remote);
+
+  const afterRetry = (await read(device, 'projects', (tx) => getAllProjects(tx))).map((p) => p.id).sort();
+  assert.deepEqual(afterRetry, ['p1', 'p2', 'p3'], 'повтор довёз остальное — без повторной работы над уже применённым p1');
+});
+
+test('за один прогон разворачивается не больше одной приезжающей записи разом', async () => {
+  const donor = await openTestDb();
+  const remote = fakeRemote();
+  for (const suffix of ['1', '2', '3', '4']) {
+    await write(donor, ['projects', 'deletions'], (tx) =>
+      putProject(tx, { id: `p${suffix}`, title: `Проект ${suffix}`, photos: [`data:image/jpeg;base64,${suffix.repeat(500)}`] }),
+    );
+  }
+  await runFullSync(donor, remote);
+
+  const device = await openTestDb();
+  let concurrent = 0;
+  let maxConcurrent = 0;
+  const originalDownload = remote.photos.download.bind(remote.photos);
+  remote.photos.download = async (hash) => {
+    concurrent += 1;
+    maxConcurrent = Math.max(maxConcurrent, concurrent);
+    // Уступаем событийный цикл: будь скачивание запущено параллельно
+    // (Promise.all по всей делте, как раньше), здесь пересеклось бы ещё
+    // несколько вызовов.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    concurrent -= 1;
+    return originalDownload(hash);
+  };
+
+  await runFullSync(device, remote);
+
+  assert.equal(maxConcurrent, 1, 'снимки разворачивались по одному, а не все разом');
 });
