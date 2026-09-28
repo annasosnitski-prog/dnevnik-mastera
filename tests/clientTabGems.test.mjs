@@ -101,10 +101,13 @@ test('every tab is coloured by its own territory (kind), with a per-tab override
     /const KIND_COLORS: Record<ClientTabIconName, string> = \{\s*sessions: TERRITORY_COLORS\.projects,\s*consultations: TERRITORY_COLORS\.projects,\s*content: TERRITORY_COLORS\.content,\s*notes: TERRITORY_COLORS\.notes,\s*info: TERRITORY_COLORS\.personal,\s*projects: TERRITORY_COLORS\.projects,/,
   );
   assert.doesNotMatch(tabBarModule, /clientOrnateGemKind|gemKind/);
-  // Админка's «Все проекты» (id 'summary' — was «Сводка», see #294 follow-up)
-  // overrides its info-kind default (personal) to the admin territory red —
-  // the one tab whose icon doesn't match its meaning.
-  assert.match(adminDashboardScreen, /id: 'summary', kind: 'info', label: 'Все проекты', color: TERRITORY_COLORS\.admin/);
+  // Админка's «Без окна»/«Таймлайн» pair (id 'summary'/'timeline' — was one
+  // combined «Все проекты» tab, then split back into two, see #294 follow-up)
+  // override their kind-default colours with a meaning-based pair instead:
+  // green for a project that has a window/date («Таймлайн»), blue for one
+  // that doesn't yet («Без окна») — neither reads as its icon's kind colour.
+  assert.match(adminDashboardScreen, /id: 'summary', kind: 'info', label: 'Без окна', color: TERRITORY_COLORS\.projects/);
+  assert.match(adminDashboardScreen, /id: 'timeline', kind: 'projects', label: 'Таймлайн', color: TERRITORY_COLORS\.clients/);
   // No screen-wide accentColor prop any more — colour is resolved per tab.
   assert.doesNotMatch(adminDashboardScreen, /accentColor/);
   assert.doesNotMatch(masterDashboardScreen, /accentColor/);
