@@ -10,6 +10,7 @@
     "src/lib/contentRefresh.ts",
     "src/lib/contentPhotoSelection.ts",
     "src/lib/contentShare.ts",
+    "src/lib/moodboardShare.ts",
     "src/lib/contentTextEditing.ts",
     "src/lib/contentApproval.ts",
     "src/lib/clipboard.ts",

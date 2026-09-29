@@ -15,8 +15,12 @@ import {
   PROJECT_WAITING_FOR,
   PROJECT_PRIORITIES,
   NEXT_ACTION_TYPES,
+  MOODBOARD_STATUSES,
   type Project,
   type HealingPhoto,
+  type Moodboard,
+  type MoodboardItem,
+  type MoodboardItemKind,
 } from '../domain/project.js';
 
 // Normalises a raw IndexedDB record (which may predate this schema) into a
@@ -212,6 +216,46 @@ function normalizeHealingPhotos(raw: any): HealingPhoto[] {
   return photos.map((p, i) => ({ ...p, isCover: i === cover }));
 }
 
+const MOODBOARD_ITEM_KINDS: MoodboardItemKind[] = ['photo', 'link', 'color'];
+
+// Один item мудборда (см. MoodboardItem в domain/project.ts). Неизвестный
+// kind отбрасывается вместе с записью — тот же принцип «сломанная запись
+// не остаётся полу-заполненной», что у normalizeHealingPhotos выше.
+function normalizeMoodboardItem(raw: any, i: number): MoodboardItem | null {
+  if (!MOODBOARD_ITEM_KINDS.includes(raw?.kind)) return null;
+  return {
+    id: String(raw?.id ?? `${Date.now()}-mi${i}`),
+    kind: raw.kind,
+    src: typeof raw?.src === 'string' ? raw.src : '',
+    url: typeof raw?.url === 'string' ? raw.url : '',
+    hex: typeof raw?.hex === 'string' ? raw.hex : '',
+    note: typeof raw?.note === 'string' ? raw.note : '',
+  };
+}
+
+// Project.moodboard — см. Moodboard в domain/project.ts. null остаётся null
+// (мудборд ещё не заводили — отличается от заведённого, но пустого), любая
+// другая форма (в т.ч. отсутствие поля у старых проектов) тоже даёт null,
+// а не пустой объект: заводить пустой Moodboard всем существующим проектам
+// задним числом означало бы придумывать сущность, которой не было.
+function normalizeMoodboard(raw: any): Moodboard | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const items = Array.isArray(raw.items)
+    ? raw.items.map(normalizeMoodboardItem).filter((it: MoodboardItem | null): it is MoodboardItem => it !== null)
+    : [];
+  return {
+    id: String(raw.id ?? `${Date.now()}-mb`),
+    items,
+    caption: typeof raw.caption === 'string' ? raw.caption : '',
+    status: MOODBOARD_STATUSES.some((s) => s.key === raw.status) ? raw.status : 'draft',
+    // ISO timestamp (как createdDate/history[].date), а не yyyy-mm-dd — не
+    // через isValidISODate, та проверяет только формат даты без времени.
+    sentAt: typeof raw.sentAt === 'string' && raw.sentAt ? raw.sentAt : null,
+    approvedAt: typeof raw.approvedAt === 'string' && raw.approvedAt ? raw.approvedAt : null,
+    updatedAt: typeof raw.updatedAt === 'string' && raw.updatedAt ? raw.updatedAt : new Date().toISOString(),
+  };
+}
+
 export function normalizeProject(raw: any, index: number): Project {
   const sessions: Session[] = Array.isArray(raw?.sessions) ? raw.sessions.map(normalizeSession) : [];
   const firstSessionWindowAmount =
@@ -254,6 +298,7 @@ export function normalizeProject(raw: any, index: number): Project {
     creative: raw?.creative ?? '',
     inspirationSources: raw?.inspirationSources ?? '',
     photos: Array.isArray(raw?.photos) ? raw.photos : [],
+    moodboard: normalizeMoodboard(raw?.moodboard),
     healingPhotos: normalizeHealingPhotos(raw?.healingPhotos),
     createdDate: raw?.createdDate ?? new Date().toISOString(),
     firstSessionWindowAmount,

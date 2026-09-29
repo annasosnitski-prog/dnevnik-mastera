@@ -416,6 +416,59 @@ test('normalizeProject blanks a malformed healing-photo addedDate rather than tr
   assert.equal(p.healingPhotos[0].addedDate, '');
 });
 
+// ── normalizeProject: moodboard ────────────────────────────────────
+
+test('normalizeProject defaults moodboard to null — not yet created, unlike an empty one', () => {
+  assert.equal(normalizeProject({}, 0).moodboard, null);
+  assert.equal(normalizeProject({ moodboard: 'сломано' }, 0).moodboard, null);
+});
+
+test('normalizeProject keeps a valid moodboard and fills in its defaults', () => {
+  const p = normalizeProject({ moodboard: { id: 'mb1', caption: 'Для спины' } }, 0);
+  assert.equal(p.moodboard.id, 'mb1');
+  assert.equal(p.moodboard.caption, 'Для спины');
+  assert.equal(p.moodboard.status, 'draft');
+  assert.deepEqual(p.moodboard.items, []);
+  assert.equal(p.moodboard.sentAt, null);
+  assert.equal(p.moodboard.approvedAt, null);
+  assert.ok(p.moodboard.updatedAt);
+});
+
+test('normalizeProject keeps a valid moodboard status and rejects an unknown one', () => {
+  assert.equal(normalizeProject({ moodboard: { status: 'sent' } }, 0).moodboard.status, 'sent');
+  assert.equal(normalizeProject({ moodboard: { status: 'approved' } }, 0).moodboard.status, 'approved');
+  assert.equal(normalizeProject({ moodboard: { status: 'nonsense' } }, 0).moodboard.status, 'draft');
+});
+
+test('normalizeProject drops a moodboard item with an unknown kind instead of keeping a broken tile', () => {
+  const p = normalizeProject({
+    moodboard: { items: [{ id: 'i1', kind: 'photo', src: 'data:x' }, { id: 'i2', kind: 'nonsense' }, null] },
+  }, 0);
+  assert.deepEqual(p.moodboard.items.map((it) => it.id), ['i1']);
+});
+
+test('normalizeProject keeps all three moodboard item kinds', () => {
+  const p = normalizeProject({
+    moodboard: {
+      items: [
+        { id: 'i1', kind: 'photo', src: 'data:x' },
+        { id: 'i2', kind: 'link', url: 'https://pinterest.com/x' },
+        { id: 'i3', kind: 'color', hex: '#8A3040' },
+      ],
+    },
+  }, 0);
+  assert.deepEqual(p.moodboard.items.map((it) => it.kind), ['photo', 'link', 'color']);
+  assert.equal(p.moodboard.items[0].src, 'data:x');
+  assert.equal(p.moodboard.items[1].url, 'https://pinterest.com/x');
+  assert.equal(p.moodboard.items[2].hex, '#8A3040');
+});
+
+test('normalizeProject re-normalizes an already-valid moodboard to the same value (idempotent)', () => {
+  const once = normalizeProject({ moodboard: { id: 'mb1', status: 'approved', items: [{ id: 'i1', kind: 'photo', src: 'x' }] } }, 0);
+  const twice = normalizeProject(once, 0);
+  assert.deepEqual(once.moodboard, twice.moodboard);
+});
+
 // ── Session.isLastSession / deprecated healed ─────────────────────────────
 
 test('normalizeSession defaults isLastSession to false for a record from before the healing cycle', () => {
