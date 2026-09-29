@@ -334,25 +334,30 @@ function resolveFirstSessionTargetDate(project: Project, start: Date): Date | nu
     : addCalendarMonthsClamped(start, amount);
 }
 
-// Самая ранняя ОТКРЫТАЯ консультация проекта с валидной датой — «открытая»
-// в том же смысле, что и isOpenConsultation выше (не done, не cancelled, не
-// converted), чтобы отменённая консультация не притворялась фактом на шкале.
+// Самая ранняя консультация проекта с валидной датой, которая ЕСТЬ ФАКТ, а
+// не выдумка/прогноз. Тут вопрос не тот же, что у isOpenConsultation («ещё
+// требует действия») — выполненная (done:true) консультация ровно так же
+// доказывает факт, как и запланированная, поэтому фильтруем только
+// отменённые, иначе любая консультация, отмеченная выполненной (обычный
+// способ логировать постфактум), незаметно выпадает из расчёта и шкала
+// откатывается на старый прогноз (см. разбор «Гранат» — новая сессия не
+// двигала точку «Сессия» именно по этой причине).
 // На шкале ровно один слот 'consultation', даже если консультаций несколько
 // (см. «Спина Паучьих Лилий» — их там две) — показ всех веером меняет
 // раскладку и намеренно вынесен в отдельную задачу, здесь берём только
 // самую раннюю.
 function firstActualConsultationDate(consultations: Consultation[], projectId: string): string | null {
   const sequence = getConsultationSequence(consultations, projectId).filter(
-    (c) => isOpenConsultation(c) && isValidISODate(c.date),
+    (c) => !c.cancelled && isValidISODate(c.date),
   );
   return sequence.length > 0 ? sequence[0].date : null;
 }
 
-// Зеркало firstActualConsultationDate для сессий — самая ранняя открытая
-// сессия проекта с валидной датой.
+// Зеркало firstActualConsultationDate для сессий — самая ранняя сессия
+// проекта (факт, не отменённая) с валидной датой; выполненные считаются.
 function firstActualSessionDate(sessions: Session[], projectId: string): string | null {
   const projectSessions = getSessionsByProjectId(sessions, projectId)
-    .filter((s) => isOpenSession(s) && isValidISODate(s.date))
+    .filter((s) => !s.cancelled && isValidISODate(s.date))
     .sort((a, b) => a.date.localeCompare(b.date));
   return projectSessions.length > 0 ? projectSessions[0].date : null;
 }

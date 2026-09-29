@@ -372,6 +372,40 @@ test('a cancelled session does not count as an actual record', () => {
   assert.equal(point.source, 'forecast');
 });
 
+// Регрессия «Гранат»: мастер логирует сессию постфактум, отмечает
+// «Выполнена» (done:true, обычный дефолт формы) — это всё равно факт, а не
+// несуществующая запись. До фикса firstActualSessionDate/
+// firstActualConsultationDate ошибочно переиспользовали isOpenSession/
+// isOpenConsultation («ещё требует действия») и любая done-запись пропадала
+// из расчёта, шкала замирала на старом прогнозе/next step.
+test('a done session still counts as an actual record', () => {
+  const done = makeSession({ id: 's1', projectId: 'p1', date: '2026-08-25', done: true });
+  const segments = getProjectPipelineSegments(
+    makeProject({ firstSessionWindowAmount: 2, firstSessionWindowUnit: 'month' }),
+    [done],
+    [],
+  );
+
+  assert.ok(segments);
+  const point = segments.find((s) => s.key === 'session');
+  assert.equal(point.source, 'actual');
+  assert.equal(point.targetDate, '2026-08-25');
+});
+
+test('a done consultation still counts as an actual record', () => {
+  const done = makeConsultation({ id: 'c1', projectId: 'p1', date: '2026-08-20', done: true });
+  const segments = getProjectPipelineSegments(
+    makeProject({ firstSessionWindowAmount: 2, firstSessionWindowUnit: 'month' }),
+    [],
+    [done],
+  );
+
+  assert.ok(segments);
+  const point = segments.find((s) => s.key === 'consultation');
+  assert.equal(point.source, 'actual');
+  assert.equal(point.targetDate, '2026-08-20');
+});
+
 // Регрессия «Спина Паучьих Лилий»: создан 2026-07-01, окно 2 месяца (цель
 // 2026-09-01), две консультации (2026-08-20 и 2026-08-28), сессии нет вовсе.
 // Старая шкала рисовала «Сессия 1 сен» для события, которого не существует,
