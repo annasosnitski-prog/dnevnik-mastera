@@ -244,6 +244,56 @@ test('an exact date equal to createdDate is a valid (zero-length) pipeline', () 
 // Лилий» — окно рисовало «Сессия 1 сен» для сессии, которой не было вообще,
 // и консультацию не на ту дату, что была в реальности.)
 
+test('a sent moodboard is actual at its sentAt date', () => {
+  const segments = getProjectPipelineSegments(
+    makeProject({
+      firstSessionWindowAmount: 2,
+      firstSessionWindowUnit: 'month',
+      moodboard: { id: 'mb1', items: [], caption: '', status: 'sent', sentAt: '2026-01-15T09:00:00.000Z', approvedAt: null, updatedAt: '2026-01-15T09:00:00.000Z' },
+    }),
+    [],
+    [],
+  );
+
+  assert.ok(segments);
+  const point = segments.find((s) => s.key === 'moodboard');
+  assert.equal(point.source, 'actual');
+  assert.equal(point.targetDate, '2026-01-15');
+  assert.equal(point.actionType, null);
+  assert.equal(point.actionText, null);
+});
+
+test('a moodboard sent into rework stays actual — rework does not un-send it', () => {
+  const segments = getProjectPipelineSegments(
+    makeProject({
+      firstSessionWindowAmount: 2,
+      firstSessionWindowUnit: 'month',
+      moodboard: { id: 'mb1', items: [], caption: '', status: 'rework', sentAt: '2026-01-15T09:00:00.000Z', approvedAt: null, updatedAt: '2026-01-20T09:00:00.000Z' },
+    }),
+    [],
+    [],
+  );
+
+  const point = segments.find((s) => s.key === 'moodboard');
+  assert.equal(point.source, 'actual');
+  assert.equal(point.targetDate, '2026-01-15');
+});
+
+test('a moodboard that was never sent stays a forecast, even if it has content', () => {
+  const segments = getProjectPipelineSegments(
+    makeProject({
+      firstSessionWindowAmount: 2,
+      firstSessionWindowUnit: 'month',
+      moodboard: { id: 'mb1', items: [{ id: 'i1', kind: 'photo', src: 'data:x', url: '', hex: '', note: '' }], caption: '', status: 'draft', sentAt: null, approvedAt: null, updatedAt: '2026-01-15T09:00:00.000Z' },
+    }),
+    [],
+    [],
+  );
+
+  const point = segments.find((s) => s.key === 'moodboard');
+  assert.equal(point.source, 'forecast');
+});
+
 test('a real open consultation wins over the forecast for the consultation stage', () => {
   const consultation = makeConsultation({ id: 'c1', projectId: 'p1', date: '2026-08-20' });
   const segments = getProjectPipelineSegments(

@@ -384,6 +384,13 @@ export function getProjectPipelineSegments(
 
   const actualConsultationDate = firstActualConsultationDate(consultations, project.id);
   const actualSessionDate = firstActualSessionDate(sessions, project.id);
+  // Факт «Мудборд» — момент, когда он реально уехал клиенту (sentAt), а не
+  // когда мастер его одобрила/отправила на доработку: rework не отменяет
+  // того, что подборка уже была отправлена (см. withMoodboardStatus — sentAt
+  // не сбрасывается при переходе в rework), так что этот момент остаётся
+  // единственным и неизменным «фактом» вехи, как и firstActualSessionDate
+  // выше не переоценивается на каждой последующей сессии.
+  const actualMoodboardDate = project.moodboard?.sentAt ? project.moodboard.sentAt.slice(0, 10) : null;
   // nextActionType===null — совершенно нормальное состояние (next step задан
   // только текстом/датой, без выбранного типа): тогда его некуда привязать
   // структурно, и он просто не анкерит ни одну стадию (остаётся 'forecast'),
@@ -402,7 +409,14 @@ export function getProjectPipelineSegments(
 
     // Приоритет: факт > обещание (next step) > прогноз — см. комментарий
     // у PipelineSegmentSource.
-    const actualDate = key === 'consultation' ? actualConsultationDate : key === 'session' ? actualSessionDate : null;
+    const actualDate =
+      key === 'consultation'
+        ? actualConsultationDate
+        : key === 'session'
+          ? actualSessionDate
+          : key === 'moodboard'
+            ? actualMoodboardDate
+            : null;
     if (actualDate) return { key, targetDate: actualDate, source: 'actual', actionType: null, actionText: null };
     if (nextStepStage === key) {
       return {
