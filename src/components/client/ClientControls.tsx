@@ -349,6 +349,16 @@ function SortablePhotoTile({ id, children }: { id: string; children: React.React
         zIndex: isDragging ? 10 : undefined,
         opacity: isDragging ? 0.6 : 1,
         touchAction: 'none',
+        // Без этих трёх Safari/iOS перехватывает долгое нажатие своим меню
+        // «Сохранить фото / Скопировать» ДО того, как его успевает поймать
+        // dnd-kit — снаружи это выглядит как «зажатие открывает системное
+        // меню» вместо перетаскивания. WebkitTouchCallout — тот самый флаг,
+        // остальные два подчищают побочные эффекты (выделение текста/
+        // подсветка тапа), которые звёзды на этой же плитке иначе оставляют.
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       {children}
@@ -437,6 +447,11 @@ export function SessionPhotos({
       <img
         src={src}
         alt=""
+        // Браузерный drag ghost у <img> (взять фото мышью/пальцем и
+        // "перетащить как файл") мешает собственному dnd-kit-перетаскиванию
+        // ниже — выключен безусловно, это не убирает ничего полезного и
+        // для нередактируемых мест.
+        draggable={false}
         onClick={() => setViewerSrc(src)}
         style={{
           width: '100%',

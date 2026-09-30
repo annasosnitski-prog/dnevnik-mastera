@@ -681,6 +681,7 @@ export function ProjectViewSheet({
   onSaveNextStep,
   onSaveHealingPhotos,
   onSetMoodboardStatus,
+  onReorderMoodboardPhotos,
 }: {
   open: boolean;
   project: Project | null;
@@ -717,6 +718,10 @@ export function ProjectViewSheet({
   // успешной отдачи через «Поделиться» (см. handleSendMoodboard). Пишет
   // напрямую в проект тем же saveProject, что и остальные правки здесь.
   onSetMoodboardStatus: (status: MoodboardStatus) => void;
+  // Перетаскивание фото мудборда для смены порядка — живёт только здесь, в
+  // просмотре проекта, а не в форме редактирования (там только добавить/
+  // удалить). Порядок этот же уходит и в коллаж, и в россыпь при отправке.
+  onReorderMoodboardPhotos: (srcs: string[]) => void;
 }) {
   const [sendingMoodboard, setSendingMoodboard] = useState(false);
   const [moodboardShareNote, setMoodboardShareNote] = useState<string | null>(null);
@@ -806,7 +811,18 @@ export function ProjectViewSheet({
                     ))}
                   </select>
                 </div>
-                <SessionPhotos photos={moodboardPhotoSrcs(project.moodboard)} onChange={() => {}} allowDelete={false} readOnly />
+                {/* readOnly (нет кнопки «Добавить») + allowDelete={false}
+                    (нельзя удалить) — здесь только смотреть и переставлять
+                    местами; добавить/удалить фото — в форме редактирования.
+                    reorderable делает именно то, чего readOnly обычно не
+                    даёт: onChange здесь настоящий, а не заглушка. */}
+                <SessionPhotos
+                  photos={moodboardPhotoSrcs(project.moodboard)}
+                  onChange={onReorderMoodboardPhotos}
+                  allowDelete={false}
+                  readOnly
+                  reorderable
+                />
                 <div
                   onClick={handleSendMoodboard}
                   style={{
@@ -1078,9 +1094,11 @@ export function NewProjectSheet({
           <div style={{ marginBottom: 16 }}><FieldLabel>Фотографии</FieldLabel><SessionPhotos photos={photos} onChange={setPhotos} buttonFirst /></div>
           {/* Отобранная подборка для клиента — отдельно от общей корзины
               «Фотографии» выше (см. domain/project.ts: Moodboard vs
-              Project.photos). Отправка и статус «отправлен/одобрен» — не
-              этот шаг, здесь только собрать и упорядочить. */}
-          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst reorderable /></div>
+              Project.photos). Отправка, статус и порядок фото — не этот
+              шаг: здесь только добавить/удалить, перетаскивание для смены
+              порядка живёт в просмотре проекта (ProjectViewSheet), не в
+              форме редактирования. */}
+          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst /></div>
         </div>
 
         <div className="inka-consult-right">

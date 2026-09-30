@@ -254,6 +254,7 @@ import {
   withStatusAfterDoneSession,
   withHealingGallery,
   withMoodboardStatus,
+  withMoodboardPhotoSrcs,
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
@@ -3790,6 +3791,10 @@ export default function TattoDiary() {
         onSetMoodboardStatus={(status: MoodboardStatus) => {
           const current = viewProject ? getProjectById(projects, viewProject.id) : null;
           if (current?.moodboard) saveProject({ ...current, moodboard: withMoodboardStatus(current.moodboard, status) });
+        }}
+        onReorderMoodboardPhotos={(srcs) => {
+          const current = viewProject ? getProjectById(projects, viewProject.id) : null;
+          if (current?.moodboard) saveProject({ ...current, moodboard: withMoodboardPhotoSrcs(current.moodboard, srcs) });
         }}
       />
 
