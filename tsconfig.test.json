@@ -11,6 +11,7 @@
     "src/lib/contentPhotoSelection.ts",
     "src/lib/contentShare.ts",
     "src/lib/moodboardShare.ts",
+    "src/lib/moodboardCollage.ts",
     "src/lib/contentTextEditing.ts",
     "src/lib/contentApproval.ts",
     "src/lib/clipboard.ts",
