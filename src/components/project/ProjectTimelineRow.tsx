@@ -116,7 +116,11 @@ export function ProjectRowHeader({ project, clientName }: { project: Project; cl
           flexShrink: 0,
         }}
       >
-        {firstLetter(project.title)}
+        {/* Монограмма клиента, а не проекта — у одного клиента может быть
+            несколько проектов, и буква должна опознавать человека, а не
+            каждый раз меняться вместе с названием работы. Для проекта без
+            клиента (Мастерская) падать назад на первую букву названия. */}
+        {firstLetter(clientName ?? project.title)}
       </span>
       <span dir="auto" style={{ fontSize: fs(14), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {project.title}
@@ -171,7 +175,7 @@ export function ProjectTimelineRow({
     >
       <ProjectRowHeader project={project} clientName={clientName} />
 
-      <div style={{ position: 'relative', height: scaleHeight, margin: '0 40px' }}>
+      <div style={{ position: 'relative', height: scaleHeight, margin: '0 10px' }}>
         {/* Та же подвесочная штанга (ClientCardTabBar's PendantRail), только
             заполняемая по прогрессу вместо провисания между камнями —
             закрашенная часть («сегодня уже здесь») светится тем же
