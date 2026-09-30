@@ -2,7 +2,7 @@
 // текущей схемы) в полноценные доменные сущности — UI никогда не должен
 // защищаться от отсутствующих полей. Вынесено из TattoDiary.tsx
 // (PR 3 рефакторинга). Логика не менялась — только перенос.
-import { type Session } from '../domain/session';
+import { type Session, type HealingCheckPhoto } from '../domain/session';
 import { type Consultation, type ConsultationStatus, type ConsultationHistoryEntry } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
 import { URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency.js';
@@ -23,6 +23,21 @@ import {
   type MoodboardItemKind,
 } from '../domain/project.js';
 
+// Контрольные фото заживления сессии (см. HealingCheckPhoto в
+// domain/session.ts) — тот же принцип отбрасывания повреждённых записей, что
+// у normalizeHealingPhotos ниже (для галереи проекта), но без обложки: тут
+// её нет.
+function normalizeHealingCheckPhotos(raw: any): HealingCheckPhoto[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((p) => p && typeof p.url === 'string' && p.url)
+    .map((p: any, i: number) => ({
+      id: String(p?.id ?? `${Date.now()}-hcp${i}`),
+      url: p.url,
+      addedDate: isValidISODate(p?.addedDate) ? p.addedDate : '',
+    }));
+}
+
 // Normalises a raw IndexedDB record (which may predate this schema) into a
 // complete Client so the UI never has to guard against missing fields.
 // Общая нормализация сессии — переиспользуется и для client.sessions, и для
@@ -41,6 +56,7 @@ export function normalizeSession(s: any, i: number): Session {
     skinReaction: s?.skinReaction ?? '',
     note: s?.note ?? s?.notes ?? '',
     photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
+    healingCheckPhotos: normalizeHealingCheckPhotos(s?.healingCheckPhotos),
     done: s?.done ?? true,
     // @deprecated (см. Session.healed) — не читается новой логикой заживления,
     // но переносится как есть, чтобы старый бэкап пережил импорт-экспорт.

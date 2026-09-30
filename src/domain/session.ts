@@ -1,6 +1,13 @@
 // Доменный тип сессии. Вынесено из TattoDiary.tsx без изменений (PR 2) —
 // поля, порядок и семантика прежние.
 
+// Контрольное фото заживления одной сессии — см. Session.healingCheckPhotos.
+export interface HealingCheckPhoto {
+  id: string;
+  url: string; // data URL, как Session.photos
+  addedDate: string; // ISO yyyy-mm-dd
+}
+
 export interface Session {
   id: string;
   name: string; // session title, e.g. "Первая", "Голубика"
@@ -14,13 +21,23 @@ export interface Session {
   skinReaction: string; // how the skin reacted
   note: string;
   photos: string[]; // captured/uploaded photos (data URLs)
+  // Контрольные фото заживления ЭТОЙ сессии — как заживает именно она, а не
+  // итог всей работы (см. Project.healingPhotos и его комментарий о том,
+  // почему финальное, «портфолийное» фото живёт на проекте — одно на весь
+  // проект, даже если сессий было пять). Здесь фото может быть несколько на
+  // сессию (ход заживления день за днём) и они не влияют на статус проекта
+  // и не закрывают карточку-напоминание week1_check в healingCycle.ts — это
+  // просто журнал, который мастер ведёт по своей инициативе.
+  healingCheckPhotos: HealingCheckPhoto[];
   done: boolean;
   // @deprecated — заменено галереей заживления на Project, см.
   // Project.healingPhotos. Поле физически оставлено, чтобы старые бэкапы и
   // импорт не ломались (normalizeSession по-прежнему его переносит), но UI
   // его больше не показывает, а новая логика заживления
-  // (reminders/healingCycle.ts) не читает и не пишет его. Единственный, кто
-  // ещё на него смотрит, — deprecated healingReminders в
+  // (reminders/healingCycle.ts) не читает и не пишет его. НЕ то же самое,
+  // что healingCheckPhotos выше: то было булевым флагом факта «зажило
+  // да/нет», это — сама галерея снимков, отдельная, новая сущность.
+  // Единственный, кто ещё смотрит на healed, — deprecated healingReminders в
   // reminders/buildReminders.ts, из UI не вызываемый.
   healed: boolean;
   // «Это последняя сессия проекта?» — подтверждается мастером при завершении
@@ -62,4 +79,22 @@ export interface Session {
   // из каждого места, где нужно узнать «уже назначена ли следующая»
   // (та же роль, что Consultation.nextConsultationId).
   nextSessionId: string | null;
+}
+
+// Та же логика, что reconcileHealingPhotos в domain/project.ts (мост от
+// плоского списка url, который отдаёт SessionPhotos, к полноценным записям
+// с id/датой — существующие сохраняют свои, новые заводят свои), но без
+// обложки: у контрольных фото сессии её нет, это не портфолио, а хронология
+// заживления день за днём, где ни один снимок не «главнее» другого.
+export function reconcileHealingCheckPhotos(
+  existing: HealingCheckPhoto[],
+  urls: string[],
+  today: string,
+): HealingCheckPhoto[] {
+  const remaining = [...existing];
+  return urls.map((url) => {
+    const i = remaining.findIndex((p) => p.url === url);
+    if (i !== -1) return remaining.splice(i, 1)[0];
+    return { id: crypto.randomUUID(), url, addedDate: today };
+  });
 }

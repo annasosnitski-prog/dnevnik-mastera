@@ -161,6 +161,9 @@ export function upsertSessionInProjects(
     // @deprecated (см. Session.healed) — форма его больше не задаёт, новая
     // запись просто рождается с false и никогда его не меняет.
     healed: false,
+    // Контрольные фото заживления — пустая галерея, мастер добавляет их
+    // потом сама из просмотра сессии (см. Session.healingCheckPhotos).
+    healingCheckPhotos: [],
     sourceConsultationId: null,
     previousSessionId,
     nextSessionId: null,

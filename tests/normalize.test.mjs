@@ -55,6 +55,28 @@ test('normalizeSession keeps an explicit sourceConsultationId', () => {
   assert.equal(s.sourceConsultationId, 'consult-1');
 });
 
+test('normalizeSession defaults healingCheckPhotos to an empty gallery', () => {
+  const s = normalizeSession({}, 0);
+  assert.deepEqual(s.healingCheckPhotos, []);
+});
+
+test('normalizeSession keeps a valid healingCheckPhotos entry', () => {
+  const s = normalizeSession({ healingCheckPhotos: [{ id: 'p1', url: 'a', addedDate: '2026-01-05' }] }, 0);
+  assert.deepEqual(s.healingCheckPhotos, [{ id: 'p1', url: 'a', addedDate: '2026-01-05' }]);
+});
+
+// Тот же принцип, что у здоровых записей галереи заживления проекта: без url
+// снимок не несёт смысла, лучше отбросить, чем оставить пустую карточку.
+test('normalizeSession drops a healingCheckPhotos entry without a url', () => {
+  const s = normalizeSession({ healingCheckPhotos: [{ id: 'p1', addedDate: '2026-01-05' }] }, 0);
+  assert.deepEqual(s.healingCheckPhotos, []);
+});
+
+test('normalizeSession falls back to an empty addedDate for an invalid date', () => {
+  const s = normalizeSession({ healingCheckPhotos: [{ id: 'p1', url: 'a', addedDate: 'not-a-date' }] }, 0);
+  assert.equal(s.healingCheckPhotos[0].addedDate, '');
+});
+
 // ── normalizeClientNote ───────────────────────────────────────────
 
 test('normalizeClientNote maps a legacy urgency value through LEGACY_URGENCY_MAP', () => {

@@ -56,6 +56,7 @@ function makeSession(overrides = {}) {
     skinReaction: '',
     note: '',
     photos: [],
+    healingCheckPhotos: [],
     done: false,
     healed: false, // @deprecated, см. Session.healed — остаётся на хранимой записи
     isLastSession: false,
@@ -494,6 +495,26 @@ test('новая сессия рождается с healed:false и не тян�
   const { projects: next, sessionId } = upsertSessionInProjects(projects, 'project-1', sessionForm(), null);
   const created = next[0].sessions.find((s) => s.id === sessionId);
   assert.equal(created.healed, false);
+});
+
+// healingCheckPhotos — независимая от healed галерея контрольных фото (см.
+// Session.healingCheckPhotos). Новая сессия рождается с пустой галереей,
+// правка её не трогает (её меняет только onSaveHealingCheckPhotos в обход
+// формы, см. TattoDiary.tsx), тот же принцип, что у healed выше.
+
+test('новая сессия рождается с пустой healingCheckPhotos', () => {
+  const projects = [makeProject({ id: 'project-1' })];
+  const { projects: next, sessionId } = upsertSessionInProjects(projects, 'project-1', sessionForm(), null);
+  const created = next[0].sessions.find((s) => s.id === sessionId);
+  assert.deepEqual(created.healingCheckPhotos, []);
+});
+
+test('правка сессии не сбрасывает уже записанные healingCheckPhotos', () => {
+  const existingPhotos = [{ id: 'p1', url: 'a', addedDate: '2026-01-05' }];
+  const projects = [makeProject({ id: 'project-1', sessions: [makeSession({ id: 's1', healingCheckPhotos: existingPhotos })] })];
+  const { projects: next } = upsertSessionInProjects(projects, 'project-1', sessionForm({ note: 'правка' }), 's1');
+  const edited = next[0].sessions.find((s) => s.id === 's1');
+  assert.deepEqual(edited.healingCheckPhotos, existingPhotos);
 });
 
 test('правка сессии не сбрасывает уже записанный healed', () => {

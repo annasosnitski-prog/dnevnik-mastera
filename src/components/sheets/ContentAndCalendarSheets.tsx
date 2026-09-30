@@ -100,6 +100,7 @@ export function TimelineViewSheet({
   onRestoreConsultation,
   onRestoreSession,
   onSaveNextStep,
+  onSaveHealingCheckPhotos,
 }: {
   open: boolean;
   session: Session | null;
@@ -152,6 +153,12 @@ export function TimelineViewSheet({
   // NextStepRow) — рендерится только когда запись привязана к проекту
   // (currentProject ниже), пишет напрямую в тот же объект Project.
   onSaveNextStep?: (text: string, date: string | null, type: NextActionType | null) => void;
+  // Контрольные фото заживления ЭТОЙ сессии (Session.healingCheckPhotos) —
+  // пишет напрямую в сессию, тот же паттерн, что onSaveHealingPhotos у
+  // ProjectViewSheet для Project.healingPhotos, но это отдельная, не
+  // связанная с ней галерея (см. комментарий у самого поля). Рендерится
+  // только для просмотра сессии (isConsult below == false).
+  onSaveHealingCheckPhotos?: (urls: string[]) => void;
 }) {
   const isConsult = !!consultation;
   const dateLine = (() => {
@@ -368,6 +375,32 @@ export function TimelineViewSheet({
             <ViewField label="Краски" value={session.colors} />
             <ViewField label="Иглы" value={session.needles} />
             <ViewField label="Реакция кожи" value={session.skinReaction} />
+
+            {/* Контрольные фото заживления этой сессии — независимая от
+                Project.healingPhotos галерея (см. комментарий у
+                Session.healingCheckPhotos): не влияет на статус проекта и не
+                закрывает карточку week1_check в напоминаниях, просто журнал
+                хода заживления по дням. Показывается только когда есть
+                обработчик (не рендерится в местах, где сессия только
+                просматривается мимоходом, без права записи). */}
+            {onSaveHealingCheckPhotos && (
+              <div>
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
+                  Контроль заживления
+                </div>
+                <SessionPhotos
+                  photos={session.healingCheckPhotos.map((p) => p.url)}
+                  onChange={onSaveHealingCheckPhotos}
+                  buttonFirst
+                />
+                {session.healingCheckPhotos.length === 0 && (
+                  <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                    Контрольных фото ещё нет
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Та же статус-строка, что у консультации выше — cancelled не
                 блокирует «Назначить следующую», восстановление только на
                 случай ошибочной отмены (единственный способ снять cancelled,

@@ -172,7 +172,7 @@ const BlackjackGame = lazyScreen(() => import('./games/BlackjackGame').then((m) 
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
 import { type UrgencyKey } from '../domain/urgency';
-import { type Session } from '../domain/session';
+import { type Session, reconcileHealingCheckPhotos } from '../domain/session';
 import { type Consultation, isConsultationDeletable } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
 import {
@@ -3884,6 +3884,14 @@ export default function TattoDiary() {
           const current = projectId ? getProjectById(projects, projectId) : null;
           if (current) saveProject({ ...current, nextActionText: text, nextActionDate: date, nextActionType: type });
         }}
+        onSaveHealingCheckPhotos={
+          viewedSession
+            ? (urls) => updateSession(viewedSession.id, (s) => ({
+                ...s,
+                healingCheckPhotos: reconcileHealingCheckPhotos(s.healingCheckPhotos, urls, todayISO()),
+              }))
+            : undefined
+        }
       />
 
       {/* ═══════════ CALENDAR (month view, opened from «Ближайшая») ═══════════ */}
