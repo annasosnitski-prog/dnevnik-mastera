@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { InkaLogo } from '../InkaLogo';
-import { StarDivider } from '../icons/StarIcons';
 import { type Client } from '../../domain/client';
 import { type Project } from '../../domain/project';
 import { type ClientNote } from '../../domain/task';
@@ -161,7 +160,6 @@ export function SummaryScreen({
           </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        <StarDivider />
       </div>
 
       {/* Filter bar: urgency symbols stay visible on the left; everything
@@ -345,10 +343,6 @@ export function SummaryScreen({
           </div>
         </div>
       )}
-
-      <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 1 }}>
-        <StarDivider />
-      </div>
 
       {/* Two columns of notes below: general (the master's own, client-less)
           on the left, work notes (tied to a client) on the right. */}

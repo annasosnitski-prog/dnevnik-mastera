@@ -2794,9 +2794,8 @@ export default function TattoDiary() {
             </div>
             <TodayDateBadge onOpen={() => setShowCalendar(true)} size={35} />
           </div>
-          <StarDivider />
-          {/* Below the divider, right-aligned — this whole row scrolls away
-              with the header, same as the client grid underneath. */}
+          {/* Right-aligned — this whole row scrolls away with the header,
+              same as the client grid underneath. */}
           <div style={{ marginTop: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
               {/* ── Поиск ── */}

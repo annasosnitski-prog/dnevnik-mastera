@@ -5,7 +5,6 @@ import { type ProjectCategory, PROJECT_CATEGORIES, PROJECT_BODY_AREAS, type Proj
 import { buildProjectFolders } from '../../domain/projectSelectors';
 import { ProjectFolderCard } from '../project/ProjectFolderCard';
 import { ProjectFolderView } from '../project/ProjectFolderView';
-import { StarDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { todayISO } from '../../utils/dates';
 import { COLORS, fs, INPUT_STYLE } from '../TattoDiary';
@@ -79,7 +78,6 @@ export function WorkshopScreen({
           </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        <StarDivider />
       </div>
 
       {/* Same funnel-toggle + floating chip panel pattern as the client

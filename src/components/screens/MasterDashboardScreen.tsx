@@ -1,7 +1,6 @@
 import { useState, useEffect, type SVGProps } from 'react';
 import type * as React from 'react';
 import { DROP_CAP_FONT } from '../InkaLogo';
-import { StarDivider } from '../icons/StarIcons';
 import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon } from '../icons/SocialIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { AddChatLinkForm, AddMasterLinkForm } from '../client/ClientControls';
@@ -172,7 +171,6 @@ export function MasterDashboardScreen({
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Профиль мастера
         </div>
-        <StarDivider />
       </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента (см. её
