@@ -1,0 +1,31 @@
+/* Проект активен (не «Заживление»/«Завершён»), а следующая сессия ещё не
+   назначена — по самому статусу понятно, что сессия будет (см. комментарий
+   у windowProgress в ProjectSessionWindowRow.tsx): рельса остаётся пустой
+   (progress=0, заливки нет вовсе), а не «дотлевает» как раньше. Пустая
+   рельса сама по себе выглядит заброшенно, поэтому у правого края, где
+   должна была бы появиться дата, мягко дышит золотая точка — не строгий
+   статус-индикатор, а приглашение заполнить: «здесь чего-то не хватает».
+   Дыхание, не мигание (плавный ease-in-out, без резких пауз) — чтобы не
+   тревожить, а звать. */
+@keyframes session-window-invite-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.session-window-invite-dot {
+  animation: session-window-invite-pulse 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-window-invite-dot {
+    animation: none;
+    opacity: 0.85;
+  }
+}
