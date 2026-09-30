@@ -4,6 +4,7 @@ import { isRTL, firstLetter } from '../../lib/textFormat';
 import { formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
 import { ProgressRail } from '../ui/ProgressRail';
+import { DayTickRuler } from '../ui/DayTickRuler';
 
 const SEGMENT_LABELS: Record<PipelineSegmentKey, string> = {
   moodboard: 'Мудборд',
@@ -76,6 +77,21 @@ function todayPosition(segments: { targetDate: string }[], today: string): numbe
   const todayMs = new Date(`${today}T00:00:00.000Z`).getTime();
   const frac = bMs > aMs ? (todayMs - aMs) / (bMs - aMs) : 0;
   return indexPosition(lastPassedIndex, count) + frac * (indexPosition(nextIndex, count) - indexPosition(lastPassedIndex, count));
+}
+
+// Весь реальный диапазон дат пайплайна (не по индексу точек, как сама
+// раскладка выше, а по факту) — риски DayTickRuler кладутся поверх рельсы
+// по календарным дням внутри него. Даты сегментов не обязаны идти по
+// возрастанию (см. комментарий у todayPosition), поэтому не берём просто
+// первый/последний — ищем настоящие край и край.
+function overallDateRange(segments: { targetDate: string }[]): { startISO: string; endISO: string } {
+  let startISO = segments[0].targetDate;
+  let endISO = segments[0].targetDate;
+  for (const s of segments) {
+    if (s.targetDate < startISO) startISO = s.targetDate;
+    if (s.targetDate > endISO) endISO = s.targetDate;
+  }
+  return { startISO, endISO };
 }
 
 // Оформление точки по источнику даты (см. PipelineSegmentSource) — это и
@@ -151,6 +167,7 @@ export function ProjectTimelineRow({
 
   const today = todayISO();
   const todayPct = todayPosition(segments, today);
+  const { startISO: pipelineStartISO, endISO: pipelineEndISO } = overallDateRange(segments);
   // Текущий отрезок — самая ранняя точка, которая ещё не факт: именно там
   // нужна подсказка «что делать», остальные либо уже случились (нечего
   // подсказывать), либо и так станут актуальными позже. Если факт вообще
@@ -180,8 +197,14 @@ export function ProjectTimelineRow({
             заполняемая по прогрессу вместо провисания между камнями —
             закрашенная часть («сегодня уже здесь») светится тем же
             двухслойным drop-shadow, что и её собственный металл. */}
-        <div style={{ position: 'absolute', top: -5, left: 0, right: 0 }}>
+        <div style={{ position: 'absolute', top: -5, left: 0, right: 0, height: 20 }}>
           <ProgressRail progress={todayPct / 100} />
+          {/* Риска на каждый календарный день всего пайплайна — только
+              когда весь путь укладывается в считанные дни (см.
+              DayTickRuler); на растянутый прогноз в месяцы риски не
+              рисуются вовсе, там и так есть более крупная единица счёта —
+              сами стадии ниже. */}
+          <DayTickRuler startISO={pipelineStartISO} endISO={pipelineEndISO} today={today} />
         </div>
 
         {segments.map((segment, index) => {

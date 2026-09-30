@@ -3,6 +3,7 @@ import { type ProjectSessionWindow } from '../../domain/projectSelectors';
 import { formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
 import { ProgressRail } from '../ui/ProgressRail';
+import { DayTickRuler } from '../ui/DayTickRuler';
 import { ProjectRowHeader } from './ProjectTimelineRow';
 import './ProjectSessionWindowRow.css';
 
@@ -89,8 +90,15 @@ export function ProjectSessionWindowRow({
           тянулась к самому краю строки, а у пайплайновых строк — с заметным
           отступом). */}
       <div style={{ position: 'relative', height: 40, margin: '0 10px' }}>
-        <div style={{ position: 'absolute', top: -5, left: 0, right: 0 }}>
+        <div style={{ position: 'absolute', top: -5, left: 0, right: 0, height: 20 }}>
           <ProgressRail progress={progress} />
+          {/* Риска на каждый календарный день между сессиями — чтобы
+              короткий интервал можно было буквально пересчитать глазами.
+              Не рисуется вовсе, если дней много (см. DayTickRuler) или
+              следующая дата ещё не назначена — считать тут пока нечего. */}
+          {!awaitingNext && (
+            <DayTickRuler startISO={sessionWindow.lastSessionDate} endISO={sessionWindow.nextSessionDate!} today={today} />
+          )}
         </div>
 
         {/* Пустая рельса сама по себе смотрится заброшенно — точка-маркер у
