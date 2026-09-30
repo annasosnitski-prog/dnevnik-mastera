@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { type Session } from '../../domain/session';
 import { type Consultation } from '../../domain/consultation';
 import { type ClientNote } from '../../domain/task';
@@ -29,6 +29,7 @@ import {
   withMoodboardPhotoSrcs,
 } from '../../domain/project';
 import { shareMoodboard } from '../../lib/moodboardShare';
+import { downsizeForStorage } from '../../lib/imagePreview';
 import { getSessionsByProjectId, getConsultationSequence } from '../../domain/projectSelectors';
 import { getTasksByProjectId, urgencyMeta } from '../../domain/taskSelectors';
 import { getContentEntriesForProject, type ProjectContentItem } from '../../lib/contentProject';
@@ -681,6 +682,7 @@ export function ProjectViewSheet({
   onSaveNextStep,
   onSaveHealingPhotos,
   onSetMoodboardStatus,
+  onEditMoodboardPhotos,
 }: {
   open: boolean;
   project: Project | null;
@@ -717,9 +719,37 @@ export function ProjectViewSheet({
   // успешной отдачи через «Поделиться» (см. handleSendMoodboard). Пишет
   // напрямую в проект тем же saveProject, что и остальные правки здесь.
   onSetMoodboardStatus: (status: MoodboardStatus) => void;
+  // Полный набор фото мудборда — добавить, удалить, переставить местами —
+  // живёт целиком здесь, в просмотре проекта, отдельно от формы
+  // редактирования всего остального черновика проекта (там своя копия
+  // полей, сохраняемая только по кнопке «Сохранить»; мудборд правится сразу,
+  // без промежуточного состояния формы). Этот же порядок уходит и в коллаж,
+  // и в россыпь при отправке.
+  onEditMoodboardPhotos: (srcs: string[]) => void;
 }) {
   const [sendingMoodboard, setSendingMoodboard] = useState(false);
   const [moodboardShareNote, setMoodboardShareNote] = useState<string | null>(null);
+  const moodboardFileRef = useRef<HTMLInputElement>(null);
+
+  // Тот же пайплайн, что у onPick в SessionPhotos (ClientControls.tsx) —
+  // сжатие перед тем, как фото ляжет в проект, чтобы несколько снимков с
+  // камеры не раздули запись (см. downsizeForStorage). Не переиспользует
+  // сам SessionPhotos.onPick — тот приватный, а логика в три строки, дублировать
+  // весь компонент ради неё смысла нет.
+  const handleAddMoodboardPhotos = (files: FileList | null) => {
+    if (!files || files.length === 0 || !project) return;
+    const readers = Array.from(files).map(
+      (file) =>
+        new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        }).then((dataUrl) => downsizeForStorage(dataUrl).catch(() => dataUrl)),
+    );
+    Promise.all(readers).then((urls) => {
+      onEditMoodboardPhotos([...moodboardPhotoSrcs(project.moodboard), ...urls]);
+    });
+  };
 
   const handleSendMoodboard = async () => {
     if (!project?.moodboard || sendingMoodboard) return;
@@ -787,43 +817,83 @@ export function ProjectViewSheet({
             <NextStepRow nextActionText={project.nextActionText} nextActionDate={project.nextActionDate} nextActionType={project.nextActionType} onSave={onSaveNextStep} />
             {project.photos.length > 0 && <SessionPhotos photos={project.photos} onChange={() => {}} allowDelete={false} readOnly />}
 
-            {hasMoodboardContent(project.moodboard) && project.moodboard && (
-              <div>
-                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <span>Мудборд</span>
-                  {/* Ручная смена статуса — та же схема, что у статуса проекта
-                      выше: мастер сама отмечает «Одобрен»/«На доработку»,
-                      «Отправлен» обычно проставляется автоматически кнопкой
-                      ниже, но доступен и вручную (например, отправила не
-                      через это меню — в мессенджере отдельным сообщением). */}
-                  <select
-                    value={project.moodboard.status}
-                    onChange={(e) => onSetMoodboardStatus(e.target.value as MoodboardStatus)}
-                    style={{ ...INPUT_STYLE, width: 'auto', padding: '3px 6px', fontSize: fs(10), textTransform: 'none', letterSpacing: 'normal' }}
-                  >
-                    {MOODBOARD_STATUSES.map((s) => (
-                      <option key={s.key} value={s.key}>{s.label}</option>
-                    ))}
-                  </select>
+            {(() => {
+              const hasContent = hasMoodboardContent(project.moodboard);
+              return (
+                <div>
+                  <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span>Мудборд</span>
+                    {/* Ручная смена статуса — только когда есть что отправлять;
+                        та же схема, что у статуса проекта выше: мастер сама
+                        отмечает «Одобрен»/«На доработку», «Отправлен» обычно
+                        проставляется автоматически кнопкой ниже, но доступен и
+                        вручную (например, отправила не через это меню — в
+                        мессенджере отдельным сообщением). */}
+                    {hasContent && project.moodboard && (
+                      <select
+                        value={project.moodboard.status}
+                        onChange={(e) => onSetMoodboardStatus(e.target.value as MoodboardStatus)}
+                        style={{ ...INPUT_STYLE, width: 'auto', padding: '3px 6px', fontSize: fs(10), textTransform: 'none', letterSpacing: 'normal' }}
+                      >
+                        {MOODBOARD_STATUSES.map((s) => (
+                          <option key={s.key} value={s.key}>{s.label}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  {hasContent && (
+                    // readOnly (нет встроенной кнопки «Добавить» — своя, в
+                    // строке снизу) + allowDelete (крестик с подтверждением,
+                    // как везде) + reorderable — полное редактирование прямо
+                    // тут, отдельно от формы проекта, без открытия её целиком.
+                    <SessionPhotos
+                      photos={moodboardPhotoSrcs(project.moodboard)}
+                      onChange={onEditMoodboardPhotos}
+                      allowDelete
+                      readOnly
+                      reorderable
+                    />
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
+                    {hasContent ? (
+                      <span
+                        onClick={handleSendMoodboard}
+                        style={{
+                          fontSize: fs(12),
+                          color: sendingMoodboard ? COLORS.textGhost : COLORS.gold,
+                          fontStyle: 'italic',
+                          cursor: sendingMoodboard ? 'default' : 'pointer',
+                        }}
+                      >
+                        {sendingMoodboard ? 'Отправка…' : 'Отправить клиенту'}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    <span
+                      onClick={() => moodboardFileRef.current?.click()}
+                      style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
+                    >
+                      + Добавить фото
+                    </span>
+                  </div>
+                  {moodboardShareNote && (
+                    <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>{moodboardShareNote}</div>
+                  )}
+                  <input
+                    ref={moodboardFileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      handleAddMoodboardPhotos(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
                 </div>
-                <SessionPhotos photos={moodboardPhotoSrcs(project.moodboard)} onChange={() => {}} allowDelete={false} readOnly />
-                <div
-                  onClick={handleSendMoodboard}
-                  style={{
-                    fontSize: fs(12),
-                    color: sendingMoodboard ? COLORS.textGhost : COLORS.gold,
-                    fontStyle: 'italic',
-                    cursor: sendingMoodboard ? 'default' : 'pointer',
-                    marginTop: 4,
-                  }}
-                >
-                  {sendingMoodboard ? 'Отправка…' : 'Отправить клиенту'}
-                </div>
-                {moodboardShareNote && (
-                  <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>{moodboardShareNote}</div>
-                )}
-              </div>
-            )}
+              );
+            })()}
 
             {/* Галерея заживления — фото зажившей работы, одна на проект (см.
                 Project.healingPhotos). В отличие от «Фотографий» выше она
@@ -1078,9 +1148,11 @@ export function NewProjectSheet({
           <div style={{ marginBottom: 16 }}><FieldLabel>Фотографии</FieldLabel><SessionPhotos photos={photos} onChange={setPhotos} buttonFirst /></div>
           {/* Отобранная подборка для клиента — отдельно от общей корзины
               «Фотографии» выше (см. domain/project.ts: Moodboard vs
-              Project.photos). Отправка и статус «отправлен/одобрен» — не
-              этот шаг, здесь только собрать и упорядочить. */}
-          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst reorderable /></div>
+              Project.photos). Отправка, статус и порядок фото — не этот
+              шаг: здесь только добавить/удалить, перетаскивание для смены
+              порядка живёт в просмотре проекта (ProjectViewSheet), не в
+              форме редактирования. */}
+          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst /></div>
         </div>
 
         <div className="inka-consult-right">

@@ -688,3 +688,23 @@ export function buildProjectFolders(projects: Project[], clients: Client[], toda
 
   return folders;
 }
+
+// ===================== ОБЛОЖКА ПРОЕКТА =====================
+// Одна картинка, представляющая проект на карточке (ProjectCard) — приоритет
+// строго убывающий, от самого «настоящего» источника к самому слабому:
+//  1. Обложка галереи заживления (HealingPhoto.isCover) — реальный
+//     результат работы, именно ради этого она и заводится (см. её
+//     комментарий в domain/project.ts).
+//  2. Первое фото общей корзины референсов проекта (Project.photos) — не
+//     обязательно готовая работа, но снимок самого проекта, а не подборки
+//     для клиента.
+//  3. Первое фото мудборда — самый слабый сигнал (это ещё референсы, а не
+//     сам проект), но лучше пустой карточки, если больше нечего показать.
+// null — показывать нечего, карточка остаётся текстовой, как раньше.
+export function projectCoverPhoto(project: Project): string | null {
+  const healedCover = project.healingPhotos.find((p) => p.isCover);
+  if (healedCover) return healedCover.url;
+  if (project.photos.length > 0) return project.photos[0];
+  const moodboardPhoto = project.moodboard?.items.find((it) => it.kind === 'photo');
+  return moodboardPhoto?.src ?? null;
+}
