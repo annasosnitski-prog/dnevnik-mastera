@@ -3792,7 +3792,7 @@ export default function TattoDiary() {
           const current = viewProject ? getProjectById(projects, viewProject.id) : null;
           if (current?.moodboard) saveProject({ ...current, moodboard: withMoodboardStatus(current.moodboard, status) });
         }}
-        onReorderMoodboardPhotos={(srcs) => {
+        onEditMoodboardPhotos={(srcs) => {
           const current = viewProject ? getProjectById(projects, viewProject.id) : null;
           if (current?.moodboard) saveProject({ ...current, moodboard: withMoodboardPhotoSrcs(current.moodboard, srcs) });
         }}
