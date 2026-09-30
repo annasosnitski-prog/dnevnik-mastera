@@ -38,6 +38,19 @@ export function NoteComposerSheet({
       </div>
       <div style={{ padding: '4px 24px 40px' }}>
         <NoteComposer
+          // Шторка — один и тот же DOM-узел на всё приложение (см.
+          // BottomSheet), открытие/закрытие — просто CSS. Без key
+          // NoteComposer монтируется один раз при самом первом открытии
+          // (тогда presetClientId/presetProjectId ещё null) и useState
+          // внутри него запоминает то самое первое значение навсегда —
+          // смена контекста (открыли из карточки другого клиента, из
+          // «Мастерской», из проекта) presetClientId/presetProjectId
+          // меняет, а уже инициализированное состояние — нет. Ключ,
+          // зависящий от контекста, форсирует свежий mount на каждое
+          // новое открытие, так что клиент/проект подставляются верно
+          // из любой точки входа, а не только из карточки клиента (там
+          // composer — часть экрана и мontируется заново сам по себе).
+          key={`${presetClientId ?? 'none'}:${presetProjectId ?? 'none'}`}
           clients={clients}
           projects={projects}
           presetClientId={presetClientId}
