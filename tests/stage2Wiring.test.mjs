@@ -74,30 +74,44 @@ test('статус проекта продвигается тем же сохр�
   assert.doesNotMatch(app, /const advanceProjectStage =/);
   assert.match(
     app,
-    /const advanceAfterDoneSessionIn = \(source: Project\[\], projectId: string \| null, isLastSession: boolean\): Project\[\] =>/,
+    /const advanceAfterDoneSessionIn = \(source: Project\[\], projectId: string \| null\): Project\[\] =>/,
   );
   const commit = app.slice(app.indexOf('const commitSession = ('), app.indexOf('const handleAddConsultation ='));
   // Только ВЫПОЛНЕННАЯ сессия двигает статус: назначенная будущая встреча —
   // это и есть окно ожидания предоплаты, снимать «Ожидает предоплаты» она не
   // должна. Куда именно двигает — решает withStatusAfterDoneSession
-  // («Активен» или сразу «Заживление» у последней сессии).
+  // («Активен», последняя сессия это или нет — заживление больше не статус
+  // проекта, см. domain/project.ts).
   assert.match(
     commit,
-    /saveProjects\(data\.done \? advanceAfterDoneSessionIn\(withConversion, projectId, data\.isLastSession\) : withConversion\)/,
+    /saveProjects\(data\.done \? advanceAfterDoneSessionIn\(withResume, projectId\) : withResume\)/,
   );
   assert.equal((commit.match(/saveProjects\(/g) ?? []).length, 1, 'ровно одно сохранение на весь сценарий');
 });
 
-// Вход в цикл заживления обязан двигать проект в «Заживление» ТЕМ ЖЕ
-// сохранением, что и сама сессия — иначе повторится #248: вторая запись
-// прочитала бы ещё не обновившийся стейт и затёрла только что добавленную
-// сессию. И наоборот: если статус не поедет вовсе, проект останется
-// «Активным» с законченной работой.
-test('последняя выполненная сессия уводит проект в «Заживление» тем же сохранением', () => {
+// «Пауза» отмечает зависшего клиента (см. withResumedFromPause в
+// domain/project.ts) — появление у него НОВОЙ сессии должно снять паузу тем
+// же сохранением, что и саму сессию, а правка существующей — не должна.
+test('новая сессия снимает паузу с проекта тем же сохранением, что и сама запись', () => {
+  assert.match(
+    app,
+    /const resumeFromPauseIn = \(source: Project\[\], projectId: string \| null\): Project\[\] =>/,
+  );
+  const commit = app.slice(app.indexOf('const commitSession = ('), app.indexOf('const handleAddConsultation ='));
+  assert.match(
+    commit,
+    /const withResume = editSession \? withConversion : resumeFromPauseIn\(withConversion, projectId\);/,
+  );
+});
+
+// Быстрый тумблер обязан двигать проект в «Активен» ТЕМ ЖЕ сохранением, что
+// и сама сессия — иначе повторится #248: вторая запись прочитала бы ещё не
+// обновившийся стейт и затёрла только что добавленную сессию.
+test('быстрый тумблер сессии продвигает статус проекта тем же сохранением', () => {
   const toggle = app.slice(app.indexOf('const toggleSessionDone = ('), app.indexOf('const markEntryCancelled ='));
   assert.match(
     toggle,
-    /saveProjects\(session\.done \? flipped : advanceAfterDoneSessionIn\(flipped, session\.projectId, session\.isLastSession\)\)/,
+    /saveProjects\(session\.done \? flipped : advanceAfterDoneSessionIn\(flipped, session\.projectId\)\)/,
   );
   assert.equal((toggle.match(/saveProjects\(/g) ?? []).length, 1, 'ровно одно сохранение на весь сценарий');
 });

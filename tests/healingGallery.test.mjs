@@ -17,7 +17,7 @@ function makeProject(overrides = {}) {
     color: '#B0413E',
     category: 'tattoo',
     clientId: null,
-    status: 'healing',
+    status: 'active',
     sessionsPlan: 'single',
     state: 'active',
     waitingFor: 'none',
@@ -131,12 +131,15 @@ test('reconcileHealingPhotos does not mutate the list it is given', () => {
 // сохранения: иначе они разъехались бы по разным местам записи.
 
 test('withHealingGallery completes the project as soon as the first photo lands', () => {
-  const p = makeProject({ status: 'healing' });
+  const p = makeProject({ status: 'active' });
   assert.equal(withHealingGallery(p, ['a'], TODAY).status, 'completed');
 });
 
-test('withHealingGallery completes a project even from an earlier status', () => {
-  const p = makeProject({ status: 'active' });
+// Фото — более позднее по порядку PROJECT_STATUSES событие, чем пауза
+// (см. комментарий у PROJECT_STATUSES), поэтому снимает её саму, в отличие
+// от обычной выполненной сессии (см. resolveNextStep.test.mjs).
+test('withHealingGallery completes a project even from a paused status', () => {
+  const p = makeProject({ status: 'paused' });
   assert.equal(withHealingGallery(p, ['a'], TODAY).status, 'completed');
 });
 
@@ -155,14 +158,14 @@ test('withHealingGallery does not roll the status back when the gallery is empti
 });
 
 test('withHealingGallery leaves a photo-less project alone on an empty edit', () => {
-  const p = makeProject({ status: 'healing' });
+  const p = makeProject({ status: 'active' });
   const next = withHealingGallery(p, [], TODAY);
-  assert.equal(next.status, 'healing');
+  assert.equal(next.status, 'active');
   assert.deepEqual(next.healingPhotos, []);
 });
 
 test('withHealingGallery keeps everything else about the project', () => {
-  const p = makeProject({ status: 'healing', sessions: [{ id: 's1' }] });
+  const p = makeProject({ status: 'active', sessions: [{ id: 's1' }] });
   const next = withHealingGallery(p, ['a'], TODAY);
   assert.equal(next.id, p.id);
   assert.equal(next.title, p.title);
@@ -170,7 +173,7 @@ test('withHealingGallery keeps everything else about the project', () => {
 });
 
 test('withHealingGallery does not mutate the project it is given', () => {
-  const p = makeProject({ status: 'healing' });
+  const p = makeProject({ status: 'active' });
   const snapshot = structuredClone(p);
   withHealingGallery(p, ['a'], TODAY);
   assert.deepEqual(p, snapshot);
