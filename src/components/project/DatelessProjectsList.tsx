@@ -1,5 +1,5 @@
 import { NEXT_ACTION_TYPES, type Project } from '../../domain/project';
-import { clientNameFor, getProjectPipelineSegments } from '../../domain/projectSelectors';
+import { clientNameFor, getProjectPipelineSegments, getProjectSessionWindow } from '../../domain/projectSelectors';
 import { type Client } from '../../domain/client';
 import { isRTL, firstLetter } from '../../lib/textFormat';
 import { COLORS, fs } from '../ui/designTokens';
@@ -97,6 +97,11 @@ export function DatelessProjectsList({
       const linkedClient = project.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
       const sessions = linkedClient ? linkedClient.sessions : project.sessions;
       const consultations = linkedClient ? linkedClient.consultations : project.consultations;
+      // Проект с уже прошедшей фактической сессией уходит в «Таймлайн» в
+      // режиме окна «последняя → следующая сессия» (см. ProjectTimelineList),
+      // даже если окно/точная дата первой сессии так и не были заданы —
+      // иначе он задваивался бы: и там, и здесь.
+      if (getProjectSessionWindow(sessions, project.id).lastSessionDate !== null) return false;
       return getProjectPipelineSegments(project, sessions, consultations) === null;
     });
 

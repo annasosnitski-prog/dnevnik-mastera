@@ -95,6 +95,39 @@ function dotStyle(source: ProjectPipelineSegment['source']): React.CSSProperties
   return { border: '1.5px solid rgba(var(--gold-rgb),0.4)', background: 'transparent' };
 }
 
+// Общая «шапка» строки (аватар-буква/название/клиент) — одинаковая что у
+// пайплайна «Запрос → первая сессия» (ниже), что у интервала «последняя →
+// следующая сессия» (ProjectSessionWindowRow), различается только тело под
+// ней.
+export function ProjectRowHeader({ project, clientName }: { project: Project; clientName: string | null }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12, direction: isRTL(project.title) ? 'rtl' : 'ltr' }}>
+      <span
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: fs(12),
+          color: COLORS.gold,
+          flexShrink: 0,
+        }}
+      >
+        {firstLetter(project.title)}
+      </span>
+      <span dir="auto" style={{ fontSize: fs(14), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {project.title}
+      </span>
+      {clientName && (
+        <span style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', flexShrink: 0 }}>{clientName}</span>
+      )}
+    </div>
+  );
+}
+
 export function ProjectTimelineRow({
   project,
   clientName,
@@ -136,30 +169,7 @@ export function ProjectTimelineRow({
       onClick={onOpen ? () => onOpen(project) : undefined}
       style={{ padding: '14px 16px', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)', cursor: onOpen ? 'pointer' : undefined }}
     >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12, direction: isRTL(project.title) ? 'rtl' : 'ltr' }}>
-        <span
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: '50%',
-            border: '1px solid rgba(var(--gold-rgb),0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: fs(12),
-            color: COLORS.gold,
-            flexShrink: 0,
-          }}
-        >
-          {firstLetter(project.title)}
-        </span>
-        <span dir="auto" style={{ fontSize: fs(14), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {project.title}
-        </span>
-        {clientName && (
-          <span style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', flexShrink: 0 }}>{clientName}</span>
-        )}
-      </div>
+      <ProjectRowHeader project={project} clientName={clientName} />
 
       <div style={{ position: 'relative', height: scaleHeight, margin: '0 40px' }}>
         {/* Та же подвесочная штанга (ClientCardTabBar's PendantRail), только

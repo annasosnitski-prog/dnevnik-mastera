@@ -431,6 +431,38 @@ export function getProjectPipelineSegments(
   });
 }
 
+// ===================== ОКНО «ПОСЛЕДНЯЯ → СЛЕДУЮЩАЯ СЕССИЯ» =====================
+// Как только у проекта появляется факт (выполненная сессия), веха «Запрос →
+// первая сессия» из getProjectPipelineSegments перестаёт быть полезной: она
+// навсегда пинится к САМОЙ ПЕРВОЙ сессии и никогда не отражает более поздние
+// (см. разбор «Гранат» — проект с тремя сессиями показывал на шкале первую из
+// них, 8 июля, а не текущую активность). Для таких проектов ProjectTimelineList
+// переключается на этот интервал вместо пайплайна.
+export interface ProjectSessionWindow {
+  lastSessionDate: string | null;
+  nextSessionDate: string | null;
+}
+
+// lastSessionDate — тот же якорь, что и у цикла заживления (anchorSession,
+// reminders/healingCycle.ts): самая поздняя ВЫПОЛНЕННАЯ, не отменённая сессия
+// проекта. nextSessionDate — самая ранняя ещё НЕ выполненная, не отменённая
+// (та же логика, что у isOpenSession/hasScheduledWork выше) — специально без
+// сравнения с today: просроченная, но так и не отмеченная «Выполнена» запись
+// должна остаться «следующей», а не молча исчезнуть из виду.
+export function getProjectSessionWindow(sessions: Session[], projectId: string): ProjectSessionWindow {
+  let lastSessionDate: string | null = null;
+  let nextSessionDate: string | null = null;
+  for (const session of getSessionsByProjectId(sessions, projectId)) {
+    if (session.cancelled || !isValidISODate(session.date)) continue;
+    if (session.done) {
+      if (lastSessionDate === null || session.date >= lastSessionDate) lastSessionDate = session.date;
+    } else if (nextSessionDate === null || session.date < nextSessionDate) {
+      nextSessionDate = session.date;
+    }
+  }
+  return { lastSessionDate, nextSessionDate };
+}
+
 // ===================== ФИЛЬТРЫ И СОРТИРОВКА ПРОЕКТОВ =====================
 export type ProjectSortMode = 'lastActive' | 'added' | 'name';
 
