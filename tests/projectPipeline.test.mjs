@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getProjectPipelineSegments } from '../.test-dist/src/domain/projectSelectors.js';
+import { getProjectPipelineSegments, getProjectSessionWindow } from '../.test-dist/src/domain/projectSelectors.js';
 import { normalizeProject } from '../.test-dist/src/lib/normalize.js';
 
 function makeProject(overrides = {}) {
@@ -482,4 +482,75 @@ test('regression: two consultations and no session — consultation is actual at
   assert.equal(consultationPoint.targetDate, '2026-08-20');
   assert.equal(sessionPoint.source, 'forecast');
   assert.equal(sessionPoint.targetDate, '2026-09-01');
+});
+
+// ===================== getProjectSessionWindow (регрессия «Гранат») =====================
+// Проект с несколькими выполненными сессиями показывал на шкале «Запрос →
+// первая сессия» дату САМОЙ ПЕРВОЙ из них навсегда — новая сессия никак не
+// отражалась. getProjectSessionWindow даёт AdminINKA другой интервал для
+// таких проектов: «последняя → следующая сессия», который как раз и должен
+// двигаться с каждой новой записью.
+test('getProjectSessionWindow: с несколькими выполненными сессиями "последняя" — самая поздняя, а не первая', () => {
+  const sessions = [
+    makeSession({ id: 's1', projectId: 'p1', date: '2026-07-08', done: true }),
+    makeSession({ id: 's2', projectId: 'p1', date: '2026-08-01', done: true }),
+    makeSession({ id: 's3', projectId: 'p1', date: '2026-09-29', done: true }),
+  ];
+
+  const window = getProjectSessionWindow(sessions, 'p1');
+
+  assert.equal(window.lastSessionDate, '2026-09-29');
+  assert.equal(window.nextSessionDate, null);
+});
+
+test('getProjectSessionWindow: ещё не выполненная сессия становится "следующей"', () => {
+  const sessions = [
+    makeSession({ id: 's1', projectId: 'p1', date: '2026-07-08', done: true }),
+    makeSession({ id: 's2', projectId: 'p1', date: '2026-10-15', done: false }),
+  ];
+
+  const window = getProjectSessionWindow(sessions, 'p1');
+
+  assert.equal(window.lastSessionDate, '2026-07-08');
+  assert.equal(window.nextSessionDate, '2026-10-15');
+});
+
+test('getProjectSessionWindow: из нескольких будущих открытых сессий "следующая" — самая ранняя', () => {
+  const sessions = [
+    makeSession({ id: 's1', projectId: 'p1', date: '2026-07-08', done: true }),
+    makeSession({ id: 's2', projectId: 'p1', date: '2026-11-01', done: false }),
+    makeSession({ id: 's3', projectId: 'p1', date: '2026-10-15', done: false }),
+  ];
+
+  const window = getProjectSessionWindow(sessions, 'p1');
+
+  assert.equal(window.nextSessionDate, '2026-10-15');
+});
+
+test('getProjectSessionWindow: отменённая сессия не считается ни последней, ни следующей', () => {
+  const sessions = [
+    makeSession({ id: 's1', projectId: 'p1', date: '2026-07-08', done: true }),
+    makeSession({ id: 's2', projectId: 'p1', date: '2026-08-01', done: false, cancelled: true }),
+  ];
+
+  const window = getProjectSessionWindow(sessions, 'p1');
+
+  assert.equal(window.lastSessionDate, '2026-07-08');
+  assert.equal(window.nextSessionDate, null);
+});
+
+test('getProjectSessionWindow: без сессий проекта — оба поля null', () => {
+  const window = getProjectSessionWindow([], 'p1');
+
+  assert.equal(window.lastSessionDate, null);
+  assert.equal(window.nextSessionDate, null);
+});
+
+test('getProjectSessionWindow: сессии другого проекта не учитываются', () => {
+  const sessions = [makeSession({ id: 's1', projectId: 'other', date: '2026-07-08', done: true })];
+
+  const window = getProjectSessionWindow(sessions, 'p1');
+
+  assert.equal(window.lastSessionDate, null);
+  assert.equal(window.nextSessionDate, null);
 });
