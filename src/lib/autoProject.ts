@@ -48,6 +48,7 @@ export function makeBucketProject(id: string, title: string, color: string, clie
     creative: '',
     inspirationSources: '',
     photos: [],
+    moodboard: null,
     healingPhotos: [],
     createdDate: now,
     lastMeaningfulActivityAt: now,

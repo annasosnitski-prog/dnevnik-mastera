@@ -178,6 +178,121 @@ export interface HealingPhoto {
   isCover: boolean;
 }
 
+// ===================== МУДБОРД =====================
+// Подборка, которую составляет мастер для клиента — отличается от
+// Consultation.photos (то, что клиент сам принёс/показал) и от
+// Project.photos (общая корзина референсов проекта): мудборд — это уже
+// отобранный и упорядоченный набор с собственным статусом жизненного
+// цикла (отправлен клиенту? одобрен?). Живёт на самом Project (вариант А
+// разбора «куда расти ИНКЕ» — см. docs/DATA_LAYER_PLAN.md), а не в
+// отдельном сторе: так синк/бэкап/удаление достаются бесплатно, а
+// собственный `id` ниже оставляет дверь для выноса в отдельный стор
+// открытой, если фото станет действительно много (см. Шаг 7 синка,
+// docs/SYNC_PLAN.md — тяжёлые прогоны, обрывающиеся на iOS).
+export type MoodboardItemKind = 'photo' | 'link' | 'color';
+
+export interface MoodboardItem {
+  id: string;
+  kind: MoodboardItemKind;
+  // 'photo': data URL (как Project.photos). 'link': внешний URL (Pinterest,
+  // Instagram). 'color': hex-код. Ровно одно из трёх полей осмысленно для
+  // данного kind — остальные два у него пустые строки, не undefined,
+  // чтобы форма могла редактировать любой item без ветвления по типу.
+  src: string;
+  url: string;
+  hex: string;
+  note: string;
+}
+
+// draft — мастер ещё собирает; sent — отправлен клиенту, ждём реакции;
+// approved — клиент согласовал, можно двигаться дальше (сессия/сценарий);
+// rework — клиент попросил переделать, не тупик: мастер правит items и
+// снова переводит в sent тем же мудбордом, не начиная новый.
+export type MoodboardStatus = 'draft' | 'sent' | 'approved' | 'rework';
+
+export const MOODBOARD_STATUSES: { key: MoodboardStatus; label: string }[] = [
+  { key: 'draft', label: 'Черновик' },
+  { key: 'sent', label: 'Отправлен' },
+  { key: 'approved', label: 'Одобрен' },
+  { key: 'rework', label: 'На доработку' },
+];
+
+export interface Moodboard {
+  id: string;
+  items: MoodboardItem[]; // порядок массива = порядок на доске
+  caption: string; // сопроводительный текст для клиента
+  status: MoodboardStatus;
+  sentAt: string | null;
+  approvedAt: string | null;
+  updatedAt: string; // ISO timestamp последнего изменения items/caption
+}
+
+// Смена статуса мудборда — sentAt/approvedAt проставляются вместе со своим
+// статусом (факт пишется в момент перехода, тот же принцип, что у
+// Consultation.history), остальные поля не трогаются. Тот же единый вход
+// для ручной смены статуса (мастер сама отметила «Одобрен»/«На доработку»)
+// и для «отметить отправленным» после успешной отдачи через системное
+// «Поделиться» — см. lib/moodboardShare.ts.
+export function withMoodboardStatus(moodboard: Moodboard, status: MoodboardStatus): Moodboard {
+  const now = new Date().toISOString();
+  return {
+    ...moodboard,
+    status,
+    sentAt: status === 'sent' ? now : moodboard.sentAt,
+    approvedAt: status === 'approved' ? now : moodboard.approvedAt,
+    updatedAt: now,
+  };
+}
+
+// null = мудборд ещё не заводили — обычное состояние проекта без него,
+// отличное от Moodboard с пустым items (тот уже создан, но пуст).
+export function hasMoodboardContent(moodboard: Moodboard | null): boolean {
+  return moodboard !== null && moodboard.items.length > 0;
+}
+
+// ── Мост к SessionPhotos ────────────────────────────────────────────
+// Форма проекта заводит мудборд прямо там, где уже есть «Добавить фото»
+// (то же место, что у Project.photos/healingPhotos) — SessionPhotos знает
+// только про string[], а мудборд хранит MoodboardItem[] со своим kind.
+// Эти две функции — мост в обе стороны, тот же принцип, что у
+// reconcileHealingPhotos выше: чужой (не-photo) items не трогаем.
+
+// В форму — только src фотографий, в их порядке на доске.
+export function moodboardPhotoSrcs(moodboard: Moodboard | null): string[] {
+  return moodboard ? moodboard.items.filter((it) => it.kind === 'photo').map((it) => it.src) : [];
+}
+
+// Из формы — SessionPhotos отдаёт новый string[] целиком (add/remove/reorder
+// неразличимы дальше первого расхождения). Сверяем со старыми photo-items по
+// src, чтобы сохранить id/note там, где фото не поменялось, и заводим новый
+// item только для реально нового src — остальные (link/color) items остаются
+// на своих местах, этой правкой не задеты.
+export function withMoodboardPhotoSrcs(moodboard: Moodboard | null, srcs: string[]): Moodboard | null {
+  const otherItems = moodboard ? moodboard.items.filter((it) => it.kind !== 'photo') : [];
+  const remaining = moodboard ? moodboard.items.filter((it) => it.kind === 'photo') : [];
+  const photoItems: MoodboardItem[] = srcs.map((src) => {
+    const i = remaining.findIndex((it) => it.src === src);
+    if (i !== -1) return remaining.splice(i, 1)[0];
+    return { id: crypto.randomUUID(), kind: 'photo', src, url: '', hex: '', note: '' };
+  });
+  const items = [...otherItems, ...photoItems];
+  // Пустой мудборд без единого признака жизни (ни items, ни подписи, ни
+  // сдвинутого статуса) — то же «не заведён», что и moodboard===null, а не
+  // пустая заведённая карточка (см. hasMoodboardContent выше).
+  if (items.length === 0 && !moodboard?.caption && (!moodboard || moodboard.status === 'draft')) {
+    return null;
+  }
+  return {
+    id: moodboard?.id ?? crypto.randomUUID(),
+    items,
+    caption: moodboard?.caption ?? '',
+    status: moodboard?.status ?? 'draft',
+    sentAt: moodboard?.sentAt ?? null,
+    approvedAt: moodboard?.approvedAt ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 // Галерея редактируется тем же SessionPhotos, что и остальные фото в
 // приложении, а он знает только про массив data-URL. Эта функция — мост
 // обратно: сопоставляет присланный список url с уже существующими
@@ -334,6 +449,10 @@ export interface Project {
   creative: string; // "Креатив"
   inspirationSources: string; // "Источники вдохновения"
   photos: string[];
+  // Отобранная и упорядоченная подборка для клиента — см. Moodboard выше.
+  // null, пока мастер её не завела (в т.ч. все проекты, созданные до этого
+  // поля — миграции нет, см. normalizeProject).
+  moodboard: Moodboard | null;
   // Галерея заживления — фото зажившей работы (см. HealingPhoto выше).
   // Первое добавленное фото закрывает цикл заживления и переводит проект в
   // 'completed' (см. reminders/healingCycle.ts).

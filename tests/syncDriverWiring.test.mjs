@@ -8,8 +8,12 @@ function readSource(path) {
 
 const source = readSource('../src/sync/useSyncDriver.ts');
 const timerEffect = source.slice(
-  source.indexOf('  // ОТКРЫТИЕ ДНЕВНИКА СИНК НЕ ЗАПУСКАЕТ'),
-  source.indexOf('  // Отметка, пережившая закрытие дневника'),
+  source.indexOf('  // Автозапуск при открытии'),
+  source.indexOf('  // Возврат к вкладке'),
+);
+const resumeEffect = source.slice(
+  source.indexOf('  // Возврат к вкладке'),
+  source.indexOf('  // Отличаем «вкладку убило»'),
 );
 
 test('таймер не перезапускается на переходе paired → syncing → paired', () => {
@@ -19,14 +23,18 @@ test('таймер не перезапускается на переходе pai
   assert.doesNotMatch(timerEffect, /\[phase === 'paired'\]/);
 });
 
-test('экран перезагружается только после нажатой кнопки и только если что-то приехало', () => {
+test('экран перезагружается у кнопки и у автозапуска при открытии, но не у фоновых проверок, и только если что-то приехало', () => {
   assert.match(source, /const pulledSomething =/);
   assert.match(source, /if \(refreshVisibleData && pulledSomething\) \{\s*\n\s*window\.location\.reload\(\);/);
-  // refreshVisibleData=true остался ровно у кнопки; повторяющаяся проверка
-  // не имеет права внезапно перезагрузить дневник во время работы.
   assert.match(source, /syncNow: \(\) => runSync\(true\)/);
+  // Автозапуск при открытии тоже обновляет экран (refreshVisibleData=true) —
+  // мастер только что открыла дневник, реагировать на приехавшее уместно.
+  assert.match(timerEffect, /void runSync\(true\);/);
+  // А вот повторяющийся таймер и возврат к вкладке — с false: не имеют
+  // права внезапно перезагрузить дневник во время работы.
   assert.match(timerEffect, /setInterval\(\(\) => void runSync\(false\), SYNC_INTERVAL_MS\)/);
-  assert.doesNotMatch(timerEffect, /void runSync\(true\)/);
+  assert.match(resumeEffect, /void runSync\(false\);/);
+  assert.doesNotMatch(resumeEffect, /runSync\(true\)/);
 });
 
 test('runSync по-прежнему показывает syncing в UI и возвращает paired после завершения', () => {
@@ -65,16 +73,17 @@ test('защита от петли: отметка о прогоне снима�
   assert.match(runSyncBody, /\} finally \{\s*\n\s*syncingRef\.current = false;[\s\S]*?clearSyncInProgressFlag\(\);/);
 });
 
-test('оборванный прогон остаётся в журнале — это доказательство, что телефон не тянет синк', () => {
+test('оборванный прогон пропускает автозапуск один раз и остаётся в журнале — доказательство, что телефон не тянет синк', () => {
   assert.match(source, /const \[initialStaleSyncFlag\] = useState\(hasSyncInProgressFlag\);/);
-  assert.match(source, /if \(!staleSyncFlagRef\.current\) return;\s*\n\s*staleSyncFlagRef\.current = false;\s*\n\s*clearSyncInProgressFlag\(\);/);
-  assert.match(source, /onErrorLog\?\.\('', 'вкладка не пережила синхронизацию — прогон оборвался на середине'\);/);
+  assert.match(timerEffect, /if \(staleSyncFlagRef\.current\) \{\s*\n\s*staleSyncFlagRef\.current = false;\s*\n\s*clearSyncInProgressFlag\(\);/);
+  assert.match(timerEffect, /onErrorLog\?\.\(\s*\n\s*'',\s*\n\s*'вкладка не пережила синхронизацию — прогон оборвался на середине; автозапуск пропущен',\s*\n\s*\);/);
+  // Пропускается только САМ автозапуск — таймер заводится в любом случае, а
+  // кнопка вообще ничем не ограничена.
+  assert.match(timerEffect, /\} else if \(lastSyncOverdue\(SYNC_INTERVAL_MS\)\) \{/);
+  assert.match(timerEffect, /timerRef\.current = setInterval/);
 });
 
-test('привязка устройства синхронизирует сразу — иначе новое устройство осталось бы пустым', () => {
-  // Единственный автоматический прогон, который остался. Это не «синк при
-  // открытии»: мастер только что сама нажала «Привязать», и устройство
-  // подключали именно затем, чтобы увидеть на нём свои данные.
+test('привязка устройства синхронизирует сразу, не дожидаясь автозапуска', () => {
   const pair = source.slice(source.indexOf('const pairWithCode = useCallback('), source.indexOf('const unpair = useCallback('));
   assert.match(pair, /setPhase\('paired'\);[\s\S]*?void runSync\(true\);\s*\n\s*return \{ ok: true \};/);
   // runSync обязан быть в зависимостях — иначе привязка звала бы устаревший
@@ -82,18 +91,19 @@ test('привязка устройства синхронизирует сра�
   assert.match(pair, /\}, \[onErrorLog, runSync\]\);/);
 });
 
-test('открытие дневника синк не запускает — только таймер раз в шесть часов и кнопка', () => {
-  // Полный прогон занимает главный поток на десятки секунд. Раньше он шёл и
-  // при открытии, и при каждом возврате к вкладке (на телефоне это ещё и
-  // каждое переключение приложения) — дневник тормозил ровно тогда, когда к
-  // нему вернулись работать, а телефон успевал убить вкладку по памяти.
-  assert.match(source, /const SYNC_INTERVAL_MS = 6 \* 60 \* 60 \* 1000;/);
-  assert.doesNotMatch(timerEffect, /runSync\(true\)/);
-  // Возврата к вкладке как повода для синка больше нет вовсе.
-  assert.doesNotMatch(source, /visibilitychange', onResume/);
-  assert.doesNotMatch(source, /lastSyncWithin/);
-  // Кнопка — единственный способ синхронизироваться немедленно, и она
-  // по-прежнему обновляет экран.
+test('автозапуск на открытии и на возврате к вкладке — но не чаще SYNC_INTERVAL_MS (lastSyncOverdue)', () => {
+  // Раньше (до Шага 7, docs/SYNC_PLAN.md) полный прогон на каждое открытие
+  // и каждый возврат к вкладке был небезопасен — держал в памяти всю
+  // библиотеку разом и мог убить вкладку по памяти. Шаг 7 сделал решение
+  // «что синкать» дешёвым и перенос — поштучным, так что автозапуск снова
+  // безопасен; остаётся только не гонять его чаще, чем нужно для «пару раз
+  // в сутки».
+  assert.match(source, /const SYNC_INTERVAL_MS = 12 \* 60 \* 60 \* 1000;/);
+  assert.match(source, /function lastSyncOverdue\(gapMs: number\): boolean \{/);
+  assert.match(timerEffect, /else if \(lastSyncOverdue\(SYNC_INTERVAL_MS\)\) \{\s*\n\s*void runSync\(true\);/);
+  assert.match(resumeEffect, /document\.addEventListener\('visibilitychange', onResume\);/);
+  assert.match(resumeEffect, /if \(!lastSyncOverdue\(SYNC_INTERVAL_MS\)\) return;/);
+  // Кнопка по-прежнему ничем не ограничена.
   assert.match(source, /syncNow: \(\) => runSync\(true\)/);
 });
 

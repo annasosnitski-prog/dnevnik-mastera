@@ -5,6 +5,9 @@ import { type Project, type ProjectCategory, PROJECT_CATEGORIES, type NextAction
 import { downsizeForStorage } from '../../lib/imagePreview';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT, INPUT_STYLE } from '../TattoDiary';
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // Вынесено из TattoDiary.tsx (PR 10 рефакторинга) — общие форм-контролы
 // «карточки клиента», которые использует и сам экран деталей, и bottom
@@ -303,6 +306,56 @@ export function StyleChips({ selected, onToggle }: { selected: string[]; onToggl
   );
 }
 
+// dnd-kit требует стабильный id на каждый сортируемый элемент — `photos` же
+// приходит просто как string[] (data URL), без собственного id, и один и
+// тот же снимок теоретически может повторяться дважды. Сверяем с id
+// прошлого рендера по src, беря первое ещё не занятое совпадение (тот же
+// принцип, что у withMoodboardPhotoSrcs/reconcileHealingPhotos в
+// domain/project.ts) — неизменившееся фото не меняет свой id при простом
+// ре-рендере, только реально новый src получает новый.
+function useStablePhotoIds(photos: string[]): string[] {
+  const prevRef = useRef<{ src: string; id: string }[]>([]);
+  const used = new Array(prevRef.current.length).fill(false);
+  const next = photos.map((src) => {
+    const i = prevRef.current.findIndex((p, idx) => !used[idx] && p.src === src);
+    if (i !== -1) {
+      used[i] = true;
+      return prevRef.current[i];
+    }
+    return { src, id: crypto.randomUUID() };
+  });
+  prevRef.current = next;
+  return next.map((p) => p.id);
+}
+
+// Плитка мудборда с возможностью перетаскивания (dnd-kit) — тот же внешний
+// вид, что у обычной плитки (position:relative/aspectRatio:1 обёртка), но
+// listeners/attributes на всю плитку: клик по фото/крестику всё равно
+// доходит (dragSensors выше требует сдвига на 8px, обычный тап под этот
+// порог не попадает — стандартный паттерн dnd-kit, а не самодельный).
+function SortablePhotoTile({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{
+        position: 'relative',
+        width: '100%',
+        aspectRatio: '1',
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+        opacity: isDragging ? 0.6 : 1,
+        touchAction: 'none',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 // Photo gallery + upload for a session. On mobile the native file picker
 // already offers "Take Photo", so there's no separate camera button. Deleting
 // a photo takes two taps (✕ → confirm) so it can't happen by accident.
@@ -313,6 +366,7 @@ export function SessionPhotos({
   buttonFirst = false,
   topSlot,
   readOnly = false,
+  reorderable = false,
 }: {
   photos: string[];
   onChange: (photos: string[]) => void;
@@ -327,12 +381,31 @@ export function SessionPhotos({
   // Read-only: just the thumbnails (tap-to-enlarge still works), no "Добавить
   // фото" button — used in timeline/preview cards.
   readOnly?: boolean;
+  // Включает перетаскивание миниатюр для смены порядка (dnd-kit) — сейчас
+  // только поле «Мудборд» (порядок там определяет и россыпь при отправке,
+  // и раскладку коллажа, см. moodboardCollage.ts). По умолчанию выключено —
+  // остальные 6+ вызовов этого компонента не меняют своё поведение ни на
+  // строку.
+  reorderable?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
   // Tap to enlarge — an in-app overlay, never a navigation/link (that's what
   // caused the white-screen PWA crash before).
   const [viewerSrc, setViewerSrc] = useState<string | null>(null);
+  const stableIds = useStablePhotoIds(photos);
+  // distance:8 — жест засчитывается перетаскиванием только после реального
+  // сдвига пальца/курсора на 8px; обычный тап (увеличить/удалить ниже)
+  // остаётся тапом, dnd-kit не перехватывает click при отпускании без сдвига.
+  const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const from = stableIds.indexOf(String(active.id));
+    const to = stableIds.indexOf(String(over.id));
+    if (from === -1 || to === -1) return;
+    onChange(arrayMove(photos, from, to));
+  };
 
   const onPick = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -356,77 +429,98 @@ export function SessionPhotos({
     setConfirmIndex(null);
   };
 
+  // Содержимое одной плитки (фото + оверлей удаления) — общее для обычного
+  // и перетаскиваемого рендера ниже, чтобы визуал не разошёлся в двух
+  // местах. Сама разметка не менялась, только вынесена из инлайна.
+  const renderTileBody = (src: string, i: number) => (
+    <>
+      <img
+        src={src}
+        alt=""
+        onClick={() => setViewerSrc(src)}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          borderRadius: 2,
+          border: '1px solid rgba(var(--gold-rgb),0.2)',
+          display: 'block',
+          cursor: 'pointer',
+        }}
+      />
+      {allowDelete && (confirmIndex === i ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 2,
+            background: 'rgba(0,0,0,0.72)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: fs(11), color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
+          <span style={{ display: 'flex', gap: 10 }}>
+            <span onClick={() => remove(i)} style={{ fontSize: fs(12), color: '#C56676', textTransform: 'uppercase', cursor: 'pointer' }}>
+              Да
+            </span>
+            <span onClick={() => setConfirmIndex(null)} style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', cursor: 'pointer' }}>
+              Нет
+            </span>
+          </span>
+        </div>
+      ) : (
+        <div
+          onClick={() => setConfirmIndex(i)}
+          style={{
+            position: 'absolute',
+            bottom: 4,
+            right: 4,
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ color: '#EDE4CC' }}>
+            <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </div>
+      ))}
+    </>
+  );
+
   const thumbnails = photos.length > 0 && (
         // A grid (not a wrapping flex row of fixed-size tiles) so thumbnails
         // stretch to fill whatever width is left on the last row — with just
         // one or two photos, fixed 78px tiles left most of the card's own
         // width sitting empty next to them.
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 8, marginBottom: 10 }}>
-          {photos.map((src, i) => (
-            <div key={i} style={{ position: 'relative', width: '100%', aspectRatio: '1' }}>
-              <img
-                src={src}
-                alt=""
-                onClick={() => setViewerSrc(src)}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  borderRadius: 2,
-                  border: '1px solid rgba(var(--gold-rgb),0.2)',
-                  display: 'block',
-                  cursor: 'pointer',
-                }}
-              />
-              {allowDelete && (confirmIndex === i ? (
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    borderRadius: 2,
-                    background: 'rgba(0,0,0,0.72)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <span style={{ fontSize: fs(11), color: '#A85A66', fontStyle: 'italic' }}>Удалить?</span>
-                  <span style={{ display: 'flex', gap: 10 }}>
-                    <span onClick={() => remove(i)} style={{ fontSize: fs(12), color: '#C56676', textTransform: 'uppercase', cursor: 'pointer' }}>
-                      Да
-                    </span>
-                    <span onClick={() => setConfirmIndex(null)} style={{ fontSize: fs(12), color: COLORS.textFaint, textTransform: 'uppercase', cursor: 'pointer' }}>
-                      Нет
-                    </span>
-                  </span>
-                </div>
-              ) : (
-                <div
-                  onClick={() => setConfirmIndex(i)}
-                  style={{
-                    position: 'absolute',
-                    bottom: 4,
-                    right: 4,
-                    width: 22,
-                    height: 22,
-                    borderRadius: '50%',
-                    background: 'rgba(0,0,0,0.55)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ color: '#EDE4CC' }}>
-                    <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                    <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
-                </div>
-              ))}
-            </div>
-          ))}
+          {reorderable ? (
+            <DndContext sensors={dragSensors} onDragStart={() => setConfirmIndex(null)} onDragEnd={handleDragEnd}>
+              <SortableContext items={stableIds} strategy={rectSortingStrategy}>
+                {photos.map((src, i) => (
+                  <SortablePhotoTile key={stableIds[i]} id={stableIds[i]}>
+                    {renderTileBody(src, i)}
+                  </SortablePhotoTile>
+                ))}
+              </SortableContext>
+            </DndContext>
+          ) : (
+            photos.map((src, i) => (
+              <div key={i} style={{ position: 'relative', width: '100%', aspectRatio: '1' }}>
+                {renderTileBody(src, i)}
+              </div>
+            ))
+          )}
         </div>
       );
 
