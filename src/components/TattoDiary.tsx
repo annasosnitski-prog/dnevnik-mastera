@@ -2609,7 +2609,9 @@ export default function TattoDiary() {
       ? 'admin'
       : screen === 'detail' && selectedClient
         ? 'detail'
-        : screen === 'master' || screen === 'workshop'
+        // ContentINKA заводит client-less сущности точно так же, как
+        // «Мастерская» — тот же общий контекст выбора (см. onCreate ниже).
+        : screen === 'master' || screen === 'workshop' || screen === 'content'
           ? 'workshop'
           : screen === 'list'
             ? 'list'
@@ -3229,12 +3231,17 @@ export default function TattoDiary() {
                   ? () => setCreateChoiceContext('admin')
                   : screen === 'detail' && selectedClient
                     ? () => setCreateChoiceContext('detail')
-                    // «Личный кабинет» и «Мастерская» создают одно и то же —
-                    // client-less сущности, поэтому у них общий контекст
-                    // выбора. Раньше (до единой CreateChoiceSheet) Личный
-                    // кабинет умел заводить только проект мастера; теперь
-                    // проект — просто одна из опций того же выбора.
-                    : screen === 'master' || screen === 'workshop'
+                    // «Личный кабинет», «Мастерская» и «Контент» создают
+                    // одно и то же — client-less сущности, поэтому у них
+                    // общий контекст выбора. Раньше (до единой
+                    // CreateChoiceSheet) Личный кабинет умел заводить
+                    // только проект мастера; теперь проект — просто одна
+                    // из опций того же выбора. «Контент» раньше вообще не
+                    // попадал в эту цепочку — onCreate уходил в undefined,
+                    // и NavFab тогда просто не добавляет пункт «Создать» в
+                    // веер (см. allFanEntries в NavFab.tsx), а не просто
+                    // не реагирует на тап — кнопки не было видно вовсе.
+                    : screen === 'master' || screen === 'workshop' || screen === 'content'
                       ? () => setCreateChoiceContext('workshop')
                       : undefined
           }
