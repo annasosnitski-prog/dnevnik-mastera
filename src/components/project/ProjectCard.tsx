@@ -1,5 +1,6 @@
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { type Project, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../../domain/project';
+import { projectCoverPhoto } from '../../domain/projectSelectors';
 import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
 import { COLORS, fs } from '../ui/designTokens';
 import { formatDate } from '../../utils/dates';
@@ -16,6 +17,7 @@ export function ProjectCard({
   clientName: string | null;
   onClick: () => void;
 }) {
+  const cover = projectCoverPhoto(project);
   return (
     <div
       className="inka-card"
@@ -100,7 +102,18 @@ export function ProjectCard({
         <div style={{ height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.42), transparent)', margin: '7px 0' }} />
 
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          {project.generalNotes ? (
+          {cover ? (
+            // Превью проекта — см. приоритет источников в projectCoverPhoto
+            // (обложка заживления → фото проекта → фото мудборда). Занимает
+            // тот же слот, что раньше — заметки, при наличии фото, уступают
+            // ему место (обе вещи разом в такой маленькой карточке не
+            // помещаются без перегруза).
+            <img
+              src={cover}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 3, display: 'block' }}
+            />
+          ) : project.generalNotes ? (
             <div
               dir="auto"
               style={{

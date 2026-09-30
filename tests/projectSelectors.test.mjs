@@ -16,6 +16,7 @@ import {
   getClientConsultations,
   findProjectOfSession,
   findProjectOfConsultation,
+  projectCoverPhoto,
 } from '../.test-dist/src/domain/projectSelectors.js';
 
 function makeProject(overrides = {}) {
@@ -39,6 +40,8 @@ function makeProject(overrides = {}) {
     creative: '',
     inspirationSources: '',
     photos: [],
+    healingPhotos: [],
+    moodboard: null,
     createdDate: '2026-01-01',
     sessions: [],
     consultations: [],
@@ -876,4 +879,31 @@ test('getClientSessions does not mutate the projects it reads', () => {
   getClientSessions([p], 'c1');
 
   assert.deepEqual([p], snapshot);
+});
+
+// ── projectCoverPhoto ────────────────────────────────────────────────
+
+test('projectCoverPhoto is null when the project has no photos anywhere', () => {
+  assert.equal(projectCoverPhoto(makeProject()), null);
+});
+
+test('projectCoverPhoto prefers the healing gallery cover over everything else', () => {
+  const p = makeProject({
+    photos: ['data:photo'],
+    healingPhotos: [{ id: 'h1', url: 'data:healed', addedDate: '2026-01-01', isCover: true }],
+    moodboard: { id: 'mb1', items: [{ id: 'i1', kind: 'photo', src: 'data:moodboard', url: '', hex: '', note: '' }], caption: '', status: 'draft', sentAt: null, approvedAt: null, updatedAt: '2026-01-01' },
+  });
+  assert.equal(projectCoverPhoto(p), 'data:healed');
+});
+
+test('projectCoverPhoto falls back to the first project photo when no healing cover is marked', () => {
+  const p = makeProject({ photos: ['data:first', 'data:second'], healingPhotos: [{ id: 'h1', url: 'data:healed', addedDate: '2026-01-01', isCover: false }] });
+  assert.equal(projectCoverPhoto(p), 'data:first');
+});
+
+test('projectCoverPhoto falls back to the first moodboard photo when nothing else is there', () => {
+  const p = makeProject({
+    moodboard: { id: 'mb1', items: [{ id: 'i1', kind: 'link', src: '', url: 'https://pinterest.com', hex: '', note: '' }, { id: 'i2', kind: 'photo', src: 'data:moodboard', url: '', hex: '', note: '' }], caption: '', status: 'draft', sentAt: null, approvedAt: null, updatedAt: '2026-01-01' },
+  });
+  assert.equal(projectCoverPhoto(p), 'data:moodboard');
 });
