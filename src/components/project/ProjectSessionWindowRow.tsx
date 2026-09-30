@@ -75,7 +75,12 @@ export function ProjectSessionWindowRow({
     >
       <ProjectRowHeader project={project} clientName={clientName} />
 
-      <div style={{ position: 'relative', height: 40, margin: '0 4px' }}>
+      {/* Тот же отступ (0 40px), что и у ProjectTimelineRow — иначе рельса
+          этого виджета визуально длиннее/короче пайплайновой в соседних
+          строках одного списка (см. разбор скриншота AdminINKA: у «Веном»
+          рельса тянулась к самому краю строки, а у пайплайновых строк —
+          с заметным отступом). */}
+      <div style={{ position: 'relative', height: 40, margin: '0 40px' }}>
         <div style={{ position: 'absolute', top: -5, left: 0, right: 0 }}>
           <ProgressRail progress={progress} />
         </div>
