@@ -1080,7 +1080,7 @@ export function NewProjectSheet({
               «Фотографии» выше (см. domain/project.ts: Moodboard vs
               Project.photos). Отправка и статус «отправлен/одобрен» — не
               этот шаг, здесь только собрать и упорядочить. */}
-          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst reorderable /></div>
         </div>
 
         <div className="inka-consult-right">
