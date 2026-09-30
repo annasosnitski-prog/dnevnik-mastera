@@ -6,6 +6,7 @@ import {
   isMeaningfulProjectChange,
   withAdvancedStatus,
   withStatusAfterDoneSession,
+  withResumedFromPause,
 } from '../.test-dist/src/domain/project.js';
 
 test('resolveNextStep keeps text, date and type when text is non-empty', () => {
@@ -203,4 +204,34 @@ test('withStatusAfterDoneSession does not resume a paused project on a done sess
 test('withStatusAfterDoneSession never rolls a completed project back', () => {
   const p = makeProject({ status: 'completed', sessionsPlan: 'multiple' });
   assert.equal(withStatusAfterDoneSession(p), p, 'возвращает тот же объект, менять нечего');
+});
+
+// ── withResumedFromPause ──────────────────────────────────────────────────
+// «Пауза» отмечает зависшего клиента — появление у него НОВОЙ сессии уже
+// доказывает, что зависание кончилось (см. комментарий у самой функции в
+// domain/project.ts и её проводку в commitSession, TattoDiary.tsx).
+
+test('withResumedFromPause moves a paused project back to «Активен»', () => {
+  const p = makeProject({ status: 'paused' });
+  assert.equal(withResumedFromPause(p).status, 'active');
+});
+
+test('withResumedFromPause leaves an active project alone', () => {
+  const p = makeProject({ status: 'active' });
+  assert.equal(withResumedFromPause(p), p, 'возвращает тот же объект, менять нечего');
+});
+
+// Новая сессия у закрытого проекта не должна его реанимировать — закрытый
+// проект новыми сессиями в обычном сценарии вообще не обрастает, но функция
+// на всякий случай не трогает ничего, кроме 'paused'.
+test('withResumedFromPause leaves a completed project alone', () => {
+  const p = makeProject({ status: 'completed' });
+  assert.equal(withResumedFromPause(p), p, 'возвращает тот же объект, менять нечего');
+});
+
+test('withResumedFromPause keeps everything else about the project', () => {
+  const p = makeProject({ status: 'paused', sessions: [{ id: 's1' }] });
+  const next = withResumedFromPause(p);
+  assert.equal(next.id, p.id);
+  assert.deepEqual(next.sessions.map((s) => s.id), ['s1']);
 });

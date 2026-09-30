@@ -252,6 +252,7 @@ import {
   type MoodboardStatus,
   isMeaningfulProjectChange,
   withStatusAfterDoneSession,
+  withResumedFromPause,
   withHealingGallery,
   withMoodboardStatus,
   withMoodboardPhotoSrcs,
@@ -1871,13 +1872,23 @@ export default function TattoDiary() {
 
   // Авто-переход статуса проекта ВНУТРИ списка (Этап 3b): выполненная сессия
   // двигает проект в «Активен» (см. withStatusAfterDoneSession). Только
-  // вперёд, не дальше нужного — паузу, если проект на ней, сессия не снимает
-  // (см. её место в PROJECT_STATUSES).
+  // вперёд, не дальше нужного — сама по себе она паузу не снимает (см. её
+  // место в PROJECT_STATUSES); паузу снимает появление НОВОЙ сессии, см.
+  // resumeFromPauseIn ниже, отдельным явным исключением.
   // Раньше это была отдельная запись в стор — теперь статус уезжает тем же
   // сохранением, что и сама сессия: два сохранения проектов в одном тике
   // затирают друг друга (#248).
   const advanceAfterDoneSessionIn = (source: Project[], projectId: string | null): Project[] =>
     projectId ? source.map((p) => (p.id === projectId ? withStatusAfterDoneSession(p) : p)) : source;
+
+  // «Пауза» отмечает зависшего клиента (см. withResumedFromPause в
+  // domain/project.ts) — появление у него НОВОЙ сессии уже доказывает, что
+  // зависание кончилось, и должно снять паузу сразу, не дожидаясь отметки
+  // «Выполнена». Только для новой записи (commitSession вызывает это лишь
+  // когда editSession отсутствует) — правка существующей сессии паузу не
+  // трогает.
+  const resumeFromPauseIn = (source: Project[], projectId: string | null): Project[] =>
+    projectId ? source.map((p) => (p.id === projectId ? withResumedFromPause(p) : p)) : source;
 
   // Стиль, введённый в форме сессии, подхватывается в список стилей клиента —
   // это единственное, что сессия меняет в самой карточке клиента (остальное
@@ -1916,7 +1927,10 @@ export default function TattoDiary() {
     const withConversion = convertingConsultation
       ? applyConsultationConversionInProjects(withSession, sessionId, convertingConsultation.id)
       : withSession;
-    saveProjects(data.done ? advanceAfterDoneSessionIn(withConversion, projectId) : withConversion);
+    // Новая сессия (не правка существующей) сама снимает паузу с проекта —
+    // см. resumeFromPauseIn выше.
+    const withResume = editSession ? withConversion : resumeFromPauseIn(withConversion, projectId);
+    saveProjects(data.done ? advanceAfterDoneSessionIn(withResume, projectId) : withResume);
     mergeSessionStyleIntoClient(ownerClient, data.style);
     return sessionId;
   };

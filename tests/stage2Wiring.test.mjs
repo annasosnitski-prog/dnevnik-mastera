@@ -84,9 +84,24 @@ test('статус проекта продвигается тем же сохр�
   // проекта, см. domain/project.ts).
   assert.match(
     commit,
-    /saveProjects\(data\.done \? advanceAfterDoneSessionIn\(withConversion, projectId\) : withConversion\)/,
+    /saveProjects\(data\.done \? advanceAfterDoneSessionIn\(withResume, projectId\) : withResume\)/,
   );
   assert.equal((commit.match(/saveProjects\(/g) ?? []).length, 1, 'ровно одно сохранение на весь сценарий');
+});
+
+// «Пауза» отмечает зависшего клиента (см. withResumedFromPause в
+// domain/project.ts) — появление у него НОВОЙ сессии должно снять паузу тем
+// же сохранением, что и саму сессию, а правка существующей — не должна.
+test('новая сессия снимает паузу с проекта тем же сохранением, что и сама запись', () => {
+  assert.match(
+    app,
+    /const resumeFromPauseIn = \(source: Project\[\], projectId: string \| null\): Project\[\] =>/,
+  );
+  const commit = app.slice(app.indexOf('const commitSession = ('), app.indexOf('const handleAddConsultation ='));
+  assert.match(
+    commit,
+    /const withResume = editSession \? withConversion : resumeFromPauseIn\(withConversion, projectId\);/,
+  );
 });
 
 // Быстрый тумблер обязан двигать проект в «Активен» ТЕМ ЖЕ сохранением, что
