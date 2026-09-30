@@ -82,7 +82,7 @@ test('isMeaningfulProjectChange is false for a plain text-field edit (not moveme
 
 test('isMeaningfulProjectChange is true when status changes', () => {
   const p = makeProject({ status: 'active' });
-  assert.equal(isMeaningfulProjectChange(p, { ...p, status: 'healing' }), true);
+  assert.equal(isMeaningfulProjectChange(p, { ...p, status: 'paused' }), true);
 });
 
 test('isMeaningfulProjectChange is true when state changes (e.g. resumed from pause)', () => {
@@ -109,17 +109,17 @@ test('isMeaningfulProjectChange is true when next-step text/date/type changes', 
 // она молча пропадала после сохранения).
 //
 // Порядок «только вперёд» — это порядок PROJECT_STATUSES:
-// active → paused → healing → completed. «Пауза» стоит внутри этого
-// порядка, а не сбоку от него: см. отдельный блок тестов про неё ниже.
+// active → paused → completed. «Пауза» стоит внутри этого порядка, а не
+// сбоку от него: см. отдельный блок тестов про неё ниже.
 
 test('withAdvancedStatus moves the status forward', () => {
   const p = makeProject({ status: 'active' });
-  assert.equal(withAdvancedStatus(p, 'healing').status, 'healing');
+  assert.equal(withAdvancedStatus(p, 'completed').status, 'completed');
 });
 
 test('withAdvancedStatus never moves the status backwards', () => {
-  const p = makeProject({ status: 'healing' });
-  assert.equal(withAdvancedStatus(p, 'active').status, 'healing');
+  const p = makeProject({ status: 'completed' });
+  assert.equal(withAdvancedStatus(p, 'active').status, 'completed');
 });
 
 test('withAdvancedStatus leaves an already-reached status alone', () => {
@@ -134,7 +134,7 @@ test('withAdvancedStatus may skip a status when the target is further ahead', ()
 
 test('withAdvancedStatus keeps everything else about the project, including just-added sessions', () => {
   const p = makeProject({ status: 'active', sessions: [{ id: 's-new' }] });
-  const next = withAdvancedStatus(p, 'healing');
+  const next = withAdvancedStatus(p, 'completed');
   assert.deepEqual(next.sessions.map((s) => s.id), ['s-new'], 'сессия не теряется при продвижении статуса');
   assert.equal(next.title, p.title);
   assert.equal(next.id, p.id);
@@ -143,7 +143,7 @@ test('withAdvancedStatus keeps everything else about the project, including just
 test('withAdvancedStatus does not mutate the project it is given', () => {
   const p = makeProject({ status: 'active' });
   const snapshot = structuredClone(p);
-  withAdvancedStatus(p, 'healing');
+  withAdvancedStatus(p, 'completed');
   assert.deepEqual(p, snapshot);
 });
 
@@ -163,62 +163,44 @@ test('withAdvancedStatus ignores a legacy ProjectStage value as a target', () =>
 // «Пауза» — ручной, обратимый статус (мастер сама ставит и снимает через
 // select в форме, в обход этой функции). Её место в PROJECT_STATUSES —
 // сразу после 'active' — решает, какие автопереходы её пропускают, а какие
-// сквозь неё проходят: обычная сессия целится в 'active', то есть НЕ дальше
-// паузы по порядку, и её не снимает; последняя сессия и фото заживления
-// целятся дальше — и снимают паузу сами.
+// сквозь неё проходят: выполненная сессия целится в 'active', то есть НЕ
+// дальше паузы по порядку, и её не снимает; фото заживления целится
+// дальше — и снимает паузу само.
 test('withAdvancedStatus does not auto-resume a paused project by advancing to «Активен»', () => {
   const p = makeProject({ status: 'paused' });
   assert.equal(withAdvancedStatus(p, 'active').status, 'paused');
 });
 
-test('withAdvancedStatus does move a paused project on to «Ожидает заживления» or «Завершён»', () => {
+test('withAdvancedStatus does move a paused project on to «Завершён»', () => {
   const p = makeProject({ status: 'paused' });
-  assert.equal(withAdvancedStatus(p, 'healing').status, 'healing');
+  assert.equal(withAdvancedStatus(p, 'completed').status, 'completed');
 });
 
 // ── withStatusAfterDoneSession ────────────────────────────────────────────
-// Куда выполненная сессия двигает проект: обычная — «Активен», последняя —
-// сразу «Ожидает заживления» (дальше только цикл заживления).
+// Куда выполненная сессия двигает проект: всегда «Активен» — последняя она
+// или нет, заживление больше не статус проекта, а отдельный цикл на уровне
+// сессии (см. комментарий у самой функции в domain/project.ts).
 
 test('withStatusAfterDoneSession keeps status «Активен» on an ordinary session', () => {
   const p = makeProject({ status: 'active', sessionsPlan: 'multiple' });
-  assert.equal(withStatusAfterDoneSession(p, false).status, 'active');
+  assert.equal(withStatusAfterDoneSession(p).status, 'active');
 });
 
-// Обычная (не последняя) сессия целится в 'active' — то есть не дальше
-// паузы по порядку PROJECT_STATUSES, — и поэтому не снимает её сама.
-test('withStatusAfterDoneSession does not resume a paused project on an ordinary session', () => {
-  const p = makeProject({ status: 'paused', sessionsPlan: 'multiple' });
-  assert.equal(withStatusAfterDoneSession(p, false).status, 'paused');
-});
-
-test('withStatusAfterDoneSession moves a project to «Ожидает заживления» on the last session', () => {
-  const p = makeProject({ status: 'active', sessionsPlan: 'multiple' });
-  assert.equal(withStatusAfterDoneSession(p, true).status, 'healing');
-});
-
-// Последняя сессия целится дальше паузы по порядку — снимает её сама,
-// в отличие от обычной сессии выше.
-test('withStatusAfterDoneSession resumes a paused project via its last session', () => {
-  const p = makeProject({ status: 'paused', sessionsPlan: 'multiple' });
-  assert.equal(withStatusAfterDoneSession(p, true).status, 'healing');
-});
-
-// У проекта «одна встреча» единственная сессия последняя по определению —
-// подтверждение мастера там не спрашивается и на сессии не хранится.
-test('withStatusAfterDoneSession treats a single-session project as always final', () => {
+test('withStatusAfterDoneSession keeps status «Активен» on the last session too', () => {
   const p = makeProject({ status: 'active', sessionsPlan: 'single' });
-  assert.equal(withStatusAfterDoneSession(p, false).status, 'healing');
+  assert.equal(withStatusAfterDoneSession(p).status, 'active');
 });
 
-// Старый проект без плана ведёт себя как «больше одной»: подтверждения не
-// было, значит закрывать работу нечем.
-test('withStatusAfterDoneSession treats a plan-less project as not final without confirmation', () => {
-  const p = makeProject({ status: 'active', sessionsPlan: null });
-  assert.equal(withStatusAfterDoneSession(p, false).status, 'active');
+// Сессия (последняя или нет) целится в 'active' — то есть не дальше паузы
+// по порядку PROJECT_STATUSES, — и поэтому больше не расколдовывает её сама,
+// даже для проекта «одна встреча» (раньше это делала только последняя
+// сессия, целясь в 'healing').
+test('withStatusAfterDoneSession does not resume a paused project on a done session', () => {
+  const p = makeProject({ status: 'paused', sessionsPlan: 'single' });
+  assert.equal(withStatusAfterDoneSession(p).status, 'paused');
 });
 
 test('withStatusAfterDoneSession never rolls a completed project back', () => {
   const p = makeProject({ status: 'completed', sessionsPlan: 'multiple' });
-  assert.equal(withStatusAfterDoneSession(p, true), p, 'возвращает тот же объект, менять нечего');
+  assert.equal(withStatusAfterDoneSession(p), p, 'возвращает тот же объект, менять нечего');
 });

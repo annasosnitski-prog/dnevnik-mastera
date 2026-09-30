@@ -1870,15 +1870,14 @@ export default function TattoDiary() {
     ensureBucketProject(source, projectId, ownerClient, masterInfo.name, MARKER_COLORS[0]);
 
   // Авто-переход статуса проекта ВНУТРИ списка (Этап 3b): выполненная сессия
-  // двигает проект в «Активен», а последняя — сразу в «Заживление» (см.
-  // withStatusAfterDoneSession). Только вперёд, не дальше нужного — паузу,
-  // если проект на ней, обычная сессия не снимает (см. её место в
-  // PROJECT_STATUSES).
+  // двигает проект в «Активен» (см. withStatusAfterDoneSession). Только
+  // вперёд, не дальше нужного — паузу, если проект на ней, сессия не снимает
+  // (см. её место в PROJECT_STATUSES).
   // Раньше это была отдельная запись в стор — теперь статус уезжает тем же
   // сохранением, что и сама сессия: два сохранения проектов в одном тике
   // затирают друг друга (#248).
-  const advanceAfterDoneSessionIn = (source: Project[], projectId: string | null, isLastSession: boolean): Project[] =>
-    projectId ? source.map((p) => (p.id === projectId ? withStatusAfterDoneSession(p, isLastSession) : p)) : source;
+  const advanceAfterDoneSessionIn = (source: Project[], projectId: string | null): Project[] =>
+    projectId ? source.map((p) => (p.id === projectId ? withStatusAfterDoneSession(p) : p)) : source;
 
   // Стиль, введённый в форме сессии, подхватывается в список стилей клиента —
   // это единственное, что сессия меняет в самой карточке клиента (остальное
@@ -1917,7 +1916,7 @@ export default function TattoDiary() {
     const withConversion = convertingConsultation
       ? applyConsultationConversionInProjects(withSession, sessionId, convertingConsultation.id)
       : withSession;
-    saveProjects(data.done ? advanceAfterDoneSessionIn(withConversion, projectId, data.isLastSession) : withConversion);
+    saveProjects(data.done ? advanceAfterDoneSessionIn(withConversion, projectId) : withConversion);
     mergeSessionStyleIntoClient(ownerClient, data.style);
     return sessionId;
   };
@@ -2215,13 +2214,9 @@ export default function TattoDiary() {
       ?? projects.flatMap((p) => p.sessions).find((s) => s.id === sessionId);
     if (!session) return;
     const flipped = updateSessionInProjects(projects, sessionId, (s) => ({ ...s, done: !s.done }));
-    // Отметили «выполнена» (было не выполнено) → двигаем проект в «Активен»
-    // (или сразу в «Заживление», если это последняя сессия). Быстрый тумблер
-    // вопрос «последняя?» не задаёт, поэтому isLastSession берётся с самой
-    // записи — у запланированной сессии он всегда false (см. sessionFields),
-    // так что «Заживление» отсюда получает только проект «одна встреча».
+    // Отметили «выполнена» (было не выполнено) → двигаем проект в «Активен».
     // Тем же сохранением: отдельная запись статуса затёрла бы сам флаг (#248).
-    saveProjects(session.done ? flipped : advanceAfterDoneSessionIn(flipped, session.projectId, session.isLastSession));
+    saveProjects(session.done ? flipped : advanceAfterDoneSessionIn(flipped, session.projectId));
   };
 
   // clientId-scoped variant of the toggle above — for the «Отменить» quick

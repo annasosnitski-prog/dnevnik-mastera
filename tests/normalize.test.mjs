@@ -332,9 +332,9 @@ test('normalizeProject keeps a valid nextActionType unchanged', () => {
 });
 
 test('normalizeProject re-normalizes an already-valid record to the same value (idempotent)', () => {
-  const once = normalizeProject({ status: 'healing', priority: 'urgent' }, 0);
+  const once = normalizeProject({ status: 'paused', priority: 'urgent' }, 0);
   const twice = normalizeProject(once, 0);
-  assert.equal(twice.status, 'healing');
+  assert.equal(twice.status, 'paused');
   assert.equal(twice.priority, 'urgent');
 });
 
@@ -344,6 +344,16 @@ test('normalizeProject ignores a legacy `stage` field instead of carrying it ove
   const p = normalizeProject({ stage: 'booked' }, 0);
   assert.equal(p.status, 'active');
   assert.equal(p.stage, undefined, 'удалённое поле не остаётся на нормализованном проекте');
+});
+
+// 'healing' убран из ProjectStatus (заживление теперь цикл на уровне сессии,
+// см. withStatusAfterDoneSession) — старые записи с этим статусом так же не
+// мигрируются бережно, а просто откатываются на дефолт 'active', что и нужно:
+// проект снова виден в «Активных» до закрытия цикла заживления фото/статусом
+// 'completed'.
+test('normalizeProject defaults a legacy `healing` status to «Активен»', () => {
+  const p = normalizeProject({ status: 'healing' }, 0);
+  assert.equal(p.status, 'active');
 });
 
 test('normalizeProject defaults an old record WITH a completed session to «Активен»', () => {
