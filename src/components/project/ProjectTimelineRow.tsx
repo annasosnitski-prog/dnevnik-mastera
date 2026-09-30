@@ -16,16 +16,51 @@ const NEXT_ACTION_LABELS: Record<string, string> = Object.fromEntries(
   NEXT_ACTION_TYPES.map((a) => [a.key, a.label]),
 );
 
+// Что написать над точкой текущего отрезка — своя формулировка мастера
+// (actionText), если она есть, иначе стандартная подпись типа действия
+// (actionType). Для 'actual' обе всегда null (см. getProjectPipelineSegments)
+// — там и рендерить нечего, показывать «Назначить консультацию» под уже
+// назначенной консультацией как раз и было нечестно в старой версии шкалы.
 function actionLabel(segment: ProjectPipelineSegment): string | null {
   if (segment.actionText) return segment.actionText;
   if (segment.actionType) return NEXT_ACTION_LABELS[segment.actionType] ?? null;
   return null;
 }
 
+// Прототип шкалы «Запрос → первая сессия» (§17/§22 pipeline-документа) —
+// один проект = одна горизонтальная строка. Точки стоят через равные
+// промежутки по ПОРЯДКУ (индексу), не по доле реального времени: раньше
+// позиция считалась как доля пройденного пути по датам, и при неровных
+// интервалах между вехами (например, долгая пауза перед сессией) соседние
+// точки и их подписи наезжали друг на друга — тем сильнее, чем ближе даты
+// друг к другу оказывались по случайности. Индексная раскладка всегда даёт
+// одинаковые, предсказуемые промежутки (0/33/66/100% для четырёх точек)
+// независимо от дат, так что подписи никогда не сталкиваются.
+//
+// Прожитая часть (от старта до сегодня) закрашена — что уже должно было
+// произойти; будущая часть — просто линия. Точка считается «пройденной»,
+// если её собственная дата <= сегодня, независимо от закраски линии под ней.
 function indexPosition(index: number, count: number): number {
   return count <= 1 ? 0 : (index / (count - 1)) * 100;
 }
 
+// «Сегодня» ложится на ту же индексную шкалу — интерполяция идёт по датам
+// внутри пары точек, между которыми сегодня оказалось, а не по всему
+// диапазону сразу, так что заливка линии остаётся согласованной с
+// индексными позициями точек выше.
+//
+// С появлением 'actual'/'committed' точек даты сегментов больше НЕ обязаны
+// идти по возрастанию — например, у уже прошедшей реальной консультации
+// (индекс 2) дата может оказаться позже, чем у ещё не наступившей прогнозной
+// «Сессии» (индекс 3, forecast всегда равен исходной целевой дате окна), и
+// наоборот. Наивный проход по соседним парам в порядке индекса (как было
+// раньше) в таком случае мог сравнить не ту пару и либо зациклиться на
+// невalidном диапазоне, либо просто не найти пару и молча вернуть 100%.
+// Вместо этого ищем САМЫЙ ПОЗДНИЙ по индексу сегмент, чья дата уже <=
+// сегодня (проверяя все, а не полагаясь на порядок) — это и есть точка,
+// докуда закрашивать. Следующий по индексу сегмент по построению всегда
+// окажется в будущем (иначе он сам стал бы этим самым «самым поздним»), так
+// что пара для интерполяции внутри отрезка всегда корректна.
 function todayPosition(segments: { targetDate: string }[], today: string): number {
   const count = segments.length;
   if (count === 0) return 0;
@@ -43,54 +78,21 @@ function todayPosition(segments: { targetDate: string }[], today: string): numbe
   return indexPosition(lastPassedIndex, count) + frac * (indexPosition(nextIndex, count) - indexPosition(lastPassedIndex, count));
 }
 
-// Та же металлическая бусина-разделитель, что стоит на подвесочной штанге
-// ClientCardTabBar, но уменьшенная под толщину project pipeline. До того,
-// как заполнение шкалы дошло до отметки, бусина остаётся тёмным металлом;
-// ровно в момент достижения отметки включаются золотая поверхность и glow.
-function PipelineDividerBead({ pct, lit }: { pct: number; lit: boolean }) {
-  return (
-    <span
-      aria-hidden="true"
-      data-pipeline-divider=""
-      style={{
-        position: 'absolute',
-        left: `${pct}%`,
-        top: 7,
-        width: 7,
-        height: 7,
-        transform: 'translate(-50%, -50%)',
-        borderRadius: '50%',
-        border: lit
-          ? '0.5px solid rgba(255,240,179,.85)'
-          : '0.5px solid rgba(var(--gold-rgb),.22)',
-        background: lit
-          ? `radial-gradient(circle at 32% 26%,
-              #FFFFFF 0%,
-              #F5E3B8 12%,
-              #EAD1A0 24%,
-              #E0B569 40%,
-              #C8943A 60%,
-              #7A5620 82%,
-              #3A2712 100%)`
-          : `radial-gradient(circle at 32% 26%,
-              rgba(234,209,160,.26) 0%,
-              rgba(122,86,32,.28) 48%,
-              rgba(58,39,18,.72) 100%)`,
-        boxShadow: lit
-          ? `inset -1px -1px 1.4px rgba(0,0,0,.55),
-             inset 0.6px 0.6px 0.8px rgba(255,255,255,.5),
-             0 0 1.5px rgba(255,240,179,.82),
-             0 0 4px rgba(224,181,105,.4),
-             0 0 7px rgba(226,182,85,.16),
-             0 1.5px 2px rgba(0,0,0,.5)`
-          : `inset -1px -1px 1.4px rgba(0,0,0,.6),
-             inset 0.4px 0.4px 0.6px rgba(255,255,255,.12),
-             0 1px 1.5px rgba(0,0,0,.5)`,
-        transition: 'background .25s, border-color .25s, box-shadow .25s',
-        zIndex: 2,
-      }}
-    />
-  );
+// Оформление точки по источнику даты (см. PipelineSegmentSource) — это и
+// есть весь смысл переделки: факт, обещание и прогноз должны читаться
+// по-разному с первого взгляда, а не сливаться в одинаковые точки на линии.
+function dotStyle(source: ProjectPipelineSegment['source']): React.CSSProperties {
+  if (source === 'actual') {
+    // Факт — сплошная золотая точка, как раньше выглядела «пройденная».
+    return { border: `1.5px solid ${COLORS.gold}`, background: COLORS.gold };
+  }
+  if (source === 'committed') {
+    // Обещание мастера — золотое кольцо с прозрачной серединой: уже не
+    // догадка, но ещё не свершившийся факт.
+    return { border: `1.5px solid ${COLORS.gold}`, background: 'transparent' };
+  }
+  // Прогноз — тускло, полая точка: это проекция, а не факт и не обещание.
+  return { border: '1.5px solid rgba(var(--gold-rgb),0.4)', background: 'transparent' };
 }
 
 // Общая «шапка» строки (аватар-буква/название/клиент) — одинаковая что у
@@ -135,13 +137,30 @@ export function ProjectTimelineRow({
   project: Project;
   clientName: string | null;
   segments: ProjectPipelineSegment[];
+  // Тап по строке открывает карточку проекта — тот же переход, что и с
+  // обложки проекта или из напоминаний (см. onOpenProject в
+  // AdminDashboardScreen). Опционален только чтобы не ломать превью/тесты,
+  // которые рендерят строку саму по себе без экрана-обёртки.
   onOpen?: (project: Project) => void;
 }) {
   if (segments.length === 0) return null;
 
   const today = todayISO();
   const todayPct = todayPosition(segments, today);
+  // Текущий отрезок — самая ранняя точка, которая ещё не факт: именно там
+  // нужна подсказка «что делать», остальные либо уже случились (нечего
+  // подсказывать), либо и так станут актуальными позже. Если факт вообще
+  // всё (весь путь до первой сессии уже пройден записями) — подсказку не
+  // показываем нигде, currentStretchIndex останется -1.
   const currentStretchIndex = segments.findIndex((s) => s.source !== 'actual');
+  // Подсказка действия — это третья строка под точкой (label + дата + это),
+  // и при переносе в maxWidth:110 она может занять две собственные строки.
+  // Фиксированная высота 48 (без подсказки) не учитывала такое разрастание:
+  // подсказка была position:absolute и просто вылезала ЗА пределы этого
+  // блока, наезжая на заголовок следующего проекта в списке (см. скриншот
+  // с «Собрать» поверх «Спина Паучьих Лилий»). Резервируем высоту заранее,
+  // а не подгоняем постфактум — единственный способ узнать её точно
+  // потребовал бы измерения DOM, а здесь фиксированная оценка достаточна.
   const hasActionHint = currentStretchIndex !== -1 && actionLabel(segments[currentStretchIndex]) !== null;
   const scaleHeight = hasActionHint ? 74 : 48;
 
@@ -153,21 +172,38 @@ export function ProjectTimelineRow({
       <ProjectRowHeader project={project} clientName={clientName} />
 
       <div style={{ position: 'relative', height: scaleHeight, margin: '0 40px' }}>
+        {/* Та же подвесочная штанга (ClientCardTabBar's PendantRail), только
+            заполняемая по прогрессу вместо провисания между камнями —
+            закрашенная часть («сегодня уже здесь») светится тем же
+            двухслойным drop-shadow, что и её собственный металл. */}
         <div style={{ position: 'absolute', top: -5, left: 0, right: 0 }}>
           <ProgressRail progress={todayPct / 100} />
         </div>
 
         {segments.map((segment, index) => {
           const pct = indexPosition(index, segments.length);
+          // Подпись у крайних точек анкерится к своему краю, а не к центру
+          // (иначе текст первой/последней точки вылезал бы за пределы
+          // строки) — на саму точку на линии это не влияет, она всегда точно
+          // по центру своего `pct`.
           const anchor = pct < 10 ? 'left' : pct > 90 ? 'right' : 'center';
           const isForecast = segment.source === 'forecast';
           const labelColor = isForecast ? COLORS.textGhost : COLORS.textSecondary;
           const action = index === currentStretchIndex ? actionLabel(segment) : null;
-          const beadLit = todayPct >= pct;
-
           return (
-            <div key={segment.key}>
-              <PipelineDividerBead pct={pct} lit={beadLit} />
+            <div key={segment.key} style={{ opacity: isForecast ? 0.55 : 1 }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: `${pct}%`,
+                  transform: 'translateX(-50%)',
+                  width: 9,
+                  height: 9,
+                  borderRadius: '50%',
+                  ...dotStyle(segment.source),
+                }}
+              />
               <div
                 style={{
                   position: 'absolute',
@@ -176,13 +212,14 @@ export function ProjectTimelineRow({
                   transform: anchor === 'left' ? 'translateX(0%)' : anchor === 'right' ? 'translateX(-100%)' : 'translateX(-50%)',
                   textAlign: anchor,
                   whiteSpace: 'nowrap',
-                  opacity: isForecast ? 0.55 : 1,
                 }}
               >
                 <div style={{ fontSize: fs(9.5), color: labelColor }}>
                   {SEGMENT_LABELS[segment.key]}
                 </div>
                 <div style={{ fontSize: fs(9), color: COLORS.textGhost, marginTop: 1, fontStyle: isForecast ? 'italic' : 'normal' }}>
+                  {/* Прогноз всегда помечен «~» — дата не факт, а проекция, и
+                      её нельзя перепутать с настоящей (см. разбор бага). */}
                   {isForecast ? '~' : ''}{formatDate(segment.targetDate)}
                 </div>
                 {action && (
