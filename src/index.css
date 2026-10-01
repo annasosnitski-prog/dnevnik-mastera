@@ -1496,7 +1496,8 @@ input[type='date'] {
 }
 
 .content-copy-action,
-.content-translate-action {
+.content-translate-action,
+.content-slides-action {
   appearance: none;
   min-height: 40px;
   padding: 6px 10px;
@@ -1512,13 +1513,15 @@ input[type='date'] {
 }
 
 .content-copy-action:hover:not(:disabled),
-.content-translate-action:hover:not(:disabled) {
+.content-translate-action:hover:not(:disabled),
+.content-slides-action:hover:not(:disabled) {
   border-color: rgba(var(--gold-rgb), 0.72);
   background: rgba(var(--gold-rgb), 0.09);
 }
 
 .content-copy-action:active:not(:disabled),
-.content-translate-action:active:not(:disabled) {
+.content-translate-action:active:not(:disabled),
+.content-slides-action:active:not(:disabled) {
   transform: translateY(1px) scale(0.98);
   background: rgba(var(--gold-rgb), 0.16);
 }
@@ -1536,7 +1539,8 @@ input[type='date'] {
 }
 
 .content-copy-action:disabled,
-.content-translate-action:disabled {
+.content-translate-action:disabled,
+.content-slides-action:disabled {
   opacity: 0.45;
   cursor: default;
 }
@@ -1623,6 +1627,79 @@ input[type='date'] {
 }
 
 .content-translation-feedback.is-error {
+  color: var(--urgent, #c0392b);
+}
+
+.content-slides-block {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 11px 12px;
+  border-inline-start: 2px solid rgba(var(--gold-rgb), 0.4);
+  background: rgba(var(--gold-rgb), 0.035);
+}
+
+.content-slides-block.is-stale {
+  border-inline-start-color: rgba(var(--gold-rgb), 0.2);
+  opacity: 0.82;
+}
+
+.content-slides-block__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px 12px;
+  color: var(--text-ghost);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.content-slides-block__list {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: grid;
+  gap: 6px;
+  color: var(--text-soft);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.content-slides-block__list li {
+  white-space: pre-wrap;
+}
+
+.content-slides-block__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 12px;
+}
+
+.content-slides-block__actions button {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-ghost);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.content-slides-block__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.content-slides-feedback {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.content-slides-feedback.is-error {
   color: var(--urgent, #c0392b);
 }
 
