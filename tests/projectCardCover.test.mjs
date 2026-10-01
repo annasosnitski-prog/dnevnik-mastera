@@ -9,7 +9,7 @@ import test from 'node:test';
 const source = readFileSync(new URL('../src/components/project/ProjectCard.tsx', import.meta.url), 'utf8');
 
 test('cover shows next step instead of status only when the project is «Активен»', () => {
-  assert.match(source, /project\.status\s*===\s*'active'\s*&&\s*project\.nextActionText/, 'должно проверять и статус, и наличие next step');
+  assert.match(source, /project\.status\s*===\s*'active'\s*&&\s*hasNextStep\(project\)/, 'должно проверять и статус, и наличие next step (текст ИЛИ тип — см. hasNextStep)');
 });
 
 test('the status badge is still rendered as a fallback (active-without-next-step, or any other status)', () => {

@@ -359,22 +359,52 @@ export const NEXT_ACTION_TYPES: { key: NextActionType; label: string }[] = [
   { key: 'other', label: 'Другое' },
 ];
 
+export const NEXT_ACTION_LABELS: Record<NextActionType, string> = Object.fromEntries(
+  NEXT_ACTION_TYPES.map((a) => [a.key, a.label]),
+) as Record<NextActionType, string>;
+
 // Приводит next-step поля к валидному сочетанию перед записью в проект:
-// пустой текст обнуляет и дату, и тип. Без этого overdueProjects
-// (reminders/buildReminders.ts) — который смотрит на nextActionDate — мог бы
-// завести пустую просроченную карточку («Следующий шаг: —») для проекта, у
-// которого текст уже стёрт, а дата/тип остались от прежнего шага
-// (overdueProjects проверяет nextActionText и сам, второй независимой
-// защитой — на случай старых/повреждённых записей, до которых эта функция
-// на сохранении не дотянулась).
+// пустые текст И тип разом обнуляют и дату — иначе overdueProjects
+// (reminders/buildReminders.ts), который смотрит на nextActionDate, мог бы
+// завести пустую просроченную карточку («Следующий шаг: —») для проекта,
+// где всё уже стёрто, а дата осталась от прежнего шага (overdueProjects
+// проверяет это и сам, второй независимой защитой — на случай старых/
+// повреждённых записей, до которых эта функция на сохранении не дотянулась).
+//
+// Текст и тип — РАВНОПРАВНЫЕ источники «есть next step»: мастер может
+// оставить текст пустым и просто выбрать тип + дату из списка (разбор
+// «Цвето проба» — раньше обнуление по одному пустому тексту стирало тип и
+// дату, даже если тип был явно выбран, и такую комбинацию было вообще
+// невозможно сохранить). Стираем всё целиком только когда НИ текста, НИ
+// типа не осталось.
 export function resolveNextStep(
   text: string,
   date: string | null,
   type: NextActionType | null,
 ): { nextActionText: string; nextActionDate: string | null; nextActionType: NextActionType | null } {
   const trimmed = text.trim();
-  if (!trimmed) return { nextActionText: '', nextActionDate: null, nextActionType: null };
+  if (!trimmed && type === null) return { nextActionText: '', nextActionDate: null, nextActionType: null };
   return { nextActionText: trimmed, nextActionDate: date, nextActionType: type };
+}
+
+// Единая точка истины «есть ли у проекта next step» — текст ИЛИ тип, не
+// обязательно оба (см. resolveNextStep выше). Переиспользуется везде, где
+// раньше проверялось только nextActionText.trim() !== '': hasScheduledWork/
+// hasOverdueWork, оverdueProjects (buildReminders.ts), рендер next step на
+// пайплайне/окне сессий — без общей функции тип-только next step остался бы
+// невидимым то тут, то там по отдельности.
+export function hasNextStep(project: Pick<Project, 'nextActionText' | 'nextActionType'>): boolean {
+  return project.nextActionText.trim() !== '' || project.nextActionType !== null;
+}
+
+// Что показать как подпись next step — свободный текст мастера приоритетнее
+// стандартной подписи выбранного типа (тот же принцип, что у actionLabel в
+// ProjectTimelineRow — там он уже был, здесь даём ему общее имя, чтобы не
+// дублировать в каждом месте, которое теперь должно видеть тип-только шаг).
+export function nextStepLabel(project: Pick<Project, 'nextActionText' | 'nextActionType'>): string {
+  const trimmed = project.nextActionText.trim();
+  if (trimmed) return trimmed;
+  return project.nextActionType ? NEXT_ACTION_LABELS[project.nextActionType] : '';
 }
 
 // Авто-переход статуса проекта — ТОЛЬКО ВПЕРЁД по порядку PROJECT_STATUSES.

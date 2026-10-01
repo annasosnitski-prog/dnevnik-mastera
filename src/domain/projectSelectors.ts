@@ -6,7 +6,7 @@
 // (filter/find возвращают новые массивы/ссылки), нет обращений к React,
 // IndexedDB и localStorage.
 
-import type { NextActionType, Project, ProjectCategory, ProjectState } from './project';
+import { hasNextStep, type NextActionType, type Project, type ProjectCategory, type ProjectState } from './project.js';
 import type { Session } from './session';
 import type { Consultation } from './consultation';
 import type { Client } from './client';
@@ -213,7 +213,7 @@ function isOpenConsultation(consultation: Consultation): boolean {
 // не нужно, работа уже в движении, встреча или следующий шаг назначены
 // (M4, п. 4). `today` — yyyy-mm-dd (см. localISO в buildReminders.ts).
 export function hasScheduledWork(project: Project, sessions: Session[], consultations: Consultation[], today: string): boolean {
-  if (project.nextActionText.trim() !== '' && project.nextActionDate !== null && project.nextActionDate >= today) return true;
+  if (hasNextStep(project) && project.nextActionDate !== null && project.nextActionDate >= today) return true;
   const hasFutureSession = sessions.some(
     (s) => s.projectId === project.id && isOpenSession(s) && ISO_DATE_RE.test(s.date) && s.date >= today,
   );
@@ -229,7 +229,7 @@ export function hasScheduledWork(project: Project, sessions: Session[], consulta
 // мягким «застоем» нельзя: «конкретная просрочка > запланированное
 // действие > мягкий застой» (M4, п. 5).
 export function hasOverdueWork(project: Project, sessions: Session[], consultations: Consultation[], today: string): boolean {
-  if (project.nextActionText.trim() !== '' && project.nextActionDate !== null && project.nextActionDate < today) return true;
+  if (hasNextStep(project) && project.nextActionDate !== null && project.nextActionDate < today) return true;
   const hasOverdueSession = sessions.some(
     (s) => s.projectId === project.id && isOpenSession(s) && ISO_DATE_RE.test(s.date) && s.date < today,
   );
@@ -394,13 +394,15 @@ export function getProjectPipelineSegments(
   // nextActionType===null — совершенно нормальное состояние (next step задан
   // только текстом/датой, без выбранного типа): тогда его некуда привязать
   // структурно, и он просто не анкерит ни одну стадию (остаётся 'forecast'),
-  // без попытки угадать тип по тексту.
+  // без попытки угадать тип по тексту. Текст САМ по себе (без типа) здесь
+  // уже не обязателен — см. hasNextStep в project.ts: тип + дата без текста
+  // тоже валидный next step, actionText у итогового сегмента ниже просто
+  // останется пустой строкой, и actionLabel (ProjectTimelineRow) сам
+  // откатится на подпись типа.
   const nextActionType = project.nextActionType;
   const nextActionDate = project.nextActionDate;
   const nextStepStage: PipelineSegmentKey | null =
-    project.nextActionText.trim() !== '' && nextActionDate !== null && nextActionType !== null
-      ? NEXT_ACTION_TO_STAGE[nextActionType] ?? null
-      : null;
+    nextActionDate !== null && nextActionType !== null ? NEXT_ACTION_TO_STAGE[nextActionType] ?? null : null;
 
   return keys.map((key, index) => {
     const isLast = index === keys.length - 1;

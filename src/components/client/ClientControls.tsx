@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { type Client, type ClientType, CLIENT_TYPES, type ChatPlatform, PLATFORM_LABELS } from '../../domain/client';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
-import { type Project, type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep } from '../../domain/project';
+import { type Project, type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep, hasNextStep, nextStepLabel } from '../../domain/project';
 import { downsizeForStorage } from '../../lib/imagePreview';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT, INPUT_STYLE } from '../TattoDiary';
@@ -723,9 +723,9 @@ export function NextStepRow({
     return (
       <div onClick={startEdit} style={{ cursor: 'pointer' }}>
         <div style={labelStyle}>Следующий шаг</div>
-        {nextActionText ? (
+        {hasNextStep({ nextActionText, nextActionType }) ? (
           <div dir="auto" style={{ fontSize: fs(15), color: COLORS.textPrimary, lineHeight: 1.5 }}>
-            {nextActionText}
+            {nextStepLabel({ nextActionText, nextActionType })}
             {nextActionDate ? ` · ${formatDate(nextActionDate)}` : ''}
           </div>
         ) : (
@@ -793,7 +793,7 @@ export function NextStepRow({
           Отмена
         </div>
       </div>
-      {nextActionText && (
+      {hasNextStep({ nextActionText, nextActionType }) && (
         <div
           onClick={clear}
           role="button"

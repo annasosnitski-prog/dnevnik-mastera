@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { InkaLogo } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { type Client } from '../../domain/client';
-import { type Project } from '../../domain/project';
+import { nextStepLabel, type Project } from '../../domain/project';
 import { type ClientNote } from '../../domain/task';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
 import { clientNameFor, getProjectsByClientId, getWorkshopProjects } from '../../domain/projectSelectors';
@@ -332,7 +332,7 @@ export function SummaryScreen({
               >
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
                 <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>
-                  {p.nextActionText || p.title || '—'}
+                  {nextStepLabel(p) || p.title || '—'}
                 </span>
                 <span style={{ fontSize: fs(9.5), color: COLORS.gold, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>
                   {clientNameFor(clients, p.clientId) ?? 'Мастерская'}

@@ -1,4 +1,4 @@
-import { type Project } from '../../domain/project';
+import { hasNextStep as projectHasNextStep, nextStepLabel, type Project } from '../../domain/project';
 import { type ProjectSessionWindow } from '../../domain/projectSelectors';
 import { formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
@@ -74,8 +74,8 @@ export function ProjectSessionWindowRow({
   const today = todayISO();
   const awaitingNext = sessionWindow.nextSessionDate === null;
   const progress = windowProgress(sessionWindow.lastSessionDate, sessionWindow.nextSessionDate, today);
-  const hasNextStep = project.nextActionText.trim() !== '' && project.nextActionDate !== null;
-  const nextStepOverdue = hasNextStep && project.nextActionDate! < today;
+  const showNextStep = projectHasNextStep(project) && project.nextActionDate !== null;
+  const nextStepOverdue = showNextStep && project.nextActionDate! < today;
 
   return (
     <div
@@ -142,9 +142,9 @@ export function ProjectSessionWindowRow({
         </div>
       </div>
 
-      {hasNextStep && (
+      {showNextStep && (
         <div style={{ marginTop: 14, fontSize: fs(11) }}>
-          <span style={{ color: nextStepOverdue ? 'var(--urgent)' : COLORS.gold }}>{project.nextActionText}</span>
+          <span style={{ color: nextStepOverdue ? 'var(--urgent)' : COLORS.gold }}>{nextStepLabel(project)}</span>
           <span style={{ color: COLORS.textGhost }}> · {formatDate(project.nextActionDate!)} · {relativeLabel(project.nextActionDate!, today)}</span>
         </div>
       )}

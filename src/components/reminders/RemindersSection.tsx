@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type * as React from 'react';
 import { createPortal } from 'react-dom';
 import { PLATFORM_LABELS, type Client } from '../../domain/client';
-import type { Project } from '../../domain/project';
+import { nextStepLabel, type Project } from '../../domain/project';
 import {
   healingCycleReminderKey,
   healingCycleReminderKeysForIteration,
@@ -1186,7 +1186,7 @@ export function RemindersSection({
                   {p.title || 'Проект'}
                 </div>
                 <div style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  Следующий шаг: {p.nextActionText || '—'}
+                  Следующий шаг: {nextStepLabel(p) || '—'}
                   {p.nextActionDate ? ` · ${formatDate(p.nextActionDate)}` : ''}
                 </div>
               </div>
@@ -1203,7 +1203,7 @@ export function RemindersSection({
       );
       return {
         key,
-        tile: <ReminderTile title={p.title || 'Проект'} subtitle={p.nextActionText || 'Следующий шаг'} accent="gold" onClick={() => setOpenDetail({ key, node: detail })} />,
+        tile: <ReminderTile title={p.title || 'Проект'} subtitle={nextStepLabel(p) || 'Следующий шаг'} accent="gold" onClick={() => setOpenDetail({ key, node: detail })} />,
         detail,
       };
     }),

@@ -1,12 +1,8 @@
-import { NEXT_ACTION_TYPES, type Project } from '../../domain/project';
+import { hasNextStep, nextStepLabel, type Project } from '../../domain/project';
 import { clientNameFor, getProjectPipelineSegments, getProjectSessionWindow } from '../../domain/projectSelectors';
 import { type Client } from '../../domain/client';
 import { isRTL, firstLetter } from '../../lib/textFormat';
 import { COLORS, fs } from '../ui/designTokens';
-
-const NEXT_ACTION_LABELS: Record<string, string> = Object.fromEntries(
-  NEXT_ACTION_TYPES.map((a) => [a.key, a.label]),
-);
 
 // Общая шапка строки — тот же визуал (кружок с буквой, заголовок, имя
 // клиента), что и у ProjectTimelineRow, но без самой шкалы: этому списку
@@ -52,9 +48,7 @@ function DatelessProjectRow({
   clientName: string | null;
   onOpen: (project: Project) => void;
 }) {
-  const actionType = project.nextActionType;
-  const actionText = project.nextActionText.trim();
-  const label = actionText || (actionType ? NEXT_ACTION_LABELS[actionType] ?? null : null);
+  const label = hasNextStep(project) ? nextStepLabel(project) : null;
 
   return (
     <div

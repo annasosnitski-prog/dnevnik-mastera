@@ -1,4 +1,4 @@
-import { NEXT_ACTION_TYPES, type Project } from '../../domain/project';
+import { NEXT_ACTION_TYPES, hasNextStep, nextStepLabel, type Project } from '../../domain/project';
 import { type PipelineSegmentKey, type ProjectPipelineSegment } from '../../domain/projectSelectors';
 import { isRTL, firstLetter } from '../../lib/textFormat';
 import { formatDate, todayISO } from '../../utils/dates';
@@ -185,6 +185,19 @@ export function ProjectTimelineRow({
   const hasActionHint = currentStretchIndex !== -1 && actionLabel(segments[currentStretchIndex]) !== null;
   const scaleHeight = hasActionHint ? 74 : 48;
 
+  // Next step, который не анкерит ни одну из четырёх точек (тип вроде
+  // check_healing/other — структурно не относится к вехам ДО первой сессии,
+  // см. NEXT_ACTION_TO_STAGE в projectSelectors.ts; или тип вообще не
+  // выбран) — иначе он молча пропадал бы с пайплайна целиком, хотя мастер
+  // его реально сохранила (разбор «Цвето проба»: тип «Проверить заживление»
+  // + текст не показывались нигде на этой строке). Показываем отдельной
+  // строкой под рельсой, той же парой «подпись/дата», что и у
+  // ProjectSessionWindowRow — только когда НИ одна точка не стала
+  // 'committed' от этого next step, чтобы не дублировать то, что уже и так
+  // подсказано под нужной точкой.
+  const nextStepIsOrphaned = hasNextStep(project) && !segments.some((s) => s.source === 'committed');
+  const orphanedNextStepOverdue = nextStepIsOrphaned && project.nextActionDate !== null && project.nextActionDate < today;
+
   return (
     <div
       onClick={onOpen ? () => onOpen(project) : undefined}
@@ -259,6 +272,13 @@ export function ProjectTimelineRow({
           );
         })}
       </div>
+
+      {nextStepIsOrphaned && (
+        <div style={{ marginTop: 14, fontSize: fs(11) }}>
+          <span style={{ color: orphanedNextStepOverdue ? 'var(--urgent)' : COLORS.gold }}>{nextStepLabel(project)}</span>
+          {project.nextActionDate && <span style={{ color: COLORS.textGhost }}> · {formatDate(project.nextActionDate)}</span>}
+        </div>
+      )}
     </div>
   );
 }
