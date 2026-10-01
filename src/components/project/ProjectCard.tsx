@@ -1,5 +1,5 @@
 import { DROP_CAP_FONT } from '../InkaLogo';
-import { type Project, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../../domain/project';
+import { hasNextStep, nextStepLabel, type Project, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../../domain/project';
 import { projectCoverPhoto } from '../../domain/projectSelectors';
 import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
 import { COLORS, fs } from '../ui/designTokens';
@@ -155,7 +155,7 @@ export function ProjectCard({
             КРОМЕ статуса 'active', где вместо него транслируется next step
             (тот же next step, что и на шкале таймлайна). Пустой next step
             на активном проекте — тоже статус, а не пустая обложка. */}
-        {project.status === 'active' && project.nextActionText ? (
+        {project.status === 'active' && hasNextStep(project) ? (
           <div style={{ marginBottom: 6, minWidth: 0 }}>
             <div style={{ fontSize: fs(9.5), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Следующий шаг</div>
             <div
@@ -168,7 +168,7 @@ export function ProjectCard({
                 textOverflow: 'ellipsis',
               }}
             >
-              {project.nextActionText}
+              {nextStepLabel(project)}
               {project.nextActionDate ? ` · ${project.nextActionDate}` : ''}
             </div>
           </div>

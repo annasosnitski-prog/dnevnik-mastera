@@ -9,7 +9,7 @@
 // При вызове с `now = new Date()` (как в компоненте) поведение прежнее.
 
 import type { Client } from '../domain/client';
-import type { Project } from '../domain/project';
+import { hasNextStep, type Project } from '../domain/project.js';
 import { getProjectLastActivityDate, hasScheduledWork, hasOverdueWork } from '../domain/projectSelectors.js';
 import { ISO_DATE_RE, isValidISODate, todayISO, daysSinceISO } from '../utils/dates.js';
 import type {
@@ -186,16 +186,18 @@ export function upcomingSoonProjectConsultations(projects: Project[], now: Date)
 
 // Активные проекты, у которых «следующий шаг» назначен на сегодня или уже
 // просрочен (Этап 3b). Срабатывает только когда мастер сама поставила дату.
-// nextActionText.trim() !== '' — вторая, независимая от сохранения защита:
-// resolveNextStep (domain/project.ts) уже чистит дату/тип при сохранении
-// пустого текста, но повреждённые/старые записи (прямая правка IndexedDB,
-// данные до этого фикса) могут содержать дату без текста — без этой
+// hasNextStep (domain/project.ts) — вторая, независимая от сохранения
+// защита: resolveNextStep уже чистит дату/тип, когда НИ текста, НИ типа не
+// осталось, но повреждённые/старые записи (прямая правка IndexedDB, данные
+// до этого фикса) могут содержать дату без текста и без типа — без этой
 // проверки здесь такой проект показал бы пустую просроченную карточку
-// «Следующий шаг: —». Отсортированы от самого просроченного.
+// «Следующий шаг: —». Текст ИЛИ тип — оба валидный next step (см. разбор
+// «Цвето проба»: тип-только next step без текста тоже должен просрочиваться
+// как обычный). Отсортированы от самого просроченного.
 export function overdueProjects(projects: Project[], now: Date): Project[] {
   const today = localISO(now);
   return projects
-    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today && p.nextActionText.trim() !== '')
+    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today && hasNextStep(p))
     .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
 }
 

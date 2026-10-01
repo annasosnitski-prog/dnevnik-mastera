@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   resolveNextStep,
+  hasNextStep,
+  nextStepLabel,
   isMeaningfulProjectChange,
   withAdvancedStatus,
   withStatusAfterDoneSession,
@@ -19,19 +21,55 @@ test('resolveNextStep trims surrounding whitespace from the text', () => {
   assert.equal(r.nextActionText, 'Отправить мудборд');
 });
 
-test('resolveNextStep clears date and type when the text is cleared', () => {
+// Текст и тип — равноправные источники «есть next step» (разбор «Цвето
+// проба»): пустой текст больше не стирает дату и тип сам по себе, пока
+// выбран тип — мастер вправе оставить текст пустым и просто выбрать тип +
+// дату из списка.
+test('resolveNextStep keeps date and type when the text is cleared but a type is chosen', () => {
   const r = resolveNextStep('', '2026-08-12', 'prepare_design');
-  assert.deepEqual(r, { nextActionText: '', nextActionDate: null, nextActionType: null });
+  assert.deepEqual(r, { nextActionText: '', nextActionDate: '2026-08-12', nextActionType: 'prepare_design' });
 });
 
-test('resolveNextStep clears date and type when the text is only whitespace', () => {
+test('resolveNextStep keeps date and type when the text is only whitespace but a type is chosen', () => {
   const r = resolveNextStep('   ', '2026-08-12', 'prepare_design');
+  assert.deepEqual(r, { nextActionText: '', nextActionDate: '2026-08-12', nextActionType: 'prepare_design' });
+});
+
+test('resolveNextStep clears everything when NEITHER text NOR type is set', () => {
+  const r = resolveNextStep('', '2026-08-12', null);
   assert.deepEqual(r, { nextActionText: '', nextActionDate: null, nextActionType: null });
 });
 
 test('resolveNextStep keeps a null date/type as-is when text is non-empty', () => {
   const r = resolveNextStep('Позвонить клиенту', null, null);
   assert.deepEqual(r, { nextActionText: 'Позвонить клиенту', nextActionDate: null, nextActionType: null });
+});
+
+// ── hasNextStep / nextStepLabel ───────────────────────────────────────────
+test('hasNextStep is true when text is set, even without a type', () => {
+  assert.equal(hasNextStep({ nextActionText: 'Отправить мудборд', nextActionType: null }), true);
+});
+
+test('hasNextStep is true when only a type is set, text empty', () => {
+  assert.equal(hasNextStep({ nextActionText: '', nextActionType: 'check_healing' }), true);
+});
+
+test('hasNextStep is false when neither text nor type is set', () => {
+  assert.equal(hasNextStep({ nextActionText: '', nextActionType: null }), false);
+});
+
+test('nextStepLabel prefers the manual text over the type label', () => {
+  const label = nextStepLabel({ nextActionText: 'Проба', nextActionType: 'check_healing' });
+  assert.equal(label, 'Проба');
+});
+
+test('nextStepLabel falls back to the type label when text is empty', () => {
+  const label = nextStepLabel({ nextActionText: '', nextActionType: 'check_healing' });
+  assert.equal(label, 'Проверить заживление');
+});
+
+test('nextStepLabel is an empty string when neither text nor type is set', () => {
+  assert.equal(nextStepLabel({ nextActionText: '', nextActionType: null }), '');
 });
 
 // ── isMeaningfulProjectChange (M4) ────────────────────────────────────────
