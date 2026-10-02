@@ -48,10 +48,8 @@ export const PROJECT_BODY_AREAS: { key: string; label: string }[] = [
   { key: 'Пальцы', label: 'Пальцы' },
 ];
 
-// Три независимых параметра статуса вместо одной длинной строки-enum
-// (вроде "planning_waiting_client_photo_overdue") — где проект находится,
-// может ли он сейчас двигаться, и кто должен действовать, читаются по
-// отдельности и комбинируются свободно.
+// Где проект находится и может ли он сейчас двигаться — читается по одному
+// полю, ProjectStatus.
 //
 // ProjectStatus — общий путь проекта: работаем → закончили, плюс пауза как
 // ручной, обратимый шаг в сторону. Заменил прежний семишаговый ProjectStage
@@ -76,16 +74,15 @@ export const PROJECT_BODY_AREAS: { key: string; label: string }[] = [
 // комментарий у withAdvancedStatus про то, как это сочетается с «только
 // вперёд».
 //
-// ProjectState (ниже) — отдельная, ещё не убранная из модели ось с тем же
-// смыслом паузы/отмены/архива (см. её собственный комментарий) — до чистки
-// системы напоминаний, которая на неё опирается, обе оси временно
-// сосуществуют.
+// Раньше рядом существовала ProjectState — отдельная, дублирующая ось с тем
+// же смыслом паузы (плюс мёртвые 'cancelled'/'archived', которые давно
+// никто не ставит), которую читала только система напоминаний. Она не
+// продвигалась автопереходами (withHealingGallery и соседи трогали только
+// status) и пересчитывалась лишь при сохранении формы проекта — то есть
+// завершённый автоматически проект мог вечно оставаться «активным» для
+// напоминаний. Поле убрано: напоминания и фильтры теперь читают
+// исключительно ProjectStatus.
 export type ProjectStatus = 'active' | 'paused' | 'completed';
-// Отдельная ось, которую ещё предстоит убрать из модели вместе с переделкой
-// системы напоминаний (buildReminders.ts фильтрует активные проекты по
-// этому полю) — видимый статус паузы у проекта теперь ProjectStatus.paused
-// выше, это поле больше не должно управлять UI.
-export type ProjectState = 'active' | 'paused' | 'cancelled' | 'archived';
 export type ProjectWaitingFor = 'master' | 'client' | 'external' | 'none';
 export type ProjectPriority = 'urgent' | 'important' | 'normal';
 export type FirstSessionWindowUnit = 'week' | 'month';
@@ -136,13 +133,6 @@ export const PROJECT_STATUSES: { key: ProjectStatus; label: string }[] = [
   { key: 'active', label: 'Активен' },
   { key: 'paused', label: 'Пауза' },
   { key: 'completed', label: 'Завершён' },
-];
-
-export const PROJECT_STATES: { key: ProjectState; label: string }[] = [
-  { key: 'active', label: 'Активен' },
-  { key: 'paused', label: 'Пауза' },
-  { key: 'cancelled', label: 'Отменён' },
-  { key: 'archived', label: 'Архив' },
 ];
 
 export const PROJECT_WAITING_FOR: { key: ProjectWaitingFor; label: string }[] = [
@@ -487,7 +477,6 @@ export interface Project {
   status: ProjectStatus;
   // «Одна встреча» / «больше одной» — не точное число сессий, см. SessionsPlan.
   sessionsPlan: SessionsPlan;
-  state: ProjectState;
   waitingFor: ProjectWaitingFor;
   nextActionText: string;
   nextActionDate: string | null;
@@ -515,6 +504,15 @@ export interface Project {
   // source-compatible. normalizeProject always materializes explicit defaults.
   firstSessionWindowAmount?: number | null;
   firstSessionWindowUnit?: FirstSessionWindowUnit | null;
+  // Когда amount/unit выше были заданы/изменены мастером последний раз — от
+  // этой даты, а не от createdDate, отсчитывается целевая дата первой сессии
+  // (см. getProjectPipelineSegments в projectSelectors.ts). Без этого поля
+  // окно навсегда считалось от момента создания проекта: если мастер спустя
+  // месяцы работы меняла окно на «ещё месяц», цель всё равно уезжала в
+  // прошлое (createdDate + месяц), а не в будущее. null — окно ни разу не
+  // переустанавливалось после создания (в т.ч. все проекты до этого поля,
+  // миграция не нужна) — тогда используется createdDate, как и раньше.
+  firstSessionWindowSetAt?: string | null;
   // Точная дата первой сессии — альтернатива amount/unit выше, для мастера,
   // которой удобнее сразу указать конкретный день, а не окно (например,
   // клиент уже согласовал дату голосом/в переписке). Взаимоисключающе с
@@ -559,14 +557,13 @@ export interface Project {
 // НЕ включает правки текстовых полей (title/notes/area/style/feeling/
 // creative/inspirationSources/photos/color/category/priority) — это
 // редактирование содержимого, а не прогресс; иначе любая опечатка сбрасывала
-// бы таймер «застывания». Включает: смену статуса/состояния/того-кто-должен-
+// бы таймер «застывания». Включает: смену статуса/того-кто-должен-
 // действовать (реальный прогресс или явное возобновление из паузы) и любое
 // изменение «следующего шага» (текст/дата/тип — мастер осознанно
 // спланировала действие).
 export function isMeaningfulProjectChange(prev: Project, next: Project): boolean {
   return (
     prev.status !== next.status ||
-    prev.state !== next.state ||
     prev.waitingFor !== next.waitingFor ||
     prev.nextActionText !== next.nextActionText ||
     prev.nextActionDate !== next.nextActionDate ||

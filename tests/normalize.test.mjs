@@ -336,7 +336,6 @@ test('normalizeProject defaults every union field to its documented fallback', (
   const p = normalizeProject({}, 0);
   assert.equal(p.category, 'tattoo');
   assert.equal(p.status, 'active');
-  assert.equal(p.state, 'active');
   assert.equal(p.waitingFor, 'none');
   assert.equal(p.priority, 'normal');
   assert.equal(p.nextActionType, null); // never guessed from nextActionText

@@ -114,7 +114,7 @@ export function SummaryScreen({
   // feed above, doesn't touch that aggregation at all.
   const today = todayISO();
   const dueProjects = projects
-    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today)
+    .filter((p) => p.status === 'active' && p.nextActionDate && p.nextActionDate <= today)
     .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
 
   // Client-less projects — candidates a master (client-less) note/task can

@@ -27,7 +27,6 @@ function makeProject(overrides = {}) {
     category: 'tattoo',
     clientId: null,
     status: 'active',
-    state: 'active',
     waitingFor: 'none',
     nextActionText: '',
     nextActionDate: null,
@@ -805,18 +804,18 @@ test('sortProjects не мутирует входной массив', () => {
 });
 
 test('filterProjects: пустой фильтр отдаёт всё, каждый выбор сужает', () => {
-  const tattoo = makeProject({ id: 'p-tattoo', category: 'tattoo', state: 'active' });
-  const drawing = makeProject({ id: 'p-drawing', category: 'drawing', state: 'archived' });
+  const tattoo = makeProject({ id: 'p-tattoo', category: 'tattoo', status: 'active' });
+  const drawing = makeProject({ id: 'p-drawing', category: 'drawing', status: 'completed' });
   assert.deepEqual(filterProjects([tattoo, drawing], EMPTY_PROJECT_FILTERS).map((p) => p.id), ['p-tattoo', 'p-drawing']);
-  assert.deepEqual(filterProjects([tattoo, drawing], { category: 'drawing', state: null }).map((p) => p.id), ['p-drawing']);
-  assert.deepEqual(filterProjects([tattoo, drawing], { category: null, state: 'archived' }).map((p) => p.id), ['p-drawing']);
-  assert.deepEqual(filterProjects([tattoo, drawing], { category: 'tattoo', state: 'archived' }), []);
+  assert.deepEqual(filterProjects([tattoo, drawing], { category: 'drawing', status: null }).map((p) => p.id), ['p-drawing']);
+  assert.deepEqual(filterProjects([tattoo, drawing], { category: null, status: 'completed' }).map((p) => p.id), ['p-drawing']);
+  assert.deepEqual(filterProjects([tattoo, drawing], { category: 'tattoo', status: 'completed' }), []);
 });
 
 test('projectFiltersActive отличает «ничего не выбрано» от выбранного фильтра', () => {
   assert.equal(projectFiltersActive(EMPTY_PROJECT_FILTERS), false);
-  assert.equal(projectFiltersActive({ category: 'tattoo', state: null }), true);
-  assert.equal(projectFiltersActive({ category: null, state: 'paused' }), true);
+  assert.equal(projectFiltersActive({ category: 'tattoo', status: null }), true);
+  assert.equal(projectFiltersActive({ category: null, status: 'paused' }), true);
 });
 
 // ── Клиентский срез поверх проектов (Этап 2) ──────────────────────────────

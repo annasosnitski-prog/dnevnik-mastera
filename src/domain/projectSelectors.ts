@@ -6,7 +6,7 @@
 // (filter/find возвращают новые массивы/ссылки), нет обращений к React,
 // IndexedDB и localStorage.
 
-import { hasNextStep, type NextActionType, type Project, type ProjectCategory, type ProjectState } from './project.js';
+import { hasNextStep, type NextActionType, type Project, type ProjectCategory, type ProjectStatus } from './project.js';
 import type { Session } from './session';
 import type { Consultation } from './consultation';
 import type { Client } from './client';
@@ -329,9 +329,18 @@ function resolveFirstSessionTargetDate(project: Project, start: Date): Date | nu
   const unit = project.firstSessionWindowUnit;
   if (amount === null || amount === undefined || unit === null || unit === undefined) return null;
   if (!Number.isFinite(amount) || amount < 0) return null;
+  // Окно отсчитывается от момента, когда мастер его последний раз
+  // задала/поменяла (firstSessionWindowSetAt), а не всегда от даты создания
+  // проекта. Без этого «уменьшить окно до месяца» спустя месяцы работы
+  // молча считало бы цель от даты, которой уже давно нет, и уводило бы её в
+  // прошлое — см. комментарий у самого поля в domain/project.ts. null
+  // (окно ни разу не переустанавливалось) — старое поведение, от start.
+  const windowStart = isValidISODate(project.firstSessionWindowSetAt)
+    ? new Date(`${project.firstSessionWindowSetAt}T00:00:00.000Z`)
+    : start;
   return unit === 'week'
-    ? new Date(start.getTime() + amount * 7 * 24 * 60 * 60 * 1000)
-    : addCalendarMonthsClamped(start, amount);
+    ? new Date(windowStart.getTime() + amount * 7 * 24 * 60 * 60 * 1000)
+    : addCalendarMonthsClamped(windowStart, amount);
 }
 
 // Самая ранняя консультация проекта с валидной датой, которая ЕСТЬ ФАКТ, а
@@ -536,20 +545,20 @@ export function sortProjects(
 export interface ProjectFilters {
   // null — «Все».
   category: ProjectCategory | null;
-  state: ProjectState | null;
+  status: ProjectStatus | null;
   area: string | null;
 }
 
-export const EMPTY_PROJECT_FILTERS: ProjectFilters = { category: null, state: null, area: null };
+export const EMPTY_PROJECT_FILTERS: ProjectFilters = { category: null, status: null, area: null };
 
 export function projectFiltersActive(filters: ProjectFilters): boolean {
-  return filters.category !== null || filters.state !== null || filters.area !== null;
+  return filters.category !== null || filters.status !== null || filters.area !== null;
 }
 
 export function filterProjects(projects: Project[], filters: ProjectFilters): Project[] {
   return projects.filter((p) => {
     if (filters.category && p.category !== filters.category) return false;
-    if (filters.state && p.state !== filters.state) return false;
+    if (filters.status && p.status !== filters.status) return false;
     if (filters.area && p.area !== filters.area) return false;
     return true;
   });

@@ -244,7 +244,6 @@ import {
   type ProjectStatus,
   type SessionsPlan,
   type FirstSessionWindowUnit,
-  type ProjectState,
   type ProjectWaitingFor,
   type ProjectPriority,
   type NextActionType,
@@ -2044,7 +2043,7 @@ export default function TattoDiary() {
     firstSessionWindowAmount: number | null;
     firstSessionWindowUnit: FirstSessionWindowUnit | null;
     firstSessionExactDate: string | null;
-    state: ProjectState;
+    firstSessionWindowSetAt: string | null;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
     nextActionDate: string | null;
