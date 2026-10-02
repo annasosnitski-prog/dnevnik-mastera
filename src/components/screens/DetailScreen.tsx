@@ -16,9 +16,9 @@ import { type UrgencyKey } from '../../domain/urgency';
 import {
   type Project,
   type ProjectCategory,
-  type ProjectState,
+  type ProjectStatus,
   PROJECT_CATEGORIES,
-  PROJECT_STATES,
+  PROJECT_STATUSES,
 } from '../../domain/project';
 import {
   getProjectsByClientId,
@@ -836,13 +836,13 @@ function ProjectsTab({
                 </div>
                 <div style={groupLabelStyle}>Статус</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {([null, ...PROJECT_STATES.map((s) => s.key)] as (ProjectState | null)[]).map((v) => (
+                  {([null, ...PROJECT_STATUSES.map((s) => s.key)] as (ProjectStatus | null)[]).map((v) => (
                     <div
                       key={v ?? 'all'}
-                      onClick={() => setFilters((f) => ({ ...f, state: v }))}
-                      style={chipStyle(filters.state === v)}
+                      onClick={() => setFilters((f) => ({ ...f, status: v }))}
+                      style={chipStyle(filters.status === v)}
                     >
-                      {v === null ? 'Все' : PROJECT_STATES.find((s) => s.key === v)?.label}
+                      {v === null ? 'Все' : PROJECT_STATUSES.find((s) => s.key === v)?.label}
                     </div>
                   ))}
                 </div>

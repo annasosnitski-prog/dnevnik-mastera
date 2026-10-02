@@ -12,7 +12,6 @@ function makeProject(overrides = {}) {
     category: 'tattoo',
     clientId: null,
     status: 'active',
-    state: 'active',
     waitingFor: 'none',
     nextActionText: '',
     nextActionDate: null,
@@ -147,6 +146,41 @@ test('two-month window uses calendar months and preserves final session target',
   assert.equal(segments.length, 4);
 });
 
+// ── firstSessionWindowSetAt — переустановка окна спустя месяцы работы ─────
+// Раньше окно (amount/unit) всегда отсчитывалось от createdDate, даже если
+// мастер поменяла его спустя долгое время — «ещё месяц» молча считало цель
+// от даты создания проекта, которая уже прошла, и уводило её в прошлое (см.
+// комментарий у самого поля в domain/project.ts).
+
+test('firstSessionWindowSetAt re-anchors the window target to when it was last set, not createdDate', () => {
+  const segments = getProjectPipelineSegments(makeProject({
+    createdDate: '2026-01-01T00:00:00.000Z',
+    firstSessionWindowAmount: 1,
+    firstSessionWindowUnit: 'month',
+    // Мастер переустановила окно спустя три месяца работы над проектом.
+    firstSessionWindowSetAt: '2026-04-01',
+    preSessionMeeting: 'none',
+  }), [], []);
+
+  assert.ok(segments);
+  // Без якоря цель получилась бы 2026-02-01 — уже в прошлом относительно
+  // момента переустановки (апрель). С якорем цель уезжает вперёд от него.
+  assert.equal(segments.at(-1).targetDate, '2026-05-01');
+});
+
+test('firstSessionWindowSetAt absent (legacy/never re-set) keeps the old createdDate anchor', () => {
+  const segments = getProjectPipelineSegments(makeProject({
+    createdDate: '2026-01-01T00:00:00.000Z',
+    firstSessionWindowAmount: 1,
+    firstSessionWindowUnit: 'month',
+    firstSessionWindowSetAt: null,
+    preSessionMeeting: 'none',
+  }), [], []);
+
+  assert.ok(segments);
+  assert.equal(segments.at(-1).targetDate, '2026-02-01');
+});
+
 test('createdDate equal to today is a valid pipeline boundary', () => {
   const segments = getProjectPipelineSegments(makeProject({
     createdDate: '2026-08-25T23:59:00.000Z',
@@ -165,12 +199,19 @@ test('normalization preserves valid pipeline configuration', () => {
     createdDate: '2026-01-01T00:00:00.000Z',
     firstSessionWindowAmount: 2,
     firstSessionWindowUnit: 'month',
+    firstSessionWindowSetAt: '2026-04-01',
     preSessionMeeting: 'none',
   }, 0);
 
   assert.equal(project.firstSessionWindowAmount, 2);
   assert.equal(project.firstSessionWindowUnit, 'month');
+  assert.equal(project.firstSessionWindowSetAt, '2026-04-01');
   assert.equal(project.preSessionMeeting, 'none');
+});
+
+test('normalization drops a malformed firstSessionWindowSetAt instead of keeping garbage', () => {
+  const project = normalizeProject({ id: 'bad', firstSessionWindowSetAt: 'not-a-date' }, 0);
+  assert.equal(project.firstSessionWindowSetAt, null);
 });
 
 // ── firstSessionExactDate — точная дата вместо окна ────────────────────────

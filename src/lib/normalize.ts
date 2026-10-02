@@ -11,7 +11,6 @@ import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, MARKER_COLORS, type Clie
 import {
   PROJECT_CATEGORIES,
   PROJECT_STATUSES,
-  PROJECT_STATES,
   PROJECT_WAITING_FOR,
   PROJECT_PRIORITIES,
   NEXT_ACTION_TYPES,
@@ -282,6 +281,7 @@ export function normalizeProject(raw: any, index: number): Project {
     ? raw.firstSessionWindowUnit
     : null;
   const firstSessionExactDate = isValidISODate(raw?.firstSessionExactDate) ? raw.firstSessionExactDate : null;
+  const firstSessionWindowSetAt = isValidISODate(raw?.firstSessionWindowSetAt) ? raw.firstSessionWindowSetAt : null;
   const preSessionMeeting = raw?.preSessionMeeting === 'none' ? 'none' : 'consultation';
 
   return {
@@ -298,7 +298,6 @@ export function normalizeProject(raw: any, index: number): Project {
     // domain/project.ts) — старая запись просто получает разумный дефолт:
     // 'active', тот же дефолт, что и у нового проекта.
     status: PROJECT_STATUSES.some((s) => s.key === raw?.status) ? raw.status : 'active',
-    state: PROJECT_STATES.some((s) => s.key === raw?.state) ? raw.state : 'active',
     waitingFor: PROJECT_WAITING_FOR.some((w) => w.key === raw?.waitingFor) ? raw.waitingFor : 'none',
     nextActionText: raw?.nextActionText ?? '',
     nextActionDate: raw?.nextActionDate ?? null,
@@ -320,6 +319,7 @@ export function normalizeProject(raw: any, index: number): Project {
     firstSessionWindowAmount,
     firstSessionWindowUnit,
     firstSessionExactDate,
+    firstSessionWindowSetAt,
     preSessionMeeting,
     sessions,
     consultations: Array.isArray(raw?.consultations)
