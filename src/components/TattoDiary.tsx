@@ -114,7 +114,7 @@ import { COLORS, fs, setTextScale, TERRITORY_COLORS } from './ui/designTokens';
 export { COLORS, DONE_EMOJI, fs } from './ui/designTokens';
 // Bottom sheets вынесены в отдельные модули (PR 5 рефакторинга). Логика и
 // разметка не менялись — только перенос.
-import { NewClientSheet, EditClientSheet, ClientKindChoiceSheet, ClientPickerSheet, QuickClientSheet } from './sheets/ClientSheets';
+import { NewClientSheet, EditClientSheet, ClientKindChoiceSheet, ClientPickerSheet, QuickClientSheet, OwnerChoiceSheet } from './sheets/ClientSheets';
 import {
   NewSessionSheet,
   ProjectSessionPickerSheet,
@@ -870,7 +870,13 @@ export default function TattoDiary() {
   // also serves the long-press quick-create fan's «Тату» option on screens
   // that have no client already selected (see quickCreateContext below) —
   // calendarCreateDate simply stays null there (no date to prefill).
-  type CalendarWalkStep = 'kind' | 'clientKind' | 'clientPicker' | 'quickClient' | null;
+  // 'owner' — one step earlier still, for contexts with no single owner at
+  // all (Админка/Клиенты/Заметки/ContentINKA): «без клиента» (Мастерская) or
+  // «для клиента» (continues into 'clientKind' as before). The calendar
+  // itself and 'detail'/'viewProject' never reach this step — they already
+  // know their owner — so it only ever shows for pickCreateOption's shared
+  // ownerless branch.
+  type CalendarWalkStep = 'owner' | 'kind' | 'clientKind' | 'clientPicker' | 'quickClient' | null;
   const [calendarWalkStep, setCalendarWalkStep] = useState<CalendarWalkStep>(null);
   const [calendarCreateDate, setCalendarCreateDate] = useState<string | null>(null);
   const [calendarEventKind, setCalendarEventKind] = useState<'session' | 'consultation' | 'project' | null>(null);
@@ -2596,9 +2602,11 @@ export default function TattoDiary() {
     // Админка / Клиенты / Заметки / ContentINKA — ни одного владельца ещё не
     // выбрано. Заметка уходит в свой инлайн-пикер (уже умеет любого клиента
     // и его проект — Сводка использует собственный composer, остальные —
-    // модальный NoteComposerSheet), а проект/сессия/консультация идут через
-    // тот же шаг «для какого клиента?» (ClientKindChoiceSheet → существующий/
-    // новый), что уже обслуживает календарь и долгое нажатие на «Клиентах».
+    // модальный NoteComposerSheet), а проект/сессия/консультация сперва
+    // спрашивают «без клиента (Мастерская) или для клиента?» (OwnerChoiceSheet)
+    // — без клиента ведёт прямо в ту же clientless-логику, что и «Мастерская»
+    // выше, для клиента продолжает в уже существующий шаг «какой клиент?»
+    // (ClientKindChoiceSheet), что обслуживает и календарь.
     if (kind === 'note') {
       if (context === 'summary') setShowSummaryComposer(true);
       else setNoteComposerContext({ clientId: null, projectId: null });
@@ -2606,7 +2614,24 @@ export default function TattoDiary() {
     }
     setCalendarEventKind(kind);
     setCalendarCreateDate(null);
-    setCalendarWalkStep('clientKind');
+    setCalendarWalkStep('owner');
+  };
+
+  // «Без клиента» branch of OwnerChoiceSheet — same clientless destinations
+  // 'workshop' already uses above, just reached from the ownerless contexts'
+  // extra owner-choice step instead of being the unconditional default.
+  const pickClientlessOwner = () => {
+    const kind = calendarEventKind;
+    cancelCalendarWalk();
+    if (kind === 'project') {
+      setEditProject(null);
+      setNewProjectClientId(null);
+      setShowNewProjectForm(true);
+    } else if (kind === 'session' || kind === 'consultation') {
+      setProjectPickerKind(kind);
+      setProjectPickerScope('clientless');
+      setShowProjectSessionPicker(true);
+    }
   };
 
   // Same resolution onCreate below uses to pick a createChoiceContext — every
@@ -3923,6 +3948,12 @@ export default function TattoDiary() {
             setCalendarWalkStep('clientKind');
           }
         }}
+      />
+      <OwnerChoiceSheet
+        open={calendarWalkStep === 'owner'}
+        onClose={cancelCalendarWalk}
+        onPickClientless={pickClientlessOwner}
+        onPickClient={() => setCalendarWalkStep('clientKind')}
       />
       <ClientKindChoiceSheet
         open={calendarWalkStep === 'clientKind'}

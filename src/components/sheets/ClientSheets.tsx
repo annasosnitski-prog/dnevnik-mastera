@@ -346,6 +346,90 @@ export function ClientKindChoiceSheet({
   );
 }
 
+// Один шаг раньше ClientKindChoiceSheet — для контекстов без единого
+// владельца (Админка, Клиенты, Заметки, ContentINKA): прежде чем спрашивать
+// «какой клиент», спрашиваем, нужен ли он вообще — проект/сессия/
+// консультация имеют право остаться в «Мастерской», как и раньше.
+export function OwnerChoiceSheet({
+  open,
+  onClose,
+  onPickClientless,
+  onPickClient,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPickClientless: () => void;
+  onPickClient: () => void;
+}) {
+  const choice = (title: string, desc: string, onClick: () => void, icon: React.ReactNode) => (
+    <div
+      onClick={onClick}
+      role="button"
+      aria-label={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        border: '1px solid rgba(var(--gold-rgb),0.25)',
+        borderRadius: 2,
+        padding: '16px',
+        cursor: 'pointer',
+        background: 'rgba(var(--gold-rgb),0.03)',
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          color: 'var(--gold)',
+        }}
+      >
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: fs(16), color: COLORS.textPrimary }}>{title}</div>
+        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginTop: 2 }}>{desc}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <BottomSheet open={open} heightPct={34}>
+      <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
+        <SheetCloseButton onClose={onClose} />
+        <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Для клиента?</div>
+        <SheetStarDivider />
+      </div>
+      <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {choice(
+          'Без клиента',
+          'В «Мастерскую» — своя работа, не для клиента',
+          onPickClientless,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <path d="M3 8l1.5-3.5h11L17 8" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <rect x="3" y="8" width="14" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" />
+          </svg>,
+        )}
+        {choice(
+          'Для клиента',
+          'Выбрать существующего или сразу завести нового',
+          onPickClient,
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="6.6" r="3.3" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M4 17C4 13.4 6.6 11.7 10 11.7C13.4 11.7 16 13.4 16 17" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>,
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
 // ===================== CALENDAR CREATION WALK: EXISTING-CLIENT PICKER =====================
 // A quick search + tap-to-pick list — compact rows, not the big grid cards
 // used on the main list screen, since this is a fast lookup mid-flow.
