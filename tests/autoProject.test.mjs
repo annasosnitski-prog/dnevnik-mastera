@@ -42,7 +42,7 @@ test('makeBucketProject produces a fully-formed, empty, active project ready to 
   assert.equal(p.title, 'Анна Соснитски');
   assert.equal(p.color, '#B0413E');
   assert.equal(p.clientId, 'client-1');
-  assert.equal(p.state, 'active');
+  assert.equal(p.status, 'active');
   assert.deepEqual(p.sessions, []);
   assert.deepEqual(p.consultations, []);
 });

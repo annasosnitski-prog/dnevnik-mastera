@@ -35,7 +35,6 @@ export function makeBucketProject(id: string, title: string, color: string, clie
     // Бакет собирает разнородные записи, а не одну работу — сказать «одна
     // встреча»/«больше одной» про него нечего (см. SessionsPlan).
     sessionsPlan: null,
-    state: 'active',
     waitingFor: 'none',
     nextActionText: '',
     nextActionDate: null,

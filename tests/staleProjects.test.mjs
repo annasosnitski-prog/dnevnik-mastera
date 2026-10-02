@@ -11,7 +11,6 @@ function makeProject(overrides = {}) {
     category: 'tattoo',
     clientId: null,
     status: 'active',
-    state: 'active',
     waitingFor: 'none',
     nextActionText: '',
     nextActionDate: null,
@@ -344,12 +343,10 @@ test('a consultation belonging to a different project neither rescues nor suppre
 
 // ── Статус проекта (scenario 20) ────────────────────────────────────────────
 
-test('staleProjects ignores a paused/cancelled/archived project — deliberately not moving, not stalled', () => {
+test('staleProjects ignores a paused project — deliberately not moving, not stalled', () => {
   const stale = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 10);
-  for (const state of ['paused', 'cancelled', 'archived']) {
-    const project = makeProject({ lastMeaningfulActivityAt: stale, state });
-    assert.equal(staleProjects([project], [], NOW).length, 0, `state=${state}`);
-  }
+  const project = makeProject({ lastMeaningfulActivityAt: stale, status: 'paused' });
+  assert.equal(staleProjects([project], [], NOW).length, 0);
 });
 
 test('staleProjects ignores a completed-status project — nothing left to move', () => {

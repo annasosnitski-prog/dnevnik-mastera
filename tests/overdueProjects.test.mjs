@@ -11,7 +11,6 @@ function makeProject(overrides = {}) {
     category: 'tattoo',
     clientId: null,
     status: 'active',
-    state: 'active',
     waitingFor: 'none',
     nextActionText: '',
     nextActionDate: null,
@@ -46,7 +45,7 @@ test('overdueProjects ignores a project whose next step date is in the future', 
 });
 
 test('overdueProjects ignores a non-active project', () => {
-  const project = makeProject({ nextActionText: 'Отправить мудборд', nextActionDate: '2026-01-15', state: 'paused' });
+  const project = makeProject({ nextActionText: 'Отправить мудборд', nextActionDate: '2026-01-15', status: 'paused' });
   assert.equal(overdueProjects([project], NOW).length, 0);
 });
 

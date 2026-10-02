@@ -16,7 +16,6 @@ function makeProject(overrides = {}) {
     category: 'tattoo',
     clientId: null,
     status: 'active',
-    state: 'active',
     waitingFor: 'none',
     nextActionText: '',
     nextActionDate: null,
@@ -64,14 +63,14 @@ test('filterProjects matches Project.area exactly', () => {
   );
 });
 
-test('area combines with existing category/state filters', () => {
+test('area combines with existing category/status filters', () => {
   const projects = [
-    makeProject({ id: 'match', area: 'Рука', category: 'tattoo', state: 'active' }),
-    makeProject({ id: 'wrong-type', area: 'Рука', category: 'drawing', state: 'active' }),
-    makeProject({ id: 'wrong-state', area: 'Рука', category: 'tattoo', state: 'paused' }),
+    makeProject({ id: 'match', area: 'Рука', category: 'tattoo', status: 'active' }),
+    makeProject({ id: 'wrong-type', area: 'Рука', category: 'drawing', status: 'active' }),
+    makeProject({ id: 'wrong-status', area: 'Рука', category: 'tattoo', status: 'paused' }),
   ];
 
-  const result = filterProjects(projects, { category: 'tattoo', state: 'active', area: 'Рука' });
+  const result = filterProjects(projects, { category: 'tattoo', status: 'active', area: 'Рука' });
   assert.deepEqual(result.map((p) => p.id), ['match']);
 });
 

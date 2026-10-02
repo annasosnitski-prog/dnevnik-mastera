@@ -9,8 +9,6 @@ import {
   PROJECT_BODY_AREAS,
   PROJECT_STATUSES,
   type ProjectStatus,
-  type ProjectState,
-  PROJECT_STATES,
   type ProjectWaitingFor,
   type ProjectPriority,
   type NextActionType,
@@ -35,7 +33,7 @@ import { getTasksByProjectId, urgencyMeta } from '../../domain/taskSelectors';
 import { getContentEntriesForProject, type ProjectContentItem } from '../../lib/contentProject';
 import { resolveContentPhotoSelection } from '../../lib/contentPhotoSelection';
 import { projectContentLinkLabel, type ResolvedContentEntryLink } from '../../lib/contentLink';
-import { ISO_DATE_RE, formatDate } from '../../utils/dates';
+import { ISO_DATE_RE, formatDate, todayISO } from '../../utils/dates';
 import {
   COLORS,
   fs,
@@ -797,14 +795,6 @@ export function ProjectViewSheet({
           <>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <span style={chipStyle}>{PROJECT_STATUSES.find((s) => s.key === project.status)?.label ?? project.status}</span>
-              {/* Состояние показывается, только когда оно НЕ 'active': у
-                  ProjectStatus теперь есть собственный 'active' с той же
-                  подписью, и пара по умолчанию читалась как «Активен ·
-                  Активен». Пауза/отмена/архив — та информация, ради которой
-                  чип и нужен, — по-прежнему видна. */}
-              {project.state !== 'active' && (
-                <span style={chipStyle}>{PROJECT_STATES.find((s) => s.key === project.state)?.label ?? project.state}</span>
-              )}
               {/* Дата создания — точка отсчёта производного таймлайна
                   (getProjectPipelineSegments), иначе видимая только в расчёте. */}
               {project.createdDate && (
@@ -1022,7 +1012,7 @@ export function NewProjectSheet({
     firstSessionWindowAmount: number | null;
     firstSessionWindowUnit: FirstSessionWindowUnit | null;
     firstSessionExactDate: string | null;
-    state: ProjectState;
+    firstSessionWindowSetAt: string | null;
     waitingFor: ProjectWaitingFor;
     nextActionText: string;
     nextActionDate: string | null;
@@ -1086,23 +1076,6 @@ export function NewProjectSheet({
   const preservedColor = initial?.color ?? MARKER_COLORS[0];
   const preservedWaitingFor: ProjectWaitingFor = initial?.waitingFor ?? 'none';
   const preservedPriority: ProjectPriority = initial?.priority ?? 'normal';
-  // ProjectState duplicated ProjectStatus in the form (both showed "Активен"
-  // side by side) — see ProjectState's own comment in domain/project.ts:
-  // it should no longer control UI, so it's preserved like the other
-  // deprecated attributes above rather than exposed as a second select.
-  // ProjectState.paused must track the visible ProjectStatus control above,
-  // not just whatever the project was created with — buildReminders.ts still
-  // filters overdue/stale projects by p.state==='active', so leaving this
-  // frozen at the old value meant pausing a project via status left it
-  // producing reminders anyway, and unpausing couldn't reactivate it.
-  // 'cancelled'/'archived' have no equivalent in ProjectStatus and no control
-  // sets them any more, so an existing value there is preserved untouched.
-  const preservedState: ProjectState =
-    status === 'paused'
-      ? 'paused'
-      : initial?.state === 'cancelled' || initial?.state === 'archived'
-        ? initial.state
-        : 'active';
   const legacyArea = area && !PROJECT_BODY_AREAS.some((option) => option.key === area) ? area : null;
 
   useEffect(() => {
@@ -1168,9 +1141,9 @@ export function NewProjectSheet({
                 (заживление, завершение) проставляются сами. Раньше рядом
                 стоял ещё один select — «Состояние» (ProjectState) — с тем же
                 набором значений (Активен/Пауза), так что форма показывала
-                два дублирующих поля одновременно. ProjectState теперь
-                хранится как унаследованное значение (см. preservedState
-                ниже), как и другие устаревшие атрибуты проекта. */}
+                два дублирующих поля одновременно; ProjectState и его
+                отдельное хранимое поле убраны целиком — status теперь
+                единственный источник. */}
             <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} style={INPUT_STYLE}>
               {PROJECT_STATUSES.map((s) => (
                 <option key={s.key} value={s.key}>
@@ -1295,6 +1268,21 @@ export function NewProjectSheet({
           className="inka-submit"
           onClick={() => {
             const selectedWindow = FIRST_SESSION_WINDOW_OPTIONS.find((o) => o.key === firstSessionWindowKey) ?? null;
+            const nextWindowAmount = exactDateMode ? null : selectedWindow?.amount ?? null;
+            const nextWindowUnit = exactDateMode ? null : selectedWindow?.unit ?? null;
+            // Якорь окна (firstSessionWindowSetAt) переставляется на «сегодня»
+            // только когда мастер реально поменяла amount/unit в этом
+            // сохранении — иначе любая правка другого поля формы (например,
+            // заметок) молча сдвигала бы цель первой сессии вперёд. Переход в
+            // exactDateMode очищает его — у точной даты якоря нет.
+            const windowChanged =
+              nextWindowAmount !== (initial?.firstSessionWindowAmount ?? null) ||
+              nextWindowUnit !== (initial?.firstSessionWindowUnit ?? null);
+            const firstSessionWindowSetAt = exactDateMode
+              ? null
+              : windowChanged
+                ? todayISO()
+                : initial?.firstSessionWindowSetAt ?? null;
             const data = {
               title,
               color: preservedColor,
@@ -1304,10 +1292,10 @@ export function NewProjectSheet({
               sessionsPlan,
               // Взаимоисключающе: exactDateMode решает, какое из двух реально
               // пишется, второе всегда уезжает null'ом.
-              firstSessionWindowAmount: exactDateMode ? null : selectedWindow?.amount ?? null,
-              firstSessionWindowUnit: exactDateMode ? null : selectedWindow?.unit ?? null,
+              firstSessionWindowAmount: nextWindowAmount,
+              firstSessionWindowUnit: nextWindowUnit,
               firstSessionExactDate: exactDateMode ? firstSessionExactDate || null : null,
-              state: preservedState,
+              firstSessionWindowSetAt,
               waitingFor: preservedWaitingFor,
               nextActionText,
               nextActionDate: nextActionDate || null,

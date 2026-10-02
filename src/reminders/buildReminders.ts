@@ -197,7 +197,7 @@ export function upcomingSoonProjectConsultations(projects: Project[], now: Date)
 export function overdueProjects(projects: Project[], now: Date): Project[] {
   const today = localISO(now);
   return projects
-    .filter((p) => p.state === 'active' && p.nextActionDate && p.nextActionDate <= today && hasNextStep(p))
+    .filter((p) => p.status === 'active' && p.nextActionDate && p.nextActionDate <= today && hasNextStep(p))
     .sort((a, b) => (a.nextActionDate ?? '').localeCompare(b.nextActionDate ?? ''));
 }
 
@@ -211,9 +211,9 @@ export const STALE_PROJECT_THRESHOLD_DAYS = 30;
 // (см. getProjectLastActivityDate в projectSelectors.ts) дольше
 // STALE_PROJECT_THRESHOLD_DAYS дней — «мягкое» напоминание «проект давно не
 // двигался», а не срочное действие (в отличие от overdueProjects, у которого
-// есть конкретный просроченный next step). paused/cancelled/archived
-// намеренно исключены — их «неподвижность» осознанная, не застой; статус
-// 'completed' исключён — работа закончена, двигаться больше нечему.
+// есть конкретный просроченный next step). paused намеренно исключён — его
+// «неподвижность» осознанная, не застой; статус 'completed' исключён —
+// работа закончена, двигаться больше нечему.
 //
 // Три независимые защиты от ложных карточек (M4):
 //  - getProjectLastActivityDate может вернуть null (легаси-проект без ни
@@ -234,7 +234,7 @@ export function staleProjects(projects: Project[], clients: Client[], now: Date)
   const allConsultations = [...clients.flatMap((c) => c.consultations), ...projects.flatMap((p) => p.consultations)];
   const result: StaleProjectItem[] = [];
   for (const project of projects) {
-    if (project.state !== 'active' || project.status === 'completed') continue;
+    if (project.status !== 'active') continue;
     if (hasOverdueWork(project, allSessions, allConsultations, today)) continue;
     if (hasScheduledWork(project, allSessions, allConsultations, today)) continue;
     const lastActivityDate = getProjectLastActivityDate(project, allSessions, allConsultations, today);

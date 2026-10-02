@@ -87,7 +87,6 @@ function makeProject(overrides = {}) {
     status: 'active',
     sessionsPlan: null,
     healingPhotos: [],
-    state: 'active',
     waitingFor: 'none',
     nextActionText: '',
     nextActionDate: null,
@@ -122,11 +121,6 @@ test('isMeaningfulProjectChange is false for a plain text-field edit (not moveme
 test('isMeaningfulProjectChange is true when status changes', () => {
   const p = makeProject({ status: 'active' });
   assert.equal(isMeaningfulProjectChange(p, { ...p, status: 'paused' }), true);
-});
-
-test('isMeaningfulProjectChange is true when state changes (e.g. resumed from pause)', () => {
-  const p = makeProject({ state: 'paused' });
-  assert.equal(isMeaningfulProjectChange(p, { ...p, state: 'active' }), true);
 });
 
 test('isMeaningfulProjectChange is true when waitingFor changes', () => {

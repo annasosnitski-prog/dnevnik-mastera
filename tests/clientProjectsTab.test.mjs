@@ -44,10 +44,10 @@ test('фильтры — воронка с теми же группами «Ти
   assert.match(projectsTab, /aria-label=\{filtersOpen \? 'Скрыть фильтры' : 'Фильтры'\}/);
   assert.match(projectsTab, /aria-label=\{sortOpen \? 'Скрыть сортировку' : 'Сортировка'\}/);
   assert.match(projectsTab, /PROJECT_CATEGORIES\.map\(\(c\) => c\.key\)/);
-  assert.match(projectsTab, /PROJECT_STATES\.map\(\(s\) => s\.key\)/);
+  assert.match(projectsTab, /PROJECT_STATUSES\.map\(\(s\) => s\.key\)/);
   // «Все» — это отсутствие фильтра (null), а не отдельное значение.
   assert.match(projectsTab, /setFilters\(\(f\) => \(\{ \.\.\.f, category: v \}\)\)/);
-  assert.match(projectsTab, /setFilters\(\(f\) => \(\{ \.\.\.f, state: v \}\)\)/);
+  assert.match(projectsTab, /setFilters\(\(f\) => \(\{ \.\.\.f, status: v \}\)\)/);
 });
 
 test('«ничего не нашлось» отличается от «проектов ещё нет»', () => {
