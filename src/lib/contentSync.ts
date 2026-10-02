@@ -136,6 +136,67 @@ export async function translateContentText(
   };
 }
 
+export const MIN_CONTENT_SLIDES = 2;
+export const MAX_CONTENT_SLIDES = 10;
+
+export interface ContentSlidesResult {
+  slides: string[];
+}
+
+// Разбивка уже готового text_draft на N слайдов карусели — чистое
+// форматирование на стороне ContentINKA (см. lib/prompts/slides.ts там),
+// без архетипов/стратегии, поэтому отдельный эндпоинт и вызов, а не
+// параметр к /api/ingest.
+export async function splitContentIntoSlides(
+  params: { sourceText: string; slideCount: number },
+  environment: ContentTranslationEnvironment = {},
+): Promise<ContentSlidesResult> {
+  if (!params.sourceText.trim()) throw new ContentSyncError('Не удалось разбить текст на слайды.');
+  if (
+    !Number.isInteger(params.slideCount) ||
+    params.slideCount < MIN_CONTENT_SLIDES ||
+    params.slideCount > MAX_CONTENT_SLIDES
+  ) {
+    throw new ContentSyncError('Неверное число слайдов.');
+  }
+
+  const settings = (environment.readSettings ?? readContentSyncSettings)();
+  if (!settings.endpoint || !settings.secret) {
+    throw new ContentSyncError('ContentINKA не настроена.');
+  }
+
+  let response: Response;
+  try {
+    response = await (environment.fetch ?? fetch)(`${settings.endpoint.replace(/\/$/, '')}/api/slides`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${settings.secret}`,
+      },
+      body: JSON.stringify({
+        source_text: params.sourceText,
+        slide_count: params.slideCount,
+      }),
+    });
+  } catch {
+    throw new ContentSyncError('Не удалось связаться с ContentINKA.');
+  }
+
+  if (!response.ok) throw new ContentSyncError('ContentINKA ответила ошибкой.');
+
+  const data = await response.json().catch(() => null);
+  if (
+    !data ||
+    !Array.isArray(data.slides) ||
+    data.slides.length !== params.slideCount ||
+    data.slides.some((slide: unknown) => typeof slide !== 'string' || !slide.trim())
+  ) {
+    throw new ContentSyncError('Не удалось разбить текст на слайды.');
+  }
+
+  return { slides: data.slides };
+}
+
 export interface ContentIngestParams {
   sessionId: string;
   sourceType: 'session' | 'consultation' | 'freeform';

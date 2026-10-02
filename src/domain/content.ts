@@ -1,6 +1,7 @@
 import type { ContentEntryLink } from '../lib/contentLink';
 import type { ContentDraftMedia, ContentSessionContext } from '../lib/contentSync';
 import type { ContentTranslations } from '../lib/contentTranslation';
+import type { StoredContentSlides } from '../lib/contentSlides';
 
 // Единая сущность для всё, что проходит через ContentINKA — сессия,
 // консультация или свободная заметка («мастерская», если clientId=null),
@@ -29,6 +30,10 @@ export interface ContentEntry {
   status: 'draft' | 'confirmed';
   isExemplar: boolean;
   translations?: ContentTranslations;
+  // Разбивка text_draft на слайды карусели (см. contentSlides.ts) — привязана
+  // к тексту и к числу фото карусели на момент разбивки; устаревает, если
+  // текст отредактирован или подборка карусели изменилась.
+  slides?: StoredContentSlides;
   // Ручная привязка к проекту/сессии для будущего отображения контента
   // внутри проекта — необязательна, независима от sourceType/sourceId (см.
   // src/lib/contentLink.ts). null = осознанно оставлено без привязки;
