@@ -755,7 +755,7 @@ export default function TattoDiary() {
   // (см. onCreate у NavFab и рендер CreateChoiceSheet ниже). 'workshop'
   // обслуживает и «Мастерскую», и «Личный кабинет» мастера — оба места
   // создают client-less сущности одинаково.
-  const [createChoiceContext, setCreateChoiceContext] = useState<'detail' | 'workshop' | 'viewProject' | 'admin' | null>(null);
+  const [createChoiceContext, setCreateChoiceContext] = useState<'detail' | 'workshop' | 'viewProject' | 'admin' | 'list' | 'summary' | 'content' | null>(null);
   const [showNewConsultationForm, setShowNewConsultationForm] = useState(false);
   const [editConsultation, setEditConsultation] = useState<Consultation | null>(null);
   // Consultation being turned into a session («Перевести в сессию») —
@@ -2522,13 +2522,26 @@ export default function TattoDiary() {
   // Set the text-size multiplier for this render pass before any child renders.
   setTextScale(prefs.textScale);
 
+  type CreateChoiceContext = 'detail' | 'workshop' | 'viewProject' | 'admin' | 'list' | 'summary' | 'content';
+
   // Where a given create option lands, by context — shared by the tap path
   // (CreateChoiceSheet.onPick below, after createChoiceContext resolves the
   // context via a sheet) and the long-press path (NavFab's onQuickCreate,
   // which already knows its context up front and calls this directly,
   // skipping the sheet). Extracted so both stay a single source of truth
   // instead of drifting apart.
-  const pickCreateOption = (context: 'detail' | 'workshop' | 'viewProject' | 'admin', kind: CreateOptionKind) => {
+  //
+  // «Клиент» is the one option every context handles the same way — create
+  // one outright, no owner to resolve — so it's pulled out above the
+  // per-context branches instead of repeated in each of them.
+  const pickCreateOption = (context: CreateChoiceContext, kind: CreateOptionKind) => {
+    if (kind === 'client') {
+      // The open project viewer would otherwise sit behind the new-client
+      // sheet (every other kind in this context closes it first too).
+      if (context === 'viewProject') setViewProject(null);
+      runGated(context === 'list' && clients.length === 0, () => setShowNewClientForm(true));
+      return;
+    }
     if (context === 'viewProject') {
       if (!viewProject) return;
       const project = viewProject;
@@ -2580,30 +2593,28 @@ export default function TattoDiary() {
       }
       return;
     }
-    if (context === 'admin') {
-      if (kind === 'project') {
-        setEditProject(null);
-        setNewProjectClientId(null);
-        setShowNewProjectForm(true);
-      } else if (kind === 'session' || kind === 'consultation') {
-        setProjectPickerKind(kind);
-        setProjectPickerScope('all');
-        setShowProjectSessionPicker(true);
-      }
+    // Админка / Клиенты / Заметки / ContentINKA — ни одного владельца ещё не
+    // выбрано. Заметка уходит в свой инлайн-пикер (уже умеет любого клиента
+    // и его проект — Сводка использует собственный composer, остальные —
+    // модальный NoteComposerSheet), а проект/сессия/консультация идут через
+    // тот же шаг «для какого клиента?» (ClientKindChoiceSheet → существующий/
+    // новый), что уже обслуживает календарь и долгое нажатие на «Клиентах».
+    if (kind === 'note') {
+      if (context === 'summary') setShowSummaryComposer(true);
+      else setNoteComposerContext({ clientId: null, projectId: null });
+      return;
     }
+    setCalendarEventKind(kind);
+    setCalendarCreateDate(null);
+    setCalendarWalkStep('clientKind');
   };
 
-  // Same resolution onCreate below uses to pick a createChoiceContext, plus
-  // 'list' (list/settings) — the one screen whose ordinary «Создать» does
-  // something else entirely (opens NewClientSheet directly, no choice
-  // sheet), but which long-press still supports: its own quick-create set
-  // swaps the «Заметка» slot for «Клиент» (see QUICK_CREATE_KINDS_BY_CONTEXT)
-  // and routes session/consultation/project through the calendar walk's
-  // client-picker (ClientKindChoiceSheet → existing/new), the only place
-  // that already knows how to ask "for which client?" before opening the
-  // form. 'summary' still has nothing to offer quick-create.
-  type QuickCreateContext = 'detail' | 'workshop' | 'viewProject' | 'admin' | 'list';
-  const quickCreateContext: QuickCreateContext | null = viewProject
+  // Same resolution onCreate below uses to pick a createChoiceContext — every
+  // screen offers the exact same full set of create options now (Проект/
+  // Сессия/Консультация/Заметка/Клиент), so quick-create and the tap-opened
+  // sheet always suggest the same things; only pickCreateOption's per-context
+  // routing differs (which owner is already known, if any).
+  const quickCreateContext: CreateChoiceContext | null = viewProject
     ? 'viewProject'
     : screen === 'admin'
       ? 'admin'
@@ -2613,19 +2624,17 @@ export default function TattoDiary() {
           ? 'workshop'
           : screen === 'list'
             ? 'list'
-            : null;
+            : screen === 'summary'
+              ? 'summary'
+              : screen === 'content'
+                ? 'content'
+                : null;
 
-  // The exact same 5 kinds (CreateOptionKind + 'client') cover the whole
-  // app; which subset (and in what order they fan out) mirrors the options
-  // CreateChoiceSheet would show for that context, so the two entry points
-  // never suggest different things.
-  const QUICK_CREATE_KINDS_BY_CONTEXT: Record<QuickCreateContext, QuickCreateKind[]> = {
-    viewProject: ['session', 'consultation', 'note'],
-    admin: ['project', 'session', 'consultation'],
-    detail: ['project', 'session', 'consultation', 'note'],
-    workshop: ['project', 'session', 'consultation', 'note'],
-    list: ['client', 'session', 'consultation', 'project'],
-  };
+  // One universal set for every context now that pickCreateOption resolves
+  // an unknown owner itself (client-first walk, or the note's own picker) —
+  // no more per-context subset to keep in sync with CreateChoiceSheet's own
+  // options below.
+  const UNIVERSAL_CREATE_KINDS: QuickCreateKind[] = ['project', 'session', 'consultation', 'note', 'client'];
   // Gold options render as a flat plate — same disc as the hub / main fan's
   // «Создать» — rather than a faceted gem, since gold-on-gold facet shading
   // barely reads and just looked like a duller plate anyway.
@@ -2637,24 +2646,11 @@ export default function TattoDiary() {
     note: { label: 'Заметка', color: TERRITORY_COLORS.personal, plate: true },
   };
   const quickCreateOptions = quickCreateContext
-    ? QUICK_CREATE_KINDS_BY_CONTEXT[quickCreateContext].map((kind) => ({ kind, ...QUICK_CREATE_META[kind] }))
+    ? UNIVERSAL_CREATE_KINDS.map((kind) => ({ kind, ...QUICK_CREATE_META[kind] }))
     : undefined;
 
   const handleQuickCreate = (kind: QuickCreateKind) => {
     if (!quickCreateContext) return;
-    if (quickCreateContext === 'list') {
-      if (kind === 'client') {
-        runGated(clients.length === 0, () => setShowNewClientForm(true));
-        return;
-      }
-      if (kind === 'session' || kind === 'consultation' || kind === 'project') {
-        setCalendarEventKind(kind);
-        setCalendarCreateDate(null);
-        setCalendarWalkStep('clientKind');
-      }
-      return;
-    }
-    if (kind === 'client') return;
     pickCreateOption(quickCreateContext, kind);
   };
 
@@ -3221,22 +3217,28 @@ export default function TattoDiary() {
           onCreate={
             viewProject
               ? () => setCreateChoiceContext('viewProject')
-              : screen === 'list'
-              ? () => runGated(clients.length === 0, () => setShowNewClientForm(true))
-              : screen === 'summary'
-                ? () => setShowSummaryComposer(true)
-                : screen === 'admin'
-                  ? () => setCreateChoiceContext('admin')
-                  : screen === 'detail' && selectedClient
-                    ? () => setCreateChoiceContext('detail')
-                    // «Личный кабинет» и «Мастерская» создают одно и то же —
-                    // client-less сущности, поэтому у них общий контекст
-                    // выбора. Раньше (до единой CreateChoiceSheet) Личный
-                    // кабинет умел заводить только проект мастера; теперь
-                    // проект — просто одна из опций того же выбора.
-                    : screen === 'master' || screen === 'workshop'
-                      ? () => setCreateChoiceContext('workshop')
-                      : undefined
+              // First client ever is still the one mandatory, straight-to-
+              // the-form onboarding step (nothing else to create yet); once
+              // at least one exists, «Создать» opens the same full choice
+              // sheet every other screen does.
+              : screen === 'list' && clients.length === 0
+                ? () => runGated(true, () => setShowNewClientForm(true))
+                : screen === 'list'
+                  ? () => setCreateChoiceContext('list')
+                  : screen === 'summary'
+                    ? () => setCreateChoiceContext('summary')
+                    : screen === 'content'
+                      ? () => setCreateChoiceContext('content')
+                      : screen === 'admin'
+                        ? () => setCreateChoiceContext('admin')
+                        : screen === 'detail' && selectedClient
+                          ? () => setCreateChoiceContext('detail')
+                          // «Личный кабинет» и «Мастерская» создают одно и то
+                          // же — client-less сущности, поэтому у них общий
+                          // контекст выбора.
+                          : screen === 'master' || screen === 'workshop'
+                            ? () => setCreateChoiceContext('workshop')
+                            : undefined
           }
           // Долгое нажатие на хаб — тот же набор вариантов, что предложила
           // бы CreateChoiceSheet на этом экране (см. quickCreateOptions),
@@ -3618,17 +3620,11 @@ export default function TattoDiary() {
         onDelete={editSession ? () => { deleteSession(editSession.id); closeNewSession(); } : undefined}
       />
 
-      {/* ═══════════ CREATE CHOICE (карточка клиента / мастера, «Мастерская», открытый проект) ═══════════ */}
+      {/* ═══════════ CREATE CHOICE (любой экран — один и тот же полный набор) ═══════════ */}
       <CreateChoiceSheet
         open={createChoiceContext !== null}
         onClose={() => setCreateChoiceContext(null)}
-        options={
-          createChoiceContext === 'viewProject'
-            ? ['session', 'consultation', 'note']
-            : createChoiceContext === 'admin'
-              ? ['project', 'session', 'consultation']
-              : ['project', 'session', 'consultation', 'note']
-        }
+        options={['project', 'session', 'consultation', 'note', 'client']}
         onPick={(kind) => {
           const context = createChoiceContext;
           setCreateChoiceContext(null);

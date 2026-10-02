@@ -1,15 +1,16 @@
 // Единая точка входа "+" — заменяет прежние отдельные AddChoiceSheet
 // (сессия/консультация, карточка клиента) и WorkshopCreateChoiceSheet
-// (проект/сессия, «Мастерская»). Одна и та же шторка везде, просто с разным
-// подмножеством options под конкретный контекст (внутри открытого проекта —
-// без «Проект», в админке — без «Заметка», и т.д.) — см. вызовы в
-// TattoDiary.tsx.
+// (проект/сессия, «Мастерская»). Одна и та же шторка с одним и тем же
+// полным набором options (Проект/Сессия/Консультация/Заметка/Клиент)
+// отовсюду — какой экран её открыл решает только то, куда ведёт выбор
+// (preset-владелец или шаг «для какого клиента?»), а не что показывать
+// — см. pickCreateOption в TattoDiary.tsx.
 import type * as React from 'react';
 import { BottomSheet, SheetCloseButton } from '../ui/Sheet';
 import { SheetStarDivider } from '../ui/TextAtoms';
 import { COLORS, fs } from '../TattoDiary';
 
-export type CreateOptionKind = 'project' | 'session' | 'consultation' | 'note';
+export type CreateOptionKind = 'project' | 'session' | 'consultation' | 'note' | 'client';
 
 const CREATE_OPTION_META: Record<CreateOptionKind, { title: string; desc: string; icon: React.ReactNode }> = {
   project: {
@@ -52,6 +53,16 @@ const CREATE_OPTION_META: Record<CreateOptionKind, { title: string; desc: string
         <path d="M5 3h10v14l-3-2-2 2-2-2-3 2V3Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
         <line x1="7.5" y1="7" x2="12.5" y2="7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         <line x1="7.5" y1="10" x2="12.5" y2="10" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  client: {
+    title: 'Клиент',
+    desc: 'Имя, контакты, тип кожи...',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M4 17c.9-4.3 3.3-6.5 6-6.5s5.1 2.2 6 6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       </svg>
     ),
   },
