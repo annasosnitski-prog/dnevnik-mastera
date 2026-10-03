@@ -11,6 +11,7 @@
 import type { Client } from '../domain/client';
 import { hasNextStep, type Project } from '../domain/project.js';
 import { getProjectLastActivityDate, hasScheduledWork, hasOverdueWork } from '../domain/projectSelectors.js';
+import { openHealingCycle } from './healingCycle.js';
 import { ISO_DATE_RE, isValidISODate, todayISO, daysSinceISO } from '../utils/dates.js';
 import type {
   OverdueItem,
@@ -215,7 +216,7 @@ export const STALE_PROJECT_THRESHOLD_DAYS = 30;
 // «неподвижность» осознанная, не застой; статус 'completed' исключён —
 // работа закончена, двигаться больше нечему.
 //
-// Три независимые защиты от ложных карточек (M4):
+// Четыре независимые защиты от ложных карточек (M4):
 //  - getProjectLastActivityDate может вернуть null (легаси-проект без ни
 //    одного достоверного сигнала активности) — такой проект пропускается:
 //    лучше не показать карточку, чем показать ложную;
@@ -224,7 +225,13 @@ export const STALE_PROJECT_THRESHOLD_DAYS = 30;
 //    показываем;
 //  - hasOverdueWork — уже есть конкретная просрочка (её показывает
 //    overdueProjects/overdueEntries) — мягкий застой не дублирует более
-//    конкретное напоминание.
+//    конкретное напоминание;
+//  - openHealingCycle (healingCycle.ts) — проект ждёт решения «фото или
+//    коррекция» (развилка 21-го дня без верхней границы, см. healingCycle.ts).
+//    Пока цикл открыт, «ничего не происходит» — ожидаемо, а не застой: без
+//    этой проверки один и тот же проект после 30 дней на развилке получал
+//    ОБЕ карточки одновременно, и они противоречили друг другу (одна
+//    объясняет ожидание, другая намекает на забытость).
 //
 // Сортировка — от самого давнего к недавнему (сначала то, что застыло
 // сильнее всего).
@@ -235,6 +242,7 @@ export function staleProjects(projects: Project[], clients: Client[], now: Date)
   const result: StaleProjectItem[] = [];
   for (const project of projects) {
     if (project.status !== 'active') continue;
+    if (openHealingCycle(project)) continue;
     if (hasOverdueWork(project, allSessions, allConsultations, today)) continue;
     if (hasScheduledWork(project, allSessions, allConsultations, today)) continue;
     const lastActivityDate = getProjectLastActivityDate(project, allSessions, allConsultations, today);
