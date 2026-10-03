@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { healingCycleReminders, HEALING_CYCLE_WINDOWS } from '../.test-dist/src/reminders/healingCycle.js';
+import { healingCycleReminders, openHealingCycle, HEALING_CYCLE_WINDOWS } from '../.test-dist/src/reminders/healingCycle.js';
 import { healingCycleReminderKey, healingCycleReminderKeysForIteration } from '../.test-dist/src/reminders/reminderKeys.js';
 
 // Цикл заживления считается от ПРОЕКТА и его последней выполненной сессии
@@ -397,6 +397,44 @@ test('day21_decision не показывается по субботам, но �
   const sunday = new Date('2026-06-07T12:00:00');
   assert.deepEqual(healingCycleReminders([], [project], saturday), []);
   assert.equal(healingCycleReminders([], [project], sunday)[0]?.stage, 'day21_decision');
+});
+
+// ── openHealingCycle: без оконного гейта по дням (для staleProjects и будущей
+// вкладки «Заживление» — см. комментарий у самой функции) ──────────────────
+
+test('openHealingCycle: null без якорной сессии', () => {
+  assert.equal(openHealingCycle(makeProject()), null);
+});
+
+test('openHealingCycle: открыт на 1-й день (неделя-чек ещё не наступила) — не только внутри оконных дат', () => {
+  const project = makeProject({ sessions: [makeSession({ date: daysBeforeNow(1), isLastSession: true })] });
+  const open = openHealingCycle(project);
+  assert.ok(open);
+  assert.equal(open.isLastSession, true);
+  assert.equal(open.hasPlannedSession, false);
+});
+
+test('openHealingCycle: открыт и далеко за 21-м днём, пока нет фото', () => {
+  const project = makeProject({ sessions: [makeSession({ date: daysBeforeNow(200), isLastSession: true })] });
+  assert.ok(openHealingCycle(project));
+});
+
+test('openHealingCycle: null, если фото уже добавлено после якоря', () => {
+  const project = makeProject({
+    sessions: [makeSession({ date: daysBeforeNow(21), isLastSession: true })],
+    healingPhotos: [{ id: 'p1', url: 'a', addedDate: daysBeforeNow(1), isCover: true }],
+  });
+  assert.equal(openHealingCycle(project), null);
+});
+
+test('openHealingCycle: несёт hasPlannedSession', () => {
+  const project = makeProject({
+    sessions: [
+      makeSession({ id: 's1', date: daysBeforeNow(21), isLastSession: true }),
+      makeSession({ id: 's2', date: '2026-06-20', done: false }),
+    ],
+  });
+  assert.equal(openHealingCycle(project)?.hasPlannedSession, true);
 });
 
 // ── Ключи карточек ────────────────────────────────────────────────────────

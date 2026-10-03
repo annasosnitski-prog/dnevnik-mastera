@@ -11,6 +11,7 @@ import {
   healingReminderKey,
   healingReminderKeysForSession,
   staleProjectReminderKey,
+  projectReminderKey,
 } from '../.test-dist/src/reminders/reminderKeys.js';
 import { HEALING_STAGES } from '../.test-dist/src/reminders/buildReminders.js';
 import { dismissReminder, filterVisibleReminders } from '../.test-dist/src/reminders/reminderState.js';
@@ -126,4 +127,28 @@ test('dismissing a stale-project reminder still hides the exact same period if i
   const visible = filterVisibleReminders([period], staleProjectReminderKey, dismissedState, new Date('2026-05-01'));
 
   assert.deepEqual(visible, []);
+});
+
+// ── projectReminderKey различает тип следующего шага (аудит 2026-10) ───────
+// Next step может быть задан ТОЛЬКО типом, без текста (см. hasNextStep/
+// nextStepLabel в domain/project.ts) — без типа в подписи смена типа при
+// пустом тексте и той же дате не меняла ключ, и закрытая карточка одного
+// действия навсегда прятала бы совсем другое.
+
+test('projectReminderKey changes when only nextActionType changes (text and date both empty/same)', () => {
+  const base = { id: 'project-1', nextActionText: '', nextActionDate: '2026-02-01', nextActionType: 'schedule_next_session' };
+  const changedType = { ...base, nextActionType: 'check_healing' };
+  assert.notEqual(projectReminderKey(base), projectReminderKey(changedType));
+});
+
+test('projectReminderKey is stable for the same type/date/text', () => {
+  const a = { id: 'project-1', nextActionText: '', nextActionDate: '2026-02-01', nextActionType: 'check_healing' };
+  const b = { id: 'project-1', nextActionText: '', nextActionDate: '2026-02-01', nextActionType: 'check_healing' };
+  assert.equal(projectReminderKey(a), projectReminderKey(b));
+});
+
+test('projectReminderKey still changes with text when type is null for both', () => {
+  const a = { id: 'project-1', nextActionText: 'Позвонить клиенту', nextActionDate: '2026-02-01', nextActionType: null };
+  const b = { id: 'project-1', nextActionText: 'Написать клиенту', nextActionDate: '2026-02-01', nextActionType: null };
+  assert.notEqual(projectReminderKey(a), projectReminderKey(b));
 });
