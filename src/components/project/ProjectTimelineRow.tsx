@@ -1,5 +1,5 @@
 import { NEXT_ACTION_TYPES, hasNextStep, nextStepLabel, type Project } from '../../domain/project';
-import { type PipelineSegmentKey, type ProjectPipelineSegment } from '../../domain/projectSelectors';
+import { getPipelineProgress, type PipelineSegmentKey, type ProjectPipelineSegment } from '../../domain/projectSelectors';
 import { isRTL, firstLetter } from '../../lib/textFormat';
 import { formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
@@ -45,38 +45,12 @@ function indexPosition(index: number, count: number): number {
   return count <= 1 ? 0 : (index / (count - 1)) * 100;
 }
 
-// «Сегодня» ложится на ту же индексную шкалу — интерполяция идёт по датам
-// внутри пары точек, между которыми сегодня оказалось, а не по всему
-// диапазону сразу, так что заливка линии остаётся согласованной с
-// индексными позициями точек выше.
-//
-// С появлением 'actual'/'committed' точек даты сегментов больше НЕ обязаны
-// идти по возрастанию — например, у уже прошедшей реальной консультации
-// (индекс 2) дата может оказаться позже, чем у ещё не наступившей прогнозной
-// «Сессии» (индекс 3, forecast всегда равен исходной целевой дате окна), и
-// наоборот. Наивный проход по соседним парам в порядке индекса (как было
-// раньше) в таком случае мог сравнить не ту пару и либо зациклиться на
-// невalidном диапазоне, либо просто не найти пару и молча вернуть 100%.
-// Вместо этого ищем САМЫЙ ПОЗДНИЙ по индексу сегмент, чья дата уже <=
-// сегодня (проверяя все, а не полагаясь на порядок) — это и есть точка,
-// докуда закрашивать. Следующий по индексу сегмент по построению всегда
-// окажется в будущем (иначе он сам стал бы этим самым «самым поздним»), так
-// что пара для интерполяции внутри отрезка всегда корректна.
+// «Сегодня» ложится на ту же индексную шкалу — расчёт самой доли теперь в
+// domain/projectSelectors.ts (getPipelineProgress, 0..1 вместо прежних 0..100
+// здесь): сортировка ProjectTimelineList («почти завершённые — первыми»)
+// должна читать то же число, которым красится рельса, не отдельную копию.
 function todayPosition(segments: { targetDate: string }[], today: string): number {
-  const count = segments.length;
-  if (count === 0) return 0;
-  let lastPassedIndex = -1;
-  for (let i = 0; i < count; i++) {
-    if (segments[i].targetDate <= today) lastPassedIndex = i;
-  }
-  if (lastPassedIndex === -1) return 0;
-  if (lastPassedIndex === count - 1) return 100;
-  const nextIndex = lastPassedIndex + 1;
-  const aMs = new Date(`${segments[lastPassedIndex].targetDate}T00:00:00.000Z`).getTime();
-  const bMs = new Date(`${segments[nextIndex].targetDate}T00:00:00.000Z`).getTime();
-  const todayMs = new Date(`${today}T00:00:00.000Z`).getTime();
-  const frac = bMs > aMs ? (todayMs - aMs) / (bMs - aMs) : 0;
-  return indexPosition(lastPassedIndex, count) + frac * (indexPosition(nextIndex, count) - indexPosition(lastPassedIndex, count));
+  return getPipelineProgress(segments, today) * 100;
 }
 
 // Весь реальный диапазон дат пайплайна (не по индексу точек, как сама

@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getProjectPipelineSegments, getProjectSessionWindow } from '../.test-dist/src/domain/projectSelectors.js';
+import {
+  getProjectPipelineSegments,
+  getProjectSessionWindow,
+  getPipelineProgress,
+  getSessionWindowProgress,
+} from '../.test-dist/src/domain/projectSelectors.js';
 import { normalizeProject } from '../.test-dist/src/lib/normalize.js';
 
 function makeProject(overrides = {}) {
@@ -594,4 +599,76 @@ test('getProjectSessionWindow: сессии другого проекта не �
 
   assert.equal(window.lastSessionDate, null);
   assert.equal(window.nextSessionDate, null);
+});
+
+// ── getPipelineProgress — доля пути по шкале «Запрос → первая сессия» ─────
+// (0..1); сортировка ProjectTimelineList читает ровно это число.
+
+test('getPipelineProgress: 0 сегментов — 0', () => {
+  assert.equal(getPipelineProgress([], '2026-06-01'), 0);
+});
+
+test('getPipelineProgress: один сегмент, дата ещё не наступила — 0', () => {
+  assert.equal(getPipelineProgress([{ targetDate: '2026-06-10' }], '2026-06-01'), 0);
+});
+
+test('getPipelineProgress: один сегмент, дата уже прошла — 1', () => {
+  assert.equal(getPipelineProgress([{ targetDate: '2026-06-01' }], '2026-06-10'), 1);
+});
+
+test('getPipelineProgress: до самой первой точки — 0', () => {
+  const segments = [{ targetDate: '2026-06-10' }, { targetDate: '2026-06-20' }, { targetDate: '2026-06-30' }, { targetDate: '2026-07-10' }];
+  assert.equal(getPipelineProgress(segments, '2026-06-01'), 0);
+});
+
+test('getPipelineProgress: дошли до последней точки или дальше — 1', () => {
+  const segments = [{ targetDate: '2026-06-10' }, { targetDate: '2026-06-20' }, { targetDate: '2026-06-30' }, { targetDate: '2026-07-10' }];
+  assert.equal(getPipelineProgress(segments, '2026-07-10'), 1);
+  assert.equal(getPipelineProgress(segments, '2026-12-01'), 1);
+});
+
+test('getPipelineProgress: ровно на точке — доля по индексу (не 0/1)', () => {
+  const segments = [{ targetDate: '2026-06-10' }, { targetDate: '2026-06-20' }, { targetDate: '2026-06-30' }, { targetDate: '2026-07-10' }];
+  // Индекс 1 из 4 точек (0,1,2,3) → 1/3.
+  assert.equal(getPipelineProgress(segments, '2026-06-20'), 1 / 3);
+});
+
+test('getPipelineProgress: интерполяция между двумя пройденными/непройденными точками', () => {
+  const segments = [{ targetDate: '2026-06-10' }, { targetDate: '2026-06-30' }];
+  // Между точками 10 и 30 июня, сегодня 20-е — ровно середина отрезка.
+  assert.equal(getPipelineProgress(segments, '2026-06-20'), 0.5);
+});
+
+test('getPipelineProgress: даты сегментов не обязаны идти по возрастанию', () => {
+  // Та же защита, что у исходного todayPosition (см. ProjectTimelineRow.tsx) —
+  // ищем самый ПОЗДНИЙ ПО ИНДЕКСУ сегмент, чья дата уже прошла (здесь это
+  // индекс 1, 10 июня — не индекс 0 с более поздней датой 10 июля, которая
+  // ещё не наступила), и интерполируем к следующему по индексу (индекс 2,
+  // 20 июня): середина между ними (15 июня) даёт 0.5 внутри отрезка
+  // [indexPosition(1)=0.5 .. indexPosition(2)=1] → 0.5 + 0.5·(1−0.5) = 0.75.
+  const segments = [{ targetDate: '2026-07-10' }, { targetDate: '2026-06-10' }, { targetDate: '2026-06-20' }];
+  assert.equal(getPipelineProgress(segments, '2026-06-15'), 0.75);
+});
+
+// ── getSessionWindowProgress — доля заливки «последняя → следующая сессия» ─
+
+test('getSessionWindowProgress: следующая не назначена — 0 (не «дотлело»)', () => {
+  assert.equal(getSessionWindowProgress('2026-06-01', null, '2026-06-20'), 0);
+});
+
+test('getSessionWindowProgress: следующая раньше или равна последней (испорченные данные) — 1', () => {
+  assert.equal(getSessionWindowProgress('2026-06-10', '2026-06-10', '2026-06-10'), 1);
+  assert.equal(getSessionWindowProgress('2026-06-10', '2026-06-05', '2026-06-10'), 1);
+});
+
+test('getSessionWindowProgress: ровно середина интервала — 0.5', () => {
+  assert.equal(getSessionWindowProgress('2026-06-01', '2026-06-11', '2026-06-06'), 0.5);
+});
+
+test('getSessionWindowProgress: сегодня раньше последней сессии — зажат в 0', () => {
+  assert.equal(getSessionWindowProgress('2026-06-10', '2026-06-20', '2026-06-01'), 0);
+});
+
+test('getSessionWindowProgress: сегодня позже следующей сессии — зажат в 1', () => {
+  assert.equal(getSessionWindowProgress('2026-06-10', '2026-06-20', '2026-07-01'), 1);
 });
