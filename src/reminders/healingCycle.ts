@@ -108,6 +108,36 @@ function hasPlannedSession(project: Project): boolean {
   return project.sessions.some((session) => !session.done && !session.cancelled);
 }
 
+// Открытый цикл заживления проекта — та же проверка «есть якорь, фото после
+// него ещё не было», но БЕЗ оконного гейта по дням (5-8/21+) ниже: этот гейт
+// нужен только самим карточкам-напоминаниям (чтобы не звонить раньше 5-го дня
+// и не звонить каждый день после 21-го). Экспортировано отдельно для двух
+// внешних потребителей: staleProjects (buildReminders.ts) — чтобы проект,
+// который на самом деле ждёт решения «фото или коррекция», не подписывался
+// одновременно «давно не двигался» (противоречивая пара карточек, см. аудит
+// 2026-10); и будущей вкладки «Заживление» в AdminINKA, которой нужны ВСЕ
+// открытые циклы, а не только те, что сейчас попадают в узкое окно.
+export type OpenHealingCycle = {
+  project: Project;
+  sessionId: string;
+  date: string; // дата сессии-якоря, ISO yyyy-mm-dd
+  isLastSession: boolean;
+  hasPlannedSession: boolean;
+};
+
+export function openHealingCycle(project: Project): OpenHealingCycle | null {
+  const session = anchorSession(project);
+  if (!session) return null;
+  if (hasHealingPhotoSince(project, session.date)) return null;
+  return {
+    project,
+    sessionId: session.id,
+    date: session.date,
+    isLastSession: isLastSessionOf(project, session),
+    hasPlannedSession: hasPlannedSession(project),
+  };
+}
+
 // Проекты, у которых прямо сейчас открыт шаг цикла заживления. Не больше
 // одной карточки на проект. Отсортированы от самой давней сессии-якоря.
 //
@@ -120,23 +150,21 @@ export function healingCycleReminders(clients: Client[], projects: Project[], no
   const clientById = new Map(clients.map((c) => [c.id, c]));
   const result: HealingCycleItem[] = [];
   for (const project of projects) {
-    const session = anchorSession(project);
-    if (!session) continue;
-    if (hasHealingPhotoSince(project, session.date)) continue;
+    const open = openHealingCycle(project);
+    if (!open) continue;
 
-    const isLastSession = isLastSessionOf(project, session);
-    const since = daysSinceISO(session.date, now);
+    const since = daysSinceISO(open.date, now);
     const stage = HEALING_CYCLE_WINDOWS.find((w) => since >= w.minDays && (w.maxDays === null || since < w.maxDays));
     if (!stage) continue;
-    if (stage.stage === 'day21_decision' && (!isLastSession || hasPlannedSession(project))) continue;
+    if (stage.stage === 'day21_decision' && (!open.isLastSession || open.hasPlannedSession)) continue;
 
     result.push({
       project,
       client: project.clientId ? clientById.get(project.clientId) ?? null : null,
-      sessionId: session.id,
-      date: session.date,
+      sessionId: open.sessionId,
+      date: open.date,
       stage: stage.stage,
-      isLastSession,
+      isLastSession: open.isLastSession,
     });
   }
   return result.sort((a, b) => a.date.localeCompare(b.date));

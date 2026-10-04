@@ -7,11 +7,22 @@
 // `now` всегда дают один результат, обращений к React/IndexedDB/localStorage
 // нет, исходные массивы не мутируются (сортировка идёт по новому массиву).
 // При вызове с `now = new Date()` (как в компоненте) поведение прежнее.
+//
+// Субботний блэкаут (isReminderBlackoutDay, utils/dates.ts) — общее правило
+// «мастер не хочет писать клиентам по субботам» — раньше применялось только
+// в healingCycleReminders (healingCycle.ts). Все живые билдеры этого файла
+// (overdueEntries, upcomingSoonReminders, overdueProjectSessions/
+// Consultations и их upcomingSoon-пары, overdueProjects, staleProjects)
+// теперь тоже его соблюдают — иначе в субботу всё равно приходили карточки
+// «напиши клиенту»/«позвонить», ровно то, от чего правило должно
+// отгораживать (аудит 2026-10). HEALING_STAGES/healingReminders — @deprecated
+// мёртвый код, его не трогаем.
 
 import type { Client } from '../domain/client';
 import { hasNextStep, type Project } from '../domain/project.js';
 import { getProjectLastActivityDate, hasScheduledWork, hasOverdueWork } from '../domain/projectSelectors.js';
-import { ISO_DATE_RE, isValidISODate, todayISO, daysSinceISO } from '../utils/dates.js';
+import { openHealingCycle } from './healingCycle.js';
+import { ISO_DATE_RE, isValidISODate, todayISO, daysSinceISO, isReminderBlackoutDay } from '../utils/dates.js';
 import type {
   OverdueItem,
   HealingItem,
@@ -56,6 +67,7 @@ const daysSince = daysSinceISO;
 // Sessions AND consultations whose date has passed while still marked
 // not-done. Sorted oldest-first, so the most overdue leads.
 export function overdueEntries(clients: Client[], now: Date): OverdueItem[] {
+  if (isReminderBlackoutDay(now)) return [];
   const today = localISO(now);
   const result: OverdueItem[] = [];
   for (const client of clients) {
@@ -93,6 +105,7 @@ export function healingReminders(clients: Client[], now: Date): HealingItem[] {
 // Sessions/consultations starting 36–48 hours from now (not done, not
 // cancelled). Undated/untimed entries have nothing to count down, skipped.
 export function upcomingSoonReminders(clients: Client[], now: Date): UpcomingSoonItem[] {
+  if (isReminderBlackoutDay(now)) return [];
   const nowMs = now.getTime();
   const result: UpcomingSoonItem[] = [];
   const consider = (client: Client, kind: 'session' | 'consultation', id: string, date: string, time: string, done: boolean, cancelled: boolean) => {
@@ -115,6 +128,7 @@ export function upcomingSoonReminders(clients: Client[], now: Date): UpcomingSoo
 // passed. Client-linked projects are ignored because their reminders continue
 // to come exclusively from client.sessions.
 export function overdueProjectSessions(projects: Project[], now: Date): ProjectSessionReminderItem[] {
+  if (isReminderBlackoutDay(now)) return [];
   const today = localISO(now);
   const result: ProjectSessionReminderItem[] = [];
   for (const project of projects) {
@@ -131,6 +145,7 @@ export function overdueProjectSessions(projects: Project[], now: Date): ProjectS
 // hours from the supplied clock snapshot. Strict date/time validation keeps
 // malformed legacy values out of the countdown.
 export function upcomingSoonProjectSessions(projects: Project[], now: Date): ProjectSessionReminderItem[] {
+  if (isReminderBlackoutDay(now)) return [];
   const nowMs = now.getTime();
   const result: ProjectSessionReminderItem[] = [];
   for (const project of projects) {
@@ -151,6 +166,7 @@ export function upcomingSoonProjectSessions(projects: Project[], now: Date): Pro
 // Consultations stored directly on projects without a client whose date has
 // passed — mirrors overdueProjectSessions above, for Project.consultations.
 export function overdueProjectConsultations(projects: Project[], now: Date): ProjectConsultationReminderItem[] {
+  if (isReminderBlackoutDay(now)) return [];
   const today = localISO(now);
   const result: ProjectConsultationReminderItem[] = [];
   for (const project of projects) {
@@ -167,6 +183,7 @@ export function overdueProjectConsultations(projects: Project[], now: Date): Pro
 // 36–48 hours from the supplied clock snapshot — mirrors
 // upcomingSoonProjectSessions above, for Project.consultations.
 export function upcomingSoonProjectConsultations(projects: Project[], now: Date): ProjectConsultationReminderItem[] {
+  if (isReminderBlackoutDay(now)) return [];
   const nowMs = now.getTime();
   const result: ProjectConsultationReminderItem[] = [];
   for (const project of projects) {
@@ -195,6 +212,7 @@ export function upcomingSoonProjectConsultations(projects: Project[], now: Date)
 // «Цвето проба»: тип-только next step без текста тоже должен просрочиваться
 // как обычный). Отсортированы от самого просроченного.
 export function overdueProjects(projects: Project[], now: Date): Project[] {
+  if (isReminderBlackoutDay(now)) return [];
   const today = localISO(now);
   return projects
     .filter((p) => p.status === 'active' && p.nextActionDate && p.nextActionDate <= today && hasNextStep(p))
@@ -215,7 +233,7 @@ export const STALE_PROJECT_THRESHOLD_DAYS = 30;
 // «неподвижность» осознанная, не застой; статус 'completed' исключён —
 // работа закончена, двигаться больше нечему.
 //
-// Три независимые защиты от ложных карточек (M4):
+// Четыре независимые защиты от ложных карточек (M4):
 //  - getProjectLastActivityDate может вернуть null (легаси-проект без ни
 //    одного достоверного сигнала активности) — такой проект пропускается:
 //    лучше не показать карточку, чем показать ложную;
@@ -224,17 +242,25 @@ export const STALE_PROJECT_THRESHOLD_DAYS = 30;
 //    показываем;
 //  - hasOverdueWork — уже есть конкретная просрочка (её показывает
 //    overdueProjects/overdueEntries) — мягкий застой не дублирует более
-//    конкретное напоминание.
+//    конкретное напоминание;
+//  - openHealingCycle (healingCycle.ts) — проект ждёт решения «фото или
+//    коррекция» (развилка 21-го дня без верхней границы, см. healingCycle.ts).
+//    Пока цикл открыт, «ничего не происходит» — ожидаемо, а не застой: без
+//    этой проверки один и тот же проект после 30 дней на развилке получал
+//    ОБЕ карточки одновременно, и они противоречили друг другу (одна
+//    объясняет ожидание, другая намекает на забытость).
 //
 // Сортировка — от самого давнего к недавнему (сначала то, что застыло
 // сильнее всего).
 export function staleProjects(projects: Project[], clients: Client[], now: Date): StaleProjectItem[] {
+  if (isReminderBlackoutDay(now)) return [];
   const today = localISO(now);
   const allSessions = [...clients.flatMap((c) => c.sessions), ...projects.flatMap((p) => p.sessions)];
   const allConsultations = [...clients.flatMap((c) => c.consultations), ...projects.flatMap((p) => p.consultations)];
   const result: StaleProjectItem[] = [];
   for (const project of projects) {
     if (project.status !== 'active') continue;
+    if (openHealingCycle(project)) continue;
     if (hasOverdueWork(project, allSessions, allConsultations, today)) continue;
     if (hasScheduledWork(project, allSessions, allConsultations, today)) continue;
     const lastActivityDate = getProjectLastActivityDate(project, allSessions, allConsultations, today);

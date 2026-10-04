@@ -10,7 +10,7 @@
 // они просто перестают на что-либо ссылаться. Ключ проекта ИСПРАВЛЕН —
 // см. actionSignature ниже.
 
-import type { Project } from '../domain/project';
+import type { NextActionType, Project } from '../domain/project';
 import { HEALING_STAGES } from './buildReminders.js';
 import { HEALING_CYCLE_WINDOWS, type HealingCycleItem } from './healingCycle.js';
 import type {
@@ -119,32 +119,40 @@ export function normalizeActionText(text: string): string {
 }
 
 // Подпись КОНКРЕТНОГО следующего действия проекта. Зависит от projectId,
-// правила, даты и (нормализованного) текста действия. Меняется, как только
-// меняется само действие — поэтому закрытие одного напоминания больше не
-// прячет другое, более позднее действие того же проекта.
+// правила, даты, типа и (нормализованного) текста действия. Меняется, как
+// только меняется само действие — поэтому закрытие одного напоминания больше
+// не прячет другое, более позднее действие того же проекта.
+//
+// Тип в подписи — иначе смена ТИПА при пустом тексте и той же дате (next step
+// только типом, см. hasNextStep/nextStepLabel в domain/project.ts) не меняла
+// бы подпись: «Назначить сессию» и «Проверить проект» с одинаковой датой и
+// без текста давали бы один и тот же ключ, и закрытая карточка одного
+// действия навсегда прятала бы совсем другое действие (аудит 2026-10).
 //
 // Текст — последнее поле: двоеточия внутри него не создают коллизий, так как
-// все предыдущие поля (projectId, rule, ISO-дата) двоеточий не содержат.
+// все предыдущие поля (projectId, rule, ISO-дата, тип) двоеточий не содержат.
 export function actionSignature(params: {
   projectId: string;
   rule: string;
   nextActionDate: string | null;
+  nextActionType: NextActionType | null;
   nextActionText: string;
 }): string {
-  return `${params.projectId}:${params.rule}:${params.nextActionDate ?? ''}:${normalizeActionText(params.nextActionText)}`;
+  return `${params.projectId}:${params.rule}:${params.nextActionDate ?? ''}:${params.nextActionType ?? ''}:${normalizeActionText(params.nextActionText)}`;
 }
 
 // БЫЛО: `project:${p.id}` — не зависело от самого действия, поэтому закрытое
 // напоминание навсегда прятало ЛЮБОЕ будущее действие того же проекта
 // (см. docs/TECH_REFACTOR_AUDIT.md, вопрос 8). СТАЛО: ключ включает подпись
-// действия, так что смена текста/даты «следующего шага» рождает новый ключ.
-// Побочный безопасный эффект: одно ранее закрытое напоминание после смены
-// действия может показаться повторно — это лучше вечного скрытия.
+// действия, так что смена текста/даты/типа «следующего шага» рождает новый
+// ключ. Побочный безопасный эффект: одно ранее закрытое напоминание после
+// смены действия может показаться повторно — это лучше вечного скрытия.
 export function projectReminderKey(p: Project): string {
   return `project:${actionSignature({
     projectId: p.id,
     rule: 'project_action_due',
     nextActionDate: p.nextActionDate,
+    nextActionType: p.nextActionType,
     nextActionText: p.nextActionText,
   })}`;
 }

@@ -11,6 +11,7 @@ function makeProject(overrides = {}) {
     category: 'tattoo',
     clientId: null,
     status: 'active',
+    sessionsPlan: 'multiple',
     waitingFor: 'none',
     nextActionText: '',
     nextActionDate: null,
@@ -23,6 +24,7 @@ function makeProject(overrides = {}) {
     creative: '',
     inspirationSources: '',
     photos: [],
+    healingPhotos: [],
     createdDate: '2026-01-01',
     sessions: [],
     consultations: [],
@@ -337,6 +339,36 @@ test('a consultation belonging to a different project neither rescues nor suppre
     ],
   });
   const result = staleProjects([project], [client], NOW);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].project.id, 'p1');
+});
+
+// ── Открытый цикл заживления подавляет застой (аудит 2026-10) ──────────────
+// Без этой защиты проект на развилке «фото или коррекция» (день 21+, без
+// верхней границы — см. healingCycle.ts) после 30 дней ожидания получал
+// одновременно обе карточки: «ждёт решения по заживлению» и «давно не
+// двигалось» — вторая противоречит первой (это не забытость, а ожидаемая
+// пауза, встроенная в сам цикл).
+
+test('an open healing cycle (day21_decision fork, no photo yet) suppresses the stale reminder', () => {
+  const anchorDate = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 5);
+  const project = makeProject({
+    id: 'p1',
+    sessions: [makeSession({ projectId: 'p1', date: anchorDate, done: true, isLastSession: true })],
+  });
+  assert.equal(staleProjects([project], [], NOW).length, 0);
+});
+
+test('a closed healing cycle (photo already added) does not suppress a genuine stale reminder', () => {
+  const stale = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 10);
+  const anchorDate = daysBeforeNow(STALE_PROJECT_THRESHOLD_DAYS + 5);
+  const project = makeProject({
+    id: 'p1',
+    lastMeaningfulActivityAt: stale,
+    sessions: [makeSession({ projectId: 'p1', date: anchorDate, done: true, isLastSession: true })],
+    healingPhotos: [{ id: 'ph1', url: 'a', addedDate: daysBeforeNow(1), isCover: true }],
+  });
+  const result = staleProjects([project], [], NOW);
   assert.equal(result.length, 1);
   assert.equal(result[0].project.id, 'p1');
 });
