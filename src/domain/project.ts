@@ -48,6 +48,57 @@ export const PROJECT_BODY_AREAS: { key: string; label: string }[] = [
   { key: 'Пальцы', label: 'Пальцы' },
 ];
 
+// Верхнеуровневая группировка PROJECT_BODY_AREAS в 4 крупные зоны — «Проекты»
+// открываются папками по ним, а не по клиенту (конкретное место, Икра/Голень
+// и т.п., остаётся подгруппировкой внутри открытой папки, см.
+// groupProjectsByArea в projectSelectors.ts).
+export type ProjectBodyZoneKey = 'Рука' | 'Нога' | 'Спина' | 'Перед';
+
+export const PROJECT_BODY_ZONES: { key: ProjectBodyZoneKey; label: string }[] = [
+  { key: 'Рука', label: 'Рука' },
+  { key: 'Нога', label: 'Нога' },
+  { key: 'Спина', label: 'Спина' },
+  { key: 'Перед', label: 'Перед' },
+];
+
+// Куда относится каждое конкретное место из PROJECT_BODY_AREAS. Место, не
+// попавшее сюда (пустая area или свободный текст старых проектов), уходит в
+// PROJECT_BODY_ZONE_OTHER — чтобы такой проект не потерялся молча.
+const PROJECT_AREA_TO_ZONE: Record<string, ProjectBodyZoneKey> = {
+  'Рука': 'Рука',
+  'Кисть': 'Рука',
+  'Предплечье': 'Рука',
+  'Плечо': 'Рука',
+  'Локоть': 'Рука',
+  'Пальцы': 'Рука',
+
+  'Нога': 'Нога',
+  'Голень': 'Нога',
+  'Икра': 'Нога',
+  'Стопа': 'Нога',
+  'Бедро': 'Нога',
+  'Колено': 'Нога',
+  'Лодыжка': 'Нога',
+
+  'Спина': 'Спина',
+  'Поясница': 'Спина',
+  'Лопатка': 'Спина',
+  'Трапеция': 'Спина',
+
+  'Грудь': 'Перед',
+  'Живот': 'Перед',
+  'Рёбра': 'Перед',
+  'Лобок': 'Перед',
+  'Солнечное сплетение': 'Перед',
+  'Пах': 'Перед',
+};
+
+export const PROJECT_BODY_ZONE_OTHER = 'Другое';
+
+export function projectBodyZone(area: string): string {
+  return PROJECT_AREA_TO_ZONE[area] ?? PROJECT_BODY_ZONE_OTHER;
+}
+
 // Где проект находится и может ли он сейчас двигаться — читается по одному
 // полю, ProjectStatus.
 //

@@ -2,17 +2,17 @@ import { useState } from 'react';
 import { InkaLogo } from '../InkaLogo';
 import { type Client } from '../../domain/client';
 import { type ProjectCategory, PROJECT_CATEGORIES, PROJECT_BODY_AREAS, type Project } from '../../domain/project';
-import { buildProjectFolders } from '../../domain/projectSelectors';
+import { buildProjectZoneFolders } from '../../domain/projectSelectors';
 import { ProjectFolderCard } from '../project/ProjectFolderCard';
 import { ProjectFolderView } from '../project/ProjectFolderView';
 import { StarDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
-import { todayISO } from '../../utils/dates';
 import { COLORS, fs, INPUT_STYLE } from '../TattoDiary';
 
-// Вынесено из TattoDiary.tsx (PR 8 рефакторинга). Логика и разметка не
-// менялись — только перенос в отдельный модуль. Экран полностью
-// prop-driven, состояние (фильтр по типу, открытая папка) — локальное.
+// Папки верхнего уровня — по зоне тела (buildProjectZoneFolders), а не по
+// клиенту: полный список проектов клиента остаётся в его собственной
+// карточке. Экран полностью prop-driven, состояние (фильтр по типу, открытая
+// папка) — локальное.
 export function WorkshopScreen({
   projects,
   projectsLoaded,
@@ -36,15 +36,11 @@ export function WorkshopScreen({
     if (areaFilter !== 'all' && project.area !== areaFilter) return false;
     return true;
   });
-  // Пустая папка (клиент вообще без проектов) видна всегда — но фильтр по
-  // типу не должен превращать «есть проекты, просто не этого типа» в такую
-  // же пустую карточку: trueEmptyClientIds считается по НЕотфильтрованным
-  // projects, чтобы отличить эти два случая друг от друга.
-  const trueEmptyClientIds = new Set(clients.filter((c) => !projects.some((p) => p.clientId === c.id)).map((c) => c.id));
-  const allFolders = buildProjectFolders(filtered, clients, todayISO());
-  const folders = filtersActive
-    ? allFolders.filter((f) => f.projectCount > 0 || (f.type === 'client' && f.clientId !== null && trueEmptyClientIds.has(f.clientId)))
-    : allFolders;
+  const allFolders = buildProjectZoneFolders(filtered);
+  // Основные папки зон видны всегда, даже пустые (M6-принцип «место уже
+  // есть»); при активном фильтре это бы показывало пустые зоны как
+  // «нет проектов с такими фильтрами», поэтому фильтр прячет только их.
+  const folders = filtersActive ? allFolders.filter((f) => f.projectCount > 0) : allFolders;
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null;
 
   if (openFolder) {
@@ -165,7 +161,7 @@ export function WorkshopScreen({
           <ProjectFolderCard
             key={folder.id}
             folder={folder}
-            accentColor={folder.type === 'client' ? (clients.find((c) => c.id === folder.clientId)?.color ?? COLORS.gold) : COLORS.gold}
+            accentColor={COLORS.gold}
             onClick={() => setOpenFolderId(folder.id)}
           />
         ))}
