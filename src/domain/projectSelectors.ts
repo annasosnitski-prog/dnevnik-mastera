@@ -442,6 +442,32 @@ export function getProjectPipelineSegments(
   });
 }
 
+// Доля пройденного пути по шкале «Запрос → первая сессия» — 0..1, где 1
+// значит «дошли до последней точки (сессии) или дальше». Вынесено из
+// ProjectTimelineRow.tsx (там было todayPosition, 0..100) в домен: ряд
+// «почти завершённые пайплайны — первыми» (ProjectTimelineList) должен
+// сравнивать ровно то же число, которым рельса красится на самой строке, а
+// не отдельную, рискующую разойтись копию. Индексная раскладка — та же, что
+// у самой рельсы (см. комментарий у бывшего todayPosition): точки стоят
+// через равные промежутки по ПОРЯДКУ, не по доле реального времени.
+export function getPipelineProgress(segments: { targetDate: string }[], today: string): number {
+  const count = segments.length;
+  if (count === 0) return 0;
+  const indexPosition = (index: number): number => (count <= 1 ? 0 : index / (count - 1));
+  let lastPassedIndex = -1;
+  for (let i = 0; i < count; i++) {
+    if (segments[i].targetDate <= today) lastPassedIndex = i;
+  }
+  if (lastPassedIndex === -1) return 0;
+  if (lastPassedIndex === count - 1) return 1;
+  const nextIndex = lastPassedIndex + 1;
+  const aMs = new Date(`${segments[lastPassedIndex].targetDate}T00:00:00.000Z`).getTime();
+  const bMs = new Date(`${segments[nextIndex].targetDate}T00:00:00.000Z`).getTime();
+  const todayMs = new Date(`${today}T00:00:00.000Z`).getTime();
+  const frac = bMs > aMs ? (todayMs - aMs) / (bMs - aMs) : 0;
+  return indexPosition(lastPassedIndex) + frac * (indexPosition(nextIndex) - indexPosition(lastPassedIndex));
+}
+
 // ===================== ОКНО «ПОСЛЕДНЯЯ → СЛЕДУЮЩАЯ СЕССИЯ» =====================
 // Как только у проекта появляется факт (выполненная сессия), веха «Запрос →
 // первая сессия» из getProjectPipelineSegments перестаёт быть полезной: она
@@ -472,6 +498,22 @@ export function getProjectSessionWindow(sessions: Session[], projectId: string):
     }
   }
   return { lastSessionDate, nextSessionDate };
+}
+
+// Доля заливки отрезка «последняя → следующая сессия» — 0..1. Вынесено из
+// ProjectSessionWindowRow.tsx (там было windowProgress) в домен ровно по той
+// же причине, что и getPipelineProgress выше: сортировка ProjectTimelineList
+// («почти завершённые — первыми») должна читать то же число, которым красится
+// рельса, а не пересчитывать его на свой лад. nextISO === null (следующая
+// сессия ещё не назначена) — 0, не «дотлело»: см. комментарий у самого
+// вызова в ProjectSessionWindowRow.tsx о том, почему пустая рельса честнее.
+export function getSessionWindowProgress(lastISO: string, nextISO: string | null, today: string): number {
+  if (nextISO === null) return 0;
+  const lastMs = new Date(`${lastISO}T00:00:00.000Z`).getTime();
+  const nextMs = new Date(`${nextISO}T00:00:00.000Z`).getTime();
+  if (nextMs <= lastMs) return 1;
+  const todayMs = new Date(`${today}T00:00:00.000Z`).getTime();
+  return Math.max(0, Math.min(1, (todayMs - lastMs) / (nextMs - lastMs)));
 }
 
 // ===================== ФИЛЬТРЫ И СОРТИРОВКА ПРОЕКТОВ =====================

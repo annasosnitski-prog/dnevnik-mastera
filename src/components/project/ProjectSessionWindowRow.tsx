@@ -1,5 +1,5 @@
 import { hasNextStep as projectHasNextStep, nextStepLabel, type Project } from '../../domain/project';
-import { type ProjectSessionWindow } from '../../domain/projectSelectors';
+import { getSessionWindowProgress, type ProjectSessionWindow } from '../../domain/projectSelectors';
 import { formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
 import { ProgressRail } from '../ui/ProgressRail';
@@ -51,14 +51,11 @@ function relativeLabel(dateISO: string, today: string): string {
 // старого «дотлевания», которое выглядело как завершённость там, где её нет.
 // next <= last — испорченные/ручные данные (просроченная незакрытая запись
 // раньше последней выполненной) — тот же эффект: срок уже наступил.
-function windowProgress(lastISO: string, nextISO: string | null, today: string): number {
-  if (nextISO === null) return 0;
-  const lastMs = new Date(`${lastISO}T00:00:00.000Z`).getTime();
-  const nextMs = new Date(`${nextISO}T00:00:00.000Z`).getTime();
-  if (nextMs <= lastMs) return 1;
-  const todayMs = new Date(`${today}T00:00:00.000Z`).getTime();
-  return Math.max(0, Math.min(1, (todayMs - lastMs) / (nextMs - lastMs)));
-}
+//
+// Расчёт теперь в domain/projectSelectors.ts (getSessionWindowProgress) —
+// см. комментарий у getPipelineProgress там же: сортировка ProjectTimelineList
+// должна читать то же число, которым красится рельса.
+const windowProgress = getSessionWindowProgress;
 
 export function ProjectSessionWindowRow({
   project,
