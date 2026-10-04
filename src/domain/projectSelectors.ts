@@ -6,7 +6,16 @@
 // (filter/find возвращают новые массивы/ссылки), нет обращений к React,
 // IndexedDB и localStorage.
 
-import { hasNextStep, type NextActionType, type Project, type ProjectCategory, type ProjectStatus } from './project.js';
+import {
+  hasNextStep,
+  projectBodyZone,
+  PROJECT_BODY_ZONES,
+  PROJECT_BODY_ZONE_OTHER,
+  type NextActionType,
+  type Project,
+  type ProjectCategory,
+  type ProjectStatus,
+} from './project.js';
 import type { Session } from './session';
 import type { Consultation } from './consultation';
 import type { Client } from './client';
@@ -584,7 +593,7 @@ export function groupProjectsByArea(projects: Project[]): ProjectAreaGroup[] {
 }
 
 // ===================== ПАПКИ ПРОЕКТОВ (view-model) =====================
-export type ProjectFolderType = 'client' | 'master';
+export type ProjectFolderType = 'client' | 'master' | 'zone';
 
 export interface ProjectFolder {
   id: string;
@@ -694,6 +703,55 @@ export function buildProjectFolders(projects: Project[], clients: Client[], toda
       clientId: null,
       projects: masterProjects,
       projectCount: masterProjects.length,
+    });
+  }
+
+  return folders;
+}
+
+// ===================== ПАПКИ ПРОЕКТОВ ПО ЗОНАМ ТЕЛА (view-model) =====================
+// «Проекты» открываются папками по крупной зоне тела (project.area →
+// projectBodyZone), а не по клиенту — buildProjectFolders выше остаётся в
+// коде нетронутым как самостоятельная выборка, просто больше не вызывается
+// экраном «Проекты». Клиент каждого проекта всё равно виден на его карточке
+// (ProjectCard принимает clientName), а полный список проектов клиента — в
+// его собственной карточке (getProjectsByClientId), эта папка её не заменяет.
+//
+// Основные 4 зоны (PROJECT_BODY_ZONES) показываются всегда, даже без единого
+// проекта — тот же принцип «место уже есть, просто пока пусто», что и у
+// клиентских папок (M6). «Другое» (проекты без распознанной зоны — пустая
+// area или свободный текст старых записей) показывается только если там
+// что-то есть — специальной папки для несуществующего случая не нужно.
+export function buildProjectZoneFolders(projects: Project[]): ProjectFolder[] {
+  const projectsByZone = new Map<string, Project[]>();
+  for (const project of projects) {
+    const zone = projectBodyZone(project.area);
+    const bucket = projectsByZone.get(zone);
+    if (bucket) bucket.push(project);
+    else projectsByZone.set(zone, [project]);
+  }
+
+  const folders: ProjectFolder[] = PROJECT_BODY_ZONES.map((zone) => {
+    const zoneProjects = projectsByZone.get(zone.key) ?? [];
+    return {
+      id: `zone:${zone.key}`,
+      title: zone.label,
+      type: 'zone',
+      clientId: null,
+      projects: zoneProjects,
+      projectCount: zoneProjects.length,
+    };
+  });
+
+  const otherProjects = projectsByZone.get(PROJECT_BODY_ZONE_OTHER) ?? [];
+  if (otherProjects.length > 0) {
+    folders.push({
+      id: `zone:${PROJECT_BODY_ZONE_OTHER}`,
+      title: PROJECT_BODY_ZONE_OTHER,
+      type: 'zone',
+      clientId: null,
+      projects: otherProjects,
+      projectCount: otherProjects.length,
     });
   }
 

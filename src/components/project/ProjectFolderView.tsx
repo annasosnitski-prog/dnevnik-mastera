@@ -1,5 +1,6 @@
-// Открытая папка «Мастерской» — список проектов внутри одной клиентской
-// папки или «Проектов мастера». Проекты внутри папки сгруппированы по месту.
+// Открытая папка «Проектов» — список проектов одной крупной зоны тела
+// (см. buildProjectZoneFolders), внутри неё сгруппированных по конкретному
+// месту (Икра/Голень и т.п.) через groupProjectsByArea.
 import type { ProjectFolder } from '../../domain/projectSelectors';
 import { clientNameFor, groupProjectsByArea } from '../../domain/projectSelectors';
 import type { Client } from '../../domain/client';
