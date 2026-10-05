@@ -366,6 +366,26 @@ function SortablePhotoTile({ id, children }: { id: string; children: React.React
   );
 }
 
+// Расширение файла по сигнатуре data URL — тот же приём, что у
+// contentPhotoExtension (lib/contentShare.ts), но без завязки на формат
+// ContentEntry: здесь источник — просто photos: string[] (сессия,
+// консультация, мудборд), а не отдельный модуль синка контента.
+function photoDataUrlExtension(src: string): string {
+  const match = /^data:image\/(\w+)/.exec(src);
+  if (!match) return 'jpg';
+  return match[1] === 'jpeg' ? 'jpg' : match[1];
+}
+
+// «Сохранить фото» в просмотрщике ниже — ровно то же, что уже умеет
+// ContentINKA (downloadContentPhoto), просто без привязки к ContentEntry.id:
+// программная ссылка с download — не меняет текущий экран/навигацию.
+function downloadPhoto(src: string): void {
+  const link = document.createElement('a');
+  link.href = src;
+  link.download = `photo.${photoDataUrlExtension(src)}`;
+  link.click();
+}
+
 // Photo gallery + upload for a session. On mobile the native file picker
 // already offers "Take Photo", so there's no separate camera button. Deleting
 // a photo takes two taps (✕ → confirm) so it can't happen by accident.
@@ -652,11 +672,31 @@ export function SessionPhotos({
           >
             ✕
           </div>
-          <img
-            src={viewerSrc}
-            alt=""
-            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 3 }}
-          />
+          {/* stopPropagation — иначе клик по фото/кнопке «Сохранить» всплывает
+              на оверлей и сразу закрывает просмотрщик, не дав сохранить. */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, maxWidth: '100%', maxHeight: '100%' }}
+          >
+            <img
+              src={viewerSrc}
+              alt=""
+              style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 140px)', objectFit: 'contain', borderRadius: 3 }}
+            />
+            <div
+              onClick={() => downloadPhoto(viewerSrc)}
+              role="button"
+              style={{
+                fontSize: fs(13),
+                color: COLORS.gold,
+                fontStyle: 'italic',
+                letterSpacing: '0.3px',
+                cursor: 'pointer',
+              }}
+            >
+              Сохранить фото
+            </div>
+          </div>
         </div>
       )}
     </div>
