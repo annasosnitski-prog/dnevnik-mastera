@@ -22,6 +22,7 @@ import {
   type Moodboard,
   type MoodboardStatus,
   MOODBOARD_STATUSES,
+  MOODBOARD_MAX_PHOTOS,
   hasMoodboardContent,
   moodboardPhotoSrcs,
   withMoodboardPhotoSrcs,
@@ -736,7 +737,10 @@ export function ProjectViewSheet({
   // весь компонент ради неё смысла нет.
   const handleAddMoodboardPhotos = (files: FileList | null) => {
     if (!files || files.length === 0 || !project) return;
-    const readers = Array.from(files).map(
+    const existing = moodboardPhotoSrcs(project.moodboard);
+    const picked = Array.from(files).slice(0, Math.max(0, MOODBOARD_MAX_PHOTOS - existing.length));
+    if (picked.length === 0) return;
+    const readers = picked.map(
       (file) =>
         new Promise<string>((resolve) => {
           const reader = new FileReader();
@@ -745,7 +749,7 @@ export function ProjectViewSheet({
         }).then((dataUrl) => downsizeForStorage(dataUrl).catch(() => dataUrl)),
     );
     Promise.all(readers).then((urls) => {
-      onEditMoodboardPhotos([...moodboardPhotoSrcs(project.moodboard), ...urls]);
+      onEditMoodboardPhotos([...existing, ...urls]);
     });
   };
 
@@ -809,6 +813,7 @@ export function ProjectViewSheet({
 
             {(() => {
               const hasContent = hasMoodboardContent(project.moodboard);
+              const moodboardAtLimit = moodboardPhotoSrcs(project.moodboard).length >= MOODBOARD_MAX_PHOTOS;
               return (
                 <div>
                   <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -842,6 +847,7 @@ export function ProjectViewSheet({
                       allowDelete
                       readOnly
                       reorderable
+                      gridColumns={4}
                     />
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
@@ -860,12 +866,18 @@ export function ProjectViewSheet({
                     ) : (
                       <span />
                     )}
-                    <span
-                      onClick={() => moodboardFileRef.current?.click()}
-                      style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
-                    >
-                      + Добавить фото
-                    </span>
+                    {moodboardAtLimit ? (
+                      <span style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
+                        Максимум {MOODBOARD_MAX_PHOTOS} фото
+                      </span>
+                    ) : (
+                      <span
+                        onClick={() => moodboardFileRef.current?.click()}
+                        style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
+                      >
+                        + Добавить фото
+                      </span>
+                    )}
                   </div>
                   {moodboardShareNote && (
                     <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>{moodboardShareNote}</div>
@@ -1125,7 +1137,7 @@ export function NewProjectSheet({
               шаг: здесь только добавить/удалить, перетаскивание для смены
               порядка живёт в просмотре проекта (ProjectViewSheet), не в
               форме редактирования. */}
-          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst maxPhotos={MOODBOARD_MAX_PHOTOS} gridColumns={4} /></div>
         </div>
 
         <div className="inka-consult-right">

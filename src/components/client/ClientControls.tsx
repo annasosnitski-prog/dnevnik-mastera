@@ -377,6 +377,8 @@ export function SessionPhotos({
   topSlot,
   readOnly = false,
   reorderable = false,
+  maxPhotos,
+  gridColumns,
 }: {
   photos: string[];
   onChange: (photos: string[]) => void;
@@ -397,6 +399,16 @@ export function SessionPhotos({
   // остальные 6+ вызовов этого компонента не меняют своё поведение ни на
   // строку.
   reorderable?: boolean;
+  // Жёсткий предел общего числа фото — используется мудбордом (см.
+  // domain/project.ts MOODBOARD_MAX_PHOTOS). Остальные вызовы его не задают
+  // и остаются без ограничения, как и раньше. При достижении предела кнопка
+  // «Добавить фото» уступает место короткой подсказке, а не просто молча
+  // отказывается открывать выбор файлов.
+  maxPhotos?: number;
+  // Фиксированное число колонок вместо отзывчивой auto-fill сетки — тоже
+  // только для мудборда, которому нужна предсказуемая раскладка N×N (см. его
+  // вызовы), а не подстройка под ширину экрана.
+  gridColumns?: number;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
@@ -419,7 +431,9 @@ export function SessionPhotos({
 
   const onPick = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const readers = Array.from(files).map(
+    const picked = maxPhotos !== undefined ? Array.from(files).slice(0, Math.max(0, maxPhotos - photos.length)) : Array.from(files);
+    if (picked.length === 0) return;
+    const readers = picked.map(
       (file) =>
         new Promise<string>((resolve) => {
           const reader = new FileReader();
@@ -517,8 +531,10 @@ export function SessionPhotos({
         // A grid (not a wrapping flex row of fixed-size tiles) so thumbnails
         // stretch to fill whatever width is left on the last row — with just
         // one or two photos, fixed 78px tiles left most of the card's own
-        // width sitting empty next to them.
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 8, marginBottom: 10 }}>
+        // width sitting empty next to them. gridColumns overrides this with a
+        // fixed column count (мудборд — предсказуемая раскладка N×N вместо
+        // подстройки под ширину экрана).
+        <div style={{ display: 'grid', gridTemplateColumns: gridColumns ? `repeat(${gridColumns}, 1fr)` : 'repeat(auto-fill, minmax(84px, 1fr))', gap: 8, marginBottom: 10 }}>
           {reorderable ? (
             <DndContext sensors={dragSensors} onDragStart={() => setConfirmIndex(null)} onDragEnd={handleDragEnd}>
               <SortableContext items={stableIds} strategy={rectSortingStrategy}>
@@ -566,20 +582,28 @@ export function SessionPhotos({
       </div>
   );
 
+  const atLimit = maxPhotos !== undefined && photos.length >= maxPhotos;
+  const limitNote = (
+    <div style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
+      Максимум {maxPhotos} фото
+    </div>
+  );
+  const addControl = atLimit ? limitNote : addButton;
+
   return (
     <div style={{ marginTop: 10 }}>
       {readOnly ? (
         thumbnails
       ) : buttonFirst ? (
         <>
-          <div style={{ marginBottom: thumbnails ? 10 : 0 }}>{addButton}</div>
+          <div style={{ marginBottom: thumbnails ? 10 : 0 }}>{addControl}</div>
           {topSlot}
           {thumbnails}
         </>
       ) : (
         <>
           {thumbnails}
-          {addButton}
+          {addControl}
         </>
       )}
       {!readOnly && (

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { hasMoodboardContent, moodboardPhotoSrcs, withMoodboardPhotoSrcs, withMoodboardStatus } from '../.test-dist/src/domain/project.js';
+import { MOODBOARD_MAX_PHOTOS, hasMoodboardContent, moodboardPhotoSrcs, withMoodboardPhotoSrcs, withMoodboardStatus } from '../.test-dist/src/domain/project.js';
 
 // hasMoodboardContent — «есть ли что показать», а не «заведён ли мудборд»:
 // null (не заведён) и заведённый-но-пустой (0 items) обе читаются как
@@ -95,6 +95,13 @@ test('withMoodboardPhotoSrcs keeps an empty-but-meaningful moodboard alive (sent
   assert.notEqual(next, null);
   assert.equal(next.status, 'sent');
   assert.deepEqual(next.items, []);
+});
+
+test('withMoodboardPhotoSrcs caps the board at MOODBOARD_MAX_PHOTOS, keeping the first photos', () => {
+  const srcs = Array.from({ length: MOODBOARD_MAX_PHOTOS + 5 }, (_, i) => `data:${i}`);
+  const mb = withMoodboardPhotoSrcs(null, srcs);
+  assert.equal(mb.items.length, MOODBOARD_MAX_PHOTOS);
+  assert.deepEqual(mb.items.map((it) => it.src), srcs.slice(0, MOODBOARD_MAX_PHOTOS));
 });
 
 // ── withMoodboardStatus ─────────────────────────────────────────────

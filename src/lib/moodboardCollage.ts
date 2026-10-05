@@ -8,15 +8,16 @@
 // текстом при отправке (см. prepareMoodboardShareForSending), так что смена
 // подписи не требует пересборки картинки.
 
-// Ближайшая к квадрату сетка на заданное число ячеек — 1→1×1, 2→1×2 (не
-// 2×1: шире, чем выше, ближе к тому, как реально выглядят фото), 3–4→2×2,
-// 5–6→2×3, и так далее округлением вверх до квадрата. Чистая функция —
-// раскладка проверяется тестами отдельно от самой отрисовки (canvas/Image
-// недоступны за пределами браузера, как и у resizeImage в imagePreview.ts).
+// Максимум 4 колонки в ширину — та же раскладка, что у живой доски на экране
+// (SessionPhotos gridColumns={4} в её вызовах, см. SessionAndProjectSheets.tsx)
+// и тот же лимит 16 фото (MOODBOARD_MAX_PHOTOS в domain/project.ts), так что
+// коллаж для клиента всегда укладывается максимум в 4×4, растёт только вниз.
+// 1→1×1, 2→2×1, 3→3×1, 4→4×1, 5→4×2, ..., 16→4×4. Чистая функция — раскладка
+// проверяется тестами отдельно от самой отрисовки (canvas/Image недоступны
+// за пределами браузера, как и у resizeImage в imagePreview.ts).
 export function collageGridSize(count: number): { cols: number; rows: number } {
   if (count <= 1) return { cols: 1, rows: 1 };
-  if (count === 2) return { cols: 2, rows: 1 };
-  const cols = Math.ceil(Math.sqrt(count));
+  const cols = Math.min(4, count);
   const rows = Math.ceil(count / cols);
   return { cols, rows };
 }

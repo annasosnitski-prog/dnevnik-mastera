@@ -266,6 +266,12 @@ export const MOODBOARD_STATUSES: { key: MoodboardStatus; label: string }[] = [
   { key: 'rework', label: 'На доработку' },
 ];
 
+// Доска на экране — фиксированная сетка 4 колонки (см. SessionPhotos
+// gridColumns в проекте мудборда и collageGridSize в lib/moodboardCollage.ts,
+// который держит ту же ширину). 16 — ровно 4 полных строки, чтобы доска не
+// расползалась бесконечно вниз и укладывалась в один коллаж-скрин для клиента.
+export const MOODBOARD_MAX_PHOTOS = 16;
+
 export interface Moodboard {
   id: string;
   items: MoodboardItem[]; // порядок массива = порядок на доске
@@ -316,10 +322,15 @@ export function moodboardPhotoSrcs(moodboard: Moodboard | null): string[] {
 // src, чтобы сохранить id/note там, где фото не поменялось, и заводим новый
 // item только для реально нового src — остальные (link/color) items остаются
 // на своих местах, этой правкой не задеты.
+// Срез до MOODBOARD_MAX_PHOTOS — защитный предел здесь, единожды, а не в
+// каждом месте UI, которое может прислать срок (форма проекта, «+Добавить
+// фото» в просмотре проекта) — те дополнительно блокируют загрузку сверху
+// лимита сами (см. SessionPhotos maxPhotos), это лишь гарантия инварианта.
 export function withMoodboardPhotoSrcs(moodboard: Moodboard | null, srcs: string[]): Moodboard | null {
+  const cappedSrcs = srcs.slice(0, MOODBOARD_MAX_PHOTOS);
   const otherItems = moodboard ? moodboard.items.filter((it) => it.kind !== 'photo') : [];
   const remaining = moodboard ? moodboard.items.filter((it) => it.kind === 'photo') : [];
-  const photoItems: MoodboardItem[] = srcs.map((src) => {
+  const photoItems: MoodboardItem[] = cappedSrcs.map((src) => {
     const i = remaining.findIndex((it) => it.src === src);
     if (i !== -1) return remaining.splice(i, 1)[0];
     return { id: crypto.randomUUID(), kind: 'photo', src, url: '', hex: '', note: '' };

@@ -12,11 +12,12 @@ test('collageGridSize lays two photos side by side, not stacked', () => {
   assert.deepEqual(collageGridSize(2), { cols: 2, rows: 1 });
 });
 
-test('collageGridSize rounds up to a square-ish grid for larger counts', () => {
-  assert.deepEqual(collageGridSize(3), { cols: 2, rows: 2 });
-  assert.deepEqual(collageGridSize(4), { cols: 2, rows: 2 });
-  assert.deepEqual(collageGridSize(5), { cols: 3, rows: 2 });
-  assert.deepEqual(collageGridSize(9), { cols: 3, rows: 3 });
+test('collageGridSize caps at 4 columns and grows downward, matching the on-screen moodboard grid', () => {
+  assert.deepEqual(collageGridSize(3), { cols: 3, rows: 1 });
+  assert.deepEqual(collageGridSize(4), { cols: 4, rows: 1 });
+  assert.deepEqual(collageGridSize(5), { cols: 4, rows: 2 });
+  assert.deepEqual(collageGridSize(9), { cols: 4, rows: 3 });
+  assert.deepEqual(collageGridSize(16), { cols: 4, rows: 4 });
 });
 
 test('collageGridSize never leaves a cell short — cols*rows always covers count', () => {
