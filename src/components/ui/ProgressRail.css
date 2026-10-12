@@ -13,69 +13,72 @@
   overflow: visible;
 }
 
-/* Бусина-кольцо: задняя дуга под трубкой (z 0), передняя над ней (z 2). */
-.progress-rail__bead {
+/* Шарик — тот же сферический золотой «бисер», что ThreadedBead на подвесках
+   карточки клиента: блик вне центра, тёмное ядро, яркий ободок. Лежит поверх
+   трубки. Тусклый (--dim) — заливка рельсы до него ещё не дошла; горящий
+   (--lit) — дошла. */
+.progress-rail__ball {
   position: absolute;
   top: 50%;
-  width: 18px;
-  height: 26px;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.progress-rail__bead--back {
-  z-index: 0;
-}
-
-.progress-rail__bead--front {
   z-index: 2;
+  width: 11px;
+  height: 11px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 0.5px solid rgba(255, 240, 179, 0.85);
+  background: radial-gradient(
+    circle at 32% 26%,
+    #ffffff 0%,
+    #f5e3b8 12%,
+    #ead1a0 24%,
+    #e0b569 40%,
+    #c8943a 60%,
+    #7a5620 82%,
+    #3a2712 100%
+  );
+  pointer-events: none;
+  transition: filter 0.4s, box-shadow 0.4s;
 }
 
-.progress-rail__bead-svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
+.progress-rail__ball--lit {
+  box-shadow:
+    inset -1px -1px 1.4px rgba(0, 0, 0, 0.55),
+    inset 0.6px 0.6px 0.8px rgba(255, 255, 255, 0.5),
+    0 0 2px rgba(255, 240, 179, 0.9),
+    0 0 6px rgba(224, 181, 105, 0.6),
+    0 0 11px rgba(226, 182, 85, 0.3),
+    0 1.5px 2px rgba(0, 0, 0, 0.5);
 }
 
-.progress-rail__bead--back path {
-  opacity: 0.72;
-}
-
-.progress-rail__bead--forecast {
-  opacity: 0.45;
-}
-
-.progress-rail__bead--actual .progress-rail__bead-svg {
-  filter: drop-shadow(0 0 3px rgba(224, 181, 105, 0.7));
-}
-
-:root[data-theme='light'] .progress-rail__bead--actual .progress-rail__bead-svg {
-  filter: drop-shadow(0 0 3px rgba(162, 119, 90, 0.55));
+.progress-rail__ball--dim {
+  filter: grayscale(0.2) brightness(0.48);
+  box-shadow:
+    inset -1px -1px 1.4px rgba(0, 0, 0, 0.55),
+    0 1.5px 2px rgba(0, 0, 0, 0.5);
 }
 
 /* Следующая сессия ещё не назначена, хотя статус проекта говорит, что она
    будет, — пустая рельса сама по себе выглядит заброшенно, поэтому кольцо у
    правого края мягко дышит золотом: не статус-индикатор, а приглашение
    назначить дату. Дыхание, не мигание (плавный ease-in-out). */
-@keyframes progress-rail-bead-pulse {
+@keyframes progress-rail-ball-pulse {
   0%,
   100% {
-    opacity: 0.4;
+    opacity: 0.45;
     transform: translate(-50%, -50%) scale(0.85);
   }
   50% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translate(-50%, -50%) scale(1.15);
   }
 }
 
-.progress-rail__bead--pulse {
-  animation: progress-rail-bead-pulse 2.6s ease-in-out infinite;
+.progress-rail__ball--pulse {
+  animation: progress-rail-ball-pulse 2.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .progress-rail__bead--pulse {
+  .progress-rail__ball--pulse {
     animation: none;
     opacity: 0.85;
   }
