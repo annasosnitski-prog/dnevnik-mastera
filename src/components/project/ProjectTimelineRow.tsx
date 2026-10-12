@@ -68,23 +68,6 @@ function overallDateRange(segments: { targetDate: string }[]): { startISO: strin
   return { startISO, endISO };
 }
 
-// Оформление точки по источнику даты (см. PipelineSegmentSource) — это и
-// есть весь смысл переделки: факт, обещание и прогноз должны читаться
-// по-разному с первого взгляда, а не сливаться в одинаковые точки на линии.
-function dotStyle(source: ProjectPipelineSegment['source']): React.CSSProperties {
-  if (source === 'actual') {
-    // Факт — сплошная золотая точка, как раньше выглядела «пройденная».
-    return { border: `1.5px solid ${COLORS.gold}`, background: COLORS.gold };
-  }
-  if (source === 'committed') {
-    // Обещание мастера — золотое кольцо с прозрачной серединой: уже не
-    // догадка, но ещё не свершившийся факт.
-    return { border: `1.5px solid ${COLORS.gold}`, background: 'transparent' };
-  }
-  // Прогноз — тускло, полая точка: это проекция, а не факт и не обещание.
-  return { border: '1.5px solid rgba(var(--gold-rgb),0.4)', background: 'transparent' };
-}
-
 // Общая «шапка» строки (аватар-буква/название/клиент) — одинаковая что у
 // пайплайна «Запрос → первая сессия» (ниже), что у интервала «последняя →
 // следующая сессия» (ProjectSessionWindowRow), различается только тело под
@@ -176,7 +159,12 @@ export function ProjectTimelineRow({
             закрашенная часть («сегодня уже здесь») светится тем же
             двухслойным drop-shadow, что и её собственный металл. */}
         <div style={{ position: 'absolute', top: -5, left: 0, right: 0, height: 20 }}>
-          <ProgressRail progress={todayPct / 100} />
+          {/* Каждая точка пайплайна — кольцо-бусина, надетое на рельсу (факт /
+              обещание / прогноз различаются блеском, см. ProgressRail). */}
+          <ProgressRail
+            progress={todayPct / 100}
+            beads={segments.map((segment, index) => ({ at: indexPosition(index, segments.length), kind: segment.source }))}
+          />
           {/* Риска на каждый календарный день всего пайплайна — только
               когда весь путь укладывается в считанные дни (см.
               DayTickRuler); на растянутый прогноз в месяцы риски не
@@ -198,18 +186,6 @@ export function ProjectTimelineRow({
             index === currentStretchIndex ? actionLabel(segment) : null;
           return (
             <div key={segment.key} style={{ opacity: isForecast ? 0.55 : 1 }}>
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: `${pct}%`,
-                  transform: 'translateX(-50%)',
-                  width: 9,
-                  height: 9,
-                  borderRadius: '50%',
-                  ...dotStyle(segment.source),
-                }}
-              />
               <div
                 style={{
                   position: 'absolute',

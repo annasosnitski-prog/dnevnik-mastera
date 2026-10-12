@@ -5,7 +5,6 @@ import { COLORS, fs } from '../ui/designTokens';
 import { ProgressRail } from '../ui/ProgressRail';
 import { DayTickRuler } from '../ui/DayTickRuler';
 import { ProjectRowHeader } from './ProjectTimelineRow';
-import './ProjectSessionWindowRow.css';
 
 // Строка AdminINKA для проекта, уже прошедшего первую (фактическую) сессию
 // — см. комментарий у getProjectSessionWindow (projectSelectors.ts) о том,
@@ -90,7 +89,16 @@ export function ProjectSessionWindowRow({
           отступом). */}
       <div style={{ position: 'relative', height: 40, margin: '0 10px' }}>
         <div style={{ position: 'absolute', top: -5, left: 0, right: 0, height: 20 }}>
-          <ProgressRail progress={progress} />
+          {/* Кольца-бусины на обоих концах интервала: прошедшая сессия — факт,
+              следующая — обещание; пока она не назначена, правое кольцо
+              тусклое и мягко дышит (приглашение назначить дату). */}
+          <ProgressRail
+            progress={progress}
+            beads={[
+              { at: 0, kind: 'actual' },
+              awaitingNext ? { at: 100, kind: 'forecast', pulse: true } : { at: 100, kind: 'committed' },
+            ]}
+          />
           {/* Риска на каждый календарный день между сессиями — чтобы
               короткий интервал можно было буквально пересчитать глазами.
               Не рисуется вовсе, если дней много (см. DayTickRuler) или
@@ -99,26 +107,6 @@ export function ProjectSessionWindowRow({
             <DayTickRuler startISO={sessionWindow.lastSessionDate} endISO={sessionWindow.nextSessionDate!} today={today} />
           )}
         </div>
-
-        {/* Пустая рельса сама по себе смотрится заброшенно — точка-маркер у
-            правого края дышит золотом, приглашая назначить дату вместо того,
-            чтобы молча пустовать (см. комментарий у windowProgress выше). */}
-        {awaitingNext && (
-          <span
-            aria-hidden="true"
-            className="session-window-invite-dot"
-            style={{
-              position: 'absolute',
-              top: 4,
-              right: -2,
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: COLORS.gold,
-              boxShadow: `0 0 4px ${COLORS.gold}, 0 0 8px rgba(224,181,105,0.5)`,
-            }}
-          />
-        )}
 
         <div style={{ position: 'absolute', top: 17, left: 0, textAlign: 'left' }}>
           <div style={{ fontSize: fs(9.5), color: COLORS.textSecondary }}>Последняя сессия</div>
