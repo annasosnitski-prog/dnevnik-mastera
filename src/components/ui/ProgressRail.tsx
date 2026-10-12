@@ -18,14 +18,14 @@ import './ProgressRail.css';
 export type RailBeadKind = 'actual' | 'committed' | 'forecast';
 export type RailBead = { at: number; kind: RailBeadKind; pulse?: boolean };
 
-const BEAD_STROKE: Record<RailBeadKind, number> = { actual: 5, committed: 4.4, forecast: 3.6 };
+const BEAD_STROKE: Record<RailBeadKind, number> = { actual: 4.6, committed: 4, forecast: 3.4 };
 
 function BeadHalf({ half, kind, gradId }: { half: 'back' | 'front'; kind: RailBeadKind; gradId: string }) {
   // Правая дуга (дальняя) — сверху вниз через правый край; левая (ближняя) —
   // снизу вверх через левый.
-  const d = half === 'back' ? 'M8 3 A6 11 0 0 1 8 25' : 'M8 25 A6 11 0 0 1 8 3';
+  const d = half === 'back' ? 'M10 2.5 A8 11.5 0 0 1 10 25.5' : 'M10 25.5 A8 11.5 0 0 1 10 2.5';
   return (
-    <svg aria-hidden="true" viewBox="0 0 16 28" className="progress-rail__bead-svg">
+    <svg aria-hidden="true" viewBox="0 0 20 28" className="progress-rail__bead-svg">
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="var(--two-pendant-ray-highlight)" />
@@ -36,7 +36,7 @@ function BeadHalf({ half, kind, gradId }: { half: 'back' | 'front'; kind: RailBe
       </defs>
       <path d={d} fill="none" stroke={`url(#${gradId})`} strokeWidth={BEAD_STROKE[kind]} strokeLinecap="round" />
       {half === 'front' && (
-        <path d="M5.2 11 A6 11 0 0 1 8 5" fill="none" stroke="var(--two-pendant-ray-highlight)" strokeOpacity=".7" strokeWidth=".9" strokeLinecap="round" />
+        <path d="M2.5 10.07 A8 11.5 0 0 1 10 2.5" fill="none" stroke="var(--two-pendant-ray-highlight)" strokeOpacity=".7" strokeWidth=".9" strokeLinecap="round" />
       )}
     </svg>
   );
