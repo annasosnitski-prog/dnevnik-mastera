@@ -1,4 +1,4 @@
-import { NEXT_ACTION_TYPES, hasNextStep, nextStepLabel, type Project } from '../../domain/project';
+import { NEXT_ACTION_TYPES, type Project } from '../../domain/project';
 import { getPipelineProgress, type PipelineSegmentKey, type ProjectPipelineSegment } from '../../domain/projectSelectors';
 import { isRTL, firstLetter } from '../../lib/textFormat';
 import { formatDate, todayISO } from '../../utils/dates';
@@ -159,21 +159,9 @@ export function ProjectTimelineRow({
   const hasActionHint = currentStretchIndex !== -1 && actionLabel(segments[currentStretchIndex]) !== null;
   const scaleHeight = hasActionHint ? 74 : 48;
 
-  // Next step, который не анкерит ни одну из четырёх точек (тип вроде
-  // check_healing/other/contact_client — структурно не относится к вехам ДО
-  // первой сессии, см. NEXT_ACTION_TO_STAGE в projectSelectors.ts; или тип
-  // вообще не выбран) — без этого он молча пропадал бы с пайплайна целиком,
-  // хотя мастер его реально сохранила (разбор «Спина Паучьих Лилий»: next
-  // step «Ответить в инсту» / «Связаться с клиентом» не показывался нигде на
-  // этой строке — оставался невидимым). Раз ни одна из точек не стала
-  // 'committed' от этого next step, подсказка под текущей ещё-не-фактической
-  // точкой — единственное место на строке, где вообще показывается «что
-  // сейчас происходит»: туда и подставляем реальный next step вместо
-  // безликого дефолтного действия стадии (STAGE_DEFAULT_ACTION), чтобы
-  // прогресс-стадия и реальное следующее действие читались в одном месте, а
-  // не растаскивались по строке врозь (мастер должна видеть и то, и то
-  // одним взглядом на текущую точку).
-  const nextStepIsOrphaned = hasNextStep(project) && !segments.some((s) => s.source === 'committed');
+  // Next step без точки на рельсе (клиентские типы, тип не выбран) здесь не
+  // показывается совсем: на рельсе только движение проекта от точки к точке,
+  // клиентские действия живут в напоминаниях.
 
   return (
     <div
@@ -207,7 +195,7 @@ export function ProjectTimelineRow({
           const isForecast = segment.source === 'forecast';
           const labelColor = isForecast ? COLORS.textGhost : COLORS.textSecondary;
           const action =
-            index === currentStretchIndex ? (nextStepIsOrphaned ? nextStepLabel(project) : actionLabel(segment)) : null;
+            index === currentStretchIndex ? actionLabel(segment) : null;
           return (
             <div key={segment.key} style={{ opacity: isForecast ? 0.55 : 1 }}>
               <div

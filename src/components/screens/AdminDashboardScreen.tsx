@@ -24,7 +24,6 @@ import { DROP_CAP_FONT, InkaTitleSuffix } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
-import { DatelessProjectsList } from '../project/DatelessProjectsList';
 import { ProjectTimelineList } from '../project/ProjectTimelineList';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
@@ -37,21 +36,15 @@ import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 // геммы-иконки, что уже использует Личный кабинет (info/projects), плюс
 // sessions/notes: своих гемм под админ-вкладки нет, а заводить новые ради
 // одного экрана — лишняя работа под прототип. Порядок — от «требует
-// внимания прямо сейчас» к «справочному»: Напоминания первыми, Таймлайн
-// последним, он самый «посмотреть, а не подействовать».
-// «Таймлайн» и «Без окна» — пара, разделяющая активные проекты по одному
-// признаку: задано ли окно/точная дата первой сессии (getProjectPipelineSegments
-// способен посчитать шкалу) или нет. Раньше это была одна вкладка «Все
-// проекты», смешивавшая оба случая и попутно дублировавшая «Таймлайн» — Аня
-// попросила развести их обратно, но уже без прежней потери «Все проекты»
-// целиком в тёмный список dateless-строк ниже датированных: теперь у каждого
-// случая своя вкладка. Цвет — не по kind (оба «info»/«projects» тут не при
-// делах), а буквально «зелёный = проект на рельсах» / «синий = ещё нет».
-const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'summary' | 'timeline'>[] = [
+// внимания прямо сейчас» к «справочному»: Напоминания первыми, Проекты
+// последними, он самый «посмотреть, а не подействовать».
+// «Проекты» — одна вкладка вместо прежней пары «Таймлайн» / «Без окна»:
+// внутри пайплайны (рельсы) и проекты без окна плиткой в три колонки, каждая
+// группа сворачивается стрелкой (см. ProjectTimelineList).
+const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'timeline'>[] = [
   { id: 'reminders', kind: 'notes', label: 'Напоминания' },
   { id: 'schedule', kind: 'sessions', label: 'Расписание' },
-  { id: 'summary', kind: 'info', label: 'Без окна', color: TERRITORY_COLORS.projects },
-  { id: 'timeline', kind: 'projects', label: 'Таймлайн', color: TERRITORY_COLORS.clients },
+  { id: 'timeline', kind: 'projects', label: 'Проекты', color: TERRITORY_COLORS.clients },
 ];
 
 // ===================== ADMIN DASHBOARD =====================
@@ -125,7 +118,7 @@ export function AdminDashboardScreen({
 }) {
   // Открывая админку, мастер в первую очередь хочет увидеть, что происходит
   // с проектами прямо сейчас — таймлайн, а не расписание или напоминания.
-  const [tab, setTab] = useState<'reminders' | 'schedule' | 'summary' | 'timeline'>('timeline');
+  const [tab, setTab] = useState<'reminders' | 'schedule' | 'timeline'>('timeline');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
 
@@ -240,12 +233,8 @@ export function AdminDashboardScreen({
           </>
         )}
 
-        {/* «Без окна» — активные проекты, для которых не задано окно/точная
-            дата первой сессии (см. DatelessProjectsList): прежняя рабочая
-            статистика (клиенты/нагрузка/блокнот), которая тут раньше была,
-            уехала без замены — это осознанная замена вкладки. */}
-        {tab === 'summary' && <DatelessProjectsList projects={projects} clients={clients} onOpenProject={onOpenProject} />}
-
+        {/* «Проекты» — одна вкладка: пайплайны (рельсы) и проекты «без окна»
+            плиткой, каждая группа сворачивается стрелкой (см. ProjectTimelineList). */}
         {tab === 'timeline' && <ProjectTimelineList projects={projects} clients={clients} onOpenProject={onOpenProject} />}
       </div>
     </div>

@@ -1,45 +1,13 @@
 import { hasNextStep, nextStepLabel, type Project } from '../../domain/project';
-import { clientNameFor, getProjectPipelineSegments, getProjectSessionWindow } from '../../domain/projectSelectors';
+import { clientNameFor } from '../../domain/projectSelectors';
 import { type Client } from '../../domain/client';
-import { isRTL, firstLetter } from '../../lib/textFormat';
+import { firstLetter } from '../../lib/textFormat';
 import { COLORS, fs } from '../ui/designTokens';
 
-// Общая шапка строки — тот же визуал (кружок с буквой, заголовок, имя
-// клиента), что и у ProjectTimelineRow, но без самой шкалы: этому списку
-// шкала не нужна по определению (см. компонент ниже).
-function ProjectRowHeader({ project, clientName }: { project: Project; clientName: string | null }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8, direction: isRTL(project.title) ? 'rtl' : 'ltr' }}>
-      <span
-        style={{
-          width: 26,
-          height: 26,
-          borderRadius: '50%',
-          border: '1px solid rgba(var(--gold-rgb),0.4)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: fs(12),
-          color: COLORS.gold,
-          flexShrink: 0,
-        }}
-      >
-        {firstLetter(project.title)}
-      </span>
-      <span dir="auto" style={{ fontSize: fs(14), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {project.title}
-      </span>
-      {clientName && (
-        <span style={{ fontSize: fs(11), color: COLORS.textGhost, fontStyle: 'italic', flexShrink: 0 }}>{clientName}</span>
-      )}
-    </div>
-  );
-}
-
-// Строка проекта без окна/точной даты первой сессии — вместо шкалы честно
-// показывается только то, что мастер сама поставила как следующий шаг (тип
-// действия ± свой текст), ни одной придуманной даты.
-function DatelessProjectRow({
+// Плитка проекта без окна/точной даты первой сессии — квадрат, три в ряд.
+// Вместо шкалы честно показывается только то, что мастер сама поставила как
+// следующий шаг, ни одной придуманной даты.
+function DatelessProjectTile({
   project,
   clientName,
   onOpen,
@@ -49,31 +17,71 @@ function DatelessProjectRow({
   onOpen: (project: Project) => void;
 }) {
   const label = hasNextStep(project) ? nextStepLabel(project) : null;
-
   return (
     <div
       onClick={() => onOpen(project)}
-      style={{ padding: '14px 16px', borderBottom: '1px solid rgba(var(--gold-rgb),0.08)', cursor: 'pointer' }}
+      role="button"
+      style={{
+        aspectRatio: '1 / 1',
+        minWidth: 0,
+        boxSizing: 'border-box',
+        padding: 10,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        cursor: 'pointer',
+        border: '1px solid rgba(var(--gold-rgb),0.2)',
+        borderRadius: 3,
+        background: 'rgba(var(--surface-rgb),0.022)',
+        overflow: 'hidden',
+      }}
     >
-      <ProjectRowHeader project={project} clientName={clientName} />
-      {label ? (
-        <div style={{ fontSize: fs(12), color: COLORS.gold, marginLeft: 34 }}>{label}</div>
-      ) : (
-        <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic', marginLeft: 34 }}>
-          следующий шаг не задан
-        </div>
+      <span
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: '50%',
+          border: '1px solid rgba(var(--gold-rgb),0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: fs(11),
+          color: COLORS.gold,
+          flexShrink: 0,
+        }}
+      >
+        {firstLetter(clientName ?? project.title)}
+      </span>
+      <span
+        dir="auto"
+        style={{
+          fontSize: fs(12),
+          color: COLORS.textPrimary,
+          lineHeight: 1.25,
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}
+      >
+        {project.title}
+      </span>
+      {clientName && (
+        <span style={{ fontSize: fs(10), color: COLORS.textGhost, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {clientName}
+        </span>
       )}
+      <span style={{ marginTop: 'auto', fontSize: fs(10), color: label ? COLORS.gold : COLORS.textGhost, fontStyle: label ? 'normal' : 'italic', lineHeight: 1.25 }}>
+        {label ?? 'шаг не задан'}
+      </span>
     </div>
   );
 }
 
-// «Без окна» — вкладка-пара к «Таймлайну» (М.2026-09, после разбора: раньше
-// один список «Все проекты» смешивал проекты с датами и без, дублируя
-// «Таймлайн» для первых и пряча вторых внутри общей простыни). Теперь чёткое
-// разделение: «Таймлайн» — только проекты с заданным окном/точной датой
-// первой сессии (getProjectPipelineSegments вернул сегменты), здесь — только
-// те, для кого она не задана и посчитать шкалу нечем.
-export function DatelessProjectsList({
+// Активные проекты «без окна» — те, для кого не задано окно/точная дата
+// первой сессии и нет ни одной прошедшей (отбор делает ProjectTimelineList,
+// здесь только раскладка плиткой в три колонки).
+export function DatelessProjectsTiles({
   projects,
   clients,
   onOpenProject,
@@ -82,36 +90,10 @@ export function DatelessProjectsList({
   clients: Client[];
   onOpenProject: (project: Project) => void;
 }) {
-  const items = projects
-    .filter((p) => p.status === 'active')
-    .filter((project) => {
-      // Записи проекта физически лежат в разных местах в зависимости от
-      // того, привязан ли проект к клиенту — тот же приём резолва, что уже
-      // использует ProjectTimelineList/SessionAndProjectSheets.
-      const linkedClient = project.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
-      const sessions = linkedClient ? linkedClient.sessions : project.sessions;
-      const consultations = linkedClient ? linkedClient.consultations : project.consultations;
-      // Проект с уже прошедшей фактической сессией уходит в «Таймлайн» в
-      // режиме окна «последняя → следующая сессия» (см. ProjectTimelineList),
-      // даже если окно/точная дата первой сессии так и не были заданы —
-      // иначе он задваивался бы: и там, и здесь.
-      if (getProjectSessionWindow(sessions, project.id).lastSessionDate !== null) return false;
-      return getProjectPipelineSegments(project, sessions, consultations) === null;
-    });
-
-  if (items.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', fontSize: fs(14), fontStyle: 'italic', color: COLORS.textGhost, padding: '60px 40px 0' }}>
-        Пока нет активных проектов без заданного окна/даты — им тут и место,
-        когда появятся
-      </div>
-    );
-  }
-
   return (
-    <div style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}>
-      {items.map((project) => (
-        <DatelessProjectRow
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+      {projects.map((project) => (
+        <DatelessProjectTile
           key={project.id}
           project={project}
           clientName={clientNameFor(clients, project.clientId)}

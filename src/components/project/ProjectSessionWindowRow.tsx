@@ -1,5 +1,5 @@
 import { hasNextStep as projectHasNextStep, nextStepLabel, type Project } from '../../domain/project';
-import { getSessionWindowProgress, type ProjectSessionWindow } from '../../domain/projectSelectors';
+import { getSessionWindowProgress, isTimelineNextAction, type ProjectSessionWindow } from '../../domain/projectSelectors';
 import { formatDate, todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
 import { ProgressRail } from '../ui/ProgressRail';
@@ -71,7 +71,9 @@ export function ProjectSessionWindowRow({
   const today = todayISO();
   const awaitingNext = sessionWindow.nextSessionDate === null;
   const progress = windowProgress(sessionWindow.lastSessionDate, sessionWindow.nextSessionDate, today);
-  const showNextStep = projectHasNextStep(project) && project.nextActionDate !== null;
+  // Клиентские шаги (связаться, проверить проект и т.п.) на рельсе не
+  // показываются — только проектные, см. isTimelineNextAction.
+  const showNextStep = projectHasNextStep(project) && isTimelineNextAction(project.nextActionType) && project.nextActionDate !== null;
   const nextStepOverdue = showNextStep && project.nextActionDate! < today;
 
   return (

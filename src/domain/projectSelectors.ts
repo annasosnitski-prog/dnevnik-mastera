@@ -293,6 +293,14 @@ const NEXT_ACTION_TO_STAGE: Partial<Record<NextActionType, PipelineSegmentKey>> 
   prepare_session: 'session',
 };
 
+// Проектный next step — тот, что стоит точкой на рельсе проекта (см.
+// NEXT_ACTION_TO_STAGE). Остальные типы и шаг без типа — клиентские
+// действия: они живут в напоминаниях, а не на рельсе (мастер: «на рельсе
+// только движение проекта от точки к точке»).
+export function isTimelineNextAction(type: NextActionType | null): boolean {
+  return type !== null && NEXT_ACTION_TO_STAGE[type] !== undefined;
+}
+
 // Обратное направление — default-действие для 'forecast' точки стадии, когда
 // next step ни на что не указывает. Не полный inverse NEXT_ACTION_TO_STAGE
 // (там на 'session' указывают два типа) — здесь на стадию нужен ровно один,
