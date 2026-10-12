@@ -28,8 +28,10 @@ import { isValidISODate, daysSinceISO, isReminderBlackoutDay } from '../utils/da
 //    последняя она или нет: у не-последней это единственный контакт по
 //    заживлению, дальше проект просто идёт к следующей сессии своим next
 //    step'ом.
-//  - day21_decision — вопрос мастеру «фото или коррекция», только у
-//    последней сессии. 21-й день, а не 28-й — согласовано с мастером.
+//  - day21_decision — развилка 21-го дня (21-й, а не 28-й — согласовано с
+//    мастером). У последней сессии это вопрос «фото или коррекция», у
+//    не-последней — «узнать, как заживление, и предложить следующую
+//    сессию»: так проект идёт дальше по циклу «подготовка → сессия».
 //
 // Окна не пересекаются, поэтому у проекта в любой момент активна максимум
 // одна карточка. У day21_decision нет верхней границы: развилка держится,
@@ -45,6 +47,13 @@ export const HEALING_CYCLE_WINDOWS: { stage: HealingCycleStage; minDays: number;
   { stage: 'week1_check', minDays: 5, maxDays: 8 },
   { stage: 'day21_decision', minDays: 21, maxDays: null },
 ];
+
+// Подпись стадии для карточек: у не-последней сессии 21-й день — не «фото
+// или коррекция», а «узнать, как заживление, и предложить следующую сессию».
+export function healingStageLabel(stage: HealingCycleStage, isLastSession: boolean): string {
+  if (stage === 'week1_check') return 'Первая неделя · как заживление';
+  return isLastSession ? '21-й день · фото или коррекция' : '21-й день · как заживление, предложить сессию';
+}
 
 // Суббота — общее правило для всех напоминаний приложения (см.
 // isReminderBlackoutDay в utils/dates.ts), не специфика этого модуля:
@@ -156,7 +165,8 @@ export function healingCycleReminders(clients: Client[], projects: Project[], no
     const since = daysSinceISO(open.date, now);
     const stage = HEALING_CYCLE_WINDOWS.find((w) => since >= w.minDays && (w.maxDays === null || since < w.maxDays));
     if (!stage) continue;
-    if (stage.stage === 'day21_decision' && (!open.isLastSession || open.hasPlannedSession)) continue;
+    // Следующая сессия уже назначена — предлагать нечего, развилка снята.
+    if (stage.stage === 'day21_decision' && open.hasPlannedSession) continue;
 
     result.push({
       project,

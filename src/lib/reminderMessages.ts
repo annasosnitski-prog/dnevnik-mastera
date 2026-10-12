@@ -68,7 +68,9 @@ const HEALING_TEXTS: Record<ClientLanguage, Record<HealingStage, string>> = {
 //  - day21_photo — то, что мастер отправляет, ВЫБРАВ на развилке 21-го дня
 //    «фото» (прямой наследник прежнего day30). Второй половине развилки —
 //    «коррекции» — своего сообщения клиенту не полагается: там мастер
-//    назначает встречу, а не пишет.
+//    назначает встречу, а не пишет;
+//  - day21_next — то же 21-е число, но у НЕ последней сессии: узнать, как
+//    заживление, и предложить следующую сессию.
 const HEALING_CYCLE_TEXTS: Record<ClientLanguage, Record<HealingCycleMessage, string>> = {
   ru: {
     week1_check:
@@ -77,6 +79,8 @@ const HEALING_CYCLE_TEXTS: Record<ClientLanguage, Record<HealingCycleMessage, st
       'Чего нельзя: чесать и сдирать корочки или шелушащуюся кожу — может выпасть цвет; распаривать тату — бани, сауны, горячие ванны и бассейн под запретом на 2–3 недели; загорать и ходить в солярий; носить тесную синтетическую одежду, которая трёт рисунок',
     day21_photo:
       'Привет! Как ты, уже всё зажило? Если да — было бы здорово встретиться и сфотографировать зажившую работу для портфолио, если тебе будет удобно',
+    day21_next:
+      'Привет! Как ты, как заживает тату? Если всё хорошо — давай назначим следующую сессию, когда тебе будет удобно',
   },
   en: {
     week1_check:
@@ -85,6 +89,8 @@ const HEALING_CYCLE_TEXTS: Record<ClientLanguage, Record<HealingCycleMessage, st
       "What not to do: don't scratch or pick at scabs or peeling skin — the color can fall out; don't steam the tattoo — no baths, saunas, hot tubs or pools for 2–3 weeks; don't sunbathe or use tanning beds; avoid tight synthetic clothing that rubs against the piece",
     day21_photo:
       "Hi! How are you, has everything healed up? If so, it'd be lovely to meet up and take a photo of the healed piece for my portfolio, whenever suits you",
+    day21_next:
+      "Hi! How are you, how is the tattoo healing? If all is well, let's book the next session whenever suits you",
   },
   he: {
     week1_check:
@@ -93,12 +99,15 @@ const HEALING_CYCLE_TEXTS: Record<ClientLanguage, Record<HealingCycleMessage, st
       'מה אסור: לגרד או לקלף גלדים או עור מתקלף - הצבע עלול לדהות; לא סאונה, ג\'קוזי, אמבטיה חמה או בריכה למשך 2-3 שבועות; לא להשתזף בשמש או בסולריום; להימנע מבגדים צמודים וסינתטיים שמשפשפים את האזור',
     day21_photo:
       'היי! מה שלומך, הכל הגליד כבר? אם כן, יהיה נחמד להיפגש ולצלם את העבודה המחלימה לפורטפוליו, מתי שיהיה נוח לך',
+    day21_next:
+      'היי! מה שלומך, איך הקעקוע מחלים? אם הכל בסדר, בוא/י נקבע את הפגישה הבאה, מתי שנוח לך',
   },
 };
 
 // Не совпадает один-в-один с HealingCycleStage: у развилки 21-го дня есть
-// сообщение только для ветки «фото» (см. комментарий к HEALING_CYCLE_TEXTS).
-export type HealingCycleMessage = 'week1_check' | 'day21_photo';
+// сообщения для веток «фото» и «следующая сессия», но не для «коррекции»
+// (см. комментарий к HEALING_CYCLE_TEXTS).
+export type HealingCycleMessage = 'week1_check' | 'day21_photo' | 'day21_next';
 
 // Сообщение цикла заживления — тот же принцип, что у healingReminderMessage:
 // на языке клиента и без подстановки имени (предпочтение мастера).

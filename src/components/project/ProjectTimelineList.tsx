@@ -20,6 +20,8 @@ import { todayISO } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
 import { ProjectTimelineRow } from './ProjectTimelineRow';
 import { ProjectSessionWindowRow } from './ProjectSessionWindowRow';
+import { DatelessProjectsTiles } from './DatelessProjectsList';
+import { CollapsibleGroup } from '../ui/CollapsibleGroup';
 
 type TimelineItem =
   | {
@@ -35,13 +37,14 @@ type TimelineItem =
 // сортировка применяется и к карточке клиента, где пайплайна/окна нет).
 // Остальные три — как есть, через sortProjects (та же сортировка, что у
 // «Проектов» в карточке клиента).
-type TimelineSortMode = 'progress' | ProjectSortMode;
+type TimelineSortMode = 'progress' | 'progressAsc' | ProjectSortMode;
 
 // «Прогресс» первым и по умолчанию: мастер открывает «Таймлайн», чтобы
 // увидеть, что сейчас ближе всего к следующей вехе (скоро нужна сессия/шаг),
 // а не произвольный или алфавитный порядок — такого запроса раньше не было.
 const TIMELINE_SORT_MODES: { key: TimelineSortMode; label: string }[] = [
-  { key: 'progress', label: 'Прогресс' },
+  { key: 'progress', label: 'Заполненные сначала' },
+  { key: 'progressAsc', label: 'Пустые сначала' },
   ...PROJECT_SORT_MODES,
 ];
 
@@ -59,6 +62,10 @@ function sortTimelineItems(items: TimelineItem[], mode: TimelineSortMode, activi
   if (mode === 'progress') {
     // Самая полная рельса — первой (то, что ближе всего к следующей вехе).
     return items.slice().sort((a, b) => b.progress - a.progress || sortKey(a).localeCompare(sortKey(b)));
+  }
+  if (mode === 'progressAsc') {
+    // Самая пустая рельса — первой.
+    return items.slice().sort((a, b) => a.progress - b.progress || sortKey(a).localeCompare(sortKey(b)));
   }
   const order = sortProjects(items.map((it) => it.project), mode, activity);
   const indexById = new Map(order.map((p, i) => [p.id, i] as const));
@@ -95,6 +102,7 @@ export function ProjectTimelineList({
   const [sortOpen, setSortOpen] = useState(false);
   const today = todayISO();
 
+  const datelessProjects: Project[] = [];
   const items = filterProjects(projects, filters)
     .filter((p) => p.status === 'active')
     .map((project): TimelineItem | null => {
@@ -111,7 +119,11 @@ export function ProjectTimelineList({
         return { project, mode: 'window', sessionWindow: { ...sessionWindow, lastSessionDate: sessionWindow.lastSessionDate }, progress };
       }
       const segments = getProjectPipelineSegments(project, sessions, consultations);
-      if (segments === null) return null;
+      if (segments === null) {
+        // Нет ни окна, ни прошедшей сессии — «без окна», плиткой ниже.
+        datelessProjects.push(project);
+        return null;
+      }
       const progress = getPipelineProgress(segments, today);
       return { project, mode: 'pipeline', segments, progress };
     })
@@ -123,6 +135,13 @@ export function ProjectTimelineList({
   const allSessions = [...clients.flatMap((c) => c.sessions), ...projects.flatMap((p) => p.sessions)];
   const allConsultations = [...clients.flatMap((c) => c.consultations), ...projects.flatMap((p) => p.consultations)];
   const sortedItems = sortTimelineItems(items, sortMode, { sessions: allSessions, consultations: allConsultations, today });
+
+  // Плитки «без окна» — у них нет рельсы, поэтому режимы заполненности их
+  // порядок не меняют; остальные режимы — те же, что и у рельс.
+  const sortedDateless =
+    sortMode === 'progress' || sortMode === 'progressAsc'
+      ? datelessProjects
+      : sortProjects(datelessProjects, sortMode, { sessions: allSessions, consultations: allConsultations, today });
 
   const filtersActive = projectFiltersActive(filters);
 
@@ -254,30 +273,39 @@ export function ProjectTimelineList({
         </div>
       </div>
 
-      {sortedItems.length === 0 ? (
+      {sortedItems.length === 0 && sortedDateless.length === 0 ? (
         <div style={{ textAlign: 'center', fontSize: fs(14), fontStyle: 'italic', color: COLORS.textGhost, padding: '60px 40px 0' }}>
-          {filtersActive ? 'Под фильтр не подошёл ни один проект' : 'Здесь пока пусто — ни один активный проект ещё не ждёт сессии'}
+          {filtersActive ? 'Под фильтр не подошёл ни один проект' : 'Здесь пока пусто — нет активных проектов'}
         </div>
       ) : (
         <div style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}>
-          {sortedItems.map((item) =>
-            item.mode === 'window' ? (
-              <ProjectSessionWindowRow
-                key={item.project.id}
-                project={item.project}
-                clientName={clientNameFor(clients, item.project.clientId)}
-                sessionWindow={item.sessionWindow}
-                onOpen={onOpenProject}
-              />
-            ) : (
-              <ProjectTimelineRow
-                key={item.project.id}
-                project={item.project}
-                clientName={clientNameFor(clients, item.project.clientId)}
-                segments={item.segments}
-                onOpen={onOpenProject}
-              />
-            ),
+          {sortedItems.length > 0 && (
+            <CollapsibleGroup title="Пайплайны" count={sortedItems.length} defaultOpen>
+              {sortedItems.map((item) =>
+                item.mode === 'window' ? (
+                  <ProjectSessionWindowRow
+                    key={item.project.id}
+                    project={item.project}
+                    clientName={clientNameFor(clients, item.project.clientId)}
+                    sessionWindow={item.sessionWindow}
+                    onOpen={onOpenProject}
+                  />
+                ) : (
+                  <ProjectTimelineRow
+                    key={item.project.id}
+                    project={item.project}
+                    clientName={clientNameFor(clients, item.project.clientId)}
+                    segments={item.segments}
+                    onOpen={onOpenProject}
+                  />
+                ),
+              )}
+            </CollapsibleGroup>
+          )}
+          {sortedDateless.length > 0 && (
+            <CollapsibleGroup title="Без окна" count={sortedDateless.length} defaultOpen={false}>
+              <DatelessProjectsTiles projects={sortedDateless} clients={clients} onOpenProject={onOpenProject} />
+            </CollapsibleGroup>
           )}
         </div>
       )}

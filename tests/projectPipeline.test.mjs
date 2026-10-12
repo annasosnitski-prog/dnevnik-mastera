@@ -672,3 +672,13 @@ test('getSessionWindowProgress: сегодня раньше последней �
 test('getSessionWindowProgress: сегодня позже следующей сессии — зажат в 1', () => {
   assert.equal(getSessionWindowProgress('2026-06-10', '2026-06-20', '2026-07-01'), 1);
 });
+
+test('isTimelineNextAction: only types that anchor a rail point count as project steps', async () => {
+  const { isTimelineNextAction } = await import('../.test-dist/src/domain/projectSelectors.js');
+  for (const t of ['collect_information', 'prepare_design', 'schedule_consultation', 'schedule_session', 'prepare_session']) {
+    assert.equal(isTimelineNextAction(t), true, t);
+  }
+  for (const t of ['contact_client', 'check_healing', 'schedule_next_session', 'review_project', 'other', null]) {
+    assert.equal(isTimelineNextAction(t), false, String(t));
+  }
+});
