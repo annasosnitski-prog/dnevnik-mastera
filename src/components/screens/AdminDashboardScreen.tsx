@@ -25,6 +25,7 @@ import { StarDivider } from '../icons/StarIcons';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { ProjectTimelineList } from '../project/ProjectTimelineList';
+import { ClientActionsTab } from './ClientActionsTab';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
@@ -41,10 +42,11 @@ import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 // «Проекты» — одна вкладка вместо прежней пары «Таймлайн» / «Без окна»:
 // внутри пайплайны (рельсы) и проекты без окна плиткой в три колонки, каждая
 // группа сворачивается стрелкой (см. ProjectTimelineList).
-const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'timeline'>[] = [
+const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'timeline' | 'clients'>[] = [
   { id: 'reminders', kind: 'notes', label: 'Напоминания' },
   { id: 'schedule', kind: 'sessions', label: 'Расписание' },
   { id: 'timeline', kind: 'projects', label: 'Проекты', color: TERRITORY_COLORS.clients },
+  { id: 'clients', kind: 'info', label: 'Клиенты', color: TERRITORY_COLORS.admin },
 ];
 
 // ===================== ADMIN DASHBOARD =====================
@@ -118,7 +120,7 @@ export function AdminDashboardScreen({
 }) {
   // Открывая админку, мастер в первую очередь хочет увидеть, что происходит
   // с проектами прямо сейчас — таймлайн, а не расписание или напоминания.
-  const [tab, setTab] = useState<'reminders' | 'schedule' | 'timeline'>('timeline');
+  const [tab, setTab] = useState<'reminders' | 'schedule' | 'timeline' | 'clients'>('timeline');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
 
@@ -235,6 +237,8 @@ export function AdminDashboardScreen({
 
         {/* «Проекты» — одна вкладка: пайплайны (рельсы) и проекты «без окна»
             плиткой, каждая группа сворачивается стрелкой (см. ProjectTimelineList). */}
+        {tab === 'clients' && <ClientActionsTab projects={projects} clients={clients} healing={healing} onOpenProject={onOpenProject} />}
+
         {tab === 'timeline' && <ProjectTimelineList projects={projects} clients={clients} onOpenProject={onOpenProject} />}
       </div>
     </div>

@@ -23,19 +23,12 @@ import type {
   TaskReminderItem,
   UpcomingSoonItem,
 } from '../../reminders/types';
-import type { HealingCycleItem, HealingCycleStage } from '../../reminders/healingCycle';
+import { healingStageLabel, type HealingCycleItem } from '../../reminders/healingCycle';
 import { healingCycleMessage, soonReminderMessage } from '../../lib/reminderMessages';
 import { addHiddenBanner, removeHiddenBanner, type HiddenReminderBanner } from '../../reminders/hiddenReminderBanners';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs } from '../ui/designTokens';
 import { buildVisibleReminderGroups, totalReminderCount, type ReminderGroupCounts } from './reminderGroups';
-
-// Короткая подпись стадии цикла заживления на карточке — что именно сделать
-// на этом шаге (см. HealingCycleStage в reminders/healingCycle.ts).
-const HEALING_CYCLE_LABELS: Record<HealingCycleStage, string> = {
-  week1_check: 'Первая неделя · как заживление',
-  day21_decision: '21-й день · фото или коррекция',
-};
 
 // Copies text to the clipboard, showing a brief «Скопировано» confirmation —
 // shared by every healing-reminder card (Задачи + Мастер both render one).
@@ -1378,9 +1371,12 @@ export function RemindersSection({
     // ничего не решает: посмотрели, при желании написали клиенту, закрыли
     // карточку.
     const isDecision = it.stage === 'day21_decision';
+    // У не-последней сессии 21-й день — не «фото или коррекция», а «узнать,
+    // как заживление, и предложить следующую сессию».
+    const isNextOffer = isDecision && !it.isLastSession;
     // Сообщение клиенту есть у обеих стадий, но только если у проекта вообще
     // есть клиент — у проекта из Мастерской писать некому.
-    const message = it.client ? healingCycleMessage(it.client, isDecision ? 'day21_photo' : 'week1_check') : null;
+    const message = it.client ? healingCycleMessage(it.client, isNextOffer ? 'day21_next' : isDecision ? 'day21_photo' : 'week1_check') : null;
     const chipStyle: React.CSSProperties = {
       fontSize: fs(11),
       color: COLORS.textFaint,
@@ -1413,7 +1409,7 @@ export function RemindersSection({
                   {it.client?.name ? ` · ${it.client.name}` : ''}
                 </div>
                 <div style={{ fontSize: fs(11), color: COLORS.textGhost, marginTop: 2 }}>
-                  {HEALING_CYCLE_LABELS[it.stage]} · сессия {formatDate(it.date)}
+                  {healingStageLabel(it.stage, it.isLastSession)} · сессия {formatDate(it.date)}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -1428,7 +1424,17 @@ export function RemindersSection({
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
-              {isDecision ? (
+              {isNextOffer ? (
+                <div
+                  onClick={() => flyOutThen(() => { setOpenDetail(null); onScheduleCorrection(it.project); })}
+                  role="button"
+                  aria-label="Назначить следующую сессию"
+                  title="Назначить следующую сессию — после её выполнения цикл заживления начнётся заново от её даты"
+                  style={chipStyle}
+                >
+                  Назначить сессию
+                </div>
+              ) : isDecision ? (
                 <>
                   {/* Развилка 21-го дня. «Фото» ведёт в галерею заживления
                       проекта — добавленный там снимок сам закрывает цикл и
@@ -1490,7 +1496,7 @@ export function RemindersSection({
       tile: (
         <ReminderTile
           title={`${it.project.title || 'Проект'}${it.client?.name ? ` · ${it.client.name}` : ''}`}
-          subtitle={HEALING_CYCLE_LABELS[it.stage]}
+          subtitle={healingStageLabel(it.stage, it.isLastSession)}
           accent="gold"
           onClick={() => setOpenDetail({ key, node: detail })}
         />

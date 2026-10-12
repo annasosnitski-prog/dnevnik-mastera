@@ -119,17 +119,30 @@ function stageAfter(days, projectOverrides = {}, sessionOverrides = {}) {
 
 // ── Не последняя сессия: только лёгкий чек ────────────────────────────────
 
-test('не последняя сессия → чек первой недели, без развилки 21-го дня', () => {
+test('не последняя сессия → чек первой недели, а на 21-й день — предложение следующей сессии', () => {
   assert.equal(stageAfter(6), 'week1_check');
-  assert.equal(stageAfter(21), null, 'развилка «фото или коррекция» тут не появляется');
-  assert.equal(stageAfter(60), null);
+  assert.equal(stageAfter(10), null);
+  assert.equal(stageAfter(21), 'day21_decision', 'узнать, как заживление, и предложить следующую сессию');
+  assert.equal(stageAfter(60), 'day21_decision');
 });
 
 // «Не знаю, сколько сессий» ведёт себя как «больше одной»: подтверждения от
 // мастера не было, значит закрывать проект нечем.
 test('старый проект без плана сессий ведёт себя как «больше одной»', () => {
   assert.equal(stageAfter(6, { sessionsPlan: null }), 'week1_check');
-  assert.equal(stageAfter(21, { sessionsPlan: null }), null);
+  assert.equal(stageAfter(21, { sessionsPlan: null }), 'day21_decision');
+});
+
+// Назначенная следующая сессия снимает предложение 21-го дня — предлагать
+// уже нечего.
+test('назначенная следующая сессия снимает предложение 21-го дня у не-последней сессии', () => {
+  const project = makeProject({
+    sessions: [
+      makeSession({ id: 's1', date: daysBeforeNow(25) }),
+      makeSession({ id: 's2', date: '2026-07-01', done: false }),
+    ],
+  });
+  assert.deepEqual(healingCycleReminders([], [project], NOW), []);
 });
 
 // Лёгкий чек живёт РЯДОМ с назначенной следующей сессией — в этом весь смысл
