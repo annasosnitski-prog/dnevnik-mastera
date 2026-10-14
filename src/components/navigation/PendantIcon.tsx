@@ -133,12 +133,15 @@ export function PendantIcon({
     const t = Math.cos(((azimuth + rot - lightAz) * Math.PI) / 180) + flip;
     return Math.max(-1, Math.min(1, t));
   };
+  // Five tone steps of one colour (bright, light, pure, deep, darkest). The
+  // bright and light steps cover about half the facets and the dark ones are
+  // few; flipped neighbours put a deep facet right beside a bright one.
   const facetFill = (t: number) =>
-    t > 0.5 ? mix(80, 'white')
-    : t > 0.05 ? mix(50, 'white')
-    : t > -0.35 ? mix(18, 'white')
-    : t > -0.7 ? mix(50, 'black')
-    : mix(68, 'black');
+    t > 0.25 ? mix(82, 'white')
+    : t > -0.05 ? mix(55, 'white')
+    : t > -0.4 ? mix(6, 'white')
+    : t > -0.72 ? mix(46, 'black')
+    : mix(72, 'black');
 
   const diamond = (x: number, y: number, id: string) => (
     <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
