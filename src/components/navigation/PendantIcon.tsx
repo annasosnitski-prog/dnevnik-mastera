@@ -80,7 +80,8 @@ export function PendantIcon({
   // of a circle poking out past the setting's corners.
   const isDiamond = shape === 'diamond';
   const rot = isDiamond ? -22.5 : 0;
-  const tableR = stoneR * (isDiamond ? 0.64 : 0.54);
+  // Round: the table is widened by 1/8 of the stone's diameter (2 * stoneR / 8).
+  const tableR = isDiamond ? stoneR * 0.64 : stoneR * 0.54 + (2 * stoneR) / 16;
   const starR = stoneR * 0.8;
   const angles = [0, 45, 90, 135, 180, 225, 270, 315];
   const ks = [0, 1, 2, 3, 4, 5, 6, 7];
