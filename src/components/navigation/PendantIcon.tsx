@@ -57,7 +57,7 @@ export function PendantIcon({
   const plateFace = `pendant-plateface-${uid}`;
   const goldEdge = `pendant-goldedge-${uid}`;
   const diamondBase = `pendant-diamondbase-${uid}`;
-  const tableClip = `pendant-tableclip-${uid}`;
+  const transmitFade = `pendant-transmitfade-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
   const mix = (pct: number, tint: "white" | "black") => `color-mix(in srgb, ${color} ${100 - pct}%, ${tint} ${pct}%)`;
@@ -73,13 +73,20 @@ export function PendantIcon({
   // bezel kites (T -> S -> G -> S) and eight upper-girdle triangles
   // (S, G, G) that close the ring. Every vertex is shared, so the facets
   // tile the disc with no gaps: 8 + 8 + 8 + 8 flat planes + the table.
-  const tableR = stoneR * 0.54;
+  // In the diamond setting the same facet map is laid onto a rhombus (every
+  // vertex keeps its angle and radius but is measured in the rhombus metric,
+  // and the whole map is turned 22.5° so girdle corners land exactly on the
+  // rhombus' four tips). The stone then fills its bezel edge to edge instead
+  // of a circle poking out past the setting's corners.
+  const isDiamond = shape === 'diamond';
+  const rot = isDiamond ? -22.5 : 0;
+  const tableR = stoneR * (isDiamond ? 0.64 : 0.54);
   const starR = stoneR * 0.8;
   const angles = [0, 45, 90, 135, 180, 225, 270, 315];
   const ks = [0, 1, 2, 3, 4, 5, 6, 7];
-  const T = ks.map((k) => point(cx, cy, 45 * k + 22.5, tableR));
-  const S = ks.map((k) => point(cx, cy, 45 * (k + 1), starR));
-  const G = ks.map((k) => point(cx, cy, 45 * k + 22.5, stoneR));
+  const T = ks.map((k) => edge(45 * k + 22.5 + rot, tableR));
+  const S = ks.map((k) => edge(45 * (k + 1) + rot, starR));
+  const G = ks.map((k) => edge(45 * k + 22.5 + rot, stoneR));
   const pts = (list: ReadonlyArray<readonly [number, number]>) => list.map(([x, y]) => `${x},${y}`).join(' ');
   // A real diamond is not smooth: neighbouring facets mirror either the
   // bright room or the dark one, so adjacent planes jump between near-white
@@ -88,7 +95,7 @@ export function PendantIcon({
   // gradient — that stepping is the whole "cut stone" look.
   const lightAz = -38;
   const tone = (azimuth: number, flip: number) => {
-    const t = Math.cos(((azimuth - lightAz) * Math.PI) / 180) + flip;
+    const t = Math.cos(((azimuth + rot - lightAz) * Math.PI) / 180) + flip;
     return Math.max(-1, Math.min(1, t));
   };
   const facetFill = (t: number) =>
@@ -201,12 +208,15 @@ export function PendantIcon({
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          <clipPath id={tableClip}>
-            <polygon points={pts(T)} />
-          </clipPath>
+          <linearGradient id={transmitFade} gradientUnits="userSpaceOnUse" x1={cx + 5} y1={cy + 11} x2={cx - 6} y2={cy - 3}>
+            <stop offset="0" stopColor={mix(74, 'white')} stopOpacity=".95" />
+            <stop offset=".4" stopColor={mix(62, 'white')} stopOpacity=".7" />
+            <stop offset=".75" stopColor={mix(50, 'white')} stopOpacity=".22" />
+            <stop offset="1" stopColor={mix(50, 'white')} stopOpacity="0" />
+          </linearGradient>
           {shape === 'diamond' && (
             <clipPath id={stoneClip}>
-              <polygon points={ringPoints(edge, stoneR * 1.1)} />
+              <polygon points={ringPoints(edge, stoneR + 0.4)} />
             </clipPath>
           )}
         </defs>
@@ -247,7 +257,11 @@ export function PendantIcon({
           </g>
         ) : (
           <g className="pendant-stone" filter={`url(#${stoneGlow})`} clipPath={shape === 'diamond' ? `url(#${stoneClip})` : undefined}>
-            <circle cx={cx} cy={cy} r={stoneR} fill={mix(92, 'black')} />
+            {isDiamond ? (
+              <polygon points={ringPoints(edge, stoneR + 0.3)} fill={mix(92, 'black')} />
+            ) : (
+              <circle cx={cx} cy={cy} r={stoneR} fill={mix(92, 'black')} />
+            )}
             <g data-optical-layer="crown-facets" stroke={mix(62, 'white')} strokeOpacity=".5" strokeWidth=".22" strokeLinejoin="round">
               {ks.map((k) => {
                 const prev = (k + 7) % 8;
@@ -271,30 +285,11 @@ export function PendantIcon({
                 the stone, so it lands as a light patch in the lower half of
                 the table: a crisp-edged two-tone shard (outer tint, brighter
                 core), not a soft glow. */}
-            <g data-optical-layer="table-transmitted-light" clipPath={`url(#${tableClip})`}>
+            <g data-optical-layer="table-transmitted-light">
               <polygon points={pts(T)} fill={mix(52, 'black')} />
-              <polygon
-                points={pts([
-                  [cx - 10, cy + 3.5],
-                  [cx + 1, cy - 0.5],
-                  [cx + 12, cy - 1.5],
-                  [cx + 12, cy + 11],
-                  [cx - 10, cy + 11],
-                ])}
-                fill={mix(52, 'white')}
-                opacity=".82"
-              />
-              <polygon
-                points={pts([
-                  [cx - 6, cy + 4.4],
-                  [cx + 2, cy + 1.6],
-                  [cx + 10, cy + 1],
-                  [cx + 9, cy + 8],
-                  [cx - 4, cy + 8.6],
-                ])}
-                fill={mix(78, 'white')}
-                opacity=".85"
-              />
+              {/* Hard edge on the facet side (the table's lower rim), then the
+                  light thins out toward the main flash in the upper left. */}
+              <polygon points={pts(T)} fill={`url(#${transmitFade})`} />
             </g>
             <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".55" strokeWidth=".3" strokeLinejoin="round" />
             {/* Hard specular glints on the facets that face the light. */}
@@ -304,18 +299,30 @@ export function PendantIcon({
             {glint(G[6], G[7], 0.2, 0.8, 0.8, 0.6)}
             {/* Dispersion: a couple of tiny spectral flecks near the girdle,
                 the way fire flashes off a cut stone's edge. */}
-            <polygon points={pts([G[1], S[1], point(cx, cy, 45 * 2 - 14, stoneR * 0.9)])} fill="#9FE8FF" opacity=".42" />
-            <polygon points={pts([G[4], S[4], point(cx, cy, 45 * 5 - 14, stoneR * 0.9)])} fill="#FFC27A" opacity=".38" />
-            <circle
-              data-optical-layer="girdle-edge"
-              cx={cx}
-              cy={cy}
-              r={stoneR - 0.3}
-              fill="none"
-              stroke={mix(55, 'white')}
-              strokeOpacity=".7"
-              strokeWidth=".6"
-            />
+            <polygon points={pts([G[1], S[1], edge(45 * 2 - 14 + rot, stoneR * 0.9)])} fill="#9FE8FF" opacity=".42" />
+            <polygon points={pts([G[4], S[4], edge(45 * 5 - 14 + rot, stoneR * 0.9)])} fill="#FFC27A" opacity=".38" />
+            {isDiamond ? (
+              <polygon
+                data-optical-layer="girdle-edge"
+                points={ringPoints(edge, stoneR - 0.3)}
+                fill="none"
+                stroke={mix(55, 'white')}
+                strokeOpacity=".7"
+                strokeWidth=".6"
+                strokeLinejoin="round"
+              />
+            ) : (
+              <circle
+                data-optical-layer="girdle-edge"
+                cx={cx}
+                cy={cy}
+                r={stoneR - 0.3}
+                fill="none"
+                stroke={mix(55, 'white')}
+                strokeOpacity=".7"
+                strokeWidth=".6"
+              />
+            )}
           </g>
         )}
 
