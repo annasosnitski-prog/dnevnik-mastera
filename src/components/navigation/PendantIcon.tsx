@@ -143,13 +143,12 @@ export function PendantIcon({
     : t > -0.72 ? mix(46, 'black')
     : mix(72, 'black');
 
-  // Pavilion windmill seen through the table: inner ring + twisted spokes.
-  const ringR = tableR * 0.4;
-  const pavilionRing = ks.map((k) => edge(45 * k + 22.5 + rot, ringR));
-  const pavilionSpokes = ks.map((k) => ({
-    a: T[k],
-    b: edge(45 * k + 22.5 + 26 + rot, ringR),
-  }));
+  // Pavilion seen through the table: it simply tapers to the culet at the
+  // centre. Eight straight spokes run from the table corners to a tiny culet
+  // octagon, with one mid ring marking the step of the taper.
+  const culet = ks.map((k) => edge(45 * k + 22.5 + rot, tableR * 0.1));
+  const pavilionRing = ks.map((k) => edge(45 * k + 22.5 + rot, tableR * 0.55));
+  const pavilionSpokes = ks.map((k) => ({ a: T[k], b: culet[k] }));
 
   // Unique facet edges with a closeness-to-the-flash weight (0..1).
   const flash = [(T[7][0] + S[7][0]) / 2, (T[7][1] + S[7][1]) / 2] as const;
@@ -376,10 +375,9 @@ export function PendantIcon({
               <polygon points={pts(T)} fill={mix(52, 'black')} />
               <polygon points={pts(T)} fill={`url(#${transmitFade})`} />
               <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".5" strokeWidth=".25" strokeLinejoin="round" />
-              {/* Depth: the pavilion seen through the table, as lines only. Eight
-                  spokes run from the table corners to a small inner ring, each
-                  twisted a quarter-facet round, which reads as the "windmill";
-                  a dark partner line beside each light one cuts it into the glass. */}
+              {/* Depth: the pavilion seen through the table, as lines only. Spokes
+                  run straight from the table corners to the culet and a ring marks
+                  the taper; a dark partner line beside each light one cuts it into the glass. */}
               <g data-optical-layer="pavilion-lines" fill="none" strokeLinecap="round" strokeLinejoin="round">
                 {pavilionSpokes.map(({ a, b }, i) => (
                   <g key={`pav-${i}`}>
