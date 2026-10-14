@@ -127,10 +127,10 @@ const MINIMAL_HUB_SIZE = 54;
 const MINIMAL_ITEM_ICON_SIZE = 26;
 
 const NATURAL_STONE_BY_ITEM: Record<NavItemId, NaturalStoneKind> = {
-  clients: 'malachite',
+  clients: 'turquoise',
   gear: 'honey-jadeite',
   content: 'star-sapphire',
-  brush: 'turquoise',
+  brush: 'malachite',
   sketchbook: 'fire-opal',
   profile: 'rhodonite',
 };

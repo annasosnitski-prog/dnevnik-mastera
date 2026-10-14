@@ -22,7 +22,6 @@ import type { HealingCycleItem } from '../../reminders/healingCycle';
 import { todayISO } from '../../utils/dates';
 import { DROP_CAP_FONT, InkaTitleSuffix } from '../InkaLogo';
 import { StarDivider } from '../icons/StarIcons';
-import { RemindersSection } from '../reminders/RemindersSection';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { ProjectTimelineList } from '../project/ProjectTimelineList';
 import { ClientActionsTab } from './ClientActionsTab';
@@ -35,17 +34,19 @@ import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 
 // «Оформим по форме как карточка клиента» (см. ClientCardTabBar) — те же
 // геммы-иконки, что уже использует Личный кабинет (info/projects), плюс
-// sessions/notes: своих гемм под админ-вкладки нет, а заводить новые ради
-// одного экрана — лишняя работа под прототип. Порядок — от «требует
-// внимания прямо сейчас» к «справочному»: Напоминания первыми, Проекты
-// последними, он самый «посмотреть, а не подействовать».
+// sessions: своих гемм под админ-вкладки нет, а заводить новые ради
+// одного экрана — лишняя работа под прототип.
 // «Проекты» — одна вкладка вместо прежней пары «Таймлайн» / «Без окна»:
 // внутри пайплайны (рельсы) и проекты без окна плиткой в три колонки, каждая
 // группа сворачивается стрелкой (см. ProjectTimelineList).
-const ADMIN_TABS: ClientCardTabDef<'reminders' | 'schedule' | 'timeline' | 'clients'>[] = [
-  { id: 'reminders', kind: 'notes', label: 'Напоминания' },
+// Красная вкладка «Напоминания» убрана: задачи переехали стопкой на
+// фиолетовую «Клиенты» (см. ClientActionsTab), рядом с шагами и заживлением.
+// Цвета — территориальные по kind: Расписание синее (клиенты), Проекты
+// зелёные.
+type AdminTab = 'schedule' | 'timeline' | 'clients';
+const ADMIN_TABS: ClientCardTabDef<AdminTab>[] = [
   { id: 'schedule', kind: 'sessions', label: 'Расписание' },
-  { id: 'timeline', kind: 'projects', label: 'Проекты', color: TERRITORY_COLORS.clients },
+  { id: 'timeline', kind: 'projects', label: 'Проекты' },
   { id: 'clients', kind: 'info', label: 'Клиенты', color: TERRITORY_COLORS.admin },
 ];
 
@@ -61,30 +62,16 @@ export function AdminDashboardScreen({
   prefs,
   onChangePrefs,
   onOpenSession,
-  overdue,
   healing,
-  soon,
-  overdueProjectSessions,
-  soonProjectSessions,
-  overdueProjectConsultations,
-  soonProjectConsultations,
-  dueProjects,
-  staleProjects,
   tasks,
   onOpenProject,
-  onOpenEntry,
-  onDismissReminder,
-  onSnoozeReminder,
-  onRestoreReminder,
-  onCancelEntry,
-  onCompleteTask,
   onOpenTask,
-  onAddHealingPhoto,
-  onScheduleCorrection,
-  onHideAllHealing,
   calendarSync,
   onOpenCalendar,
 }: {
+  // Пропсы прежней вкладки «Напоминания» (overdue, soon, dueProjects и т.д.)
+  // пока остаются в типе: TattoDiary их по-прежнему передаёт, вкладку
+  // убрали постепенно, без перестройки родителя.
   clients: Client[];
   projects: Project[];
   prefs: Prefs;
@@ -120,7 +107,7 @@ export function AdminDashboardScreen({
 }) {
   // Открывая админку, мастер в первую очередь хочет увидеть, что происходит
   // с проектами прямо сейчас — таймлайн, а не расписание или напоминания.
-  const [tab, setTab] = useState<'reminders' | 'schedule' | 'timeline' | 'clients'>('timeline');
+  const [tab, setTab] = useState<AdminTab>('timeline');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
 
@@ -164,7 +151,7 @@ export function AdminDashboardScreen({
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента и личного
           кабинета (см. ClientCardTabBar) — «оформим админку по форме как
-          карточка клиента»: 4 вкладки вместо одной длинной прокрутки. */}
+          карточка клиента»: 3 вкладки вместо одной длинной прокрутки. */}
       <ClientCardTabBar
         tabs={ADMIN_TABS}
         activeTab={tab}
@@ -176,33 +163,6 @@ export function AdminDashboardScreen({
         {/* «Запланировать» now lives only behind the nav FAB's contextual
             create button (same calendar-driven creation walk) — this screen
             no longer duplicates it as its own standalone button. */}
-
-        {tab === 'reminders' && (
-          <RemindersSection
-            overdue={overdue}
-            healing={healing}
-            soon={soon}
-            overdueProjectSessions={overdueProjectSessions}
-            soonProjectSessions={soonProjectSessions}
-            overdueProjectConsultations={overdueProjectConsultations}
-            soonProjectConsultations={soonProjectConsultations}
-            dueProjects={dueProjects}
-            staleProjects={staleProjects}
-            tasks={tasks}
-            clients={clients}
-            onOpenProject={onOpenProject}
-            onOpenEntry={onOpenEntry}
-            onDismiss={onDismissReminder}
-            onSnooze={onSnoozeReminder}
-            onRestore={onRestoreReminder}
-            onCancel={onCancelEntry}
-            onCompleteTask={onCompleteTask}
-            onOpenTask={onOpenTask}
-            onAddHealingPhoto={onAddHealingPhoto}
-            onScheduleCorrection={onScheduleCorrection}
-            onHideAllHealing={onHideAllHealing}
-          />
-        )}
 
         {tab === 'schedule' && (
           <>
@@ -237,7 +197,9 @@ export function AdminDashboardScreen({
 
         {/* «Проекты» — одна вкладка: пайплайны (рельсы) и проекты «без окна»
             плиткой, каждая группа сворачивается стрелкой (см. ProjectTimelineList). */}
-        {tab === 'clients' && <ClientActionsTab projects={projects} clients={clients} healing={healing} onOpenProject={onOpenProject} />}
+        {tab === 'clients' && (
+          <ClientActionsTab projects={projects} clients={clients} healing={healing} tasks={tasks} onOpenProject={onOpenProject} onOpenTask={onOpenTask} />
+        )}
 
         {tab === 'timeline' && <ProjectTimelineList projects={projects} clients={clients} onOpenProject={onOpenProject} />}
       </div>
