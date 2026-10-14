@@ -56,6 +56,7 @@
     "src/lib/backupIdentity.ts",
     "src/lib/clientRecordsMigration.ts",
     "src/lib/calendarSync.ts",
+    "src/lib/botBookingFormat.ts",
     "src/lib/normalize.ts",
     "src/lib/reminderMessages.ts",
     "src/reminders/buildReminders.ts",

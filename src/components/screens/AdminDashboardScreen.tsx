@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type * as React from 'react';
 import type { Client } from '../../domain/client';
 import type { Project } from '../../domain/project';
@@ -9,7 +9,14 @@ import {
   type BotBooking,
   type CalendarSyncSettings,
 } from '../../lib/calendarSync';
-import { formatBookingTime, OPEN_SLOT_MARK, stripTagPrefix, tagLabel } from '../../lib/botBookingFormat';
+import {
+  bookingTitle,
+  formatBookingTime,
+  OPEN_SLOT_MARK,
+  stripTagPrefix,
+  tagLabel,
+  upcomingBookedBookings,
+} from '../../lib/botBookingFormat';
 import type {
   OverdueItem,
   ProjectSessionReminderItem,
@@ -25,7 +32,7 @@ import { StarDivider } from '../icons/StarIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { ProjectTimelineList } from '../project/ProjectTimelineList';
 import { ClientActionsTab } from './ClientActionsTab';
-import { GoldFrame } from '../ui/Stripes';
+import { CollapsibleGroup } from '../ui/CollapsibleGroup';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
 import { type Prefs } from '../ui/preferences';
@@ -110,14 +117,7 @@ export function AdminDashboardScreen({
   const [tab, setTab] = useState<AdminTab>('timeline');
   const upcoming = upcomingItems(clients, prefs.upcomingWindowDays);
   const upcomingSchedule = buildUpcomingSchedule(upcoming, todayISO());
-
-  const statLabelStyle: React.CSSProperties = {
-    fontSize: fs(11),
-    color: COLORS.textGhost,
-    letterSpacing: '1.5px',
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  };
+  const botBookings = useBotBookings(calendarSync, tab === 'schedule' && syncActive(calendarSync));
 
   return (
     <div style={{ minHeight: '100%' }}>
@@ -178,19 +178,24 @@ export function AdminDashboardScreen({
               onOpenSession={onOpenSession}
             />
 
-            {/* Обратный поток: брони от бота отдельным блоком (любой тег —
-                бот мог оформить бронь и на [ТАТУ]/[ПРИЁМ]-слот, не только
-                [ВИДЕО]/[ОКНО]). Без карточек клиентов и привязки — только
-                справочный список, карточку мастер заводит в Дневнике сама
-                (см. calendarSync.ts). Сгруппирован с «Предстоящие записи» —
-                оба про то, что запланировано впереди. */}
+            {/* Обратный поток: брони от бота. Занятые (настоящие брони с
+                клиентом) — плиткой сразу под «Предстоящими записями», чтобы
+                были видны всегда; раньше список грузился только по кнопке
+                «обновить», и после открытия вкладки его просто не было.
+                Полный список со свободными слотами и /закрой — ниже, в
+                свёрнутой группе: для планирования, но не первостепенно.
+                Без карточек клиентов и привязки (см. calendarSync.ts). */}
             {syncActive(calendarSync) && (
-              <GoldFrame style={{ padding: '14px 16px' }}>
-                <div style={{ ...statLabelStyle, marginBottom: 0 }}>Брони от бота</div>
-                <div style={{ marginTop: 8 }}>
-                  <BotBookingsList settings={calendarSync} />
-                </div>
-              </GoldFrame>
+              <>
+                <BookedBotTiles state={botBookings} />
+                <CollapsibleGroup
+                  title="Все слоты бота"
+                  count={botBookings.bookings?.length ?? 0}
+                  defaultOpen={false}
+                >
+                  <BotBookingsList state={botBookings} />
+                </CollapsibleGroup>
+              </>
             )}
           </>
         )}
@@ -215,15 +220,22 @@ export function AdminDashboardScreen({
 // Теги переименованы под голосовой ввод на стороне бота (были
 // [КОНС]/[ONLINE]/[WALKIN]) — старых событий с прежними тегами в
 // календаре нет, обратная совместимость не нужна.
-// Ручное обновление кнопкой: экран Настроек не размонтируется при уходе
-// (переключение через CSS-transform), поэтому автообновление по монтированию
-// сработало бы только один раз за всю сессию приложения.
-function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
+// Загружаем сами при каждом открытии вкладки «Расписание» (содержимое
+// вкладки монтируется заново при переключении), кнопка «обновить»
+// остаётся для ручного перезапроса.
+interface BotBookingsState {
+  bookings: BotBooking[] | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+}
+
+function useBotBookings(settings: CalendarSyncSettings, active: boolean): BotBookingsState {
   const [bookings, setBookings] = useState<BotBooking[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     setLoading(true);
     setError(null);
     fetchBotBookings(settings)
@@ -232,7 +244,80 @@ function BotBookingsList({ settings }: { settings: CalendarSyncSettings }) {
         setError(err instanceof Error ? err.message : 'не получилось загрузить — проверь секрет/соединение.')
       )
       .finally(() => setLoading(false));
+  }, [settings]);
+
+  useEffect(() => {
+    if (active) refresh();
+    // Перезапрос только при входе во вкладку, не на каждый новый объект settings.
+  }, [active]);
+
+  return { bookings, loading, error, refresh };
+}
+
+// Занятые брони плиткой: имя клиента/пометка бота и время. Только чтение.
+function BookedBotTiles({ state }: { state: BotBookingsState }) {
+  const booked = upcomingBookedBookings(state.bookings ?? [], new Date());
+  const headingStyle: React.CSSProperties = {
+    fontSize: fs(11),
+    color: COLORS.textGhost,
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    marginBottom: 8,
   };
+  return (
+    <div>
+      <div style={headingStyle}>Брони от бота · {state.bookings === null ? '…' : booked.length}</div>
+      {state.error && <div style={{ fontSize: fs(12), color: '#C99', fontStyle: 'italic' }}>{state.error}</div>}
+      {state.bookings === null && !state.error && (
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>гружу брони…</div>
+      )}
+      {state.bookings !== null && booked.length === 0 && !state.error && (
+        <div style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>занятых броней впереди нет.</div>
+      )}
+      {booked.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+          {booked.map((b) => (
+            <div
+              key={b.id}
+              style={{
+                padding: '10px 10px',
+                borderRadius: 2,
+                border: '1px solid rgba(var(--gold-rgb),0.25)',
+                background: 'rgba(var(--gold-rgb),0.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+                minHeight: 72,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: fs(13),
+                  color: COLORS.textPrimary,
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {bookingTitle(b)}
+              </span>
+              <span style={{ fontSize: fs(11), color: COLORS.gold, marginTop: 'auto' }}>{formatBookingTime(b.start)}</span>
+              {b.tag && (
+                <span style={{ fontSize: fs(9), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  {tagLabel(b.tag)}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BotBookingsList({ state }: { state: BotBookingsState }) {
+  const { bookings, loading, error, refresh } = state;
 
   return (
     <div>

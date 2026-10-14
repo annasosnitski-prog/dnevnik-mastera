@@ -36,3 +36,24 @@ export function formatBookingTime(iso: string): string {
     timeZone: 'Asia/Jerusalem',
   });
 }
+
+// Занятые брони для расписания: только настоящие брони с клиентом
+// (не открытые слоты и не /закрой мастера), ещё не прошедшие, по времени.
+// Сравниваем через Date, а не строки: бот отдаёт ISO с разными смещениями.
+export function upcomingBookedBookings(bookings: BotBooking[], now: Date): BotBooking[] {
+  const nowMs = now.getTime();
+  return bookings
+    .filter((b) => b.kind === 'booking')
+    .filter((b) => {
+      const endMs = new Date(b.end || b.start).getTime();
+      return isNaN(endMs) || endMs >= nowMs;
+    })
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+}
+
+// Имя для плитки: сноска без тега и без ведущих тире-маркеров занятости
+// («— КАМПЕЙН ЗАПИСЬ — Noga» → «КАМПЕЙН ЗАПИСЬ — Noga»).
+export function bookingTitle(b: BotBooking): string {
+  const text = stripTagPrefix(b.summary, b.tag).replace(/^[\s—–-]+/, '').trim();
+  return text || '—';
+}
