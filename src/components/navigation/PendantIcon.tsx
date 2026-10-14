@@ -63,7 +63,17 @@ export function PendantIcon({
 
   // Shadows are not grey: they slide into a deep indigo, so red goes violet,
   // green goes blue-green and the stone stays coloured in its dark facets.
-  const COOL_SHADOW = '#0E0450';
+  // Per colour: green and red sink into blue, blue and gold into green,
+  // orange into plum, purple into deep blue.
+  const SHADOW_BY_COLOR: Record<string, string> = {
+    [TERRITORY_COLORS.clients]: '#05402E',
+    [TERRITORY_COLORS.personal]: '#1A3A12',
+    [TERRITORY_COLORS.content]: '#14086E',
+    [TERRITORY_COLORS.projects]: '#0A1E72',
+    [TERRITORY_COLORS.notes]: '#46094A',
+    [TERRITORY_COLORS.admin]: '#0A1472',
+  };
+  const COOL_SHADOW = SHADOW_BY_COLOR[color] ?? '#0E0450';
   // Lit facets lean warm (cream), shadows cool: the warm/cool split is the contrast.
   // Per colour the warm shift goes the other way round the wheel: red towards
   // yellow, yellow towards red, blue towards red, and so on.
