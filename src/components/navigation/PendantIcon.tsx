@@ -63,9 +63,11 @@ export function PendantIcon({
 
   // Shadows are not grey: they slide into a deep indigo, so red goes violet,
   // green goes blue-green and the stone stays coloured in its dark facets.
-  const COOL_SHADOW = '#160A5C';
+  const COOL_SHADOW = '#0E0450';
+  // Lit facets lean warm (cream), shadows cool: the warm/cool split is the contrast.
+  const WARM_LIGHT = '#FFE9C2';
   const mix = (pct: number, tint: "white" | "black") =>
-    `color-mix(in srgb, ${color} ${100 - pct}%, ${tint === 'black' ? COOL_SHADOW : tint} ${pct}%)`;
+    `color-mix(in srgb, ${color} ${100 - pct}%, ${tint === 'black' ? COOL_SHADOW : WARM_LIGHT} ${pct}%)`;
 
   const cx = 32;
   const cy = 32;
@@ -115,8 +117,8 @@ export function PendantIcon({
     t > 0.5 ? mix(80, 'white')
     : t > 0.05 ? mix(50, 'white')
     : t > -0.35 ? mix(18, 'white')
-    : t > -0.7 ? mix(38, 'black')
-    : mix(54, 'black');
+    : t > -0.7 ? mix(50, 'black')
+    : mix(68, 'black');
 
   const diamond = (x: number, y: number, id: string) => (
     <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
