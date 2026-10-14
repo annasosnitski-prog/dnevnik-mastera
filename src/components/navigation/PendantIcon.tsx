@@ -81,9 +81,6 @@ export function PendantIcon({
   const S = ks.map((k) => point(cx, cy, 45 * (k + 1), starR));
   const G = ks.map((k) => point(cx, cy, 45 * k + 22.5, stoneR));
   const pts = (list: ReadonlyArray<readonly [number, number]>) => list.map(([x, y]) => `${x},${y}`).join(' ');
-  // The pavilion seen through the table converges a little off-centre: this
-  // parallax is what reads as a thick transparent body under the crown.
-  const pavilionFocus: [number, number] = [cx + 1.3, cy + 1.6];
   // A real diamond is not smooth: neighbouring facets mirror either the
   // bright room or the dark one, so adjacent planes jump between near-white
   // and near-black. `tone` is facing-the-light (upper-left) plus a parity
@@ -269,24 +266,32 @@ export function PendantIcon({
                 );
               })}
             </g>
-            {/* The table is a window onto the pavilion: eight facets that
-                meet at the culet, alternately catching the bright room and
-                the dark one, with a sharp-edged reflection band across it. */}
-            <g data-optical-layer="table-pavilion" clipPath={`url(#${tableClip})`}>
-              <polygon points={pts(T)} fill={mix(70, 'black')} />
-              {ks.map((k) => (
-                <polygon
-                  key={`pav-${k}`}
-                  points={pts([pavilionFocus, T[k], T[(k + 1) % 8]])}
-                  fill={k % 2 === 0 ? mix(66, 'white') : mix(58, 'black')}
-                  opacity={k % 2 === 0 ? 0.55 + 0.4 * Math.max(0, tone(45 * k + 45, 0)) : 0.85}
-                />
-              ))}
-              <polygon
-                points={`${cx - 9},${cy - 2} ${cx - 4},${cy - 8.5} ${cx + 1.5},${cy - 8.5} ${cx - 4.5},${cy - 1}`}
-                fill="#FFFFFF"
-                opacity=".62"
-              />
+            {/* The table is one clean, dark window with a single double
+                diagonal flash (a wide streak and a thin one beside it),
+                the way a polished flat catches a window — no inner glow. */}
+            <g data-optical-layer="table-flash" clipPath={`url(#${tableClip})`}>
+              <polygon points={pts(T)} fill={mix(48, 'black')} />
+              {[
+                { d: -2.4, w: 1.9, o: 0.78 },
+                { d: 1.5, w: 0.7, o: 0.9 },
+              ].map(({ d, w, o }) => {
+                // Streak runs bottom-left -> top-right; (d, w) are its offset
+                // from the table centre and half-width across that direction.
+                const k = Math.SQRT1_2;
+                const along = 18;
+                const corner = (sa: number, sw: number): [number, number] => [
+                  cx + (sa * along + 0) * k + (d + sw * w) * k,
+                  cy - (sa * along + 0) * k + (d + sw * w) * k,
+                ];
+                return (
+                  <polygon
+                    key={`flash-${d}`}
+                    points={pts([corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)])}
+                    fill="#FFFFFF"
+                    opacity={o}
+                  />
+                );
+              })}
             </g>
             <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".55" strokeWidth=".3" strokeLinejoin="round" />
             {/* Hard specular glints on the facets that face the light. */}
