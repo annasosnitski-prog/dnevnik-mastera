@@ -143,6 +143,27 @@ export function PendantIcon({
     : t > -0.72 ? mix(46, 'black')
     : mix(72, 'black');
 
+  // Unique facet edges with a closeness-to-the-flash weight (0..1).
+  const flash = [(T[7][0] + S[7][0]) / 2, (T[7][1] + S[7][1]) / 2] as const;
+  const edgeLines = (() => {
+    const seen = new Set<string>();
+    const out: { a: readonly [number, number]; b: readonly [number, number]; key: string; near: number }[] = [];
+    const add = (a: readonly [number, number], b: readonly [number, number]) => {
+      const key = [a, b].map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).sort().join('|');
+      if (seen.has(key)) return;
+      seen.add(key);
+      const d = Math.hypot((a[0] + b[0]) / 2 - flash[0], (a[1] + b[1]) / 2 - flash[1]);
+      out.push({ a, b, key, near: Math.exp(-(d * d) / (2 * 15 * 15)) });
+    };
+    ks.forEach((k) => {
+      const prev = (k + 7) % 8;
+      const next = (k + 1) % 8;
+      add(T[k], S[prev]); add(S[prev], G[k]); add(G[k], S[k]); add(S[k], T[k]);
+      add(T[k], T[next]); add(T[next], S[k]); add(G[k], G[next]); add(G[next], S[k]);
+    });
+    return out;
+  })();
+
   const diamond = (x: number, y: number, id: string) => (
     <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
       <circle r="2" fill="#7D5A2A" opacity=".7" />
@@ -310,7 +331,7 @@ export function PendantIcon({
               <circle cx={cx} cy={cy} r={stoneR} fill={mix(92, 'black')} />
             )}
             <g data-optical-layer="soft-facets" clipPath={`url(#${softClip})`}>
-              <g data-optical-layer="crown-facets" stroke={mix(62, 'white')} strokeOpacity=".32" strokeWidth=".22" strokeLinejoin="round">
+              <g data-optical-layer="crown-facets">
                 {ks.map((k) => {
                   const prev = (k + 7) % 8;
                   const next = (k + 1) % 8;
@@ -347,6 +368,23 @@ export function PendantIcon({
               <polygon points={pts(T)} fill={mix(52, 'black')} />
               <polygon points={pts(T)} fill={`url(#${transmitFade})`} />
               <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".5" strokeWidth=".25" strokeLinejoin="round" />
+            </g>
+            {/* Rim light on the facet edges: every edge carries a thin line lighter
+                than both neighbours, brightest next to the main flash (upper
+                left) and fading to almost nothing on the shadow side. */}
+            <g data-optical-layer="edge-light" clipPath={`url(#${softClip})`} strokeLinecap="round">
+              {edgeLines.map(({ a, b, key, near }) => (
+                <line
+                  key={key}
+                  x1={a[0]}
+                  y1={a[1]}
+                  x2={b[0]}
+                  y2={b[1]}
+                  stroke={near > 0.55 ? '#FFFFFF' : WARM_LIGHT}
+                  strokeOpacity={0.14 + 0.82 * near}
+                  strokeWidth={0.18 + 0.32 * near}
+                />
+              ))}
             </g>
             {/* Hard specular glints on the facets that face the light. */}
             {glint(T[7], S[7], 0.1, 0.9, 1.7, 1)}
