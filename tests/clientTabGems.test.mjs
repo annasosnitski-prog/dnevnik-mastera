@@ -113,16 +113,20 @@ test('every tab is coloured by its own territory (kind), with a per-tab override
   assert.doesNotMatch(masterDashboardScreen, /accentColor/);
 });
 
-test('toolbar stones render optical depth below the crown without extra blur filters', () => {
-  assert.match(pendantIcon, /data-optical-layer="pavilion-depth"/);
-  assert.match(pendantIcon, /data-optical-layer="pavilion-facets"/);
-  assert.match(pendantIcon, /data-optical-layer="internal-caustic"/);
-  assert.match(pendantIcon, /data-optical-layer="internal-reflection"/);
-  assert.match(pendantIcon, /data-optical-layer="surface-lens"/);
-  assert.match(pendantIcon, /data-optical-layer="refracted-girdle"/);
-  assert.match(pendantIcon, /const pavilionFocus: \[number, number\] = \[cx \+ 4\.6, cy \+ 5\.2\]/);
-  assert.match(pendantIcon, /strokeWidth="1\.65"/);
-  assert.match(pendantIcon, /id=\{depthCaustic\}[\s\S]*crisp vector caustic|crisp vector caustic[\s\S]*id=\{depthCaustic\}/);
+test('toolbar stones are a faceted brilliant: hard flat facets, no diffuse milky core', () => {
+  assert.match(pendantIcon, /data-optical-layer="crown-facets"/);
+  assert.match(pendantIcon, /data-optical-layer="soft-facets"/);
+  assert.match(pendantIcon, /data-optical-layer="girdle-edge"/);
+  assert.match(pendantIcon, /data-optical-layer="bevel"/);
+  assert.match(pendantIcon, /data-optical-layer="table-transmitted-light"/);
+  // No chamfer round the table.
+  assert.doesNotMatch(pendantIcon, /data-optical-layer="table-bevel"/);
+  // The old milky layers (haze, lit core, core bleed, blurred inner glow) are gone.
+  assert.doesNotMatch(pendantIcon, /coreGlow|coreBleed|data-optical-layer="internal-caustic"|data-optical-layer="surface-lens"/);
+  // Navy clients on a black ground need a brighter halo than their own colour.
+  assert.match(designTokens, /export const glowOf/);
+  assert.match(tabBarModule, /glowOf\(color\)/);
+  assert.match(navFab, /glowOf\(item\.color\)/);
 });
 
 // Камень в центре медальона раньше был кругом, покрашенным per-tile через
