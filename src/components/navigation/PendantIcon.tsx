@@ -57,6 +57,7 @@ export function PendantIcon({
   const plateFace = `pendant-plateface-${uid}`;
   const goldEdge = `pendant-goldedge-${uid}`;
   const diamondBase = `pendant-diamondbase-${uid}`;
+  const transmitFade = `pendant-transmitfade-${uid}`;
   const seaSoft = `pendant-seasoft-${uid}`;
   const softClip = `pendant-softclip-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
@@ -213,6 +214,12 @@ export function PendantIcon({
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          <linearGradient id={transmitFade} gradientUnits="userSpaceOnUse" x1={cx + 5} y1={cy + 11} x2={cx - 6} y2={cy - 3}>
+            <stop offset="0" stopColor={mix(74, 'white')} stopOpacity=".95" />
+            <stop offset=".4" stopColor={mix(62, 'white')} stopOpacity=".7" />
+            <stop offset=".75" stopColor={mix(50, 'white')} stopOpacity=".22" />
+            <stop offset="1" stopColor={mix(50, 'white')} stopOpacity="0" />
+          </linearGradient>
           {/* Sea-worn stone: a hair of blur on the facet layer rounds every
               edge and corner, then the girdle line and glints go back on top
               crisp. The clip keeps the blur from leaking past the stone. */}
@@ -289,9 +296,6 @@ export function PendantIcon({
                       <polygon points={pts(kite)} fill={facetFill(tone(45 * k + 22.5, flip))} />
                       <polygon points={pts(star)} fill={facetFill(tone(45 * (k + 1), -flip * 1.4))} />
                       <polygon points={pts(girdle)} fill={facetFill(tone(45 * (k + 1), flip * 1.2))} />
-                      {/* No table window: the middle is eight calm facets that
-                          meet at the centre, shaded at 60% of the crown's contrast. */}
-                      <polygon points={pts([T[k], T[next], [cx, cy]])} fill={facetFill(tone(45 * (k + 1), 0) * 0.6)} />
                     </g>
                   );
                 })}
@@ -306,6 +310,15 @@ export function PendantIcon({
                   return <polygon key={`bevel-${k}`} points={pts([G[k], G[next], GB[next], GB[k]])} fill={fill} />;
                 })}
               </g>
+            </g>
+            {/* The table stays a clean dark window. The bright crown facets in
+                the upper left throw their light straight through the stone, so
+                it lands in the lower half of the table: hard edge on the rim
+                side, thinning out toward the main flash. No chamfer round it. */}
+            <g data-optical-layer="table-transmitted-light">
+              <polygon points={pts(T)} fill={mix(52, 'black')} />
+              <polygon points={pts(T)} fill={`url(#${transmitFade})`} />
+              <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".5" strokeWidth=".25" strokeLinejoin="round" />
             </g>
             {/* Hard specular glints on the facets that face the light. */}
             {glint(T[7], S[7], 0.1, 0.9, 1.2, 0.95)}
