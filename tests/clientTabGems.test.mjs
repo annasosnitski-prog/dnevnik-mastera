@@ -115,7 +115,7 @@ test('every tab is coloured by its own territory (kind), with a per-tab override
 
 test('toolbar stones are a faceted brilliant: hard flat facets, no diffuse milky core', () => {
   assert.match(pendantIcon, /data-optical-layer="crown-facets"/);
-  assert.match(pendantIcon, /data-optical-layer="table-flash"/);
+  assert.match(pendantIcon, /data-optical-layer="table-transmitted-light"/);
   assert.match(pendantIcon, /data-optical-layer="girdle-edge"/);
   // The old milky layers (haze, lit core, core bleed, blurred inner glow) are gone.
   assert.doesNotMatch(pendantIcon, /coreGlow|coreBleed|data-optical-layer="internal-caustic"|data-optical-layer="surface-lens"/);

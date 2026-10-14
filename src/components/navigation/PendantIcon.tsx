@@ -266,32 +266,35 @@ export function PendantIcon({
                 );
               })}
             </g>
-            {/* The table is one clean, dark window with a single double
-                diagonal flash (a wide streak and a thin one beside it),
-                the way a polished flat catches a window — no inner glow. */}
-            <g data-optical-layer="table-flash" clipPath={`url(#${tableClip})`}>
-              <polygon points={pts(T)} fill={mix(48, 'black')} />
-              {[
-                { d: -2.4, w: 1.9, o: 0.78 },
-                { d: 1.5, w: 0.7, o: 0.9 },
-              ].map(({ d, w, o }) => {
-                // Streak runs bottom-left -> top-right; (d, w) are its offset
-                // from the table centre and half-width across that direction.
-                const k = Math.SQRT1_2;
-                const along = 18;
-                const corner = (sa: number, sw: number): [number, number] => [
-                  cx + (sa * along + 0) * k + (d + sw * w) * k,
-                  cy - (sa * along + 0) * k + (d + sw * w) * k,
-                ];
-                return (
-                  <polygon
-                    key={`flash-${d}`}
-                    points={pts([corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)])}
-                    fill="#FFFFFF"
-                    opacity={o}
-                  />
-                );
-              })}
+            {/* The table is one clean, dark window. The bright crown
+                facets in the upper-left throw their light straight through
+                the stone, so it lands as a light patch in the lower half of
+                the table: a crisp-edged two-tone shard (outer tint, brighter
+                core), not a soft glow. */}
+            <g data-optical-layer="table-transmitted-light" clipPath={`url(#${tableClip})`}>
+              <polygon points={pts(T)} fill={mix(52, 'black')} />
+              <polygon
+                points={pts([
+                  [cx - 10, cy + 3.5],
+                  [cx + 1, cy - 0.5],
+                  [cx + 12, cy - 1.5],
+                  [cx + 12, cy + 11],
+                  [cx - 10, cy + 11],
+                ])}
+                fill={mix(52, 'white')}
+                opacity=".82"
+              />
+              <polygon
+                points={pts([
+                  [cx - 6, cy + 4.4],
+                  [cx + 2, cy + 1.6],
+                  [cx + 10, cy + 1],
+                  [cx + 9, cy + 8],
+                  [cx - 4, cy + 8.6],
+                ])}
+                fill={mix(78, 'white')}
+                opacity=".85"
+              />
             </g>
             <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".55" strokeWidth=".3" strokeLinejoin="round" />
             {/* Hard specular glints on the facets that face the light. */}
