@@ -57,7 +57,8 @@ export function PendantIcon({
   const plateFace = `pendant-plateface-${uid}`;
   const goldEdge = `pendant-goldedge-${uid}`;
   const diamondBase = `pendant-diamondbase-${uid}`;
-  const transmitFade = `pendant-transmitfade-${uid}`;
+  const seaSoft = `pendant-seasoft-${uid}`;
+  const softClip = `pendant-softclip-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
   const mix = (pct: number, tint: "white" | "black") => `color-mix(in srgb, ${color} ${100 - pct}%, ${tint} ${pct}%)`;
@@ -91,9 +92,6 @@ export function PendantIcon({
   // Bevel (фаска): a narrow chamfer band running round the whole girdle,
   // between the girdle corners and the same corners pulled 12% inward.
   const GB = ks.map((k) => edge(45 * k + 22.5 + rot, stoneR * 0.88));
-  // The table gets the same chamfer: a band round its edge, and a slightly
-  // smaller glass inside it.
-  const TB = ks.map((k) => edge(45 * k + 22.5 + rot, tableR * 0.8));
   const pts = (list: ReadonlyArray<readonly [number, number]>) => list.map(([x, y]) => `${x},${y}`).join(' ');
   // A real diamond is not smooth: neighbouring facets mirror either the
   // bright room or the dark one, so adjacent planes jump between near-white
@@ -106,11 +104,11 @@ export function PendantIcon({
     return Math.max(-1, Math.min(1, t));
   };
   const facetFill = (t: number) =>
-    t > 0.5 ? mix(84, 'white')
+    t > 0.5 ? mix(80, 'white')
     : t > 0.05 ? mix(50, 'white')
     : t > -0.35 ? mix(18, 'white')
     : t > -0.7 ? mix(38, 'black')
-    : mix(66, 'black');
+    : mix(54, 'black');
 
   const diamond = (x: number, y: number, id: string) => (
     <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
@@ -215,12 +213,19 @@ export function PendantIcon({
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          <linearGradient id={transmitFade} gradientUnits="userSpaceOnUse" x1={cx + 5} y1={cy + 11} x2={cx - 6} y2={cy - 3}>
-            <stop offset="0" stopColor={mix(74, 'white')} stopOpacity=".95" />
-            <stop offset=".4" stopColor={mix(62, 'white')} stopOpacity=".7" />
-            <stop offset=".75" stopColor={mix(50, 'white')} stopOpacity=".22" />
-            <stop offset="1" stopColor={mix(50, 'white')} stopOpacity="0" />
-          </linearGradient>
+          {/* Sea-worn stone: a hair of blur on the facet layer rounds every
+              edge and corner, then the girdle line and glints go back on top
+              crisp. The clip keeps the blur from leaking past the stone. */}
+          <filter id={seaSoft} x="-5%" y="-5%" width="110%" height="110%">
+            <feGaussianBlur stdDeviation=".42" />
+          </filter>
+          <clipPath id={softClip}>
+            {isDiamond ? (
+              <polygon points={ringPoints(edge, stoneR)} />
+            ) : (
+              <circle cx={cx} cy={cy} r={stoneR} />
+            )}
+          </clipPath>
           {shape === 'diamond' && (
             <clipPath id={stoneClip}>
               <polygon points={ringPoints(edge, stoneR + 0.4)} />
@@ -269,56 +274,39 @@ export function PendantIcon({
             ) : (
               <circle cx={cx} cy={cy} r={stoneR} fill={mix(92, 'black')} />
             )}
-            <g data-optical-layer="crown-facets" stroke={mix(62, 'white')} strokeOpacity=".5" strokeWidth=".22" strokeLinejoin="round">
-              {ks.map((k) => {
-                const prev = (k + 7) % 8;
-                const next = (k + 1) % 8;
-                // Azimuths: kite k points at 45k+22.5, star/girdle tip S_k at 45(k+1).
-                const kite = [T[k], S[prev], G[k], S[k]];
-                const star = [T[k], T[next], S[k]];
-                const girdle = [G[k], G[next], S[k]];
-                const flip = k % 2 === 0 ? 0.32 : -0.32;
-                return (
-                  <g key={`facet-${k}`}>
-                    <polygon points={pts(kite)} fill={facetFill(tone(45 * k + 22.5, flip))} />
-                    <polygon points={pts(star)} fill={facetFill(tone(45 * (k + 1), -flip * 1.4))} />
-                    <polygon points={pts(girdle)} fill={facetFill(tone(45 * (k + 1), flip * 1.2))} />
-                  </g>
-                );
-              })}
+            <g data-optical-layer="soft-facets" clipPath={`url(#${softClip})`} filter={`url(#${seaSoft})`}>
+              <g data-optical-layer="crown-facets" stroke={mix(62, 'white')} strokeOpacity=".32" strokeWidth=".22" strokeLinejoin="round">
+                {ks.map((k) => {
+                  const prev = (k + 7) % 8;
+                  const next = (k + 1) % 8;
+                  // Azimuths: kite k points at 45k+22.5, star/girdle tip S_k at 45(k+1).
+                  const kite = [T[k], S[prev], G[k], S[k]];
+                  const star = [T[k], T[next], S[k]];
+                  const girdle = [G[k], G[next], S[k]];
+                  const flip = k % 2 === 0 ? 0.32 : -0.32;
+                  return (
+                    <g key={`facet-${k}`}>
+                      <polygon points={pts(kite)} fill={facetFill(tone(45 * k + 22.5, flip))} />
+                      <polygon points={pts(star)} fill={facetFill(tone(45 * (k + 1), -flip * 1.4))} />
+                      <polygon points={pts(girdle)} fill={facetFill(tone(45 * (k + 1), flip * 1.2))} />
+                      {/* No table window: the middle is eight calm facets that
+                          meet at the centre, shaded at 60% of the crown's contrast. */}
+                      <polygon points={pts([T[k], T[next], [cx, cy]])} fill={facetFill(tone(45 * (k + 1), 0) * 0.6)} />
+                    </g>
+                  );
+                })}
+              </g>
+              {/* Chamfer around the rim: one narrow flat per girdle edge, bright
+                  on the light side and dark opposite. */}
+              <g data-optical-layer="bevel" stroke={mix(70, 'white')} strokeOpacity=".4" strokeWidth=".22" strokeLinejoin="round">
+                {ks.map((k) => {
+                  const next = (k + 1) % 8;
+                  const t = tone(45 * (k + 1), k % 2 === 0 ? 0.18 : -0.18);
+                  const fill = t > 0.45 ? mix(88, 'white') : t > 0 ? mix(64, 'white') : t > -0.45 ? mix(28, 'black') : mix(62, 'black');
+                  return <polygon key={`bevel-${k}`} points={pts([G[k], G[next], GB[next], GB[k]])} fill={fill} />;
+                })}
+              </g>
             </g>
-            {/* Chamfer around the rim: one narrow flat per girdle edge, bright on
-                the light side and dark opposite, so the stone's outline reads
-                as a cut edge, not a painted one. */}
-            <g data-optical-layer="bevel" stroke={mix(70, 'white')} strokeOpacity=".55" strokeWidth=".22" strokeLinejoin="round">
-              {ks.map((k) => {
-                const next = (k + 1) % 8;
-                const t = tone(45 * (k + 1), k % 2 === 0 ? 0.18 : -0.18);
-                const fill = t > 0.45 ? mix(90, 'white') : t > 0 ? mix(66, 'white') : t > -0.45 ? mix(30, 'black') : mix(72, 'black');
-                return <polygon key={`bevel-${k}`} points={pts([G[k], G[next], GB[next], GB[k]])} fill={fill} />;
-              })}
-            </g>
-            {/* The table is one clean, dark window. The bright crown
-                facets in the upper-left throw their light straight through
-                the stone, so it lands as a light patch in the lower half of
-                the table: a crisp-edged two-tone shard (outer tint, brighter
-                core), not a soft glow. */}
-            <g data-optical-layer="table-bevel" stroke={mix(70, 'white')} strokeOpacity=".5" strokeWidth=".2" strokeLinejoin="round">
-              {ks.map((k) => {
-                const next = (k + 1) % 8;
-                // The table's edge k faces the same way as the star facet on it.
-                const t = tone(45 * (k + 1), 0);
-                const fill = t > 0.45 ? mix(88, 'white') : t > 0 ? mix(64, 'white') : t > -0.45 ? mix(25, 'black') : mix(62, 'black');
-                return <polygon key={`tbevel-${k}`} points={pts([T[k], T[next], TB[next], TB[k]])} fill={fill} />;
-              })}
-            </g>
-            <g data-optical-layer="table-transmitted-light">
-              <polygon points={pts(TB)} fill={mix(52, 'black')} />
-              {/* Hard edge on the facet side (the table's lower rim), then the
-                  light thins out toward the main flash in the upper left. */}
-              <polygon points={pts(TB)} fill={`url(#${transmitFade})`} />
-            </g>
-            <polygon points={pts(TB)} fill="none" stroke="#FFFFFF" strokeOpacity=".5" strokeWidth=".25" strokeLinejoin="round" />
             {/* Hard specular glints on the facets that face the light. */}
             {glint(T[7], S[7], 0.1, 0.9, 1.2, 0.95)}
             {glint(S[6], G[7], 0.15, 0.85, 1, 0.8)}
