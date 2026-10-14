@@ -16,13 +16,13 @@ export const COLORS = {
 // toolbar and the related client-card tabs both consume this object so their
 // palettes cannot silently drift apart again.
 export const TERRITORY_COLORS = {
-  // Dark sapphire · citrine · ruby · emerald · fire opal · amethyst.
+  // Indigo · citrine · ruby · emerald · fire opal · amethyst.
   // content and admin swapped territories (were amethyst/ruby) so admin
   // reads purple and content reads red everywhere this palette is used.
   // clients and projects swapped too (were emerald/sapphire): клиент —
-  // синий (самый индиго из палитры), проект — зелёный, везде, где цвет
+  // индиго, проект — зелёный, везде, где цвет
   // систематизирует.
-  clients: '#1448A7',
+  clients: '#3730A3',
   personal: '#C99516',
   content: '#B01236',
   projects: '#008A5A',
