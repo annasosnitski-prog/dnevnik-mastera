@@ -83,29 +83,31 @@ test('the retired gem sprite still lists all six tiles in tab order', () => {
 // info, но не «личное»), красится через явный override в самом тексте
 // вкладки, а не через проп на весь бар.
 test('every tab is coloured by its own territory (kind), with a per-tab override for the odd one out', () => {
-  assert.match(designTokens, /clients: '#008A5A'/);
+  assert.match(designTokens, /clients: '#3730A3'/);
   assert.match(designTokens, /personal: '#C99516'/);
   assert.match(designTokens, /content: '#B01236'/);
-  assert.match(designTokens, /projects: '#1448A7'/);
+  assert.match(designTokens, /projects: '#008A5A'/);
   assert.match(designTokens, /notes: '#D45A1F'/);
   assert.match(designTokens, /admin: '#7935B2'/);
 
   assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
   // The shared tab bar imports the same territory palette and keys every
-  // kind to it — sessions/consultations and projects both read as the
-  // toolbar's blue (Админка's «Расписание» и «Таймлайн» — «записи синие»),
+  // kind to it — sessions/consultations read as the clients' blue
+  // (Админка's «Расписание» — «записи синие»), projects as the toolbar's green,
   // content purple, notes orange, info personal-citrine.
   assert.match(tabBarModule, /import \{ COLORS, TERRITORY_COLORS \} from '\.\.\/ui\/designTokens'/);
   assert.match(
     tabBarModule,
-    /const KIND_COLORS: Record<ClientTabIconName, string> = \{\s*sessions: TERRITORY_COLORS\.projects,\s*consultations: TERRITORY_COLORS\.projects,\s*content: TERRITORY_COLORS\.content,\s*notes: TERRITORY_COLORS\.notes,\s*info: TERRITORY_COLORS\.personal,\s*projects: TERRITORY_COLORS\.projects,/,
+    /const KIND_COLORS: Record<ClientTabIconName, string> = \{\s*sessions: TERRITORY_COLORS\.clients,\s*consultations: TERRITORY_COLORS\.clients,\s*content: TERRITORY_COLORS\.content,\s*notes: TERRITORY_COLORS\.notes,\s*info: TERRITORY_COLORS\.personal,\s*projects: TERRITORY_COLORS\.projects,/,
   );
   assert.doesNotMatch(tabBarModule, /clientOrnateGemKind|gemKind/);
   // Админка's «Проекты» tab (id 'timeline') — was the «Без окна»/«Таймлайн»
   // pair, merged into one: pipelines and window-less tiles live inside it.
-  // It overrides its kind-default colour with the clients' green.
+  // Its kind-default colour is already the projects' green — no override.
+  // The red «Напоминания» tab is gone: tasks moved onto the purple tab.
   assert.doesNotMatch(adminDashboardScreen, /id: 'summary'/);
-  assert.match(adminDashboardScreen, /id: 'timeline', kind: 'projects', label: 'Проекты', color: TERRITORY_COLORS\.clients/);
+  assert.match(adminDashboardScreen, /id: 'timeline', kind: 'projects', label: 'Проекты' \}/);
+  assert.doesNotMatch(adminDashboardScreen, /id: 'reminders'/);
   // No screen-wide accentColor prop any more — colour is resolved per tab.
   assert.doesNotMatch(adminDashboardScreen, /accentColor/);
   assert.doesNotMatch(masterDashboardScreen, /accentColor/);

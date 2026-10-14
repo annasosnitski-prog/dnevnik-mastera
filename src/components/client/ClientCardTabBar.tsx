@@ -17,7 +17,8 @@ import './ClientCardTabBar.css';
 const GEM_SIZE = 54;
 
 // Every tab's stone carries the same territory colour as the radial toolbar
-// (NavFab) — «карточка клиента» reads Проекты as the toolbar's blue,
+// (NavFab) — «карточка клиента» reads Проекты as the toolbar's green and
+// записи (sessions/consultations) as the clients' blue,
 // Контент as its purple, and so on, everywhere this tab bar is used. Keyed
 // by `kind` (not by screen) so the same tab always reads the same colour
 // regardless of which screen hosts it — a tab def can still override this
@@ -25,8 +26,8 @@ const GEM_SIZE = 54;
 // doesn't match its actual meaning here, e.g. Админка's «Сводка» uses the
 // info icon but is coloured as the admin territory, not «личное».
 const KIND_COLORS: Record<ClientTabIconName, string> = {
-  sessions: TERRITORY_COLORS.projects,
-  consultations: TERRITORY_COLORS.projects,
+  sessions: TERRITORY_COLORS.clients,
+  consultations: TERRITORY_COLORS.clients,
   content: TERRITORY_COLORS.content,
   notes: TERRITORY_COLORS.notes,
   info: TERRITORY_COLORS.personal,
