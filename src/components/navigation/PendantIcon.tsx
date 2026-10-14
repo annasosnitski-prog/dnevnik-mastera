@@ -175,17 +175,18 @@ export function PendantIcon({
     const len = Math.hypot(x2 - x1, y2 - y1) || 1;
     const px = -(y2 - y1) / len;
     const py = (x2 - x1) / len;
-    const w = maxWidth / 2;
-    const mx = (x1 + x2) / 2;
+        const mx = (x1 + x2) / 2;
     const my = (y1 + y2) / 2;
+    const lens = (width: number) => {
+      const hw = width / 2;
+      return `M${x1},${y1} Q${mx + px * hw},${my + py * hw} ${x2},${y2} Q${mx - px * hw},${my - py * hw} ${x1},${y1}Z`;
+    };
+    // A soft halo under the sharp lens makes the flash bloom, as on a real stone.
     return (
-      <path
-        key={`glint-${x1}-${y1}-${x2}-${y2}`}
-        d={`M${x1},${y1} Q${mx + px * w},${my + py * w} ${x2},${y2} Q${mx - px * w},${my - py * w} ${x1},${y1}Z`}
-        fill="#FFFFFF"
-        opacity={opacity}
-        style={{ filter: "blur(.3px)" }}
-      />
+      <g key={`glint-${x1}-${y1}-${x2}-${y2}`}>
+        <path d={lens(maxWidth * 2.6)} fill="#FFFFFF" opacity={Math.min(1, opacity * 0.55)} style={{ filter: "blur(.9px)" }} />
+        <path d={lens(maxWidth)} fill="#FFFFFF" opacity={1} style={{ filter: "blur(.25px)" }} />
+      </g>
     );
   };
 
@@ -345,14 +346,24 @@ export function PendantIcon({
               <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".5" strokeWidth=".25" strokeLinejoin="round" />
             </g>
             {/* Hard specular glints on the facets that face the light. */}
-            {glint(T[7], S[7], 0.1, 0.9, 1.2, 0.95)}
-            {glint(S[6], G[7], 0.15, 0.85, 1, 0.8)}
-            {glint(T[0], S[0], 0.2, 0.8, 0.9, 0.7)}
-            {glint(G[6], G[7], 0.2, 0.8, 0.8, 0.6)}
+            {glint(T[7], S[7], 0.1, 0.9, 1.7, 1)}
+            {/* Main flash: a small eight-ray star on the brightest crown edge. */}
+            <g
+              data-optical-layer="main-flash"
+              transform={`translate(${(T[7][0] + S[7][0]) / 2} ${(T[7][1] + S[7][1]) / 2})`}
+              style={{ filter: "drop-shadow(0 0 1.2px #FFFFFF)" }}
+            >
+              <path d="M-4.6 0 H4.6 M0 -4.6 V4.6" stroke="#FFFFFF" strokeWidth=".55" strokeLinecap="round" />
+              <path d="M-2.8 -2.8 L2.8 2.8 M2.8 -2.8 L-2.8 2.8" stroke="#FFFFFF" strokeWidth=".35" strokeLinecap="round" />
+              <circle r=".9" fill="#FFFFFF" />
+            </g>
+            {glint(S[6], G[7], 0.15, 0.85, 1.4, 1)}
+            {glint(T[0], S[0], 0.2, 0.8, 1.2, 0.9)}
+            {glint(G[6], G[7], 0.2, 0.8, 1.1, 0.8)}
             {/* Dispersion: a couple of tiny spectral flecks near the girdle,
                 the way fire flashes off a cut stone's edge. */}
-            <polygon points={pts([G[1], S[1], edge(45 * 2 - 14 + rot, stoneR * 0.9)])} fill="#9FE8FF" opacity=".42" />
-            <polygon points={pts([G[4], S[4], edge(45 * 5 - 14 + rot, stoneR * 0.9)])} fill="#FFC27A" opacity=".38" />
+            <polygon points={pts([G[1], S[1], edge(45 * 2 - 14 + rot, stoneR * 0.9)])} fill="#9FE8FF" opacity=".6" />
+            <polygon points={pts([G[4], S[4], edge(45 * 5 - 14 + rot, stoneR * 0.9)])} fill="#FFC27A" opacity=".58" />
             {isDiamond ? (
               <polygon
                 data-optical-layer="girdle-edge"
