@@ -87,6 +87,9 @@ export function PendantIcon({
   const T = ks.map((k) => edge(45 * k + 22.5 + rot, tableR));
   const S = ks.map((k) => edge(45 * (k + 1) + rot, starR));
   const G = ks.map((k) => edge(45 * k + 22.5 + rot, stoneR));
+  // Bevel (фаска): a narrow chamfer band running round the whole girdle,
+  // between the girdle corners and the same corners pulled 12% inward.
+  const GB = ks.map((k) => edge(45 * k + 22.5 + rot, stoneR * 0.88));
   const pts = (list: ReadonlyArray<readonly [number, number]>) => list.map(([x, y]) => `${x},${y}`).join(' ');
   // A real diamond is not smooth: neighbouring facets mirror either the
   // bright room or the dark one, so adjacent planes jump between near-white
@@ -278,6 +281,17 @@ export function PendantIcon({
                     <polygon points={pts(girdle)} fill={facetFill(tone(45 * (k + 1), flip * 1.2))} />
                   </g>
                 );
+              })}
+            </g>
+            {/* Chamfer around the rim: one narrow flat per girdle edge, bright on
+                the light side and dark opposite, so the stone's outline reads
+                as a cut edge, not a painted one. */}
+            <g data-optical-layer="bevel" stroke={mix(70, 'white')} strokeOpacity=".55" strokeWidth=".22" strokeLinejoin="round">
+              {ks.map((k) => {
+                const next = (k + 1) % 8;
+                const t = tone(45 * (k + 1), k % 2 === 0 ? 0.18 : -0.18);
+                const fill = t > 0.45 ? mix(90, 'white') : t > 0 ? mix(66, 'white') : t > -0.45 ? mix(30, 'black') : mix(72, 'black');
+                return <polygon key={`bevel-${k}`} points={pts([G[k], G[next], GB[next], GB[k]])} fill={fill} />;
               })}
             </g>
             {/* The table is one clean, dark window. The bright crown

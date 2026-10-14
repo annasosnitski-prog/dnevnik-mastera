@@ -117,6 +117,7 @@ test('toolbar stones are a faceted brilliant: hard flat facets, no diffuse milky
   assert.match(pendantIcon, /data-optical-layer="crown-facets"/);
   assert.match(pendantIcon, /data-optical-layer="table-transmitted-light"/);
   assert.match(pendantIcon, /data-optical-layer="girdle-edge"/);
+  assert.match(pendantIcon, /data-optical-layer="bevel"/);
   // The old milky layers (haze, lit core, core bleed, blurred inner glow) are gone.
   assert.doesNotMatch(pendantIcon, /coreGlow|coreBleed|data-optical-layer="internal-caustic"|data-optical-layer="surface-lens"/);
   // Navy clients on a black ground need a brighter halo than their own colour.
