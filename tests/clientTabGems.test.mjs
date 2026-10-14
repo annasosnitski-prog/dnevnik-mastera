@@ -83,7 +83,7 @@ test('the retired gem sprite still lists all six tiles in tab order', () => {
 // info, но не «личное»), красится через явный override в самом тексте
 // вкладки, а не через проп на весь бар.
 test('every tab is coloured by its own territory (kind), with a per-tab override for the odd one out', () => {
-  assert.match(designTokens, /clients: '#3730A3'/);
+  assert.match(designTokens, /clients: '#000080'/);
   assert.match(designTokens, /personal: '#C99516'/);
   assert.match(designTokens, /content: '#B01236'/);
   assert.match(designTokens, /projects: '#008A5A'/);
