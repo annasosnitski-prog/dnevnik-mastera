@@ -58,7 +58,6 @@ export function PendantIcon({
   const goldEdge = `pendant-goldedge-${uid}`;
   const diamondBase = `pendant-diamondbase-${uid}`;
   const transmitFade = `pendant-transmitfade-${uid}`;
-  const seaSoft = `pendant-seasoft-${uid}`;
   const softClip = `pendant-softclip-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
@@ -89,10 +88,14 @@ export function PendantIcon({
   const ks = [0, 1, 2, 3, 4, 5, 6, 7];
   const T = ks.map((k) => edge(45 * k + 22.5 + rot, tableR));
   const S = ks.map((k) => edge(45 * (k + 1) + rot, starR));
-  const G = ks.map((k) => edge(45 * k + 22.5 + rot, stoneR));
+  // Round: the girdle octagon circumscribes the circle (corners pushed out by
+  // 1/cos 22.5°, then clipped to the circle) so the facets reach the setting
+  // all the way round with no dark wedges between octagon sides and the ring.
+  const girdleR = isDiamond ? stoneR : stoneR / Math.cos(Math.PI / 8);
+  const G = ks.map((k) => edge(45 * k + 22.5 + rot, girdleR));
   // Bevel (фаска): a narrow chamfer band running round the whole girdle,
   // between the girdle corners and the same corners pulled 12% inward.
-  const GB = ks.map((k) => edge(45 * k + 22.5 + rot, stoneR * 0.88));
+  const GB = ks.map((k) => edge(45 * k + 22.5 + rot, girdleR * 0.88));
   const pts = (list: ReadonlyArray<readonly [number, number]>) => list.map(([x, y]) => `${x},${y}`).join(' ');
   // A real diamond is not smooth: neighbouring facets mirror either the
   // bright room or the dark one, so adjacent planes jump between near-white
@@ -220,12 +223,7 @@ export function PendantIcon({
             <stop offset=".75" stopColor={mix(50, 'white')} stopOpacity=".22" />
             <stop offset="1" stopColor={mix(50, 'white')} stopOpacity="0" />
           </linearGradient>
-          {/* Sea-worn stone: a hair of blur on the facet layer rounds every
-              edge and corner, then the girdle line and glints go back on top
-              crisp. The clip keeps the blur from leaking past the stone. */}
-          <filter id={seaSoft} x="-5%" y="-5%" width="110%" height="110%">
-            <feGaussianBlur stdDeviation=".42" />
-          </filter>
+          {/* Facets are clipped to the stone outline so they meet the setting exactly. */}
           <clipPath id={softClip}>
             {isDiamond ? (
               <polygon points={ringPoints(edge, stoneR)} />
@@ -281,7 +279,7 @@ export function PendantIcon({
             ) : (
               <circle cx={cx} cy={cy} r={stoneR} fill={mix(92, 'black')} />
             )}
-            <g data-optical-layer="soft-facets" clipPath={`url(#${softClip})`} filter={`url(#${seaSoft})`}>
+            <g data-optical-layer="soft-facets" clipPath={`url(#${softClip})`}>
               <g data-optical-layer="crown-facets" stroke={mix(62, 'white')} strokeOpacity=".32" strokeWidth=".22" strokeLinejoin="round">
                 {ks.map((k) => {
                   const prev = (k + 7) % 8;
