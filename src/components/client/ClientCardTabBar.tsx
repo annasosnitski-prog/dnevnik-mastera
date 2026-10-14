@@ -1,6 +1,7 @@
 import { useId, type CSSProperties } from 'react';
 import { useMinimalism } from '../ui/minimalism';
 import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
+import { glowOf } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
 import { NaturalStoneIcon } from '../navigation/NaturalStoneIcon';
 import { PendantIcon } from '../navigation/PendantIcon';
@@ -161,9 +162,9 @@ function GemTabMarker({
           flexShrink: 0,
           borderRadius: '50%',
           background: 'rgba(var(--surface-rgb),0.07)',
-          border: `1px solid ${active ? color : 'rgba(var(--gold-rgb),0.2)'}`,
-          boxShadow: active ? `0 0 0 1.5px ${color}, 0 0 14px -4px ${color}` : undefined,
-          color: active ? color : 'var(--toolbar-icon)',
+          border: `1px solid ${active ? glowOf(color) : 'rgba(var(--gold-rgb),0.2)'}`,
+          boxShadow: active ? `0 0 0 1.5px ${glowOf(color)}, 0 0 14px -4px ${glowOf(color)}` : undefined,
+          color: active ? glowOf(color) : 'var(--toolbar-icon)',
           transition: 'color 0.25s, border-color 0.25s, box-shadow 0.25s',
         }}
       >
@@ -220,8 +221,8 @@ function GemTabMarker({
             height: GEM_SIZE,
             zIndex: 2,
             filter: active
-              ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${color}D9) drop-shadow(0 0 16px ${color}99) drop-shadow(0 0 28px ${color}5C)`
-              : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${color}99) drop-shadow(0 0 12px ${color}4D)`,
+              ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${glowOf(color)}D9) drop-shadow(0 0 16px ${glowOf(color)}99) drop-shadow(0 0 28px ${glowOf(color)}5C)`
+              : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${glowOf(color)}99) drop-shadow(0 0 12px ${glowOf(color)}4D)`,
           }}
         >
           <PendantIcon color={color} size={GEM_SIZE} shape="diamond" />

@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from "react";
+import { glowOf } from "../ui/designTokens";
 
 function point(cx: number, cy: number, deg: number, r: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
@@ -21,16 +22,14 @@ function ringPoints(edge: (deg: number, r: number) => [number, number], r: numbe
   return [0, 90, 180, 270].map((deg) => edge(deg, r).join(',')).join(' ');
 }
 
-// A small round gold-pendant medallion, ported from a richer reference (a
-// faceted ruby-and-diamond pendant render) and generalised so any of the
-// seven destination colours can drop in: every ruby-specific hex in that
-// reference became a `color-mix` off the `color` prop instead, at the same
-// relative light/dark ratios. Structure, outer to inner:
-//   gold disc + edge ring -> dark bezel groove -> the stone itself, cut
-//   into a darker octagon core with four lighter/coloured quadrant facets,
-//   a bright highlight flash, and an inner glow bleeding through them like
-//   a lit potion bottle -> a pavé halo of small faceted diamonds with a
-//   few sparkle glints. `plate` swaps the coloured stone for a plain gold
+// A small round gold-pendant medallion, generalised so any of the seven
+// destination colours can drop in (every hex is a `color-mix` off the
+// `color` prop). Structure, outer to inner:
+//   gold disc + edge ring -> dark bezel groove -> the stone itself, a
+//   round brilliant seen from the crown (see the facet map below) with
+//   hard, high-contrast flat facets and no diffuse glow inside -> a pavé
+//   halo of small faceted diamonds with a few sparkle glints. `plate` swaps
+//   the coloured stone for a plain gold
 //   disc (for «Создать», which marks an action rather than a destination)
 //   and renders `children` centred on top of it. Each instance gets its
 //   own gradient/filter ids (via useId) so multiple copies can render on
@@ -58,19 +57,7 @@ export function PendantIcon({
   const plateFace = `pendant-plateface-${uid}`;
   const goldEdge = `pendant-goldedge-${uid}`;
   const diamondBase = `pendant-diamondbase-${uid}`;
-  const qTop = `pendant-qtop-${uid}`;
-  const qRight = `pendant-qright-${uid}`;
-  const qBottom = `pendant-qbottom-${uid}`;
-  const qLeft = `pendant-qleft-${uid}`;
-  const flash = `pendant-flash-${uid}`;
-  const transmit = `pendant-transmit-${uid}`;
-  const coreGlow = `pendant-coreglow-${uid}`;
-  const coreBleed = `pendant-corebleed-${uid}`;
-  const tableFace = `pendant-tableface-${uid}`;
-  const stoneDepth = `pendant-stonedepth-${uid}`;
-  const depthCaustic = `pendant-depthcaustic-${uid}`;
-  const edgeRefraction = `pendant-edgerefraction-${uid}`;
-  const surfaceLens = `pendant-surfacelens-${uid}`;
+  const tableClip = `pendant-tableclip-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
   const mix = (pct: number, tint: "white" | "black") => `color-mix(in srgb, ${color} ${100 - pct}%, ${tint} ${pct}%)`;
@@ -81,30 +68,38 @@ export function PendantIcon({
     shape === 'diamond' ? diamondPoint(cx, cy, deg, r) : point(cx, cy, deg, r);
   const outerR = 29;
   const stoneR = 23;
-  // The central table facet, shrunk by about a third from its first pass —
-  // every wedge below is derived from innerR, so the surrounding crown
-  // facets widen to fill the space this gives up automatically.
-  const innerR = stoneR * 0.47;
-  // The pavilion sits optically below the crown. Its facets converge a
-  // little off-centre instead of on the face's geometric centre: this
-  // parallax is what makes the stone read as a thick transparent body,
-  // rather than several coloured polygons printed on one flat disc.
-  const pavilionFocus: [number, number] = [cx + 4.6, cy + 5.2];
+  // Round-brilliant crown, top view, 8-fold: a table octagon (T) in the
+  // middle; eight star facets (triangles on the table edges, tip S); eight
+  // bezel kites (T -> S -> G -> S) and eight upper-girdle triangles
+  // (S, G, G) that close the ring. Every vertex is shared, so the facets
+  // tile the disc with no gaps: 8 + 8 + 8 + 8 flat planes + the table.
+  const tableR = stoneR * 0.54;
+  const starR = stoneR * 0.8;
   const angles = [0, 45, 90, 135, 180, 225, 270, 315];
-  const outerPts = angles.map((deg) => point(cx, cy, deg, stoneR));
-  const innerPts = angles.map((deg) => point(cx, cy, deg, innerR));
-  // k is an index into angles/outerPts/innerPts (0=top, 2=right, 4=bottom,
-  // 6=left) — each quadrant spans that centre point and its two neighbours,
-  // outer rim arc first, then back along the inner octagon.
-  const quadrant = (k: number) => {
-    const o1 = outerPts[(k + 7) % 8];
-    const o2 = outerPts[k];
-    const o3 = outerPts[(k + 1) % 8];
-    const i3 = innerPts[(k + 1) % 8];
-    const i2 = innerPts[k];
-    const i1 = innerPts[(k + 7) % 8];
-    return [o1, o2, o3, i3, i2, i1].map(([x, y]) => `${x},${y}`).join(" ");
+  const ks = [0, 1, 2, 3, 4, 5, 6, 7];
+  const T = ks.map((k) => point(cx, cy, 45 * k + 22.5, tableR));
+  const S = ks.map((k) => point(cx, cy, 45 * (k + 1), starR));
+  const G = ks.map((k) => point(cx, cy, 45 * k + 22.5, stoneR));
+  const pts = (list: ReadonlyArray<readonly [number, number]>) => list.map(([x, y]) => `${x},${y}`).join(' ');
+  // The pavilion seen through the table converges a little off-centre: this
+  // parallax is what reads as a thick transparent body under the crown.
+  const pavilionFocus: [number, number] = [cx + 1.3, cy + 1.6];
+  // A real diamond is not smooth: neighbouring facets mirror either the
+  // bright room or the dark one, so adjacent planes jump between near-white
+  // and near-black. `tone` is facing-the-light (upper-left) plus a parity
+  // flip on alternate facets; the buckets below are hard steps, not a
+  // gradient — that stepping is the whole "cut stone" look.
+  const lightAz = -38;
+  const tone = (azimuth: number, flip: number) => {
+    const t = Math.cos(((azimuth - lightAz) * Math.PI) / 180) + flip;
+    return Math.max(-1, Math.min(1, t));
   };
+  const facetFill = (t: number) =>
+    t > 0.5 ? mix(84, 'white')
+    : t > 0.05 ? mix(50, 'white')
+    : t > -0.35 ? mix(18, 'white')
+    : t > -0.7 ? mix(38, 'black')
+    : mix(66, 'black');
 
   const diamond = (x: number, y: number, id: string) => (
     <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
@@ -200,142 +195,18 @@ export function PendantIcon({
             <stop offset=".82" stopColor="#FFFFFF" />
             <stop offset="1" stopColor="#929DAA" />
           </radialGradient>
-          <linearGradient id={qTop} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor={mix(55, "white")} stopOpacity=".62" />
-            <stop offset=".48" stopColor={color} stopOpacity=".38" />
-            <stop offset="1" stopColor={mix(55, "black")} stopOpacity=".12" />
-          </linearGradient>
-          <linearGradient id={qRight} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor={mix(45, "white")} stopOpacity=".6" />
-            <stop offset=".62" stopColor={mix(65, "black")} stopOpacity=".18" />
-            <stop offset="1" stopColor={mix(85, "black")} stopOpacity=".55" />
-          </linearGradient>
-          <linearGradient id={qBottom} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor={mix(30, "white")} stopOpacity=".48" />
-            <stop offset=".55" stopColor={mix(60, "black")} stopOpacity=".18" />
-            <stop offset="1" stopColor={mix(90, "black")} stopOpacity=".55" />
-          </linearGradient>
-          <linearGradient id={qLeft} x1="1" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={color} stopOpacity=".34" />
-            <stop offset=".58" stopColor={mix(75, "black")} stopOpacity=".28" />
-            <stop offset="1" stopColor={mix(92, "black")} stopOpacity=".58" />
-          </linearGradient>
-          <linearGradient id={flash} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".98" />
-            <stop offset=".55" stopColor="#FFF8F5" stopOpacity=".88" />
-            <stop offset="1" stopColor={mix(20, "white")} stopOpacity=".18" />
-          </linearGradient>
-          {/* Light entering at the flash doesn't just stop there — some of
-              it passes through the stone and exits the diagonally opposite
-              side, so that corner gets its own lighter patch too (tinted by
-              the stone's own colour, not neutral white like a reflection). */}
-          <linearGradient id={transmit} x1="1" y1="1" x2="0" y2="0">
-            <stop offset="0" stopColor={mix(55, "white")} stopOpacity=".62" />
-            <stop offset=".55" stopColor={mix(35, "white")} stopOpacity=".4" />
-            <stop offset="1" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-          {/* A lit-from-within core, like a magic potion's glowing liquid —
-              drawn under the quadrant facets so their translucent colour
-              still tints it, rather than a flat reflective surface. */}
-          <radialGradient id={coreGlow} cx=".5" cy=".5" r=".5">
-            <stop offset="0" stopColor={mix(70, "white")} stopOpacity=".67" />
-            <stop offset=".4" stopColor={mix(35, "white")} stopOpacity=".57" />
-            <stop offset=".7" stopColor={color} stopOpacity=".3" />
-            <stop offset="1" stopColor={color} stopOpacity="0" />
-          </radialGradient>
-          {/* The dense body under the visible crown. The centre remains
-              saturated while the lower-right side falls into a near-black
-              mineral shadow; a lighter rim returns at the edge where light
-              exits through the girdle. */}
-          <radialGradient
-            id={stoneDepth}
-            gradientUnits="userSpaceOnUse"
-            cx={cx - 5.5}
-            cy={cy - 6.5}
-            r={stoneR * 1.38}
-          >
-            <stop offset="0" stopColor={mix(52, "white")} />
-            <stop offset=".18" stopColor={color} />
-            <stop offset=".52" stopColor={mix(58, "black")} />
-            <stop offset=".78" stopColor={mix(90, "black")} />
-            <stop offset="1" stopColor={mix(18, "black")} />
-          </radialGradient>
-          {/* Light reappearing inside the opposite half after travelling
-              through the pavilion. Kept as a crisp vector caustic so the
-              added depth does not add another expensive blur filter. */}
-          <radialGradient id={depthCaustic} cx=".5" cy=".5" r=".5">
-            <stop offset="0" stopColor={mix(78, "white")} stopOpacity=".9" />
-            <stop offset=".38" stopColor={mix(46, "white")} stopOpacity=".58" />
-            <stop offset="1" stopColor={color} stopOpacity="0" />
-          </radialGradient>
-          {/* Refraction changes around the full thickness of the girdle:
-              bright at the entry edge, dark at the shadow edge, then a
-              narrow coloured return where light exits the stone. */}
-          <linearGradient
-            id={edgeRefraction}
-            gradientUnits="userSpaceOnUse"
-            x1={cx - stoneR}
-            y1={cy - stoneR}
-            x2={cx + stoneR}
-            y2={cy + stoneR}
-          >
-            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".98" />
-            <stop offset=".25" stopColor={mix(42, "white")} stopOpacity=".52" />
-            <stop offset=".58" stopColor={mix(90, "black")} stopOpacity=".98" />
-            <stop offset=".82" stopColor={mix(22, "white")} stopOpacity=".76" />
-            <stop offset="1" stopColor="#FFFFFF" stopOpacity=".38" />
-          </linearGradient>
-          {/* A very quiet front-surface lens. It ties the crown back into
-              one curved volume after the deeper pavilion facets are drawn. */}
-          <radialGradient
-            id={surfaceLens}
-            gradientUnits="userSpaceOnUse"
-            cx={cx - 7}
-            cy={cy - 8}
-            r={stoneR * 1.45}
-          >
-            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".3" />
-            <stop offset=".38" stopColor="#FFFFFF" stopOpacity=".08" />
-            <stop offset=".68" stopColor={color} stopOpacity="0" />
-            <stop offset="1" stopColor="#000000" stopOpacity=".32" />
-          </radialGradient>
-          {/* Fixed to the stone's true centre (userSpaceOnUse, not each
-              facet's own bounding box) so this one gradient washes every
-              facet by its real distance from the glowing core, however dark
-              that facet's own angled tone happens to be — the light
-              diffusing through a translucent stone doesn't stop at a facet
-              edge. */}
-          <radialGradient id={coreBleed} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r={stoneR * 0.95}>
-            <stop offset="0" stopColor="#FFFFFF" stopOpacity=".42" />
-            <stop offset=".5" stopColor="#FFFFFF" stopOpacity=".16" />
-            <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
-          </radialGradient>
-          {/* The table facet's own tone follows the same light-to-shadow
-              diagonal as the flash/transmit pair (upper-left to
-              lower-right) instead of a symmetric radial bloom — light
-              doesn't enter and leave a stone symmetrically in every
-              direction. */}
-          <linearGradient
-            id={tableFace}
-            gradientUnits="userSpaceOnUse"
-            x1={innerPts[7][0]}
-            y1={innerPts[7][1]}
-            x2={innerPts[3][0]}
-            y2={innerPts[3][1]}
-          >
-            <stop offset="0" stopColor={mix(25, "white")} stopOpacity=".5" />
-            <stop offset=".45" stopColor={color} stopOpacity=".4" />
-            <stop offset="1" stopColor={mix(55, "black")} stopOpacity=".6" />
-          </linearGradient>
           <filter id={stoneGlow} x="-25%" y="-25%" width="150%" height="150%">
             <feGaussianBlur stdDeviation=".7" result="blur" />
-            <feFlood floodColor={color} floodOpacity=".32" />
+            <feFlood floodColor={glowOf(color)} floodOpacity=".32" />
             <feComposite in2="blur" operator="in" />
             <feMerge>
               <feMergeNode />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          <clipPath id={tableClip}>
+            <polygon points={pts(T)} />
+          </clipPath>
           {shape === 'diamond' && (
             <clipPath id={stoneClip}>
               <polygon points={ringPoints(edge, stoneR * 1.1)} />
@@ -379,129 +250,63 @@ export function PendantIcon({
           </g>
         ) : (
           <g className="pendant-stone" filter={`url(#${stoneGlow})`} clipPath={shape === 'diamond' ? `url(#${stoneClip})` : undefined}>
-            {/* Soft haze bleeding out past the stone's own edge, like light
-                escaping a lit potion bottle rather than staying inside a
-                solid surface. */}
-            <circle cx={cx} cy={cy} r={stoneR * 1.08} fill={mix(30, "white")} opacity=".3" style={{ filter: "blur(1.4px)" }} />
-            <circle data-optical-layer="pavilion-depth" cx={cx} cy={cy} r={stoneR} fill={`url(#${stoneDepth})`} />
-            {/* Rear pavilion: these planes meet below and behind the table,
-                at pavilionFocus, instead of sharing the crown's centre. */}
-            <g data-optical-layer="pavilion-facets">
-              {angles.map((_, i) => {
-                const shade = Math.cos(((i * 45 - 18) * Math.PI) / 180);
-                const points = [outerPts[i], outerPts[(i + 1) % 8], pavilionFocus]
-                  .map(([x, y]) => `${x},${y}`)
-                  .join(" ");
+            <circle cx={cx} cy={cy} r={stoneR} fill={mix(92, 'black')} />
+            <g data-optical-layer="crown-facets" stroke={mix(62, 'white')} strokeOpacity=".5" strokeWidth=".22" strokeLinejoin="round">
+              {ks.map((k) => {
+                const prev = (k + 7) % 8;
+                const next = (k + 1) % 8;
+                // Azimuths: kite k points at 45k+22.5, star/girdle tip S_k at 45(k+1).
+                const kite = [T[k], S[prev], G[k], S[k]];
+                const star = [T[k], T[next], S[k]];
+                const girdle = [G[k], G[next], S[k]];
+                const flip = k % 2 === 0 ? 0.32 : -0.32;
                 return (
-                  <polygon
-                    key={`pavilion-${i}`}
-                    points={points}
-                    fill={shade >= 0 ? mix(30, "white") : mix(88, "black")}
-                    opacity={shade >= 0 ? 0.32 + shade * 0.24 : 0.3 + Math.abs(shade) * 0.38}
-                  />
+                  <g key={`facet-${k}`}>
+                    <polygon points={pts(kite)} fill={facetFill(tone(45 * k + 22.5, flip))} />
+                    <polygon points={pts(star)} fill={facetFill(tone(45 * (k + 1), -flip * 1.4))} />
+                    <polygon points={pts(girdle)} fill={facetFill(tone(45 * (k + 1), flip * 1.2))} />
+                  </g>
                 );
               })}
             </g>
-            <ellipse
-              data-optical-layer="internal-caustic"
-              cx={cx + 7.4}
-              cy={cy + 7.2}
-              rx={stoneR * 0.52}
-              ry={stoneR * 0.2}
-              transform={`rotate(-38 ${cx + 7.4} ${cy + 7.2})`}
-              fill={`url(#${depthCaustic})`}
-            />
-            <ellipse
-              data-optical-layer="internal-reflection"
-              cx={cx + 2.4}
-              cy={cy + 2.8}
-              rx={stoneR * 0.77}
-              ry={stoneR * 0.7}
-              transform={`rotate(-12 ${cx + 2.4} ${cy + 2.8})`}
-              fill="none"
-              stroke={`url(#${edgeRefraction})`}
-              strokeWidth=".9"
-              opacity=".48"
-            />
-            <circle cx={cx} cy={cy} r={stoneR * 0.72} fill={`url(#${coreGlow})`} style={{ filter: "blur(.5px)" }} />
-            <polygon points={quadrant(0)} fill={`url(#${qTop})`} />
-            <polygon points={quadrant(2)} fill={`url(#${qRight})`} />
-            <polygon points={quadrant(4)} fill={`url(#${qBottom})`} />
-            <polygon points={quadrant(6)} fill={`url(#${qLeft})`} />
-            <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} fill={`url(#${tableFace})`} />
-            {/* Sixteen individual flat facets (not one smooth gradient per
-                quadrant) so each plane visibly steps a little brighter or
-                darker than its neighbour, the way real cut facets each
-                catch the light differently. */}
-            {angles.map((deg, i) => {
-              // This wedge spans angles[i-1]..angles[i], centred at deg-22.5;
-              // the light sits at -22.5°, so its angular distance from that
-              // centre works out to exactly `deg`.
-              const shade = Math.cos((deg * Math.PI) / 180);
-              const pts = [outerPts[(i + 7) % 8], outerPts[i], innerPts[i]].map(([x, y]) => `${x},${y}`).join(" ");
-              return (
+            {/* The table is a window onto the pavilion: eight facets that
+                meet at the culet, alternately catching the bright room and
+                the dark one, with a sharp-edged reflection band across it. */}
+            <g data-optical-layer="table-pavilion" clipPath={`url(#${tableClip})`}>
+              <polygon points={pts(T)} fill={mix(70, 'black')} />
+              {ks.map((k) => (
                 <polygon
-                  key={`ow-${i}`}
-                  points={pts}
-                  fill={shade >= 0 ? "#FFFFFF" : "#000000"}
-                  opacity={Math.abs(shade) * (shade >= 0 ? 0.22 : 0.17)}
+                  key={`pav-${k}`}
+                  points={pts([pavilionFocus, T[k], T[(k + 1) % 8]])}
+                  fill={k % 2 === 0 ? mix(66, 'white') : mix(58, 'black')}
+                  opacity={k % 2 === 0 ? 0.55 + 0.4 * Math.max(0, tone(45 * k + 45, 0)) : 0.85}
                 />
-              );
-            })}
-            {angles.map((deg, i) => {
-              // Spans angles[i]..angles[i+1], centred at deg+22.5; distance
-              // from the -22.5° light works out to `deg + 45`.
-              const shade = Math.cos(((deg + 45) * Math.PI) / 180);
-              const pts = [outerPts[i], innerPts[i], innerPts[(i + 1) % 8]].map(([x, y]) => `${x},${y}`).join(" ");
-              return (
-                <polygon
-                  key={`iw-${i}`}
-                  points={pts}
-                  fill={shade >= 0 ? "#FFFFFF" : "#000000"}
-                  opacity={Math.abs(shade) * (shade >= 0 ? 0.15 : 0.14)}
-                />
-              );
-            })}
-            {/* The core's glow diffusing outward through the translucent
-                stone, re-lighting every facet by true distance from centre
-                regardless of how dark its own angled tone reads. */}
-            <circle cx={cx} cy={cy} r={stoneR * 0.95} fill={`url(#${coreBleed})`} />
-            <polygon
-              points={`${outerPts[7].join(",")} ${point(cx, cy, -12, stoneR * 0.97).join(",")} ${point(cx, cy, 12, stoneR * 0.97).join(",")} ${point(cx, cy, 0, innerR * 1.08).join(",")}`}
-              fill={`url(#${flash})`}
-            />
-            <polygon
-              points={`${outerPts[3].join(",")} ${point(cx, cy, 168, stoneR * 0.97).join(",")} ${point(cx, cy, 192, stoneR * 0.97).join(",")} ${point(cx, cy, 180, innerR * 1.08).join(",")}`}
-              fill={`url(#${transmit})`}
-            />
-            <g fill="none" stroke={mix(45, "white")} strokeOpacity=".3" strokeWidth=".28">
-              <polygon points={innerPts.map(([x, y]) => `${x},${y}`).join(" ")} />
-              {[45, 135, 225, 315].map((deg) => {
-                const [x1, y1] = outerPts[angles.indexOf(deg)];
-                const [x2, y2] = innerPts[angles.indexOf(deg)];
-                return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} />;
-              })}
+              ))}
+              <polygon
+                points={`${cx - 9},${cy - 2} ${cx - 4},${cy - 8.5} ${cx + 1.5},${cy - 8.5} ${cx - 4.5},${cy - 1}`}
+                fill="#FFFFFF"
+                opacity=".62"
+              />
             </g>
-            {glint(innerPts[0], innerPts[1], 0.12, 0.88, 1.3, 0.9)}
-            {glint(innerPts[4], innerPts[5], 0.15, 0.85, 1.1, 0.75)}
-            {glint(outerPts[2], innerPts[2], 0.25, 0.75, 1, 0.6)}
-            {glint(innerPts[6], innerPts[7], 0.2, 0.8, 0.85, 0.45)}
+            <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".55" strokeWidth=".3" strokeLinejoin="round" />
+            {/* Hard specular glints on the facets that face the light. */}
+            {glint(T[7], S[7], 0.1, 0.9, 1.2, 0.95)}
+            {glint(S[6], G[7], 0.15, 0.85, 1, 0.8)}
+            {glint(T[0], S[0], 0.2, 0.8, 0.9, 0.7)}
+            {glint(G[6], G[7], 0.2, 0.8, 0.8, 0.6)}
+            {/* Dispersion: a couple of tiny spectral flecks near the girdle,
+                the way fire flashes off a cut stone's edge. */}
+            <polygon points={pts([G[1], S[1], point(cx, cy, 45 * 2 - 14, stoneR * 0.9)])} fill="#9FE8FF" opacity=".42" />
+            <polygon points={pts([G[4], S[4], point(cx, cy, 45 * 5 - 14, stoneR * 0.9)])} fill="#FFC27A" opacity=".38" />
             <circle
-              data-optical-layer="surface-lens"
+              data-optical-layer="girdle-edge"
               cx={cx}
               cy={cy}
-              r={stoneR - 0.45}
-              fill={`url(#${surfaceLens})`}
-              pointerEvents="none"
-            />
-            <circle
-              data-optical-layer="refracted-girdle"
-              cx={cx}
-              cy={cy}
-              r={stoneR - 0.85}
+              r={stoneR - 0.3}
               fill="none"
-              stroke={`url(#${edgeRefraction})`}
-              strokeWidth="1.65"
+              stroke={mix(55, 'white')}
+              strokeOpacity=".7"
+              strokeWidth=".6"
             />
           </g>
         )}
