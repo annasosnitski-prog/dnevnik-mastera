@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { glowOf } from "../ui/designTokens";
+import { glowOf, TERRITORY_COLORS } from "../ui/designTokens";
 
 function point(cx: number, cy: number, deg: number, r: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
@@ -65,7 +65,17 @@ export function PendantIcon({
   // green goes blue-green and the stone stays coloured in its dark facets.
   const COOL_SHADOW = '#0E0450';
   // Lit facets lean warm (cream), shadows cool: the warm/cool split is the contrast.
-  const WARM_LIGHT = '#FFE9C2';
+  // Per colour the warm shift goes the other way round the wheel: red towards
+  // yellow, yellow towards red, blue towards red, and so on.
+  const WARM_BY_COLOR: Record<string, string> = {
+    [TERRITORY_COLORS.clients]: '#FFB4C0',
+    [TERRITORY_COLORS.personal]: '#FFB48A',
+    [TERRITORY_COLORS.content]: '#FFD79A',
+    [TERRITORY_COLORS.projects]: '#F4EAA0',
+    [TERRITORY_COLORS.notes]: '#FFD98A',
+    [TERRITORY_COLORS.admin]: '#FFB0BC',
+  };
+  const WARM_LIGHT = WARM_BY_COLOR[color] ?? '#FFE9C2';
   const mix = (pct: number, tint: "white" | "black") =>
     `color-mix(in srgb, ${color} ${100 - pct}%, ${tint === 'black' ? COOL_SHADOW : WARM_LIGHT} ${pct}%)`;
 
