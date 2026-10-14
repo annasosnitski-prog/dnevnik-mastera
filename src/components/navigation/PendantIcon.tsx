@@ -61,7 +61,11 @@ export function PendantIcon({
   const softClip = `pendant-softclip-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
-  const mix = (pct: number, tint: "white" | "black") => `color-mix(in srgb, ${color} ${100 - pct}%, ${tint} ${pct}%)`;
+  // Shadows are not grey: they slide into a deep indigo, so red goes violet,
+  // green goes blue-green and the stone stays coloured in its dark facets.
+  const COOL_SHADOW = '#160A5C';
+  const mix = (pct: number, tint: "white" | "black") =>
+    `color-mix(in srgb, ${color} ${100 - pct}%, ${tint === 'black' ? COOL_SHADOW : tint} ${pct}%)`;
 
   const cx = 32;
   const cy = 32;
