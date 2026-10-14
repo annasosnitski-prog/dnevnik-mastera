@@ -90,6 +90,9 @@ export function PendantIcon({
   // Bevel (фаска): a narrow chamfer band running round the whole girdle,
   // between the girdle corners and the same corners pulled 12% inward.
   const GB = ks.map((k) => edge(45 * k + 22.5 + rot, stoneR * 0.88));
+  // The table gets the same chamfer: a band round its edge, and a slightly
+  // smaller glass inside it.
+  const TB = ks.map((k) => edge(45 * k + 22.5 + rot, tableR * 0.8));
   const pts = (list: ReadonlyArray<readonly [number, number]>) => list.map(([x, y]) => `${x},${y}`).join(' ');
   // A real diamond is not smooth: neighbouring facets mirror either the
   // bright room or the dark one, so adjacent planes jump between near-white
@@ -299,13 +302,22 @@ export function PendantIcon({
                 the stone, so it lands as a light patch in the lower half of
                 the table: a crisp-edged two-tone shard (outer tint, brighter
                 core), not a soft glow. */}
+            <g data-optical-layer="table-bevel" stroke={mix(70, 'white')} strokeOpacity=".5" strokeWidth=".2" strokeLinejoin="round">
+              {ks.map((k) => {
+                const next = (k + 1) % 8;
+                // The table's edge k faces the same way as the star facet on it.
+                const t = tone(45 * (k + 1), 0);
+                const fill = t > 0.45 ? mix(88, 'white') : t > 0 ? mix(64, 'white') : t > -0.45 ? mix(25, 'black') : mix(62, 'black');
+                return <polygon key={`tbevel-${k}`} points={pts([T[k], T[next], TB[next], TB[k]])} fill={fill} />;
+              })}
+            </g>
             <g data-optical-layer="table-transmitted-light">
-              <polygon points={pts(T)} fill={mix(52, 'black')} />
+              <polygon points={pts(TB)} fill={mix(52, 'black')} />
               {/* Hard edge on the facet side (the table's lower rim), then the
                   light thins out toward the main flash in the upper left. */}
-              <polygon points={pts(T)} fill={`url(#${transmitFade})`} />
+              <polygon points={pts(TB)} fill={`url(#${transmitFade})`} />
             </g>
-            <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".55" strokeWidth=".3" strokeLinejoin="round" />
+            <polygon points={pts(TB)} fill="none" stroke="#FFFFFF" strokeOpacity=".5" strokeWidth=".25" strokeLinejoin="round" />
             {/* Hard specular glints on the facets that face the light. */}
             {glint(T[7], S[7], 0.1, 0.9, 1.2, 0.95)}
             {glint(S[6], G[7], 0.15, 0.85, 1, 0.8)}
