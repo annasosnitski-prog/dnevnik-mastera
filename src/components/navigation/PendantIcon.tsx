@@ -143,6 +143,14 @@ export function PendantIcon({
     : t > -0.72 ? mix(46, 'black')
     : mix(72, 'black');
 
+  // Pavilion windmill seen through the table: inner ring + twisted spokes.
+  const ringR = tableR * 0.4;
+  const pavilionRing = ks.map((k) => edge(45 * k + 22.5 + rot, ringR));
+  const pavilionSpokes = ks.map((k) => ({
+    a: T[k],
+    b: edge(45 * k + 22.5 + 26 + rot, ringR),
+  }));
+
   // Unique facet edges with a closeness-to-the-flash weight (0..1).
   const flash = [(T[7][0] + S[7][0]) / 2, (T[7][1] + S[7][1]) / 2] as const;
   const edgeLines = (() => {
@@ -368,6 +376,20 @@ export function PendantIcon({
               <polygon points={pts(T)} fill={mix(52, 'black')} />
               <polygon points={pts(T)} fill={`url(#${transmitFade})`} />
               <polygon points={pts(T)} fill="none" stroke="#FFFFFF" strokeOpacity=".5" strokeWidth=".25" strokeLinejoin="round" />
+              {/* Depth: the pavilion seen through the table, as lines only. Eight
+                  spokes run from the table corners to a small inner ring, each
+                  twisted a quarter-facet round, which reads as the "windmill";
+                  a dark partner line beside each light one cuts it into the glass. */}
+              <g data-optical-layer="pavilion-lines" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                {pavilionSpokes.map(({ a, b }, i) => (
+                  <g key={`pav-${i}`}>
+                    <line x1={a[0] + 0.25} y1={a[1] + 0.3} x2={b[0] + 0.25} y2={b[1] + 0.3} stroke={COOL_SHADOW} strokeOpacity=".5" strokeWidth=".26" />
+                    <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={WARM_LIGHT} strokeOpacity=".62" strokeWidth=".22" />
+                  </g>
+                ))}
+                <polygon points={pts(pavilionRing)} stroke={COOL_SHADOW} strokeOpacity=".45" strokeWidth=".24" transform="translate(.25 .3)" />
+                <polygon points={pts(pavilionRing)} stroke={WARM_LIGHT} strokeOpacity=".55" strokeWidth=".2" />
+              </g>
             </g>
             {/* Rim light on the facet edges: every edge carries a thin line lighter
                 than both neighbours, brightest next to the main flash (upper
