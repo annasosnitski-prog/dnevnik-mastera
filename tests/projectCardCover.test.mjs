@@ -15,3 +15,18 @@ test('cover shows next step instead of status only when the project is «Акт�
 test('the status badge is still rendered as a fallback (active-without-next-step, or any other status)', () => {
   assert.match(source, /PROJECT_STATUSES\.find\(\(s\)\s*=>\s*s\.key\s*===\s*project\.status\)/);
 });
+
+// Пока открыт цикл заживления, обложка показывает самое свежее фото из
+// Project.healingPhotos, если оно есть — приоритетнее projectCoverPhoto.
+test('while the healing cycle is open, the cover prefers the latest project-level healing photo', () => {
+  assert.match(source, /const healing = openHealingCycle\(project\);/);
+  assert.match(
+    source,
+    /const latestHealingPhoto = healing\s*\?\s*\[\.\.\.project\.healingPhotos\]\.sort\(\(a, b\) => b\.addedDate\.localeCompare\(a\.addedDate\)\)\[0\] \?\? null\s*:\s*null;/,
+  );
+  assert.match(source, /const cover = latestHealingPhoto\?\.url \?\? projectCoverPhoto\(project\);/);
+});
+
+test('no healing-cycle day badge is rendered on the card (removed per feedback — photo only)', () => {
+  assert.doesNotMatch(source, /Заживление · день/);
+});
