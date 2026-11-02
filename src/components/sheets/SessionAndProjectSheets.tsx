@@ -604,11 +604,11 @@ export function NewConsultationSheet({
           {/* Consultation.area remains free text by design. */}
           <div style={{ marginBottom: 16 }}><FieldLabel>Место</FieldLabel><input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Проект</FieldLabel><select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}><option value="">— создать новый проект —</option>{clientProjects.map((p) => <option key={p.id} value={p.id}>{p.title || 'Без названия'}</option>)}</select></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Пожелания клиента, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Чувство / ощущение</FieldLabel><textarea value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="Какое чувство или ощущение должна передавать татуировка..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Пожелания клиента, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Срочность</FieldLabel><UrgencyChips value={urgency} onPick={setUrgency} /></div>
         </div>
       </div>
