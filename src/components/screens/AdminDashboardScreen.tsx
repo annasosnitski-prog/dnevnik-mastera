@@ -28,7 +28,6 @@ import type {
 import type { HealingCycleItem } from '../../reminders/healingCycle';
 import { todayISO } from '../../utils/dates';
 import { DROP_CAP_FONT, InkaTitleSuffix } from '../InkaLogo';
-import { StarDivider } from '../icons/StarIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { ProjectTimelineList } from '../project/ProjectTimelineList';
 import { ClientActionsTab } from './ClientActionsTab';
@@ -146,7 +145,6 @@ export function AdminDashboardScreen({
           </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        <StarDivider />
       </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента и личного

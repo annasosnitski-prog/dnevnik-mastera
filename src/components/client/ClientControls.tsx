@@ -619,8 +619,9 @@ export const SessionPhotos = forwardRef<SessionPhotosHandle, {
         }}
       >
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-          <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          <path d="M6.1 5L6.75 3.55C6.9 3.22 7.23 3 7.6 3H8.4C8.77 3 9.1 3.22 9.25 3.55L9.9 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="2" y="5" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+          <circle cx="8" cy="9" r="2.2" stroke="currentColor" strokeWidth="1.2" />
         </svg>
       </div>
   );
@@ -756,8 +757,9 @@ export function PhotoAddIconButton({ onClick, title = 'Добавить фото
       }}
     >
       <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-        <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <path d="M6.1 5L6.75 3.55C6.9 3.22 7.23 3 7.6 3H8.4C8.77 3 9.1 3.22 9.25 3.55L9.9 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        <rect x="2" y="5" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+        <circle cx="8" cy="9" r="2.2" stroke="currentColor" strokeWidth="1.2" />
       </svg>
     </div>
   );

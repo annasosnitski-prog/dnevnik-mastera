@@ -44,7 +44,6 @@ import {
   type StorageBreakdown,
 } from '../../lib/storageBreakdown';
 import { DROP_CAP_FONT } from '../InkaLogo';
-import { StarDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, type Theme, type Prefs, DEFAULT_PREFS } from '../TattoDiary';
 import type { SyncDriverState } from '../../sync/useSyncDriver';
@@ -753,7 +752,6 @@ export function SettingsScreen({
               </div>
               <TodayDateBadge onOpen={onOpenCalendar} size={35} />
             </div>
-            <StarDivider />
           </div>
         </>
       )}

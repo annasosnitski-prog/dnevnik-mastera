@@ -9,7 +9,6 @@ import { type Project } from '../../domain/project';
 import { type UrgencyKey } from '../../domain/urgency';
 import { NoteComposer } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton } from '../ui/Sheet';
-import { SheetStarDivider } from '../ui/TextAtoms';
 import { COLORS, fs } from '../TattoDiary';
 
 export function NoteComposerSheet({
@@ -34,7 +33,6 @@ export function NoteComposerSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новая заметка</div>
-        <SheetStarDivider />
       </div>
       <div style={{ padding: '4px 24px 40px' }}>
         <NoteComposer
