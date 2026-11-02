@@ -84,9 +84,13 @@ export function BottomSheet({
   );
 }
 
+// Крестик закрытия — всегда красный (универсальный цвет «закрыть/отменить»)
+// и всегда на месте, в отличие от прежнего поведения, где сохранение на
+// момент показа SheetSavedCheck замещало его совсем. Теперь оба знака стоят
+// рядом (см. SheetSavedCheck) — крестик по-прежнему можно нажать.
 export function SheetCloseButton({ onClose }: { onClose: () => void }) {
   return (
-    <div className="inka-close" onClick={onClose} style={{ position: 'absolute', top: 18, right: 24, cursor: 'pointer', opacity: 0.4 }}>
+    <div className="inka-close" onClick={onClose} style={{ position: 'absolute', top: 18, right: 24, cursor: 'pointer', opacity: 0.75, color: '#A85A66' }}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -110,13 +114,13 @@ export function SheetEditButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-// Sits in the same top-right corner as SheetCloseButton, same size — swapped
-// in briefly after saving an edit (Session/Consultation) so the confirmation
-// reads as "the close button turned into a checkmark" rather than an
-// unrelated toast appearing elsewhere on the sheet.
+// Sits just left of SheetCloseButton (which stays put, see above), shown
+// briefly after saving an edit (Session/Consultation/Project) — a green
+// check appearing next to the still-present red close cross, rather than
+// replacing it, so the confirmation doesn't cost the ability to close.
 export function SheetSavedCheck() {
   return (
-    <div style={{ position: 'absolute', top: 18, right: 24 }}>
+    <div style={{ position: 'absolute', top: 18, right: 48 }}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <path d="M2.5 8.3L6 11.8L13.5 4.3" stroke="#5E8C4A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>

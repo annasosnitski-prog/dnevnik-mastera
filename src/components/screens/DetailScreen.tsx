@@ -52,6 +52,7 @@ import {
 import { ProjectCard } from '../project/ProjectCard';
 import { ProjectContentCard } from '../sheets/SessionAndProjectSheets';
 import { SessionPhotos, SkinTonePalette, UrgencyChips, AddChatLinkForm } from '../client/ClientControls';
+import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon, GenericLinkIcon } from '../icons/SocialIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { GoldFrame } from '../ui/Stripes';
 import { MetaLabel, MetaValue, SectionDivider, SectionHeader } from '../ui/TextAtoms';
@@ -1261,14 +1262,30 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
 }
 
 // ── Contacts (phone + chat links) ──
+// Иконка под каждую платформу чата — тот же набор, что у «Соцсети» в
+// Личном кабинете мастера (MasterDashboardScreen); платформы без своего
+// значка (Telegram, Messenger, сайт, «другое») получают GenericLinkIcon.
+const CHAT_PLATFORM_ICONS: Partial<Record<ChatPlatform, (props: { width?: number; height?: number }) => JSX.Element>> = {
+  instagram: InstagramIcon,
+  whatsapp: WhatsAppIcon,
+  tiktok: TikTokIcon,
+  pinterest: PinterestIcon,
+  facebook: FacebookIcon,
+};
+
 function ContactsSection({ client, onSave, first }: { client: Client; onSave: (client: Client) => void; first?: boolean }) {
   const [phone, setPhone] = useState(client.phone || '');
   const [editingPhone, setEditingPhone] = useState(false);
+  // Ссылки свёрнуты в ряд иконок по умолчанию (как «Соцсети» у мастера) —
+  // полный редактируемый список (адрес + удаление) открывается тем же
+  // «Изменить»/«Готово» тумблером, что «Оплата» на экране мастера.
+  const [editingLinks, setEditingLinks] = useState(false);
 
   // Re-sync local phone when switching to another client.
   useEffect(() => {
     setPhone(client.phone || '');
     setEditingPhone(false);
+    setEditingLinks(false);
   }, [client.id]);
 
   const savePhone = () => {
@@ -1281,6 +1298,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
     onSave({ ...client, chatLinks: [...(client.chatLinks || []), link] });
   };
   const removeLink = (id: string) => onSave({ ...client, chatLinks: (client.chatLinks || []).filter((l) => l.id !== id) });
+  const links = client.chatLinks || [];
 
   return (
     <div style={{ marginTop: first ? 0 : 22 }}>
@@ -1364,59 +1382,92 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
         )}
       </div>
 
-      {/* Chat links */}
-      {(client.chatLinks || []).map((link) => (
-        <div
-          key={link.id}
-          style={{
-            background: 'rgba(var(--surface-rgb),0.018)',
-            border: '1px solid rgba(var(--gold-rgb),0.1)',
-            borderRadius: 2,
-            padding: '11px 13px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 11,
-            marginBottom: 8,
-          }}
+      {/* Ссылки — ряд иконок (как «Соцсети» у мастера): тап открывает
+          профиль. Полный список с адресом и удалением — под тумблером
+          ниже, а не развёрнут всегда. */}
+      {links.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+          {links.map((link) => {
+            const Icon = CHAT_PLATFORM_ICONS[link.platform] ?? GenericLinkIcon;
+            return (
+              <a
+                key={link.id}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Открыть ${PLATFORM_LABELS[link.platform]}`}
+                title={PLATFORM_LABELS[link.platform]}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textDecoration: 'none',
+                  border: '1px solid rgba(var(--gold-rgb),0.3)',
+                  background: 'rgba(var(--gold-rgb),0.04)',
+                  color: COLORS.gold,
+                  flexShrink: 0,
+                }}
+              >
+                <Icon width={20} height={20} />
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: editingLinks ? 8 : 0 }}>
+        <span
+          onClick={() => setEditingLinks((v) => !v)}
+          role="button"
+          aria-label={editingLinks ? 'Готово' : links.length > 0 ? 'Изменить ссылки' : 'Добавить ссылку'}
+          style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
         >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: COLORS.gold,
-              flexShrink: 0,
-            }}
-          />
-          <a
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ flex: 1, minWidth: 0, textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 1 }}
-          >
-            <span style={{ fontSize: fs(15), color: COLORS.gold, letterSpacing: '0.5px' }}>{PLATFORM_LABELS[link.platform]}</span>
-            <span
+          {editingLinks ? 'Готово' : links.length > 0 ? 'изменить ссылки' : '+ добавить ссылку'}
+        </span>
+      </div>
+
+      {editingLinks && (
+        <>
+          {links.map((link) => (
+            <div
+              key={link.id}
               style={{
-                fontSize: fs(13),
-                color: COLORS.textFaint,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+                background: 'rgba(var(--surface-rgb),0.018)',
+                border: '1px solid rgba(var(--gold-rgb),0.1)',
+                borderRadius: 2,
+                padding: '11px 13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 11,
+                marginBottom: 8,
               }}
             >
-              {link.url.replace(/^https?:\/\//, '')}
-            </span>
-          </a>
-          <button
-            onClick={() => removeLink(link.id)}
-            style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15) }}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-
-      <AddChatLinkForm onAdd={addLink} />
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: COLORS.gold, flexShrink: 0 }} />
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ flex: 1, minWidth: 0, textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 1 }}
+              >
+                <span style={{ fontSize: fs(15), color: COLORS.gold, letterSpacing: '0.5px' }}>{PLATFORM_LABELS[link.platform]}</span>
+                <span style={{ fontSize: fs(13), color: COLORS.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {link.url.replace(/^https?:\/\//, '')}
+                </span>
+              </a>
+              <button
+                onClick={() => removeLink(link.id)}
+                style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15) }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <AddChatLinkForm onAdd={addLink} />
+        </>
+      )}
     </div>
   );
 }

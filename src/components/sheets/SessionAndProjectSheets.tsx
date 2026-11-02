@@ -248,7 +248,8 @@ export function NewSessionSheet({
   return (
     <BottomSheet open={open} heightPct={80}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
+        {justSaved && <SheetSavedCheck />}
+        <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
           {isEdit ? 'Редактировать сессию' : chainFrom ? 'Следующая сессия' : 'Новая сессия'}
@@ -556,7 +557,8 @@ export function NewConsultationSheet({
   return (
     <BottomSheet open={open} heightPct={85}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
+        {justSaved && <SheetSavedCheck />}
+        <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{isEdit ? 'Редактировать консультацию' : chainFrom ? 'Следующая консультация' : 'Новая консультация'}</div>
         <SheetStarDivider />
@@ -1082,7 +1084,8 @@ export function NewProjectSheet({
   return (
     <BottomSheet open={open} heightPct={85}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
+        {justSaved && <SheetSavedCheck />}
+        <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>Мастерская</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{isEdit ? 'Редактировать проект' : 'Новый проект'}</div>
         <SheetStarDivider />
