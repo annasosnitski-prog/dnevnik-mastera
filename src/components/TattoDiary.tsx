@@ -3357,11 +3357,6 @@ export default function TattoDiary() {
               onChangeMasterInfo={setMasterInfo}
               projects={projects}
               onOpenProject={(project) => setViewProject(project)}
-              onCreateProject={() => {
-                setEditProject(null);
-                setNewProjectClientId(null);
-                setShowNewProjectForm(true);
-              }}
               settings={{
                 theme,
                 onToggleTheme: toggleTheme,
@@ -3545,30 +3540,7 @@ export default function TattoDiary() {
               }
               projects={projects}
               onOpenProject={(project) => setViewProject(project)}
-              onCreateProject={() => {
-                setEditProject(null);
-                setNewProjectClientId(selectedClient.id);
-                setShowNewProjectForm(true);
-              }}
               onUpsertNote={(note) => upsertNote(selectedClient.id, note)}
-              // Adding a note is NOT gated behind the mini-game. The composer
-              // clears its text the moment it hands the note off, so gating here
-              // (unlike client/session creation, which gates opening the form
-              // before anything is typed) could eat a task the master already
-              // wrote if they dismissed the game — leaving some clients missing
-              // tasks they thought they'd saved. Notes always save immediately.
-              onAddNote={(text, urgency, photos, dueDate, projectId) =>
-                upsertNote(selectedClient.id, {
-                  id: crypto.randomUUID(),
-                  text,
-                  urgency,
-                  done: false,
-                  createdDate: new Date().toISOString(),
-                  photos,
-                  projectId,
-                  dueDate,
-                })
-              }
               onDeleteNote={(noteId) => deleteNote(selectedClient.id, noteId)}
               contentEntries={contentEntries}
               onOpenContent={openContentWorkspace}

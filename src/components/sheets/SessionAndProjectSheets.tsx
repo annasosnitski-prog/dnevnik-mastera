@@ -24,6 +24,7 @@ import {
   hasMoodboardContent,
   moodboardPhotoSrcs,
   withMoodboardPhotoSrcs,
+  mergeLegacyPhotosIntoMoodboard,
 } from '../../domain/project';
 import { shareMoodboard } from '../../lib/moodboardShare';
 import { downsizeForStorage } from '../../lib/imagePreview';
@@ -40,8 +41,6 @@ import {
   INPUT_STYLE,
   SUBMIT_STYLE,
   DURATIONS,
-  STYLES,
-  STYLES_PINNED_COUNT,
   DONE_EMOJI,
   ViewField,
   clientNameFor,
@@ -51,6 +50,7 @@ import {
   SessionPhotos,
   UrgencyChips,
   ProjectCategoryChips,
+  ProjectStatusChips,
   NextStepRow,
 } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton, SheetSavedCheck } from '../ui/Sheet';
@@ -139,18 +139,21 @@ export function NewSessionSheet({
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [duration, setDuration] = useState('');
+  // Стиль и зона работы больше не отдельные поля сессии (дублировали «Тип»
+  // и «Место» проекта) — своего UI у них больше нет, но при редактировании
+  // старой сессии её прежние значения по-прежнему подставляются сюда в
+  // useEffect ниже и уезжают обратно при сохранении, а не стираются молча.
   const [style, setStyle] = useState('');
-  const [stylesExpanded, setStylesExpanded] = useState(false);
   const [area, setArea] = useState('');
   const [colors, setColors] = useState('');
   const [needles, setNeedles] = useState('');
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
-  // New sessions default to «Выполнена»; editing reflects the session's
-  // status; started from a calendar date (clearly a future booking), default
-  // to «Запланирована» instead.
-  const [done, setDone] = useState(true);
+  // New sessions default to «Запланирована» — a session is created before
+  // it happens far more often than after; editing reflects the session's
+  // own status.
+  const [done, setDone] = useState(false);
   // «Это последняя сессия проекта?» — см. Session.isLastSession. Прежний
   // тумблер «Зажив» (session.healed) отсюда убран: флаг deprecated, заменён
   // галереей заживления на проекте (Project.healingPhotos).
@@ -178,10 +181,10 @@ export function NewSessionSheet({
       setSkinReaction(initial?.skinReaction ?? '');
       setNote(initial?.note ?? consultationNoteSummary(prefillConsultation));
       setPhotos(initial?.photos ?? prefillConsultation?.photos ?? []);
-      // A converted consultation is always a future booking, not yet done —
-      // same reasoning as the initialDate case just below. A chained next
-      // session is the same: it hasn't happened yet.
-      setDone(initial ? initial.done : !initialDate && !prefillConsultation && !chainFrom);
+      // New sessions always start «Запланирована» — whether from a blank
+      // form, a calendar date, a converted consultation or a chained next
+      // session, none of these have happened yet either.
+      setDone(initial ? initial.done : false);
       setIsLastSession(initial?.isLastSession ?? false);
       setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
@@ -245,7 +248,8 @@ export function NewSessionSheet({
   return (
     <BottomSheet open={open} heightPct={80}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
+        {justSaved && <SheetSavedCheck />}
+        <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>
           {isEdit ? 'Редактировать сессию' : chainFrom ? 'Следующая сессия' : 'Новая сессия'}
@@ -266,12 +270,8 @@ export function NewSessionSheet({
           <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Название сессии</FieldLabel>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
-        </div>
-
-        {/* Поле всегда видно (даже когда у владельца ещё нет ни одного
+        {/* Проект сначала — название сессии имеет смысл в его контексте.
+            Поле всегда видно (даже когда у владельца ещё нет ни одного
             проекта) — сессия больше не может остаться совсем без проекта:
             если мастер не выбрала существующий, ensureProjectId в
             TattoDiary.tsx молча заведёт новый под тем же владельцем при
@@ -284,6 +284,11 @@ export function NewSessionSheet({
               <option key={p.id} value={p.id}>{p.title || 'Без названия'}</option>
             ))}
           </select>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Название сессии</FieldLabel>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
         </div>
 
         {/* Date & time stacked full-width. Side-by-side used to overlap on
@@ -313,26 +318,6 @@ export function NewSessionSheet({
               <div key={d} onClick={() => setDuration(d)} style={chipStyle(duration === d, true)}>{d}</div>
             ))}
           </div>
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Стиль работы</FieldLabel>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            {(stylesExpanded ? STYLES : STYLES.slice(0, STYLES_PINNED_COUNT).concat(style && STYLES.indexOf(style) >= STYLES_PINNED_COUNT ? [style] : [])).map((s) => (
-              <div key={s} onClick={() => setStyle(s)} style={chipStyle(style === s, false)}>{s}</div>
-            ))}
-            {!stylesExpanded && (
-              <div onClick={() => setStylesExpanded(true)} style={{ fontSize: fs(12), padding: '6px 11px', color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                Ещё стили ▾
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Session.area remains free text by design. */}
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Зона работы</FieldLabel>
-          <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -572,7 +557,8 @@ export function NewConsultationSheet({
   return (
     <BottomSheet open={open} heightPct={85}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
+        {justSaved && <SheetSavedCheck />}
+        <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{isEdit ? 'Редактировать консультацию' : chainFrom ? 'Следующая консультация' : 'Новая консультация'}</div>
         <SheetStarDivider />
@@ -602,11 +588,11 @@ export function NewConsultationSheet({
           {/* Consultation.area remains free text by design. */}
           <div style={{ marginBottom: 16 }}><FieldLabel>Место</FieldLabel><input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Проект</FieldLabel><select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value || null)} style={INPUT_STYLE}><option value="">— создать новый проект —</option>{clientProjects.map((p) => <option key={p.id} value={p.id}>{p.title || 'Без названия'}</option>)}</select></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Пожелания клиента, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Чувство / ощущение</FieldLabel><textarea value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="Какое чувство или ощущение должна передавать татуировка..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Пожелания клиента, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Срочность</FieldLabel><UrgencyChips value={urgency} onPick={setUrgency} /></div>
         </div>
       </div>
@@ -1043,8 +1029,10 @@ export function NewProjectSheet({
   const [style, setStyle] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
   const [ideas, setIdeas] = useState('');
+  // Только «хвост» старых Project.photos, не влезший в мудборд (поля в форме
+  // нет) — сохраняется как есть, чтобы ничего не потерять.
   const [photos, setPhotos] = useState<string[]>([]);
-  // Мудборд заводится/правится прямо здесь, рядом с «Фотографии» — та же
+  // Мудборд заводится/правится прямо здесь — та же
   // точка входа, где мастер уже привыкла добавлять снимки при создании
   // проекта (см. moodboardPhotoSrcs/withMoodboardPhotoSrcs в domain/project.ts
   // — мост между этим string[] и Project.moodboard.items). Не-photo items
@@ -1079,8 +1067,14 @@ export function NewProjectSheet({
       setStyle(initial?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
       setIdeas([initial?.creative, initial?.feeling, initial?.inspirationSources].filter((v) => v && v.trim()).join('\n\n'));
-      setPhotos(initial?.photos ?? []);
-      setMoodboardPhotos(moodboardPhotoSrcs(initial?.moodboard ?? null));
+      {
+        // Старые «Фотографии» проекта переезжают в мудборд (см.
+        // mergeLegacyPhotosIntoMoodboard): в photos остаётся только то, что
+        // не влезло в лимит мудборда — поля для него в форме больше нет.
+        const merged = mergeLegacyPhotosIntoMoodboard(moodboardPhotoSrcs(initial?.moodboard ?? null), initial?.photos ?? []);
+        setPhotos(merged.leftover);
+        setMoodboardPhotos(merged.moodboard);
+      }
       setConfirmingDelete(false);
       setJustSaved(false);
     }
@@ -1090,48 +1084,41 @@ export function NewProjectSheet({
   return (
     <BottomSheet open={open} heightPct={85}>
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
-        {justSaved ? <SheetSavedCheck /> : <SheetCloseButton onClose={onClose} />}
+        {justSaved && <SheetSavedCheck />}
+        <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>Мастерская</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{isEdit ? 'Редактировать проект' : 'Новый проект'}</div>
         <SheetStarDivider />
       </div>
 
       <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
+        {/* Порядок полей по просьбе мастера: клиент → название (+статус
+            чипами в той же строке) → место → тип → сессии и сроки; дальше
+            всё остальное. На планшете вторая колонка — «остальное». */}
         <div className="inka-consult-left">
-          <div style={{ marginBottom: 16 }}><FieldLabel>Фотографии</FieldLabel><SessionPhotos photos={photos} onChange={setPhotos} buttonFirst /></div>
-          {/* Отобранная подборка для клиента — отдельно от общей корзины
-              «Фотографии» выше (см. domain/project.ts: Moodboard vs
-              Project.photos). Отправка, статус и порядок фото — не этот
-              шаг: здесь только добавить/удалить, перетаскивание для смены
-              порядка живёт в просмотре проекта (ProjectViewSheet), не в
-              форме редактирования. */}
-          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst maxPhotos={MOODBOARD_MAX_PHOTOS} gridColumns={4} /></div>
-        </div>
-
-        <div className="inka-consult-right">
-          <div style={{ marginBottom: 16 }}><FieldLabel>Название</FieldLabel><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Дракон в стиле джапан..." style={INPUT_STYLE} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Тип</FieldLabel><ProjectCategoryChips value={category} onPick={setCategory} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Клиент</FieldLabel><select value={clientId ?? ''} onChange={(e) => setClientId(e.target.value || null)} style={INPUT_STYLE}><option value="">Мастерская (без клиента)</option>{clients.map((c) => <option key={c.id} value={c.id}>{`${c.name} ${c.surname}`.trim()}</option>)}</select></div>
 
           <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Статус</FieldLabel>
-            {/* Мастер ставит статус вручную там, где автоматики нет —
-                «Пауза» и снятие с неё (см. withAdvancedStatus про то, как
-                пауза сочетается с «только вперёд»). Остальные переходы
-                (заживление, завершение) проставляются сами. Раньше рядом
-                стоял ещё один select — «Состояние» (ProjectState) — с тем же
-                набором значений (Активен/Пауза), так что форма показывала
-                два дублирующих поля одновременно; ProjectState и его
-                отдельное хранимое поле убраны целиком — status теперь
-                единственный источник. */}
-            <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} style={INPUT_STYLE}>
-              {PROJECT_STATUSES.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                </option>
-              ))}
+            {/* Статус — компактные чипы прямо в строке названия, а не
+                отдельный select. Вручную мастер ставит то, где нет автоматики
+                («Пауза» и снятие с неё, см. withAdvancedStatus); остальные
+                переходы проставляются сами. */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 7 }}>
+              <div style={{ marginBottom: -7 }}><FieldLabel>Название</FieldLabel></div>
+              <ProjectStatusChips value={status} onPick={setStatus} />
+            </div>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Дракон в стиле джапан..." style={INPUT_STYLE} />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel>Место</FieldLabel>
+            <select value={area} onChange={(e) => setArea(e.target.value)} style={INPUT_STYLE}>
+              <option value="">Не задано</option>
+              {legacyArea && <option value={legacyArea}>{legacyArea}</option>}
+              {PROJECT_BODY_AREAS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
             </select>
           </div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Тип</FieldLabel><ProjectCategoryChips value={category} onPick={setCategory} /></div>
 
           {/* Не точное количество сессий — мастер на старте часто сама не
               знает, сколько понадобится, но знает «одна встреча» или «больше
@@ -1217,24 +1204,25 @@ export function NewProjectSheet({
               </select>
             )}
           </div>
+        </div>
 
+        <div className="inka-consult-right">
           <div style={{ marginBottom: 16 }}>
             <FieldLabel>Следующий шаг</FieldLabel>
-            <input value={nextActionText} onChange={(e) => setNextActionText(e.target.value)} placeholder="Уточнить размер, получить фото спины..." style={{ ...INPUT_STYLE, marginBottom: 8 }} />
-            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>Тип действия</div>
-            <select value={nextActionType ?? ''} onChange={(e) => setNextActionType((e.target.value || null) as NextActionType | null)} style={{ ...INPUT_STYLE, marginBottom: 8 }}><option value="">Не выбран</option>{NEXT_ACTION_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
-            <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 5 }}>Дата (когда сделать)</div>
-            <input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} style={INPUT_STYLE} />
+            {/* Текст, тип и дата — одной строкой: это части одного шага. На
+                узком экране строка переносится, но остаётся одним блоком. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <input value={nextActionText} onChange={(e) => setNextActionText(e.target.value)} placeholder="Уточнить размер, фото спины..." style={{ ...INPUT_STYLE, flex: '3 1 140px', width: 'auto', minWidth: 0 }} />
+              <select aria-label="Тип действия" value={nextActionType ?? ''} onChange={(e) => setNextActionType((e.target.value || null) as NextActionType | null)} style={{ ...INPUT_STYLE, flex: '1 1 90px', width: 'auto', minWidth: 0, padding: '10px 6px' }}><option value="">Тип действия</option>{NEXT_ACTION_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
+              <input aria-label="Когда сделать" type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} style={{ ...INPUT_STYLE, flex: '1 1 110px', width: 'auto', minWidth: 0, padding: '10px 6px' }} />
+            </div>
           </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <FieldLabel>Место</FieldLabel>
-            <select value={area} onChange={(e) => setArea(e.target.value)} style={INPUT_STYLE}>
-              <option value="">Не задано</option>
-              {legacyArea && <option value={legacyArea}>{legacyArea}</option>}
-              {PROJECT_BODY_AREAS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
-            </select>
-          </div>
+          {/* Мудборд — единственное место для фото проекта (отдельное поле
+              «Фотографии» убрано, старые фото переезжают сюда при открытии
+              формы). Отправка, статус и порядок фото — не этот шаг: здесь
+              только добавить/удалить, перетаскивание живёт в просмотре
+              проекта (ProjectViewSheet). */}
+          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst maxPhotos={MOODBOARD_MAX_PHOTOS} gridColumns={4} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Идеи и вдохновение</FieldLabel><textarea value={ideas} onChange={(e) => setIdeas(e.target.value)} placeholder="Чувство, креатив, источники вдохновения, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 110 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>

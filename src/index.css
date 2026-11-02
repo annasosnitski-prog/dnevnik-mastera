@@ -571,11 +571,18 @@ textarea:focus {
 }
 
 /* Native date picker follows the theme (calendar popup + glyph colours). */
-input[type='date'] {
+input[type='date'],
+select {
   color-scheme: dark;
 }
-:root[data-theme='light'] input[type='date'] {
+:root[data-theme='light'] input[type='date'],
+:root[data-theme='light'] select {
   color-scheme: light;
+}
+/* Выпадающий список select'а — фон темы, а не белый системный. */
+select option {
+  background: var(--bg);
+  color: var(--text);
 }
 
 /* ── Hover / press states ──

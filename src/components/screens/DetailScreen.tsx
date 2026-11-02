@@ -51,7 +51,8 @@ import {
 } from '../TattoDiary';
 import { ProjectCard } from '../project/ProjectCard';
 import { ProjectContentCard } from '../sheets/SessionAndProjectSheets';
-import { SessionPhotos, SkinTonePalette, UrgencyChips, AddChatLinkForm, NoteComposer } from '../client/ClientControls';
+import { SessionPhotos, SkinTonePalette, UrgencyChips, AddChatLinkForm } from '../client/ClientControls';
+import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon, GenericLinkIcon } from '../icons/SocialIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { GoldFrame } from '../ui/Stripes';
 import { MetaLabel, MetaValue, SectionDivider, SectionHeader } from '../ui/TextAtoms';
@@ -92,7 +93,7 @@ function HeaderCollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onT
 // The client's cover note ("Заметки о клиенте"), editable inline from the hero
 // (tap the pencil or the text). Saves straight through onSave — no need to open
 // the full client-edit form for a quick note change.
-function CoverNoteEditor({ client, onSave }: { client: Client; onSave: (c: Client) => void }) {
+function CoverNoteEditor({ client, onSave, compact }: { client: Client; onSave: (c: Client) => void; compact?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(client.note);
   useEffect(() => {
@@ -119,8 +120,29 @@ function CoverNoteEditor({ client, onSave }: { client: Client; onSave: (c: Clien
     </div>
   );
 
+  // Collapsed-header variant: one line, no field label repeated (the full
+  // hero already said «Заметки о клиенте» before it was collapsed) — just
+  // the text (or the empty-state hint) with its pencil, so the «this is
+  // editable» affordance survives collapsing the hero.
+  if (compact && !editing) {
+    return (
+      <div onClick={() => setEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ color: COLORS.gold, opacity: 0.7, flexShrink: 0 }}>
+          <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+        </svg>
+        {client.note ? (
+          <span dir="auto" style={{ fontSize: fs(13), color: 'var(--text-soft)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {client.note}
+          </span>
+        ) : (
+          <span style={{ fontSize: fs(13), color: COLORS.textGhost, fontStyle: 'italic' }}>Добавить заметку…</span>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div style={{ marginTop: 16 }}>
+    <div style={{ marginTop: compact ? 0 : 16 }}>
       {labelRow}
       {editing ? (
         <div>
@@ -211,7 +233,6 @@ export function DetailScreen({
   onAddDocument,
   onRemoveDocument,
   onUpsertNote,
-  onAddNote,
   onDeleteNote,
   contentEntries,
   onOpenContent,
@@ -219,7 +240,6 @@ export function DetailScreen({
   onImportClients,
   projects,
   onOpenProject,
-  onCreateProject,
   onOpenCalendar,
 }: {
   client: Client;
@@ -252,7 +272,6 @@ export function DetailScreen({
   onAddDocument: (doc: ClientDocument) => void;
   onRemoveDocument: (docId: string) => void;
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, projectId: string | null) => void;
   onDeleteNote: (noteId: string) => void;
   contentEntries: ContentEntry[];
   onOpenContent: (navigation: ContentWorkspaceNavigation) => void;
@@ -266,7 +285,6 @@ export function DetailScreen({
   onImportClients: (clients: Client[]) => void;
   projects: Project[];
   onOpenProject: (project: Project) => void;
-  onCreateProject: () => void;
   onOpenCalendar: () => void;
 }) {
   // The tab-content scroller is a single reused DOM node across every client
@@ -472,18 +490,26 @@ export function DetailScreen({
         </div>
 
         {headerCollapsed ? (
-          /* Collapsed strip — just enough to place the client, tap to re-expand */
-          <div
-            onClick={() => setHeaderCollapsed(false)}
-            style={{ padding: '0 24px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', position: 'relative', zIndex: 5 }}
-          >
-            <span dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(17), color: COLORS.textPrimary, fontWeight: 600, letterSpacing: '0.5px' }}>
-              {client.name}
-              {client.surname ? ` ${client.surname}` : ''}
-            </span>
-            <span style={{ fontSize: fs(13), color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
-            <HeaderCollapseToggle collapsed={headerCollapsed} onToggle={() => setHeaderCollapsed((v) => !v)} />
-          </div>
+          /* Collapsed strip — just enough to place the client, tap to
+             re-expand. The cover note stays visible (own row, own click
+             target) so the hint that it's editable doesn't disappear with
+             the rest of the hero. */
+          <>
+            <div
+              onClick={() => setHeaderCollapsed(false)}
+              style={{ padding: '0 24px 10px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', position: 'relative', zIndex: 5 }}
+            >
+              <span dir="auto" style={{ fontFamily: DROP_CAP_FONT, fontSize: fs(17), color: COLORS.textPrimary, fontWeight: 600, letterSpacing: '0.5px' }}>
+                {client.name}
+                {client.surname ? ` ${client.surname}` : ''}
+              </span>
+              <span style={{ fontSize: fs(13), color: COLORS.textGhost }}>· {client.sessions.length} сессий</span>
+              <HeaderCollapseToggle collapsed={headerCollapsed} onToggle={() => setHeaderCollapsed((v) => !v)} />
+            </div>
+            <div style={{ padding: '0 24px 16px', position: 'relative', zIndex: 5 }}>
+              <CoverNoteEditor client={client} onSave={onSave} compact />
+            </div>
+          </>
         ) : (
           /* Giant drop cap hero */
           <div style={{ padding: '12px 24px 18px', position: 'relative', zIndex: 5 }}>
@@ -591,7 +617,6 @@ export function DetailScreen({
             client={client}
             projects={getProjectsByClientId(projects, client.id)}
             onUpsertNote={onUpsertNote}
-            onAddNote={onAddNote}
             onDeleteNote={onDeleteNote}
           />
         )}
@@ -609,7 +634,6 @@ export function DetailScreen({
             client={client}
             projects={projects}
             onOpenProject={onOpenProject}
-            onCreateProject={onCreateProject}
             orphanSessionCount={orphanSessions.length}
             orphanConsultationCount={orphanConsultations.length}
             onOpenOrphans={setOrphanView}
@@ -701,7 +725,6 @@ function ProjectsTab({
   client,
   projects,
   onOpenProject,
-  onCreateProject,
   orphanSessionCount,
   orphanConsultationCount,
   onOpenOrphans,
@@ -709,7 +732,6 @@ function ProjectsTab({
   client: Client;
   projects: Project[];
   onOpenProject: (project: Project) => void;
-  onCreateProject: () => void;
   orphanSessionCount: number;
   orphanConsultationCount: number;
   onOpenOrphans: (kind: 'sessions' | 'consultations') => void;
@@ -900,9 +922,6 @@ function ProjectsTab({
             )}
           </div>
 
-          <span onClick={onCreateProject} role="button" style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
-            + Новый
-          </span>
         </div>
       </div>
 
@@ -1082,13 +1101,8 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
   return (
     <div style={{ marginTop: 22 }}>
       <SectionDivider />
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div style={{ marginBottom: 12 }}>
         <SectionHeader>Заметки мастера</SectionHeader>
-        {!editing && (
-          <span onClick={() => setEditing(true)} style={{ fontSize: fs(13), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer', marginTop: -10 }}>
-            {note ? 'править' : 'добавить'}
-          </span>
-        )}
       </div>
       {editing ? (
         <textarea
@@ -1144,21 +1158,33 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
 }
 
 
+// Старый тип кожи хранился кодом из SKIN_TYPES (select) — для миграции в
+// свободный текст подставляем его подпись, а не код.
+function legacySkinTypeLabel(code: string): string {
+  if (!code) return '';
+  return SKIN_TYPES.find((s) => s.value === code)?.label ?? code;
+}
+
 function SkinSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
-  const [skinType, setSkinType] = useState(client.skinType || '');
+  // «Тип кожи» (раньше select из SKIN_TYPES) и «Реакции кожи» объединены в
+  // одно поле свободного заполнения — записываются в client.skinType
+  // (уже была строка в домене), client.skinReactions больше не пишем, но и
+  // не трогаем старые данные: при первом открытии их значения подставляются
+  // в объединённое поле, если оно само ещё пустое.
+  const mergedSkinNotes = (c: Client) => {
+    if (c.skinType && !SKIN_TYPES.some((s) => s.value === c.skinType)) return c.skinType; // уже свободный текст
+    const parts = [legacySkinTypeLabel(c.skinType || ''), c.skinReactions || ''].filter((p) => p.trim());
+    return parts.join(parts.length === 2 ? ' — ' : '');
+  };
+  const [skinNotes, setSkinNotes] = useState(mergedSkinNotes(client));
   const [allergies, setAllergies] = useState(client.allergies || '');
-  const [skinReactions, setSkinReactions] = useState(client.skinReactions || '');
 
   useEffect(() => {
-    setSkinType(client.skinType || '');
+    setSkinNotes(mergedSkinNotes(client));
     setAllergies(client.allergies || '');
-    setSkinReactions(client.skinReactions || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
 
-  const saveType = (value: string) => {
-    setSkinType(value);
-    if (value !== (client.skinType || '')) onSave({ ...client, skinType: value });
-  };
   const saveTone = (tone: string) => {
     const next = tone === client.skinTone ? '' : tone;
     onSave({ ...client, skinTone: next });
@@ -1166,8 +1192,8 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
   const saveAllergies = () => {
     if (allergies.trim() !== (client.allergies || '')) onSave({ ...client, allergies: allergies.trim() });
   };
-  const saveSkinReactions = () => {
-    if (skinReactions.trim() !== (client.skinReactions || '')) onSave({ ...client, skinReactions: skinReactions.trim() });
+  const saveSkinNotes = () => {
+    if (skinNotes.trim() !== (client.skinType || '')) onSave({ ...client, skinType: skinNotes.trim() });
   };
 
   return (
@@ -1182,13 +1208,15 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
         <SkinTonePalette value={client.skinTone || ''} onPick={saveTone} />
       </div>
 
-      <div style={{ marginBottom: 8 }}>
+      <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
-          Тип кожи
+          Тип кожи и реакции
         </div>
-        <select
-          value={skinType}
-          onChange={(e) => saveType(e.target.value)}
+        <textarea
+          value={skinNotes}
+          onChange={(e) => setSkinNotes(e.target.value)}
+          onBlur={saveSkinNotes}
+          placeholder="Например: сухая, краснеет на контуре..."
           style={{
             width: '100%',
             background: 'rgba(var(--surface-rgb),0.018)',
@@ -1196,20 +1224,16 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
             borderRadius: 2,
             padding: '11px 13px',
             fontFamily: "'Inter', sans-serif",
-            color: skinType ? COLORS.textPrimary : COLORS.textGhost,
+            color: COLORS.textPrimary,
             outline: 'none',
-            appearance: 'none',
+            resize: 'none',
+            height: 70,
+            letterSpacing: '0.3px',
           }}
-        >
-          {SKIN_TYPES.map((s) => (
-            <option key={s.value} value={s.value} style={{ background: COLORS.bg }}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
-      <div style={{ marginBottom: 12 }}>
+      <div>
         <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
           Аллергии
         </div>
@@ -1233,44 +1257,35 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
           }}
         />
       </div>
-
-      <div>
-        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
-          Реакции кожи
-        </div>
-        <textarea
-          value={skinReactions}
-          onChange={(e) => setSkinReactions(e.target.value)}
-          onBlur={saveSkinReactions}
-          placeholder="Опишите возможные реакции кожи..."
-          style={{
-            width: '100%',
-            background: 'rgba(var(--surface-rgb),0.018)',
-            border: '1px solid rgba(var(--gold-rgb),0.1)',
-            borderRadius: 2,
-            padding: '11px 13px',
-            fontFamily: "'Inter', sans-serif",
-            color: COLORS.textPrimary,
-            outline: 'none',
-            resize: 'none',
-            height: 60,
-            letterSpacing: '0.3px',
-          }}
-        />
-      </div>
     </div>
   );
 }
 
 // ── Contacts (phone + chat links) ──
+// Иконка под каждую платформу чата — тот же набор, что у «Соцсети» в
+// Личном кабинете мастера (MasterDashboardScreen); платформы без своего
+// значка (Telegram, Messenger, сайт, «другое») получают GenericLinkIcon.
+const CHAT_PLATFORM_ICONS: Partial<Record<ChatPlatform, (props: { width?: number; height?: number }) => JSX.Element>> = {
+  instagram: InstagramIcon,
+  whatsapp: WhatsAppIcon,
+  tiktok: TikTokIcon,
+  pinterest: PinterestIcon,
+  facebook: FacebookIcon,
+};
+
 function ContactsSection({ client, onSave, first }: { client: Client; onSave: (client: Client) => void; first?: boolean }) {
   const [phone, setPhone] = useState(client.phone || '');
   const [editingPhone, setEditingPhone] = useState(false);
+  // Ссылки свёрнуты в ряд иконок по умолчанию (как «Соцсети» у мастера) —
+  // полный редактируемый список (адрес + удаление) открывается тем же
+  // «Изменить»/«Готово» тумблером, что «Оплата» на экране мастера.
+  const [editingLinks, setEditingLinks] = useState(false);
 
   // Re-sync local phone when switching to another client.
   useEffect(() => {
     setPhone(client.phone || '');
     setEditingPhone(false);
+    setEditingLinks(false);
   }, [client.id]);
 
   const savePhone = () => {
@@ -1283,6 +1298,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
     onSave({ ...client, chatLinks: [...(client.chatLinks || []), link] });
   };
   const removeLink = (id: string) => onSave({ ...client, chatLinks: (client.chatLinks || []).filter((l) => l.id !== id) });
+  const links = client.chatLinks || [];
 
   return (
     <div style={{ marginTop: first ? 0 : 22 }}>
@@ -1366,59 +1382,92 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
         )}
       </div>
 
-      {/* Chat links */}
-      {(client.chatLinks || []).map((link) => (
-        <div
-          key={link.id}
-          style={{
-            background: 'rgba(var(--surface-rgb),0.018)',
-            border: '1px solid rgba(var(--gold-rgb),0.1)',
-            borderRadius: 2,
-            padding: '11px 13px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 11,
-            marginBottom: 8,
-          }}
+      {/* Ссылки — ряд иконок (как «Соцсети» у мастера): тап открывает
+          профиль. Полный список с адресом и удалением — под тумблером
+          ниже, а не развёрнут всегда. */}
+      {links.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+          {links.map((link) => {
+            const Icon = CHAT_PLATFORM_ICONS[link.platform] ?? GenericLinkIcon;
+            return (
+              <a
+                key={link.id}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Открыть ${PLATFORM_LABELS[link.platform]}`}
+                title={PLATFORM_LABELS[link.platform]}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textDecoration: 'none',
+                  border: '1px solid rgba(var(--gold-rgb),0.3)',
+                  background: 'rgba(var(--gold-rgb),0.04)',
+                  color: COLORS.gold,
+                  flexShrink: 0,
+                }}
+              >
+                <Icon width={20} height={20} />
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: editingLinks ? 8 : 0 }}>
+        <span
+          onClick={() => setEditingLinks((v) => !v)}
+          role="button"
+          aria-label={editingLinks ? 'Готово' : links.length > 0 ? 'Изменить ссылки' : 'Добавить ссылку'}
+          style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
         >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: COLORS.gold,
-              flexShrink: 0,
-            }}
-          />
-          <a
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ flex: 1, minWidth: 0, textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 1 }}
-          >
-            <span style={{ fontSize: fs(15), color: COLORS.gold, letterSpacing: '0.5px' }}>{PLATFORM_LABELS[link.platform]}</span>
-            <span
+          {editingLinks ? 'Готово' : links.length > 0 ? 'изменить ссылки' : '+ добавить ссылку'}
+        </span>
+      </div>
+
+      {editingLinks && (
+        <>
+          {links.map((link) => (
+            <div
+              key={link.id}
               style={{
-                fontSize: fs(13),
-                color: COLORS.textFaint,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+                background: 'rgba(var(--surface-rgb),0.018)',
+                border: '1px solid rgba(var(--gold-rgb),0.1)',
+                borderRadius: 2,
+                padding: '11px 13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 11,
+                marginBottom: 8,
               }}
             >
-              {link.url.replace(/^https?:\/\//, '')}
-            </span>
-          </a>
-          <button
-            onClick={() => removeLink(link.id)}
-            style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15) }}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-
-      <AddChatLinkForm onAdd={addLink} />
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: COLORS.gold, flexShrink: 0 }} />
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ flex: 1, minWidth: 0, textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 1 }}
+              >
+                <span style={{ fontSize: fs(15), color: COLORS.gold, letterSpacing: '0.5px' }}>{PLATFORM_LABELS[link.platform]}</span>
+                <span style={{ fontSize: fs(13), color: COLORS.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {link.url.replace(/^https?:\/\//, '')}
+                </span>
+              </a>
+              <button
+                onClick={() => removeLink(link.id)}
+                style={{ background: 'none', border: 'none', color: COLORS.textFaint, cursor: 'pointer', flexShrink: 0, fontSize: fs(15) }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <AddChatLinkForm onAdd={addLink} />
+        </>
+      )}
     </div>
   );
 }
@@ -2340,14 +2389,12 @@ function AdditionalTab({
   client,
   projects,
   onUpsertNote,
-  onAddNote,
   onDeleteNote,
 }: {
   client: Client;
   // This client's own projects — candidates a note/task can be tied to.
   projects: Project[];
   onUpsertNote: (note: ClientNote) => void;
-  onAddNote: (text: string, urgency: UrgencyKey, photos: string[], dueDate: string | null, projectId: string | null) => void;
   onDeleteNote: (noteId: string) => void;
 }) {
   const toggleDone = (n: ClientNote) => onUpsertNote({ ...n, done: !n.done });
@@ -2378,13 +2425,11 @@ function AdditionalTab({
           ))}
         </div>
       )}
-      {/* Клиент уже задан контекстом вкладки — picker клиента не нужен, а
-          выбор проекта нужен: заметку можно сразу привязать к проекту. */}
-      <NoteComposer
-        projects={projects}
-        presetClientId={client.id}
-        onAdd={(text, urgency, photos, dueDate, _clientId, projectId) => onAddNote(text, urgency, photos, dueDate, projectId)}
-      />
+      {sortedNotes.length === 0 && (
+        <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
+          Пока пусто — заметка создаётся через круглое меню
+        </div>
+      )}
     </div>
   );
 }

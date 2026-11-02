@@ -338,6 +338,25 @@ export function withMoodboardPhotoSrcs(moodboard: Moodboard | null, srcs: string
   };
 }
 
+// Поле «Фотографии» (Project.photos) из формы проекта убрано — снимки
+// проекта теперь живут только в мудборде. Старые фото не теряем: при
+// открытии формы они дописываются в конец мудборда (без дублей), сколько
+// влезает до MOODBOARD_MAX_PHOTOS. Не влезшие остаются в Project.photos
+// (leftover) и по-прежнему видны в просмотре проекта, а не обрезаются молча.
+export function mergeLegacyPhotosIntoMoodboard(
+  moodboardSrcs: string[],
+  legacyPhotos: string[],
+): { moodboard: string[]; leftover: string[] } {
+  const seen = new Set(moodboardSrcs);
+  const fresh = legacyPhotos.filter((src) => {
+    if (seen.has(src)) return false;
+    seen.add(src);
+    return true;
+  });
+  const room = Math.max(0, MOODBOARD_MAX_PHOTOS - moodboardSrcs.length);
+  return { moodboard: [...moodboardSrcs, ...fresh.slice(0, room)], leftover: fresh.slice(room) };
+}
+
 // Галерея редактируется тем же SessionPhotos, что и остальные фото в
 // приложении, а он знает только про массив data-URL. Эта функция — мост
 // обратно: сопоставляет присланный список url с уже существующими

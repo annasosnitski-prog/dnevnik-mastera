@@ -1,9 +1,10 @@
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { hasNextStep, nextStepLabel, type Project, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../../domain/project';
 import { projectCoverPhoto } from '../../domain/projectSelectors';
+import { openHealingCycle } from '../../reminders/healingCycle';
 import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
 import { COLORS, fs } from '../ui/designTokens';
-import { formatDate } from '../../utils/dates';
+import { formatDate, daysSinceISO } from '../../utils/dates';
 
 // Project cover card intentionally has no per-project colour marker. Client
 // colour remains a client-level visual identifier; projects use the shared
@@ -18,6 +19,12 @@ export function ProjectCard({
   onClick: () => void;
 }) {
   const cover = projectCoverPhoto(project);
+  // «Трансляция заживления» — цикл открыт, пока не добавлено фото в
+  // мудборд заживления (см. openHealingCycle), без узкого окна по дням
+  // (то окно — только для самих карточек-напоминаний). На обложке это
+  // просто «сколько дней прошло с сессии-якоря», даже раньше 5-го дня.
+  const healing = openHealingCycle(project);
+  const healingDay = healing ? daysSinceISO(healing.date) : null;
   return (
     <div
       className="inka-card"
@@ -50,6 +57,27 @@ export function ProjectCard({
           }}
         >
           {formatDate(project.createdDate.slice(0, 10))}
+        </div>
+      )}
+
+      {healing && healingDay !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 10,
+            zIndex: 3,
+            fontSize: fs(9.5),
+            color: '#6FA85E',
+            letterSpacing: '0.5px',
+            whiteSpace: 'nowrap',
+            background: 'rgba(111,168,94,0.12)',
+            border: '1px solid rgba(111,168,94,0.3)',
+            borderRadius: 1,
+            padding: '2px 6px',
+          }}
+        >
+          Заживление · день {healingDay}
         </div>
       )}
 

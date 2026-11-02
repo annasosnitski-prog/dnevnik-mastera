@@ -60,3 +60,18 @@ export function WhatsAppIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+// Fallback for platforms без своего значка (Telegram, Messenger, сайт,
+// «другое») — простая ссылка-цепочка, а не пустое место в ряду иконок.
+export function GenericLinkIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" {...props}>
+      <path
+        d="M8.2 11.8L11.8 8.2M8.7 6.3L9.6 5.4a2.6 2.6 0 0 1 3.7 3.7l-.9.9M11.3 13.7l-.9.9a2.6 2.6 0 0 1-3.7-3.7l.9-.9"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
