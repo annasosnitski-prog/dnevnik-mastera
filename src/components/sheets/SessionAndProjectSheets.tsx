@@ -339,21 +339,6 @@ export function NewSessionSheet({
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Краски / чернила</FieldLabel>
-          <input value={colors} onChange={(e) => setColors(e.target.value)} placeholder="Чёрный, серые тона..." style={INPUT_STYLE} />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Иглы</FieldLabel>
-          <input value={needles} onChange={(e) => setNeedles(e.target.value)} placeholder="Конфигурация игл..." style={INPUT_STYLE} />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Реакция кожи</FieldLabel>
-          <input value={skinReaction} onChange={(e) => setSkinReaction(e.target.value)} placeholder="Покраснение, отёк, спокойно..." style={INPUT_STYLE} />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
           <FieldLabel>Заметки</FieldLabel>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Что делали, наблюдения..." style={{ ...INPUT_STYLE, resize: 'none', height: 80 }} />
         </div>
@@ -626,7 +611,6 @@ export function NewConsultationSheet({
           <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Итог</FieldLabel><textarea value={outcome} onChange={(e) => setOutcome(e.target.value)} placeholder="Как прошла встреча, о чём договорились..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Срочность</FieldLabel><UrgencyChips value={urgency} onPick={setUrgency} /></div>
         </div>
       </div>
@@ -926,9 +910,7 @@ export function ProjectViewSheet({
             <ViewField label="Место" value={project.area} />
             <ViewField label="Техника и стиль" value={project.style} />
             <ViewField label="Общие заметки" value={project.generalNotes} />
-            <ViewField label="Чувство / ощущение" value={project.feeling} />
-            <ViewField label="Креатив" value={project.creative} />
-            <ViewField label="Источники вдохновения" value={project.inspirationSources} />
+            <ViewField label="Идеи и вдохновение" value={[project.creative, project.feeling, project.inspirationSources].filter((x) => x && x.trim()).join('\n\n')} />
 
             {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0 || ownConsults.length > 0) && (
               <div>
@@ -1067,9 +1049,7 @@ export function NewProjectSheet({
   const [area, setArea] = useState('');
   const [style, setStyle] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
-  const [feeling, setFeeling] = useState('');
-  const [creative, setCreative] = useState('');
-  const [inspirationSources, setInspirationSources] = useState('');
+  const [ideas, setIdeas] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   // Мудборд заводится/правится прямо здесь, рядом с «Фотографии» — та же
   // точка входа, где мастер уже привыкла добавлять снимки при создании
@@ -1108,9 +1088,7 @@ export function NewProjectSheet({
       setArea(initial?.area ?? '');
       setStyle(initial?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
-      setFeeling(initial?.feeling ?? '');
-      setCreative(initial?.creative ?? '');
-      setInspirationSources(initial?.inspirationSources ?? '');
+      setIdeas([initial?.creative, initial?.feeling, initial?.inspirationSources].filter((v) => v && v.trim()).join('\n\n'));
       setPhotos(initial?.photos ?? []);
       setMoodboardPhotos(moodboardPhotoSrcs(initial?.moodboard ?? null));
       setConfirmingDelete(false);
@@ -1268,9 +1246,7 @@ export function NewProjectSheet({
             </select>
           </div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Чувство / ощущение</FieldLabel><textarea value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="Какое чувство или ощущение должна передавать татуировка..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Идеи и вдохновение</FieldLabel><textarea value={ideas} onChange={(e) => setIdeas(e.target.value)} placeholder="Чувство, креатив, источники вдохновения, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 110 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>
         </div>
       </div>
@@ -1316,9 +1292,9 @@ export function NewProjectSheet({
               area,
               style,
               generalNotes,
-              feeling,
-              creative,
-              inspirationSources,
+              feeling: '',
+              creative: ideas.trim(),
+              inspirationSources: '',
               photos,
               moodboard: withMoodboardPhotoSrcs(initial?.moodboard ?? null, moodboardPhotos),
             };
