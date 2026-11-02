@@ -93,7 +93,7 @@ export function migrateClientRecordsIntoProjects(clients: Client[], projects: Pr
       const id = unsortedProjectId(client.id);
       const existing = byId.get(id);
       if (existing) return existing;
-      const created = makeBucketProject(id, UNSORTED_PROJECT_TITLE, client.color, client.id);
+      const created = makeBucketProject(id, UNSORTED_PROJECT_TITLE, client.id);
       byId.set(id, created);
       createdUnsortedProjects += 1;
       return created;

@@ -37,10 +37,9 @@ test('bucketProjectTitle falls back to "Мастер" when the master\'s own nam
 });
 
 test('makeBucketProject produces a fully-formed, empty, active project ready to hold sessions/consultations', () => {
-  const p = makeBucketProject('bucket-client-1', 'Анна Соснитски', '#B0413E', 'client-1');
+  const p = makeBucketProject('bucket-client-1', 'Анна Соснитски', 'client-1');
   assert.equal(p.id, 'bucket-client-1');
   assert.equal(p.title, 'Анна Соснитски');
-  assert.equal(p.color, '#B0413E');
   assert.equal(p.clientId, 'client-1');
   assert.equal(p.status, 'active');
   assert.deepEqual(p.sessions, []);
@@ -48,6 +47,6 @@ test('makeBucketProject produces a fully-formed, empty, active project ready to 
 });
 
 test('makeBucketProject supports a null clientId (client-less/master bucket)', () => {
-  const p = makeBucketProject('bucket-master', 'Мастер Имя', '#B0413E', null);
+  const p = makeBucketProject('bucket-master', 'Мастер Имя', null);
   assert.equal(p.clientId, null);
 });

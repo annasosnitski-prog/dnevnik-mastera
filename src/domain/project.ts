@@ -516,7 +516,6 @@ export function withHealingGallery(project: Project, urls: string[], today: stri
 export interface Project {
   id: string;
   title: string; // project name, e.g. "Дракон в стиле джапан"
-  color: string; // legacy marker colour; no longer exposed by project UI
   category: ProjectCategory;
   // null = идея без клиента ("мастерская", независимо от одноимённого
   // clientId===null на ContentEntry — те две вещи не связаны).
@@ -600,7 +599,7 @@ export interface Project {
 // место, отвечающее на этот вопрос, вызывается из saveProject
 // (TattoDiary.tsx), единственной точки записи в стор проектов. Осознанно
 // НЕ включает правки текстовых полей (title/notes/area/style/feeling/
-// creative/inspirationSources/photos/color/category) — это
+// creative/inspirationSources/photos/category) — это
 // редактирование содержимого, а не прогресс; иначе любая опечатка сбрасывала
 // бы таймер «застывания». Включает: смену статуса/того-кто-должен-
 // действовать (реальный прогресс или явное возобновление из паузы) и любое

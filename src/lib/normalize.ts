@@ -7,7 +7,7 @@ import { type Consultation, type ConsultationStatus, type ConsultationHistoryEnt
 import { type ClientNote } from '../domain/task';
 import { URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency.js';
 import { isValidISODate } from '../utils/dates.js';
-import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, MARKER_COLORS, type Client } from '../domain/client.js';
+import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, type Client } from '../domain/client.js';
 import {
   PROJECT_CATEGORIES,
   PROJECT_STATUSES,
@@ -282,7 +282,6 @@ export function normalizeProject(raw: any, index: number): Project {
   return {
     id: String(raw?.id ?? Date.now() + index),
     title: raw?.title ?? '',
-    color: raw?.color ?? MARKER_COLORS[index % MARKER_COLORS.length],
     category: PROJECT_CATEGORIES.some((c) => c.key === raw?.category) ? raw.category : 'tattoo',
     clientId: raw?.clientId ?? null,
     // Проекты до появления поля не знают, одна встреча или больше — null и

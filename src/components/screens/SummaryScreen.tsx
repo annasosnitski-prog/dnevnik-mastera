@@ -330,7 +330,6 @@ export function SummaryScreen({
                   background: 'rgba(var(--surface-rgb),0.018)',
                 }}
               >
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
                 <span style={{ fontSize: fs(14), color: COLORS.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>
                   {nextStepLabel(p) || p.title || '—'}
                 </span>

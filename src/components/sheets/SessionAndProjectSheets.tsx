@@ -36,7 +36,6 @@ import { ISO_DATE_RE, formatDate, todayISO } from '../../utils/dates';
 import {
   COLORS,
   fs,
-  MARKER_COLORS,
   SKIN_TYPES,
   INPUT_STYLE,
   SUBMIT_STYLE,
@@ -437,7 +436,6 @@ export function ProjectSessionPickerSheet({
   const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '11px 13px', borderRadius: 2, cursor: 'pointer', border: '1px solid rgba(var(--gold-rgb),0.2)', background: 'rgba(var(--surface-rgb),0.018)' };
   const projectRow = (p: Project) => (
     <div key={p.id} onClick={() => onPick(p)} style={rowStyle}>
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
       <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Без названия'}</span>
     </div>
   );
@@ -996,7 +994,6 @@ export function NewProjectSheet({
   onClose: () => void;
   onAdd: (data: {
     title: string;
-    color: string;
     category: ProjectCategory;
     clientId: string | null;
     status: ProjectStatus;
@@ -1061,7 +1058,6 @@ export function NewProjectSheet({
   // Deprecated UI-only project attributes stay in the domain for backwards
   // compatibility. Editing preserves existing values; a new project gets the
   // historical defaults without exposing controls for them.
-  const preservedColor = initial?.color ?? MARKER_COLORS[0];
   const legacyArea = area && !PROJECT_BODY_AREAS.some((option) => option.key === area) ? area : null;
 
   useEffect(() => {
@@ -1267,7 +1263,6 @@ export function NewProjectSheet({
                 : initial?.firstSessionWindowSetAt ?? null;
             const data = {
               title,
-              color: preservedColor,
               category,
               clientId,
               status,
