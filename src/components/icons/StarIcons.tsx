@@ -1,6 +1,26 @@
 // Вынесено из TattoDiary.tsx (PR 2 рефакторинга) — чистые презентационные
 // иконки без связи с состоянием приложения.
 
+// Заменяет прежний разделитель со звёздочкой (убран по фидбеку) — линия с
+// рядом мелких точек вместо линии+звезды, без свечения на конце.
+export function GoldDotDivider({ marginTop, marginBottom }: { marginTop?: number; marginBottom?: number }) {
+  const line = <div style={{ flex: 1, height: 1, background: 'rgba(var(--gold-rgb),0.35)' }} />;
+  const dot = <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--gold)', opacity: 0.55, flexShrink: 0 }} />;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', marginTop, marginBottom }}>
+      {dot}
+      {line}
+      {dot}
+      {line}
+      {dot}
+      {line}
+      {dot}
+      {line}
+      {dot}
+    </div>
+  );
+}
+
 // A single filled star (same silhouette as StarDivider's), reused by the
 // celebration bursts below. Defaults to the theme gold; callers can override
 // with a card marker colour for variety.

@@ -56,6 +56,7 @@ import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon, G
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { GoldFrame } from '../ui/Stripes';
 import { MetaLabel, MetaValue, SectionHeader } from '../ui/TextAtoms';
+import { GoldDotDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 
 // Вынесено из TattoDiary.tsx (PR 11 рефакторинга) — весь кластер «карточка
@@ -1015,6 +1016,8 @@ function InfoTab({
       {/* Contacts — moved to the top (was master notes) */}
       <ContactsSection client={client} onSave={onSave} first />
 
+      <GoldDotDivider marginBottom={16} />
+
       {/* Meta grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div style={metaCell()}>
@@ -1052,6 +1055,7 @@ function InfoTab({
 function ClientLanguageSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
   return (
     <div style={{ marginTop: 22 }}>
+      <GoldDotDivider marginBottom={16} />
       <SectionHeader>Язык клиента</SectionHeader>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         {CLIENT_LANGUAGES.map((o) => (
@@ -1097,6 +1101,7 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
   const note = client.masterNote || '';
   return (
     <div style={{ marginTop: 22 }}>
+      <GoldDotDivider marginBottom={16} />
       <div style={{ marginBottom: 12 }}>
         <SectionHeader>Заметки мастера</SectionHeader>
       </div>
@@ -1194,6 +1199,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
 
   return (
     <div style={{ marginTop: 22 }}>
+      <GoldDotDivider marginBottom={16} />
       <SectionHeader>Кожа</SectionHeader>
 
       <div style={{ marginBottom: 12 }}>
@@ -1297,6 +1303,7 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
 
   return (
     <div style={{ marginTop: first ? 0 : 22 }}>
+      {!first && <GoldDotDivider marginBottom={16} />}
       <div
         style={{
           fontFamily: "'Kelly Slab', 'Playfair Display', serif",
@@ -2461,6 +2468,7 @@ function AttachmentsSection({
 
   return (
     <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <GoldDotDivider marginBottom={16} />
       <SectionHeader>Вложения</SectionHeader>
       {client.documents.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

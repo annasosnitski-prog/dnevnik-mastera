@@ -7,6 +7,7 @@
 // — см. pickCreateOption в TattoDiary.tsx.
 import type * as React from 'react';
 import { BottomSheet, SheetCloseButton } from '../ui/Sheet';
+import { GoldDotDivider } from '../icons/StarIcons';
 import { COLORS, fs } from '../TattoDiary';
 
 export type CreateOptionKind = 'project' | 'session' | 'consultation' | 'note' | 'client';
@@ -133,6 +134,7 @@ export function CreateChoiceSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Что добавить?</div>
+        <GoldDotDivider marginTop={11} />
       </div>
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {options.map((kind) => choice(kind))}

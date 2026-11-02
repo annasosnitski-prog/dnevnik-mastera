@@ -18,6 +18,7 @@ import {
 } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton } from '../ui/Sheet';
 import { FieldLabel } from '../ui/TextAtoms';
+import { GoldDotDivider } from '../icons/StarIcons';
 
 // Вынесено из TattoDiary.tsx (PR 5 рефакторинга). Логика и разметка не
 // менялись — только перенос в отдельный модуль.
@@ -79,6 +80,7 @@ export function NewClientSheet({
           <InkaLogo height={fs(15)} />
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
+        <GoldDotDivider marginTop={11} />
       </div>
 
       <div style={{ padding: '4px 24px 50px' }}>
@@ -201,6 +203,7 @@ export function EditClientSheet({
           <InkaLogo height={fs(15)} />
         </div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Редактировать</div>
+        <GoldDotDivider marginTop={11} />
       </div>
 
       <div style={{ padding: '4px 24px 50px' }}>
@@ -310,6 +313,7 @@ export function ClientKindChoiceSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Кто клиент?</div>
+        <GoldDotDivider marginTop={11} />
       </div>
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {choice(
@@ -395,6 +399,7 @@ export function OwnerChoiceSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Для клиента?</div>
+        <GoldDotDivider marginTop={11} />
       </div>
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {choice(
@@ -461,6 +466,7 @@ export function ClientPickerSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Выберите клиента</div>
+        <GoldDotDivider marginTop={11} />
       </div>
       <div style={{ padding: '4px 24px 12px' }}>
         <input
@@ -542,6 +548,7 @@ export function QuickClientSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Новый клиент</div>
+        <GoldDotDivider marginTop={11} />
       </div>
       <div style={{ padding: '4px 24px 40px' }}>
         <div style={{ marginBottom: 16 }}>

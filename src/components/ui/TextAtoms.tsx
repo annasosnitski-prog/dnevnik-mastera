@@ -35,7 +35,6 @@ export function MetaValue({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: fs(15), color: COLORS.textPrimary, fontWeight: 300 }}>{children}</div>;
 }
 
-
 export function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div

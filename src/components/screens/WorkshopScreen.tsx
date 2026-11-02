@@ -5,6 +5,7 @@ import { type ProjectCategory, PROJECT_CATEGORIES, PROJECT_BODY_AREAS, type Proj
 import { buildProjectZoneFolders } from '../../domain/projectSelectors';
 import { ProjectFolderCard } from '../project/ProjectFolderCard';
 import { ProjectFolderView } from '../project/ProjectFolderView';
+import { GoldDotDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, INPUT_STYLE } from '../TattoDiary';
 
@@ -74,6 +75,7 @@ export function WorkshopScreen({
           </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
+        <GoldDotDivider marginTop={11} />
       </div>
 
       {/* Same funnel-toggle + floating chip panel pattern as the client
