@@ -55,9 +55,6 @@ export function normalizeSession(s: any, i: number): Session {
     photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
     healingCheckPhotos: normalizeHealingCheckPhotos(s?.healingCheckPhotos),
     done: s?.done ?? true,
-    // @deprecated (см. Session.healed) — не читается новой логикой заживления,
-    // но переносится как есть, чтобы старый бэкап пережил импорт-экспорт.
-    healed: s?.healed ?? false,
     // Отсутствует у записей до цикла заживления → false: «не последняя»
     // безопаснее, чем «последняя» — лёгкий чек лучше, чем выдуманная
     // развилка фото/коррекция по проекту, которого мастер не закрывала.

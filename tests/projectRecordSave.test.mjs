@@ -490,13 +490,6 @@ test('восстановление консультации не трогает 
 // из UI и не должен перезаписываться формой: старое значение на записи
 // остаётся нетронутым, чтобы бэкапы и импорт не теряли его молча.
 
-test('новая сессия рождается с healed:false и не тянет его из формы', () => {
-  const projects = [makeProject({ id: 'project-1' })];
-  const { projects: next, sessionId } = upsertSessionInProjects(projects, 'project-1', sessionForm(), null);
-  const created = next[0].sessions.find((s) => s.id === sessionId);
-  assert.equal(created.healed, false);
-});
-
 // healingCheckPhotos — независимая от healed галерея контрольных фото (см.
 // Session.healingCheckPhotos). Новая сессия рождается с пустой галереей,
 // правка её не трогает (её меняет только onSaveHealingCheckPhotos в обход
@@ -517,13 +510,6 @@ test('правка сессии не сбрасывает уже записан�
   assert.deepEqual(edited.healingCheckPhotos, existingPhotos);
 });
 
-test('правка сессии не сбрасывает уже записанный healed', () => {
-  const projects = [makeProject({ id: 'project-1', sessions: [makeSession({ id: 's1', healed: true })] })];
-  const { projects: next } = upsertSessionInProjects(projects, 'project-1', sessionForm({ note: 'правка' }), 's1');
-  const edited = next[0].sessions.find((s) => s.id === 's1');
-  assert.equal(edited.healed, true, 'deprecated-поле переживает сохранение формы');
-  assert.equal(edited.note, 'правка');
-});
 
 // ── isLastSession ─────────────────────────────────────────────────────────
 

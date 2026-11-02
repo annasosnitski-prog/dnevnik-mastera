@@ -18,7 +18,7 @@ export type OverdueItem = { client: Client; kind: 'session' | 'consultation'; id
 // и свой текст (см. healingReminderMessage).
 export type HealingStage = 'day1' | 'day4' | 'day15' | 'day30';
 
-// @deprecated — см. HealingStage выше. Done sessions, not yet marked healed,
+// @deprecated — см. HealingStage выше. Done sessions,
 // currently inside one of the HEALING_STAGES windows.
 export type HealingItem = { client: Client; sessionId: string; date: string; stage: HealingStage };
 
