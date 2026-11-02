@@ -37,7 +37,6 @@ export function MasterDashboardScreen({
   onChangeMasterInfo,
   projects,
   onOpenProject,
-  onCreateProject,
   settings,
 }: {
   clients: Client[];
@@ -47,7 +46,6 @@ export function MasterDashboardScreen({
   // у карточки клиента (см. ClientCardTabBar), своя вкладка «Проекты».
   projects: Project[];
   onOpenProject: (project: Project) => void;
-  onCreateProject: () => void;
   // Настройки — третья вкладка этого экрана (см. MASTER_TABS), не отдельный
   // маршрут: embedded=true и onBack проставляются здесь же, вызывающей
   // стороне (TattoDiary.tsx) не нужно об этом помнить.
@@ -426,12 +424,7 @@ export function MasterDashboardScreen({
 
       {tab === 'projects' && (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ ...statLabelStyle, marginBottom: 0 }}>Проекты мастера</div>
-            <span onClick={onCreateProject} style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
-              + Новый
-            </span>
-          </div>
+          <div style={{ ...statLabelStyle, marginBottom: 0 }}>Проекты мастера</div>
           {workshopProjects.length === 0 ? (
             <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
               Пока пусто — еще никто ничего не создал

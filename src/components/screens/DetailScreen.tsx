@@ -219,7 +219,6 @@ export function DetailScreen({
   onImportClients,
   projects,
   onOpenProject,
-  onCreateProject,
   onOpenCalendar,
 }: {
   client: Client;
@@ -266,7 +265,6 @@ export function DetailScreen({
   onImportClients: (clients: Client[]) => void;
   projects: Project[];
   onOpenProject: (project: Project) => void;
-  onCreateProject: () => void;
   onOpenCalendar: () => void;
 }) {
   // The tab-content scroller is a single reused DOM node across every client
@@ -609,7 +607,6 @@ export function DetailScreen({
             client={client}
             projects={projects}
             onOpenProject={onOpenProject}
-            onCreateProject={onCreateProject}
             orphanSessionCount={orphanSessions.length}
             orphanConsultationCount={orphanConsultations.length}
             onOpenOrphans={setOrphanView}
@@ -701,7 +698,6 @@ function ProjectsTab({
   client,
   projects,
   onOpenProject,
-  onCreateProject,
   orphanSessionCount,
   orphanConsultationCount,
   onOpenOrphans,
@@ -709,7 +705,6 @@ function ProjectsTab({
   client: Client;
   projects: Project[];
   onOpenProject: (project: Project) => void;
-  onCreateProject: () => void;
   orphanSessionCount: number;
   orphanConsultationCount: number;
   onOpenOrphans: (kind: 'sessions' | 'consultations') => void;
@@ -900,9 +895,6 @@ function ProjectsTab({
             )}
           </div>
 
-          <span onClick={onCreateProject} role="button" style={{ fontSize: fs(12), color: COLORS.gold, cursor: 'pointer', letterSpacing: '0.5px' }}>
-            + Новый
-          </span>
         </div>
       </div>
 

@@ -1227,9 +1227,9 @@ export function NewProjectSheet({
             {/* Текст, тип и дата — одной строкой: это части одного шага. На
                 узком экране строка переносится, но остаётся одним блоком. */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              <input value={nextActionText} onChange={(e) => setNextActionText(e.target.value)} placeholder="Уточнить размер, фото спины..." style={{ ...INPUT_STYLE, flex: '2 1 160px', width: 'auto', minWidth: 0 }} />
-              <select aria-label="Тип действия" value={nextActionType ?? ''} onChange={(e) => setNextActionType((e.target.value || null) as NextActionType | null)} style={{ ...INPUT_STYLE, flex: '1 1 110px', width: 'auto', minWidth: 0, padding: '10px 8px' }}><option value="">Тип действия</option>{NEXT_ACTION_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
-              <input aria-label="Когда сделать" type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} style={{ ...INPUT_STYLE, flex: '1 1 120px', width: 'auto', minWidth: 0, padding: '10px 8px' }} />
+              <input value={nextActionText} onChange={(e) => setNextActionText(e.target.value)} placeholder="Уточнить размер, фото спины..." style={{ ...INPUT_STYLE, flex: '3 1 140px', width: 'auto', minWidth: 0 }} />
+              <select aria-label="Тип действия" value={nextActionType ?? ''} onChange={(e) => setNextActionType((e.target.value || null) as NextActionType | null)} style={{ ...INPUT_STYLE, flex: '1 1 90px', width: 'auto', minWidth: 0, padding: '10px 6px' }}><option value="">Тип действия</option>{NEXT_ACTION_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
+              <input aria-label="Когда сделать" type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} style={{ ...INPUT_STYLE, flex: '1 1 110px', width: 'auto', minWidth: 0, padding: '10px 6px' }} />
             </div>
           </div>
           {/* Мудборд — единственное место для фото проекта (отдельное поле

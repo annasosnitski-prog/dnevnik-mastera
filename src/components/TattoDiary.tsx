@@ -3357,11 +3357,6 @@ export default function TattoDiary() {
               onChangeMasterInfo={setMasterInfo}
               projects={projects}
               onOpenProject={(project) => setViewProject(project)}
-              onCreateProject={() => {
-                setEditProject(null);
-                setNewProjectClientId(null);
-                setShowNewProjectForm(true);
-              }}
               settings={{
                 theme,
                 onToggleTheme: toggleTheme,
@@ -3545,11 +3540,6 @@ export default function TattoDiary() {
               }
               projects={projects}
               onOpenProject={(project) => setViewProject(project)}
-              onCreateProject={() => {
-                setEditProject(null);
-                setNewProjectClientId(selectedClient.id);
-                setShowNewProjectForm(true);
-              }}
               onUpsertNote={(note) => upsertNote(selectedClient.id, note)}
               // Adding a note is NOT gated behind the mini-game. The composer
               // clears its text the moment it hands the note off, so gating here
