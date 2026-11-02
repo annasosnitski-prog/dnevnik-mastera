@@ -1157,21 +1157,33 @@ function MasterNoteSection({ client, onSave }: { client: Client; onSave: (client
 }
 
 
+// Старый тип кожи хранился кодом из SKIN_TYPES (select) — для миграции в
+// свободный текст подставляем его подпись, а не код.
+function legacySkinTypeLabel(code: string): string {
+  if (!code) return '';
+  return SKIN_TYPES.find((s) => s.value === code)?.label ?? code;
+}
+
 function SkinSection({ client, onSave }: { client: Client; onSave: (client: Client) => void }) {
-  const [skinType, setSkinType] = useState(client.skinType || '');
+  // «Тип кожи» (раньше select из SKIN_TYPES) и «Реакции кожи» объединены в
+  // одно поле свободного заполнения — записываются в client.skinType
+  // (уже была строка в домене), client.skinReactions больше не пишем, но и
+  // не трогаем старые данные: при первом открытии их значения подставляются
+  // в объединённое поле, если оно само ещё пустое.
+  const mergedSkinNotes = (c: Client) => {
+    if (c.skinType && !SKIN_TYPES.some((s) => s.value === c.skinType)) return c.skinType; // уже свободный текст
+    const parts = [legacySkinTypeLabel(c.skinType || ''), c.skinReactions || ''].filter((p) => p.trim());
+    return parts.join(parts.length === 2 ? ' — ' : '');
+  };
+  const [skinNotes, setSkinNotes] = useState(mergedSkinNotes(client));
   const [allergies, setAllergies] = useState(client.allergies || '');
-  const [skinReactions, setSkinReactions] = useState(client.skinReactions || '');
 
   useEffect(() => {
-    setSkinType(client.skinType || '');
+    setSkinNotes(mergedSkinNotes(client));
     setAllergies(client.allergies || '');
-    setSkinReactions(client.skinReactions || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
 
-  const saveType = (value: string) => {
-    setSkinType(value);
-    if (value !== (client.skinType || '')) onSave({ ...client, skinType: value });
-  };
   const saveTone = (tone: string) => {
     const next = tone === client.skinTone ? '' : tone;
     onSave({ ...client, skinTone: next });
@@ -1179,8 +1191,8 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
   const saveAllergies = () => {
     if (allergies.trim() !== (client.allergies || '')) onSave({ ...client, allergies: allergies.trim() });
   };
-  const saveSkinReactions = () => {
-    if (skinReactions.trim() !== (client.skinReactions || '')) onSave({ ...client, skinReactions: skinReactions.trim() });
+  const saveSkinNotes = () => {
+    if (skinNotes.trim() !== (client.skinType || '')) onSave({ ...client, skinType: skinNotes.trim() });
   };
 
   return (
@@ -1195,42 +1207,15 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
         <SkinTonePalette value={client.skinTone || ''} onPick={saveTone} />
       </div>
 
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
-          Тип кожи
-        </div>
-        <select
-          value={skinType}
-          onChange={(e) => saveType(e.target.value)}
-          style={{
-            width: '100%',
-            background: 'rgba(var(--surface-rgb),0.018)',
-            border: '1px solid rgba(var(--gold-rgb),0.1)',
-            borderRadius: 2,
-            padding: '11px 13px',
-            fontFamily: "'Inter', sans-serif",
-            color: skinType ? COLORS.textPrimary : COLORS.textGhost,
-            outline: 'none',
-            appearance: 'none',
-          }}
-        >
-          {SKIN_TYPES.map((s) => (
-            <option key={s.value} value={s.value} style={{ background: COLORS.bg }}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
-          Аллергии
+          Тип кожи и реакции
         </div>
         <textarea
-          value={allergies}
-          onChange={(e) => setAllergies(e.target.value)}
-          onBlur={saveAllergies}
-          placeholder="Перечислите известные аллергии..."
+          value={skinNotes}
+          onChange={(e) => setSkinNotes(e.target.value)}
+          onBlur={saveSkinNotes}
+          placeholder="Например: сухая, краснеет на контуре..."
           style={{
             width: '100%',
             background: 'rgba(var(--surface-rgb),0.018)',
@@ -1241,7 +1226,7 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
             color: COLORS.textPrimary,
             outline: 'none',
             resize: 'none',
-            height: 60,
+            height: 70,
             letterSpacing: '0.3px',
           }}
         />
@@ -1249,13 +1234,13 @@ function SkinSection({ client, onSave }: { client: Client; onSave: (client: Clie
 
       <div>
         <div style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 6 }}>
-          Реакции кожи
+          Аллергии
         </div>
         <textarea
-          value={skinReactions}
-          onChange={(e) => setSkinReactions(e.target.value)}
-          onBlur={saveSkinReactions}
-          placeholder="Опишите возможные реакции кожи..."
+          value={allergies}
+          onChange={(e) => setAllergies(e.target.value)}
+          onBlur={saveAllergies}
+          placeholder="Перечислите известные аллергии..."
           style={{
             width: '100%',
             background: 'rgba(var(--surface-rgb),0.018)',
