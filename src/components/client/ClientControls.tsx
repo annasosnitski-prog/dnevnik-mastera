@@ -595,31 +595,33 @@ export const SessionPhotos = forwardRef<SessionPhotosHandle, {
         </div>
       );
 
-  // Компактный триггер — та же иконка-стрелка и подпись, что у
-  // PhotoAddIconButton (использует этот же SVG), без рамки-коробки, чтобы
-  // выглядеть одинаково во всех местах приложения, где есть эта кнопка (поле
-  // «Фотографии» сессии/консультации, «Мудборд», заметка, композер и т.п.).
+  // Та же иконка, что и PhotoAddIconButton (использует этот же SVG), без
+  // подписи и без рамки-коробки — используется там, где у SessionPhotos нет
+  // соседнего заголовка секции, чтобы подставить свой текст-ярлык (card
+  // быстрое фото сессии, заметка, композер и т.п.): везде одна и та же
+  // иконка-кнопка «добавить фото» по всему приложению.
   const addButton = (
       <div
         className="inka-doc-secondary"
         onClick={() => fileRef.current?.click()}
         role="button"
+        aria-label="Добавить фото"
+        title="Добавить фото"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 7,
+          justifyContent: 'center',
+          width: 20,
+          height: 20,
           cursor: 'pointer',
-          fontSize: fs(12),
           color: COLORS.gold,
-          fontStyle: 'italic',
-          letterSpacing: '0.3px',
+          opacity: 0.85,
         }}
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
           <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        Добавить фото
       </div>
   );
 
