@@ -129,3 +129,20 @@ test('withMoodboardStatus does not clear a previously stamped sentAt/approvedAt 
   assert.equal(next.sentAt, '2026-01-01T00:00:00Z');
   assert.equal(next.approvedAt, '2026-01-02T00:00:00Z');
 });
+
+// Поле «Фотографии» убрано из формы проекта — старые Project.photos
+// переезжают в мудборд без дублей и без потерь сверх лимита.
+import { mergeLegacyPhotosIntoMoodboard } from '../.test-dist/src/domain/project.js';
+
+test('mergeLegacyPhotosIntoMoodboard appends legacy photos after moodboard ones, skipping duplicates', () => {
+  const r = mergeLegacyPhotosIntoMoodboard(['a', 'b'], ['b', 'c', 'c', 'd']);
+  assert.deepEqual(r, { moodboard: ['a', 'b', 'c', 'd'], leftover: [] });
+});
+
+test('mergeLegacyPhotosIntoMoodboard keeps photos beyond the moodboard limit as leftover', () => {
+  const mb = Array.from({ length: MOODBOARD_MAX_PHOTOS - 1 }, (_, i) => `m${i}`);
+  const r = mergeLegacyPhotosIntoMoodboard(mb, ['x', 'y', 'z']);
+  assert.equal(r.moodboard.length, MOODBOARD_MAX_PHOTOS);
+  assert.equal(r.moodboard.at(-1), 'x');
+  assert.deepEqual(r.leftover, ['y', 'z']);
+});

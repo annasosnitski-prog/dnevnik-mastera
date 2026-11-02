@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { type Client, type ClientType, CLIENT_TYPES, type ChatPlatform, PLATFORM_LABELS } from '../../domain/client';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
-import { type Project, type ProjectCategory, PROJECT_CATEGORIES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep, hasNextStep, nextStepLabel } from '../../domain/project';
+import { type Project, type ProjectCategory, PROJECT_CATEGORIES, type ProjectStatus, PROJECT_STATUSES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep, hasNextStep, nextStepLabel } from '../../domain/project';
 import { downsizeForStorage } from '../../lib/imagePreview';
 import { formatDate } from '../../utils/dates';
 import { COLORS, fs, MARKER_COLORS, STYLES, STYLES_PINNED_COUNT, INPUT_STYLE } from '../TattoDiary';
@@ -879,6 +879,41 @@ export function NextStepRow({
 }
 
 // ── Project category picker (single-select chips, no emoji) ──
+// Статус проекта — те же чипы, что «Тату/Рисунок/…», только мельче: стоят в
+// строке с названием проекта, а не отдельным полем-селектом.
+export function ProjectStatusChips({ value, onPick }: { value: ProjectStatus; onPick: (s: ProjectStatus) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Статус проекта" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+      {PROJECT_STATUSES.map((s) => {
+        const on = value === s.key;
+        return (
+          <div
+            key={s.key}
+            role="radio"
+            aria-checked={on}
+            onClick={() => onPick(s.key)}
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: fs(11),
+              padding: '3px 7px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              border: on ? '1px solid rgba(var(--gold-rgb),0.65)' : '1px solid rgba(var(--gold-rgb),0.15)',
+              color: on ? COLORS.gold : COLORS.textFaint,
+              background: on ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
+              letterSpacing: '0.4px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s',
+            }}
+          >
+            {s.label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ProjectCategoryChips({ value, onPick }: { value: ProjectCategory; onPick: (c: ProjectCategory) => void }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
