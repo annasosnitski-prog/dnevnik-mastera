@@ -16,15 +16,13 @@ test('the status badge is still rendered as a fallback (active-without-next-step
   assert.match(source, /PROJECT_STATUSES\.find\(\(s\)\s*=>\s*s\.key\s*===\s*project\.status\)/);
 });
 
-// Пока открыт цикл заживления, обложка показывает самое свежее фото из
-// Project.healingPhotos, если оно есть — приоритетнее projectCoverPhoto.
-test('while the healing cycle is open, the cover prefers the latest project-level healing photo', () => {
-  assert.match(source, /const healing = openHealingCycle\(project\);/);
-  assert.match(
-    source,
-    /const latestHealingPhoto = healing\s*\?\s*\[\.\.\.project\.healingPhotos\]\.sort\(\(a, b\) => b\.addedDate\.localeCompare\(a\.addedDate\)\)\[0\] \?\? null\s*:\s*null;/,
-  );
-  assert.match(source, /const cover = latestHealingPhoto\?\.url \?\? projectCoverPhoto\(project\);/);
+// Обложка проекта всегда берётся из projectCoverPhoto (приоритет: отмеченное
+// «обложкой» фото заживления → первое фото проекта → первое фото мудборда) —
+// без отдельного cycle-gated пути, чтобы не расходиться с единой конвенцией
+// «обложка — первое/отмеченное фото» (см. reconcileHealingPhotos).
+test('the cover comes from projectCoverPhoto alone (no separate healing-cycle override)', () => {
+  assert.match(source, /const cover = projectCoverPhoto\(project\);/);
+  assert.doesNotMatch(source, /openHealingCycle/);
 });
 
 test('no healing-cycle day badge is rendered on the card (removed per feedback — photo only)', () => {

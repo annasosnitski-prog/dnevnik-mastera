@@ -1,7 +1,6 @@
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { hasNextStep, nextStepLabel, type Project, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../../domain/project';
 import { projectCoverPhoto } from '../../domain/projectSelectors';
-import { openHealingCycle } from '../../reminders/healingCycle';
 import { isRTL, firstLetter, nameRest } from '../../lib/textFormat';
 import { COLORS, fs } from '../ui/designTokens';
 import { formatDate } from '../../utils/dates';
@@ -18,18 +17,11 @@ export function ProjectCard({
   clientName: string | null;
   onClick: () => void;
 }) {
-  // «Трансляция заживления» — цикл открыт, пока не добавлено (закрывающее)
-  // фото в мудборд заживления (см. openHealingCycle), без узкого окна по
-  // дням (то окно — только для самих карточек-напоминаний). Пока цикл
-  // открыт и в галерее заживления уже есть хоть одно фото (не обязательно
-  // отмеченное «обложкой» — см. HealingPhoto.isCover), обложка проекта
-  // приоритетно показывает САМОЕ СВЕЖЕЕ из них — именно это фото мастер и
-  // клиент хотят видеть первым, без текстовых подписей поверх.
-  const healing = openHealingCycle(project);
-  const latestHealingPhoto = healing
-    ? [...project.healingPhotos].sort((a, b) => b.addedDate.localeCompare(a.addedDate))[0] ?? null
-    : null;
-  const cover = latestHealingPhoto?.url ?? projectCoverPhoto(project);
+  // Обложка — см. projectCoverPhoto: отмеченное «обложкой» фото заживления
+  // (project.healingPhotos, HealingPhoto.isCover) → первое фото проекта →
+  // первое фото мудборда. Один и тот же приоритет везде в приложении, без
+  // отдельного gated-пути по статусу цикла заживления.
+  const cover = projectCoverPhoto(project);
   return (
     <div
       className="inka-card"

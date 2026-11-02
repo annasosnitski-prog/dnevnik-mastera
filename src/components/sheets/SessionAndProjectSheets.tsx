@@ -48,6 +48,8 @@ import {
 } from '../TattoDiary';
 import {
   SessionPhotos,
+  type SessionPhotosHandle,
+  PhotoAddIconButton,
   UrgencyChips,
   ProjectCategoryChips,
   ProjectStatusChips,
@@ -695,6 +697,7 @@ export function ProjectViewSheet({
   const [sendingMoodboard, setSendingMoodboard] = useState(false);
   const [moodboardShareNote, setMoodboardShareNote] = useState<string | null>(null);
   const moodboardFileRef = useRef<HTMLInputElement>(null);
+  const healingPhotosRef = useRef<SessionPhotosHandle>(null);
 
   // Тот же пайплайн, что у onPick в SessionPhotos (ClientControls.tsx) —
   // сжатие перед тем, как фото ляжет в проект, чтобы несколько снимков с
@@ -783,7 +786,10 @@ export function ProjectViewSheet({
               return (
                 <div>
                   <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span>Мудборд</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      Мудборд
+                      {!moodboardAtLimit && <PhotoAddIconButton onClick={() => moodboardFileRef.current?.click()} />}
+                    </span>
                     {/* Ручная смена статуса — только когда есть что отправлять;
                         та же схема, что у статуса проекта выше: мастер сама
                         отмечает «Одобрен»/«На доработку», «Отправлен» обычно
@@ -832,16 +838,9 @@ export function ProjectViewSheet({
                     ) : (
                       <span />
                     )}
-                    {moodboardAtLimit ? (
+                    {moodboardAtLimit && (
                       <span style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
                         Максимум {MOODBOARD_MAX_PHOTOS} фото
-                      </span>
-                    ) : (
-                      <span
-                        onClick={() => moodboardFileRef.current?.click()}
-                        style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
-                      >
-                        + Добавить фото
                       </span>
                     )}
                   </div>
@@ -870,13 +869,15 @@ export function ProjectViewSheet({
                 коррекция» на 21-й день), ради него незачем открывать форму
                 редактирования проекта. */}
             <div>
-              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
-                Заживление
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>Заживление</span>
+                <PhotoAddIconButton onClick={() => healingPhotosRef.current?.openPicker()} />
               </div>
               <SessionPhotos
+                ref={healingPhotosRef}
                 photos={project.healingPhotos.map((p) => p.url)}
                 onChange={onSaveHealingPhotos}
-                buttonFirst
+                hideTrigger
               />
               {project.healingPhotos.length === 0 ? (
                 <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
