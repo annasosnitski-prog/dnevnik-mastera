@@ -77,13 +77,6 @@ test('healing reminders step through day1 -> day4 -> day15 -> day30 windows', ()
   assert.equal(stageAt(90), 'day30'); // day30 has no upper bound
 });
 
-test('a session marked healed produces no healing reminder at any stage', () => {
-  const client = makeClient({ sessions: [makeSession({ date: '2026-01-01', healed: true })] });
-  for (const days of [1, 4, 15, 30, 60]) {
-    assert.deepEqual(healingReminders([client], nowAfterDays('2026-01-01', days)), []);
-  }
-});
-
 test('a not-done session never produces a healing reminder', () => {
   const client = makeClient({ sessions: [makeSession({ date: '2026-01-01', done: false })] });
   assert.deepEqual(healingReminders([client], nowAfterDays('2026-01-01', 30)), []);

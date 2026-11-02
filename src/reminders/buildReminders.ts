@@ -43,8 +43,8 @@ import type {
 // Заживление проверялось в четыре захода вместо одной точки на 30-й день —
 // у каждой стадии своё окно (minDays включительно, maxDays исключительно).
 // Окна не пересекаются, поэтому у сессии в любой момент активна максимум
-// одна стадия. Последняя (day30) без верхней границы — держалась, пока
-// мастер не отметит «Зажив» (session.healed, тоже @deprecated).
+// одна стадия. Последняя (day30) без верхней границы — держалась без
+// ограничения (флаг «Зажив» удалён).
 export const HEALING_STAGES: { stage: HealingStage; minDays: number; maxDays: number | null }[] = [
   { stage: 'day1', minDays: 1, maxDays: 4 },
   { stage: 'day4', minDays: 4, maxDays: 15 },
@@ -87,13 +87,13 @@ export function overdueEntries(clients: Client[], now: Date): OverdueItem[] {
 }
 
 // @deprecated — см. HEALING_STAGES выше; замена — healingCycleReminders в
-// reminders/healingCycle.ts. Done sessions, not yet marked healed, currently
+// reminders/healingCycle.ts. Done sessions currently
 // inside one of the HEALING_STAGES windows. Sorted oldest-first.
 export function healingReminders(clients: Client[], now: Date): HealingItem[] {
   const result: HealingItem[] = [];
   for (const client of clients) {
     for (const session of client.sessions) {
-      if (!session.done || session.healed || !ISO_DATE_RE.test(session.date)) continue;
+      if (!session.done || !ISO_DATE_RE.test(session.date)) continue;
       const since = daysSince(session.date, now);
       const stage = HEALING_STAGES.find((s) => since >= s.minDays && (s.maxDays === null || since < s.maxDays));
       if (stage) result.push({ client, sessionId: session.id, date: session.date, stage: stage.stage });

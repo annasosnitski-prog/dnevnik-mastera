@@ -9,8 +9,6 @@ import {
   PROJECT_BODY_AREAS,
   PROJECT_STATUSES,
   type ProjectStatus,
-  type ProjectWaitingFor,
-  type ProjectPriority,
   type NextActionType,
   NEXT_ACTION_TYPES,
   type SessionsPlan,
@@ -38,7 +36,6 @@ import { ISO_DATE_RE, formatDate, todayISO } from '../../utils/dates';
 import {
   COLORS,
   fs,
-  MARKER_COLORS,
   SKIN_TYPES,
   INPUT_STYLE,
   SUBMIT_STYLE,
@@ -339,21 +336,6 @@ export function NewSessionSheet({
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Краски / чернила</FieldLabel>
-          <input value={colors} onChange={(e) => setColors(e.target.value)} placeholder="Чёрный, серые тона..." style={INPUT_STYLE} />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Иглы</FieldLabel>
-          <input value={needles} onChange={(e) => setNeedles(e.target.value)} placeholder="Конфигурация игл..." style={INPUT_STYLE} />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Реакция кожи</FieldLabel>
-          <input value={skinReaction} onChange={(e) => setSkinReaction(e.target.value)} placeholder="Покраснение, отёк, спокойно..." style={INPUT_STYLE} />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
           <FieldLabel>Заметки</FieldLabel>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Что делали, наблюдения..." style={{ ...INPUT_STYLE, resize: 'none', height: 80 }} />
         </div>
@@ -454,7 +436,6 @@ export function ProjectSessionPickerSheet({
   const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '11px 13px', borderRadius: 2, cursor: 'pointer', border: '1px solid rgba(var(--gold-rgb),0.2)', background: 'rgba(var(--surface-rgb),0.018)' };
   const projectRow = (p: Project) => (
     <div key={p.id} onClick={() => onPick(p)} style={rowStyle}>
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
       <span style={{ fontSize: fs(15), color: COLORS.textPrimary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Без названия'}</span>
     </div>
   );
@@ -626,7 +607,6 @@ export function NewConsultationSheet({
           <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Итог</FieldLabel><textarea value={outcome} onChange={(e) => setOutcome(e.target.value)} placeholder="Как прошла встреча, о чём договорились..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Срочность</FieldLabel><UrgencyChips value={urgency} onPick={setUrgency} /></div>
         </div>
       </div>
@@ -926,9 +906,7 @@ export function ProjectViewSheet({
             <ViewField label="Место" value={project.area} />
             <ViewField label="Техника и стиль" value={project.style} />
             <ViewField label="Общие заметки" value={project.generalNotes} />
-            <ViewField label="Чувство / ощущение" value={project.feeling} />
-            <ViewField label="Креатив" value={project.creative} />
-            <ViewField label="Источники вдохновения" value={project.inspirationSources} />
+            <ViewField label="Идеи и вдохновение" value={[project.creative, project.feeling, project.inspirationSources].filter((x) => x && x.trim()).join('\n\n')} />
 
             {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0 || ownConsults.length > 0) && (
               <div>
@@ -1016,7 +994,6 @@ export function NewProjectSheet({
   onClose: () => void;
   onAdd: (data: {
     title: string;
-    color: string;
     category: ProjectCategory;
     clientId: string | null;
     status: ProjectStatus;
@@ -1025,11 +1002,9 @@ export function NewProjectSheet({
     firstSessionWindowUnit: FirstSessionWindowUnit | null;
     firstSessionExactDate: string | null;
     firstSessionWindowSetAt: string | null;
-    waitingFor: ProjectWaitingFor;
     nextActionText: string;
     nextActionDate: string | null;
     nextActionType: NextActionType | null;
-    priority: ProjectPriority;
     area: string;
     style: string;
     generalNotes: string;
@@ -1067,9 +1042,7 @@ export function NewProjectSheet({
   const [area, setArea] = useState('');
   const [style, setStyle] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
-  const [feeling, setFeeling] = useState('');
-  const [creative, setCreative] = useState('');
-  const [inspirationSources, setInspirationSources] = useState('');
+  const [ideas, setIdeas] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   // Мудборд заводится/правится прямо здесь, рядом с «Фотографии» — та же
   // точка входа, где мастер уже привыкла добавлять снимки при создании
@@ -1085,9 +1058,6 @@ export function NewProjectSheet({
   // Deprecated UI-only project attributes stay in the domain for backwards
   // compatibility. Editing preserves existing values; a new project gets the
   // historical defaults without exposing controls for them.
-  const preservedColor = initial?.color ?? MARKER_COLORS[0];
-  const preservedWaitingFor: ProjectWaitingFor = initial?.waitingFor ?? 'none';
-  const preservedPriority: ProjectPriority = initial?.priority ?? 'normal';
   const legacyArea = area && !PROJECT_BODY_AREAS.some((option) => option.key === area) ? area : null;
 
   useEffect(() => {
@@ -1108,9 +1078,7 @@ export function NewProjectSheet({
       setArea(initial?.area ?? '');
       setStyle(initial?.style ?? '');
       setGeneralNotes(initial?.generalNotes ?? '');
-      setFeeling(initial?.feeling ?? '');
-      setCreative(initial?.creative ?? '');
-      setInspirationSources(initial?.inspirationSources ?? '');
+      setIdeas([initial?.creative, initial?.feeling, initial?.inspirationSources].filter((v) => v && v.trim()).join('\n\n'));
       setPhotos(initial?.photos ?? []);
       setMoodboardPhotos(moodboardPhotoSrcs(initial?.moodboard ?? null));
       setConfirmingDelete(false);
@@ -1268,9 +1236,7 @@ export function NewProjectSheet({
             </select>
           </div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Чувство / ощущение</FieldLabel><textarea value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="Какое чувство или ощущение должна передавать татуировка..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Источники вдохновения</FieldLabel><textarea value={inspirationSources} onChange={(e) => setInspirationSources(e.target.value)} placeholder="Укажите источники, авторов, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 60 }} /></div>
-          <div style={{ marginBottom: 16 }}><FieldLabel>Креатив</FieldLabel><textarea value={creative} onChange={(e) => setCreative(e.target.value)} placeholder="Смелая идея, изюминка, что-то особенное..." style={{ ...INPUT_STYLE, resize: 'none', height: 70 }} /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel>Идеи и вдохновение</FieldLabel><textarea value={ideas} onChange={(e) => setIdeas(e.target.value)} placeholder="Чувство, креатив, источники вдохновения, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 110 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>
         </div>
       </div>
@@ -1297,7 +1263,6 @@ export function NewProjectSheet({
                 : initial?.firstSessionWindowSetAt ?? null;
             const data = {
               title,
-              color: preservedColor,
               category,
               clientId,
               status,
@@ -1308,17 +1273,15 @@ export function NewProjectSheet({
               firstSessionWindowUnit: nextWindowUnit,
               firstSessionExactDate: exactDateMode ? firstSessionExactDate || null : null,
               firstSessionWindowSetAt,
-              waitingFor: preservedWaitingFor,
               nextActionText,
               nextActionDate: nextActionDate || null,
               nextActionType,
-              priority: preservedPriority,
               area,
               style,
               generalNotes,
-              feeling,
-              creative,
-              inspirationSources,
+              feeling: '',
+              creative: ideas.trim(),
+              inspirationSources: '',
               photos,
               moodboard: withMoodboardPhotoSrcs(initial?.moodboard ?? null, moodboardPhotos),
             };

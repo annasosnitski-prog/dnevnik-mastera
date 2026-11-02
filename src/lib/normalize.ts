@@ -7,12 +7,10 @@ import { type Consultation, type ConsultationStatus, type ConsultationHistoryEnt
 import { type ClientNote } from '../domain/task';
 import { URGENCY, LEGACY_URGENCY_MAP } from '../domain/urgency.js';
 import { isValidISODate } from '../utils/dates.js';
-import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, MARKER_COLORS, type Client } from '../domain/client.js';
+import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, type Client } from '../domain/client.js';
 import {
   PROJECT_CATEGORIES,
   PROJECT_STATUSES,
-  PROJECT_WAITING_FOR,
-  PROJECT_PRIORITIES,
   NEXT_ACTION_TYPES,
   MOODBOARD_STATUSES,
   type Project,
@@ -57,9 +55,6 @@ export function normalizeSession(s: any, i: number): Session {
     photos: Array.isArray(s?.photos) ? s.photos : s?.photoUrl ? [s.photoUrl] : [],
     healingCheckPhotos: normalizeHealingCheckPhotos(s?.healingCheckPhotos),
     done: s?.done ?? true,
-    // @deprecated (см. Session.healed) — не читается новой логикой заживления,
-    // но переносится как есть, чтобы старый бэкап пережил импорт-экспорт.
-    healed: s?.healed ?? false,
     // Отсутствует у записей до цикла заживления → false: «не последняя»
     // безопаснее, чем «последняя» — лёгкий чек лучше, чем выдуманная
     // развилка фото/коррекция по проекту, которого мастер не закрывала.
@@ -287,7 +282,6 @@ export function normalizeProject(raw: any, index: number): Project {
   return {
     id: String(raw?.id ?? Date.now() + index),
     title: raw?.title ?? '',
-    color: raw?.color ?? MARKER_COLORS[index % MARKER_COLORS.length],
     category: PROJECT_CATEGORIES.some((c) => c.key === raw?.category) ? raw.category : 'tattoo',
     clientId: raw?.clientId ?? null,
     // Проекты до появления поля не знают, одна встреча или больше — null и
@@ -298,14 +292,12 @@ export function normalizeProject(raw: any, index: number): Project {
     // domain/project.ts) — старая запись просто получает разумный дефолт:
     // 'active', тот же дефолт, что и у нового проекта.
     status: PROJECT_STATUSES.some((s) => s.key === raw?.status) ? raw.status : 'active',
-    waitingFor: PROJECT_WAITING_FOR.some((w) => w.key === raw?.waitingFor) ? raw.waitingFor : 'none',
     nextActionText: raw?.nextActionText ?? '',
     nextActionDate: raw?.nextActionDate ?? null,
     // Отсутствует или неизвестное значение → null (не угадываем тип по
     // nextActionText). Повторная нормализация валидного значения не меняет
     // его — та же .some()-проверка, что и у остальных union-полей проекта.
     nextActionType: NEXT_ACTION_TYPES.some((t) => t.key === raw?.nextActionType) ? raw.nextActionType : null,
-    priority: PROJECT_PRIORITIES.some((p) => p.key === raw?.priority) ? raw.priority : 'normal',
     area: raw?.area ?? '',
     style: raw?.style ?? '',
     generalNotes: raw?.generalNotes ?? '',

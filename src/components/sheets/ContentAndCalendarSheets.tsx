@@ -566,7 +566,7 @@ export function ContentLinkPickerSheet({
   const projectOptions = entry ? buildContentProjectOptions(projects, preferredClientId) : [];
   const sessionOptions = entry ? buildContentSessionOptions(clients, projects, preferredClientId) : [];
 
-  const row = (key: string, title: string, subtitle: string | null, color: string, onClick: () => void) => (
+  const row = (key: string, title: string, subtitle: string | null, onClick: () => void) => (
     <div
       key={key}
       onClick={onClick}
@@ -582,7 +582,6 @@ export function ContentLinkPickerSheet({
         background: 'rgba(var(--surface-rgb),0.018)',
       }}
     >
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0, marginTop: 2 }} />
       <span style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: fs(15), color: COLORS.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
         {subtitle && (
@@ -659,7 +658,6 @@ export function ContentLinkPickerSheet({
                     opt.project.id,
                     opt.project.title || 'Без названия',
                     clientNameFor(clients, opt.project.clientId) ?? 'Мастерская',
-                    opt.project.color,
                     () => {
                       onPick({ type: 'project', projectId: opt.project.id });
                       onClose();
@@ -683,7 +681,7 @@ export function ContentLinkPickerSheet({
               return (
                 <Fragment key={opt.session.id}>
                   {i > 0 && sessionOptions[i - 1].isPreferredClient && !opt.isPreferredClient && groupLabel('Все сессии')}
-                  {row(opt.session.id, opt.session.name || 'Без названия', subtitle, opt.project.color, () => {
+                  {row(opt.session.id, opt.session.name || 'Без названия', subtitle, () => {
                     onPick({ type: 'session', sessionId: opt.session.id });
                     onClose();
                   })}

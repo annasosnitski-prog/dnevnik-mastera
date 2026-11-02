@@ -22,12 +22,11 @@ export function bucketProjectTitle(client: { name: string; surname: string } | n
 // Собирает новый проект-«отстойник» — переиспользуется и миграцией старых
 // данных, и ensureBucketProject ниже, чтобы не дублировать литерал
 // в двух местах.
-export function makeBucketProject(id: string, title: string, color: string, clientId: string | null): Project {
+export function makeBucketProject(id: string, title: string, clientId: string | null): Project {
   const now = new Date().toISOString();
   return {
     id,
     title,
-    color,
     category: 'tattoo',
     clientId,
     // Тот же дефолт, что и у любого нового проекта (см. ProjectStatus).
@@ -35,11 +34,9 @@ export function makeBucketProject(id: string, title: string, color: string, clie
     // Бакет собирает разнородные записи, а не одну работу — сказать «одна
     // встреча»/«больше одной» про него нечего (см. SessionsPlan).
     sessionsPlan: null,
-    waitingFor: 'none',
     nextActionText: '',
     nextActionDate: null,
     nextActionType: null,
-    priority: 'normal',
     area: '',
     style: '',
     generalNotes: '',
@@ -72,7 +69,6 @@ export function ensureBucketProject(
   projectId: string | null,
   ownerClient: { id: string; name: string; surname: string; color: string } | null,
   masterName: string,
-  fallbackColor: string,
 ): { projects: Project[]; projectId: string } {
   if (projectId) return { projects, projectId };
   const id = bucketProjectId(ownerClient?.id ?? null);
@@ -80,7 +76,6 @@ export function ensureBucketProject(
   const bucket = makeBucketProject(
     id,
     bucketProjectTitle(ownerClient, masterName),
-    ownerClient?.color || fallbackColor,
     ownerClient?.id ?? null,
   );
   return { projects: [...projects, bucket], projectId: id };

@@ -244,8 +244,6 @@ import {
   type ProjectStatus,
   type SessionsPlan,
   type FirstSessionWindowUnit,
-  type ProjectWaitingFor,
-  type ProjectPriority,
   type NextActionType,
   type Project,
   type MoodboardStatus,
@@ -1873,7 +1871,7 @@ export default function TattoDiary() {
     projectId: string | null,
     ownerClient: Client | null,
   ): { projects: Project[]; projectId: string } =>
-    ensureBucketProject(source, projectId, ownerClient, masterInfo.name, MARKER_COLORS[0]);
+    ensureBucketProject(source, projectId, ownerClient, masterInfo.name);
 
   // Авто-переход статуса проекта ВНУТРИ списка (Этап 3b): выполненная сессия
   // двигает проект в «Активен» (см. withStatusAfterDoneSession). Только
@@ -2041,7 +2039,6 @@ export default function TattoDiary() {
   // ── Мастерская: standalone projects, not tied to any client ──
   const handleAddProject = (data: {
     title: string;
-    color: string;
     category: ProjectCategory;
     clientId: string | null;
     status: ProjectStatus;
@@ -2050,11 +2047,9 @@ export default function TattoDiary() {
     firstSessionWindowUnit: FirstSessionWindowUnit | null;
     firstSessionExactDate: string | null;
     firstSessionWindowSetAt: string | null;
-    waitingFor: ProjectWaitingFor;
     nextActionText: string;
     nextActionDate: string | null;
     nextActionType: NextActionType | null;
-    priority: ProjectPriority;
     area: string;
     style: string;
     generalNotes: string;

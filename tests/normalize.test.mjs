@@ -16,7 +16,6 @@ test('normalizeSession fills every field with a safe default from an empty recor
   assert.equal(s.name, '');
   assert.equal(s.date, '');
   assert.equal(s.done, true); // legacy sessions default to "done" — see comment in source
-  assert.equal(s.healed, false);
   assert.equal(s.cancelled, false);
   assert.equal(s.projectId, null);
   assert.deepEqual(s.photos, []);
@@ -336,8 +335,6 @@ test('normalizeProject defaults every union field to its documented fallback', (
   const p = normalizeProject({}, 0);
   assert.equal(p.category, 'tattoo');
   assert.equal(p.status, 'active');
-  assert.equal(p.waitingFor, 'none');
-  assert.equal(p.priority, 'normal');
   assert.equal(p.nextActionType, null); // never guessed from nextActionText
   assert.equal(p.clientId, null);
 });
@@ -353,10 +350,9 @@ test('normalizeProject keeps a valid nextActionType unchanged', () => {
 });
 
 test('normalizeProject re-normalizes an already-valid record to the same value (idempotent)', () => {
-  const once = normalizeProject({ status: 'paused', priority: 'urgent' }, 0);
+  const once = normalizeProject({ status: 'paused' }, 0);
   const twice = normalizeProject(once, 0);
   assert.equal(twice.status, 'paused');
-  assert.equal(twice.priority, 'urgent');
 });
 
 // Старый семишаговый `stage` не мигрируется бережно — он просто игнорируется,
@@ -514,11 +510,6 @@ test('normalizeSession keeps an explicit isLastSession', () => {
 
 // healed объявлен @deprecated и убран из UI, но физически остаётся — иначе
 // импорт старого бэкапа терял бы поле, которое в нём записано.
-test('normalizeSession still carries the deprecated `healed` flag through, so old backups survive import', () => {
-  const p = normalizeProject({ sessions: [{ id: 's1', healed: true }] }, 0);
-  assert.equal(p.sessions[0].healed, true);
-  assert.equal(normalizeProject({ sessions: [{ id: 's2' }] }, 0).sessions[0].healed, false);
-});
 
 test('normalizeProject defaults consultations to an empty array when missing', () => {
   const p = normalizeProject({}, 0);
