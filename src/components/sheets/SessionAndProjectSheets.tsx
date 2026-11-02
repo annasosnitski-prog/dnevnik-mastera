@@ -41,8 +41,6 @@ import {
   INPUT_STYLE,
   SUBMIT_STYLE,
   DURATIONS,
-  STYLES,
-  STYLES_PINNED_COUNT,
   DONE_EMOJI,
   ViewField,
   clientNameFor,
@@ -141,18 +139,21 @@ export function NewSessionSheet({
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [duration, setDuration] = useState('');
+  // Стиль и зона работы больше не отдельные поля сессии (дублировали «Тип»
+  // и «Место» проекта) — своего UI у них больше нет, но при редактировании
+  // старой сессии её прежние значения по-прежнему подставляются сюда в
+  // useEffect ниже и уезжают обратно при сохранении, а не стираются молча.
   const [style, setStyle] = useState('');
-  const [stylesExpanded, setStylesExpanded] = useState(false);
   const [area, setArea] = useState('');
   const [colors, setColors] = useState('');
   const [needles, setNeedles] = useState('');
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
-  // New sessions default to «Выполнена»; editing reflects the session's
-  // status; started from a calendar date (clearly a future booking), default
-  // to «Запланирована» instead.
-  const [done, setDone] = useState(true);
+  // New sessions default to «Запланирована» — a session is created before
+  // it happens far more often than after; editing reflects the session's
+  // own status.
+  const [done, setDone] = useState(false);
   // «Это последняя сессия проекта?» — см. Session.isLastSession. Прежний
   // тумблер «Зажив» (session.healed) отсюда убран: флаг deprecated, заменён
   // галереей заживления на проекте (Project.healingPhotos).
@@ -180,10 +181,10 @@ export function NewSessionSheet({
       setSkinReaction(initial?.skinReaction ?? '');
       setNote(initial?.note ?? consultationNoteSummary(prefillConsultation));
       setPhotos(initial?.photos ?? prefillConsultation?.photos ?? []);
-      // A converted consultation is always a future booking, not yet done —
-      // same reasoning as the initialDate case just below. A chained next
-      // session is the same: it hasn't happened yet.
-      setDone(initial ? initial.done : !initialDate && !prefillConsultation && !chainFrom);
+      // New sessions always start «Запланирована» — whether from a blank
+      // form, a calendar date, a converted consultation or a chained next
+      // session, none of these have happened yet either.
+      setDone(initial ? initial.done : false);
       setIsLastSession(initial?.isLastSession ?? false);
       setProjectId(initial?.projectId ?? prefillConsultation?.projectId ?? chainFrom?.projectId ?? presetProjectId ?? null);
       setJustSaved(false);
@@ -268,12 +269,8 @@ export function NewSessionSheet({
           <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Название сессии</FieldLabel>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
-        </div>
-
-        {/* Поле всегда видно (даже когда у владельца ещё нет ни одного
+        {/* Проект сначала — название сессии имеет смысл в его контексте.
+            Поле всегда видно (даже когда у владельца ещё нет ни одного
             проекта) — сессия больше не может остаться совсем без проекта:
             если мастер не выбрала существующий, ensureProjectId в
             TattoDiary.tsx молча заведёт новый под тем же владельцем при
@@ -286,6 +283,11 @@ export function NewSessionSheet({
               <option key={p.id} value={p.id}>{p.title || 'Без названия'}</option>
             ))}
           </select>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FieldLabel>Название сессии</FieldLabel>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Первая, контур..." style={INPUT_STYLE} />
         </div>
 
         {/* Date & time stacked full-width. Side-by-side used to overlap on
@@ -315,26 +317,6 @@ export function NewSessionSheet({
               <div key={d} onClick={() => setDuration(d)} style={chipStyle(duration === d, true)}>{d}</div>
             ))}
           </div>
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Стиль работы</FieldLabel>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            {(stylesExpanded ? STYLES : STYLES.slice(0, STYLES_PINNED_COUNT).concat(style && STYLES.indexOf(style) >= STYLES_PINNED_COUNT ? [style] : [])).map((s) => (
-              <div key={s} onClick={() => setStyle(s)} style={chipStyle(style === s, false)}>{s}</div>
-            ))}
-            {!stylesExpanded && (
-              <div onClick={() => setStylesExpanded(true)} style={{ fontSize: fs(12), padding: '6px 11px', color: COLORS.textGhost, fontStyle: 'italic', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                Ещё стили ▾
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Session.area remains free text by design. */}
-        <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Зона работы</FieldLabel>
-          <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Левое плечо, рёбра..." style={INPUT_STYLE} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
