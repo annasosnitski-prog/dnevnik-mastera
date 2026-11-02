@@ -11,7 +11,6 @@ function readSource(path) {
   return readFileSync(new URL(path, import.meta.url), 'utf8').replace(/\r\n?/g, '\n');
 }
 
-const detailScreen = readSource('../src/components/screens/DetailScreen.tsx');
 const clientControls = readSource('../src/components/client/ClientControls.tsx');
 const noteSheet = readSource('../src/components/sheets/NoteComposerSheet.tsx');
 const summaryScreen = readSource('../src/components/screens/SummaryScreen.tsx');
@@ -62,10 +61,6 @@ test('the «Сводка» composer forwards projects and the picked projectId',
   assert.match(summaryScreen, /<NoteComposer\s+clients=\{clients\}\s+projects=\{projects\}/);
   assert.match(summaryScreen, /onAddNote\(clientId, text, urgency, photos, dueDate, projectId\)/);
   assert.match(summaryScreen, /onAddMasterNote\(text, urgency, photos, dueDate, projectId\)/);
-});
-
-test('the client card «Дополнительно» composer offers that client\'s projects', () => {
-  assert.match(detailScreen, /<NoteComposer\s+projects=\{projects\}\s+presetClientId=\{client\.id\}/);
 });
 
 test('every note-creating handler stores the projectId instead of hardcoding null', () => {

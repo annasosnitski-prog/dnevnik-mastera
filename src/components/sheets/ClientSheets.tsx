@@ -69,8 +69,6 @@ export function NewClientSheet({
     }
   }, [open]);
 
-  const toggleStyle = (s: string) => setStyles((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
-
   const canSubmit = name.trim().length > 0;
 
   return (
@@ -112,10 +110,6 @@ export function NewClientSheet({
         <div style={{ marginBottom: 18 }}>
           <FieldLabel>Тип</FieldLabel>
           <ClientTypeToggle value={clientType} onChange={setClientType} />
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <FieldLabel>Стиль</FieldLabel>
-          <StyleChips selected={styles} onToggle={toggleStyle} />
         </div>
         <div style={{ marginBottom: 18 }}>
           <FieldLabel>Тон кожи</FieldLabel>
