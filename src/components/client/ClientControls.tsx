@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import { type Client, type ClientType, CLIENT_TYPES, type ChatPlatform, PLATFORM_LABELS } from '../../domain/client';
 import { type UrgencyKey, URGENCY } from '../../domain/urgency';
 import { type Project, type ProjectCategory, PROJECT_CATEGORIES, type ProjectStatus, PROJECT_STATUSES, type NextActionType, NEXT_ACTION_TYPES, resolveNextStep, hasNextStep, nextStepLabel } from '../../domain/project';
@@ -389,17 +389,15 @@ function downloadPhoto(src: string): void {
 // Photo gallery + upload for a session. On mobile the native file picker
 // already offers "Take Photo", so there's no separate camera button. Deleting
 // a photo takes two taps (✕ → confirm) so it can't happen by accident.
-export function SessionPhotos({
-  photos,
-  onChange,
-  allowDelete = true,
-  buttonFirst = false,
-  topSlot,
-  readOnly = false,
-  reorderable = false,
-  maxPhotos,
-  gridColumns,
-}: {
+// Imperative handle for `hideTrigger` — lets a caller that supplies its own
+// compact trigger (see PhotoAddIconButton below) still open the native file
+// picker and go through SessionPhotos' own onPick (multi-file read +
+// downsizeForStorage), instead of duplicating that logic.
+export interface SessionPhotosHandle {
+  openPicker: () => void;
+}
+
+export const SessionPhotos = forwardRef<SessionPhotosHandle, {
   photos: string[];
   onChange: (photos: string[]) => void;
   allowDelete?: boolean;
@@ -413,6 +411,13 @@ export function SessionPhotos({
   // Read-only: just the thumbnails (tap-to-enlarge still works), no "Добавить
   // фото" button — used in timeline/preview cards.
   readOnly?: boolean;
+  // Suppresses SessionPhotos' own big box trigger entirely (thumbnails +
+  // hidden file input only) — for a screen that puts its own compact
+  // trigger next to the section label instead (see PhotoAddIconButton),
+  // so the app doesn't end up with two different "add photo" styles side
+  // by side (see ProjectViewSheet's «Мудборд»/«Заживление»). The caller
+  // opens the picker via a ref (see SessionPhotosHandle).
+  hideTrigger?: boolean;
   // Включает перетаскивание миниатюр для смены порядка (dnd-kit) — сейчас
   // только поле «Мудборд» (порядок там определяет и россыпь при отправке,
   // и раскладку коллажа, см. moodboardCollage.ts). По умолчанию выключено —
@@ -429,8 +434,23 @@ export function SessionPhotos({
   // только для мудборда, которому нужна предсказуемая раскладка N×N (см. его
   // вызовы), а не подстройка под ширину экрана.
   gridColumns?: number;
-}) {
+}>(function SessionPhotos(
+  {
+    photos,
+    onChange,
+    allowDelete = true,
+    buttonFirst = false,
+    topSlot,
+    readOnly = false,
+    hideTrigger = false,
+    reorderable = false,
+    maxPhotos,
+    gridColumns,
+  },
+  ref,
+) {
   const fileRef = useRef<HTMLInputElement>(null);
+  useImperativeHandle(ref, () => ({ openPicker: () => fileRef.current?.click() }));
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
   // Tap to enlarge — an in-app overlay, never a navigation/link (that's what
   // caused the white-screen PWA crash before).
@@ -575,30 +595,33 @@ export function SessionPhotos({
         </div>
       );
 
+  // Та же иконка, что и PhotoAddIconButton (использует этот же SVG), без
+  // подписи и без рамки-коробки — используется там, где у SessionPhotos нет
+  // соседнего заголовка секции, чтобы подставить свой текст-ярлык (card
+  // быстрое фото сессии, заметка, композер и т.п.): везде одна и та же
+  // иконка-кнопка «добавить фото» по всему приложению.
   const addButton = (
       <div
         className="inka-doc-secondary"
         onClick={() => fileRef.current?.click()}
+        role="button"
+        aria-label="Добавить фото"
+        title="Добавить фото"
         style={{
-          border: '1px solid rgba(var(--gold-rgb),0.2)',
-          borderRadius: 2,
-          padding: '11px',
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 9,
+          width: 20,
+          height: 20,
           cursor: 'pointer',
-          fontSize: fs(12),
           color: COLORS.gold,
-          letterSpacing: '1px',
-          textTransform: 'uppercase',
+          opacity: 0.85,
         }}
       >
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
           <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
-        Добавить фото
       </div>
   );
 
@@ -614,6 +637,11 @@ export function SessionPhotos({
     <div style={{ marginTop: 10 }}>
       {readOnly ? (
         thumbnails
+      ) : hideTrigger ? (
+        <>
+          {topSlot}
+          {thumbnails}
+        </>
       ) : buttonFirst ? (
         <>
           <div style={{ marginBottom: thumbnails ? 10 : 0 }}>{addControl}</div>
@@ -699,6 +727,38 @@ export function SessionPhotos({
           </div>
         </div>
       )}
+    </div>
+  );
+});
+
+// Компактный триггер «добавить фото» — иконка рядом с подписью секции
+// («Мудборд», «Заживление» и т.п.), вместо большой рамки-кнопки SessionPhotos
+// (см. её addButton). Сам файловый пикер и чтение файлов остаются внутри
+// SessionPhotos (hideTrigger) — эта кнопка только открывает его через ref,
+// чтобы не дублировать эту логику.
+export function PhotoAddIconButton({ onClick, title = 'Добавить фото' }: { onClick: () => void; title?: string }) {
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      aria-label={title}
+      title={title}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 20,
+        height: 20,
+        cursor: 'pointer',
+        color: COLORS.gold,
+        opacity: 0.85,
+        flexShrink: 0,
+      }}
+    >
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+        <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
     </div>
   );
 }

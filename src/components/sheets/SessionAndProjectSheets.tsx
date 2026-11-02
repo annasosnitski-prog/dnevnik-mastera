@@ -48,6 +48,8 @@ import {
 } from '../TattoDiary';
 import {
   SessionPhotos,
+  type SessionPhotosHandle,
+  PhotoAddIconButton,
   UrgencyChips,
   ProjectCategoryChips,
   ProjectStatusChips,
@@ -150,6 +152,7 @@ export function NewSessionSheet({
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
+  const photosRef = useRef<SessionPhotosHandle>(null);
   // New sessions default to «Запланирована» — a session is created before
   // it happens far more often than after; editing reflects the session's
   // own status.
@@ -266,8 +269,8 @@ export function NewSessionSheet({
         {/* Photos first — same order as the consultation form (see
             NewConsultationSheet), rather than tacked on near the end. */}
         <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Фото</FieldLabel>
-          <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
+          <FieldLabel action={<PhotoAddIconButton onClick={() => photosRef.current?.openPicker()} />}>Фото</FieldLabel>
+          <SessionPhotos ref={photosRef} photos={photos} onChange={setPhotos} hideTrigger />
         </div>
 
         {/* Проект сначала — название сессии имеет смысл в его контексте.
@@ -521,6 +524,7 @@ export function NewConsultationSheet({
   const [outcome, setOutcome] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
+  const photosRef = useRef<SessionPhotosHandle>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   // See NewSessionSheet's justSaved for why this shows unconditionally on
   // every edit-save, not just when something actually changed.
@@ -566,7 +570,7 @@ export function NewConsultationSheet({
 
       <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
         <div className="inka-consult-left">
-          <div style={{ marginBottom: 16 }}><FieldLabel>Фотографии</FieldLabel><SessionPhotos photos={photos} onChange={setPhotos} buttonFirst /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel action={<PhotoAddIconButton onClick={() => photosRef.current?.openPicker()} />}>Фотографии</FieldLabel><SessionPhotos ref={photosRef} photos={photos} onChange={setPhotos} hideTrigger /></div>
           {/* Compact, read-only — a quick reminder while browsing references,
               not a form to fill in (that happens on the client's own Инфо
               tab). Kept small and at the bottom so it doesn't compete with
@@ -695,6 +699,7 @@ export function ProjectViewSheet({
   const [sendingMoodboard, setSendingMoodboard] = useState(false);
   const [moodboardShareNote, setMoodboardShareNote] = useState<string | null>(null);
   const moodboardFileRef = useRef<HTMLInputElement>(null);
+  const healingPhotosRef = useRef<SessionPhotosHandle>(null);
 
   // Тот же пайплайн, что у onPick в SessionPhotos (ClientControls.tsx) —
   // сжатие перед тем, как фото ляжет в проект, чтобы несколько снимков с
@@ -783,7 +788,10 @@ export function ProjectViewSheet({
               return (
                 <div>
                   <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span>Мудборд</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      Мудборд
+                      {!moodboardAtLimit && <PhotoAddIconButton onClick={() => moodboardFileRef.current?.click()} />}
+                    </span>
                     {/* Ручная смена статуса — только когда есть что отправлять;
                         та же схема, что у статуса проекта выше: мастер сама
                         отмечает «Одобрен»/«На доработку», «Отправлен» обычно
@@ -832,16 +840,9 @@ export function ProjectViewSheet({
                     ) : (
                       <span />
                     )}
-                    {moodboardAtLimit ? (
+                    {moodboardAtLimit && (
                       <span style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
                         Максимум {MOODBOARD_MAX_PHOTOS} фото
-                      </span>
-                    ) : (
-                      <span
-                        onClick={() => moodboardFileRef.current?.click()}
-                        style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
-                      >
-                        + Добавить фото
                       </span>
                     )}
                   </div>
@@ -870,13 +871,15 @@ export function ProjectViewSheet({
                 коррекция» на 21-й день), ради него незачем открывать форму
                 редактирования проекта. */}
             <div>
-              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
-                Заживление
+              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>Заживление</span>
+                <PhotoAddIconButton onClick={() => healingPhotosRef.current?.openPicker()} />
               </div>
               <SessionPhotos
+                ref={healingPhotosRef}
                 photos={project.healingPhotos.map((p) => p.url)}
                 onChange={onSaveHealingPhotos}
-                buttonFirst
+                hideTrigger
               />
               {project.healingPhotos.length === 0 ? (
                 <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
@@ -1038,6 +1041,7 @@ export function NewProjectSheet({
   // — мост между этим string[] и Project.moodboard.items). Не-photo items
   // (ссылки/цвета) и статус/подпись мудборда этой формой не трогаются.
   const [moodboardPhotos, setMoodboardPhotos] = useState<string[]>([]);
+  const moodboardPhotosRef = useRef<SessionPhotosHandle>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // See NewSessionSheet's justSaved — same «крестик превращается в зелёную
   // галочку» подтверждение, единообразно для всех форм редактирования.
@@ -1222,7 +1226,10 @@ export function NewProjectSheet({
               формы). Отправка, статус и порядок фото — не этот шаг: здесь
               только добавить/удалить, перетаскивание живёт в просмотре
               проекта (ProjectViewSheet). */}
-          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst maxPhotos={MOODBOARD_MAX_PHOTOS} gridColumns={4} /></div>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel action={moodboardPhotos.length < MOODBOARD_MAX_PHOTOS ? <PhotoAddIconButton onClick={() => moodboardPhotosRef.current?.openPicker()} /> : undefined}>Мудборд</FieldLabel>
+            <SessionPhotos ref={moodboardPhotosRef} photos={moodboardPhotos} onChange={setMoodboardPhotos} hideTrigger maxPhotos={MOODBOARD_MAX_PHOTOS} gridColumns={4} />
+          </div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Идеи и вдохновение</FieldLabel><textarea value={ideas} onChange={(e) => setIdeas(e.target.value)} placeholder="Чувство, креатив, источники вдохновения, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 110 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>

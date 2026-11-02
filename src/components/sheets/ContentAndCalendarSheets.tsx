@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { InkaLogo, DROP_CAP_FONT } from '../InkaLogo';
 import { type Session } from '../../domain/session';
@@ -33,7 +33,7 @@ import {
   clientNameFor,
   type ContentEntry,
 } from '../TattoDiary';
-import { SessionPhotos, NextStepRow } from '../client/ClientControls';
+import { SessionPhotos, type SessionPhotosHandle, PhotoAddIconButton, NextStepRow } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton } from '../ui/Sheet';
 import { SheetStarDivider } from '../ui/TextAtoms';
 
@@ -160,6 +160,7 @@ export function TimelineViewSheet({
   // только для просмотра сессии (isConsult below == false).
   onSaveHealingCheckPhotos?: (urls: string[]) => void;
 }) {
+  const healingCheckPhotosRef = useRef<SessionPhotosHandle>(null);
   const isConsult = !!consultation;
   const dateLine = (() => {
     const d = isConsult ? consultation!.date : session?.date ?? '';
@@ -385,13 +386,15 @@ export function TimelineViewSheet({
                 просматривается мимоходом, без права записи). */}
             {onSaveHealingCheckPhotos && (
               <div>
-                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5 }}>
-                  Контроль заживления
+                <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>Контроль заживления</span>
+                  <PhotoAddIconButton onClick={() => healingCheckPhotosRef.current?.openPicker()} />
                 </div>
                 <SessionPhotos
+                  ref={healingCheckPhotosRef}
                   photos={session.healingCheckPhotos.map((p) => p.url)}
                   onChange={onSaveHealingCheckPhotos}
-                  buttonFirst
+                  hideTrigger
                 />
                 {session.healingCheckPhotos.length === 0 && (
                   <div style={{ fontSize: fs(12), color: COLORS.textGhost, fontStyle: 'italic' }}>
