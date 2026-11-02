@@ -595,26 +595,27 @@ export const SessionPhotos = forwardRef<SessionPhotosHandle, {
         </div>
       );
 
+  // Компактный триггер — та же иконка-стрелка и подпись, что у
+  // PhotoAddIconButton (использует этот же SVG), без рамки-коробки, чтобы
+  // выглядеть одинаково во всех местах приложения, где есть эта кнопка (поле
+  // «Фотографии» сессии/консультации, «Мудборд», заметка, композер и т.п.).
   const addButton = (
       <div
         className="inka-doc-secondary"
         onClick={() => fileRef.current?.click()}
+        role="button"
         style={{
-          border: '1px solid rgba(var(--gold-rgb),0.2)',
-          borderRadius: 2,
-          padding: '11px',
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: 9,
+          gap: 7,
           cursor: 'pointer',
           fontSize: fs(12),
           color: COLORS.gold,
-          letterSpacing: '1px',
-          textTransform: 'uppercase',
+          fontStyle: 'italic',
+          letterSpacing: '0.3px',
         }}
       >
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
           <path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5L11 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M2.5 10V12.5C2.5 13 2.9 13.5 3.5 13.5H12.5C13 13.5 13.5 13 13.5 12.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>

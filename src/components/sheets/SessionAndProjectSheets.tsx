@@ -152,6 +152,7 @@ export function NewSessionSheet({
   const [skinReaction, setSkinReaction] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
+  const photosRef = useRef<SessionPhotosHandle>(null);
   // New sessions default to «Запланирована» — a session is created before
   // it happens far more often than after; editing reflects the session's
   // own status.
@@ -268,8 +269,8 @@ export function NewSessionSheet({
         {/* Photos first — same order as the consultation form (see
             NewConsultationSheet), rather than tacked on near the end. */}
         <div style={{ marginBottom: 16 }}>
-          <FieldLabel>Фото</FieldLabel>
-          <SessionPhotos photos={photos} onChange={setPhotos} buttonFirst />
+          <FieldLabel action={<PhotoAddIconButton onClick={() => photosRef.current?.openPicker()} />}>Фото</FieldLabel>
+          <SessionPhotos ref={photosRef} photos={photos} onChange={setPhotos} hideTrigger />
         </div>
 
         {/* Проект сначала — название сессии имеет смысл в его контексте.
@@ -523,6 +524,7 @@ export function NewConsultationSheet({
   const [outcome, setOutcome] = useState('');
   const [urgency, setUrgency] = useState<UrgencyKey>('important');
   const [photos, setPhotos] = useState<string[]>([]);
+  const photosRef = useRef<SessionPhotosHandle>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   // See NewSessionSheet's justSaved for why this shows unconditionally on
   // every edit-save, not just when something actually changed.
@@ -568,7 +570,7 @@ export function NewConsultationSheet({
 
       <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
         <div className="inka-consult-left">
-          <div style={{ marginBottom: 16 }}><FieldLabel>Фотографии</FieldLabel><SessionPhotos photos={photos} onChange={setPhotos} buttonFirst /></div>
+          <div style={{ marginBottom: 16 }}><FieldLabel action={<PhotoAddIconButton onClick={() => photosRef.current?.openPicker()} />}>Фотографии</FieldLabel><SessionPhotos ref={photosRef} photos={photos} onChange={setPhotos} hideTrigger /></div>
           {/* Compact, read-only — a quick reminder while browsing references,
               not a form to fill in (that happens on the client's own Инфо
               tab). Kept small and at the bottom so it doesn't compete with
@@ -1039,6 +1041,7 @@ export function NewProjectSheet({
   // — мост между этим string[] и Project.moodboard.items). Не-photo items
   // (ссылки/цвета) и статус/подпись мудборда этой формой не трогаются.
   const [moodboardPhotos, setMoodboardPhotos] = useState<string[]>([]);
+  const moodboardPhotosRef = useRef<SessionPhotosHandle>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // See NewSessionSheet's justSaved — same «крестик превращается в зелёную
   // галочку» подтверждение, единообразно для всех форм редактирования.
@@ -1223,7 +1226,10 @@ export function NewProjectSheet({
               формы). Отправка, статус и порядок фото — не этот шаг: здесь
               только добавить/удалить, перетаскивание живёт в просмотре
               проекта (ProjectViewSheet). */}
-          <div style={{ marginBottom: 16 }}><FieldLabel>Мудборд</FieldLabel><SessionPhotos photos={moodboardPhotos} onChange={setMoodboardPhotos} buttonFirst maxPhotos={MOODBOARD_MAX_PHOTOS} gridColumns={4} /></div>
+          <div style={{ marginBottom: 16 }}>
+            <FieldLabel action={moodboardPhotos.length < MOODBOARD_MAX_PHOTOS ? <PhotoAddIconButton onClick={() => moodboardPhotosRef.current?.openPicker()} /> : undefined}>Мудборд</FieldLabel>
+            <SessionPhotos ref={moodboardPhotosRef} photos={moodboardPhotos} onChange={setMoodboardPhotos} hideTrigger maxPhotos={MOODBOARD_MAX_PHOTOS} gridColumns={4} />
+          </div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Общие заметки</FieldLabel><textarea value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} placeholder="Идея, договорённости, мысли мастера..." style={{ ...INPUT_STYLE, resize: 'none', height: 90 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Идеи и вдохновение</FieldLabel><textarea value={ideas} onChange={(e) => setIdeas(e.target.value)} placeholder="Чувство, креатив, источники вдохновения, образы..." style={{ ...INPUT_STYLE, resize: 'none', height: 110 }} /></div>
           <div style={{ marginBottom: 16 }}><FieldLabel>Техника и стиль</FieldLabel><input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Выберите технику и стилистику работы..." style={INPUT_STYLE} /></div>

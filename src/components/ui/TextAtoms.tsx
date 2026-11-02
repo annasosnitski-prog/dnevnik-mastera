@@ -16,7 +16,7 @@ export function SheetStarDivider() {
 }
 
 // Form field label — 8.5px uppercase, wide tracking.
-export function FieldLabel({ children }: { children: React.ReactNode }) {
+export function FieldLabel({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div
       style={{
@@ -25,9 +25,13 @@ export function FieldLabel({ children }: { children: React.ReactNode }) {
         letterSpacing: '2.5px',
         textTransform: 'uppercase',
         marginBottom: 7,
+        display: action ? 'flex' : undefined,
+        alignItems: action ? 'center' : undefined,
+        gap: action ? 6 : undefined,
       }}
     >
       {children}
+      {action}
     </div>
   );
 }
