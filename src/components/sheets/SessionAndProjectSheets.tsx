@@ -9,8 +9,6 @@ import {
   PROJECT_BODY_AREAS,
   PROJECT_STATUSES,
   type ProjectStatus,
-  type ProjectWaitingFor,
-  type ProjectPriority,
   type NextActionType,
   NEXT_ACTION_TYPES,
   type SessionsPlan,
@@ -1007,11 +1005,9 @@ export function NewProjectSheet({
     firstSessionWindowUnit: FirstSessionWindowUnit | null;
     firstSessionExactDate: string | null;
     firstSessionWindowSetAt: string | null;
-    waitingFor: ProjectWaitingFor;
     nextActionText: string;
     nextActionDate: string | null;
     nextActionType: NextActionType | null;
-    priority: ProjectPriority;
     area: string;
     style: string;
     generalNotes: string;
@@ -1066,8 +1062,6 @@ export function NewProjectSheet({
   // compatibility. Editing preserves existing values; a new project gets the
   // historical defaults without exposing controls for them.
   const preservedColor = initial?.color ?? MARKER_COLORS[0];
-  const preservedWaitingFor: ProjectWaitingFor = initial?.waitingFor ?? 'none';
-  const preservedPriority: ProjectPriority = initial?.priority ?? 'normal';
   const legacyArea = area && !PROJECT_BODY_AREAS.some((option) => option.key === area) ? area : null;
 
   useEffect(() => {
@@ -1284,11 +1278,9 @@ export function NewProjectSheet({
               firstSessionWindowUnit: nextWindowUnit,
               firstSessionExactDate: exactDateMode ? firstSessionExactDate || null : null,
               firstSessionWindowSetAt,
-              waitingFor: preservedWaitingFor,
               nextActionText,
               nextActionDate: nextActionDate || null,
               nextActionType,
-              priority: preservedPriority,
               area,
               style,
               generalNotes,

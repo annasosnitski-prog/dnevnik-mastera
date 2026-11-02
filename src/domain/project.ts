@@ -134,8 +134,6 @@ export function projectBodyZone(area: string): string {
 // напоминаний. Поле убрано: напоминания и фильтры теперь читают
 // исключительно ProjectStatus.
 export type ProjectStatus = 'active' | 'paused' | 'completed';
-export type ProjectWaitingFor = 'master' | 'client' | 'external' | 'none';
-export type ProjectPriority = 'urgent' | 'important' | 'normal';
 export type FirstSessionWindowUnit = 'week' | 'month';
 export type PreSessionMeeting = 'consultation' | 'none';
 
@@ -184,19 +182,6 @@ export const PROJECT_STATUSES: { key: ProjectStatus; label: string }[] = [
   { key: 'active', label: 'Активен' },
   { key: 'paused', label: 'Пауза' },
   { key: 'completed', label: 'Завершён' },
-];
-
-export const PROJECT_WAITING_FOR: { key: ProjectWaitingFor; label: string }[] = [
-  { key: 'master', label: 'Мастера' },
-  { key: 'client', label: 'Клиента' },
-  { key: 'external', label: 'Внешнего' },
-  { key: 'none', label: 'Никого' },
-];
-
-export const PROJECT_PRIORITIES: { key: ProjectPriority; label: string }[] = [
-  { key: 'urgent', label: 'Срочно' },
-  { key: 'important', label: 'Важно' },
-  { key: 'normal', label: 'Обычный' },
 ];
 
 // Сколько встреч предполагает проект — задаётся мастером при создании.
@@ -539,13 +524,11 @@ export interface Project {
   status: ProjectStatus;
   // «Одна встреча» / «больше одной» — не точное число сессий, см. SessionsPlan.
   sessionsPlan: SessionsPlan;
-  waitingFor: ProjectWaitingFor;
   nextActionText: string;
   nextActionDate: string | null;
   // Структурный тип действия — см. NextActionType выше. Не выведен из
   // nextActionText, задаётся мастером отдельно; null = не выбран.
   nextActionType: NextActionType | null;
-  priority: ProjectPriority;
   area: string; // "Место" — constrained by PROJECT_BODY_AREAS in project UI
   style: string; // "Техника и стиль"
   generalNotes: string; // "Общие заметки"
@@ -617,7 +600,7 @@ export interface Project {
 // место, отвечающее на этот вопрос, вызывается из saveProject
 // (TattoDiary.tsx), единственной точки записи в стор проектов. Осознанно
 // НЕ включает правки текстовых полей (title/notes/area/style/feeling/
-// creative/inspirationSources/photos/color/category/priority) — это
+// creative/inspirationSources/photos/color/category) — это
 // редактирование содержимого, а не прогресс; иначе любая опечатка сбрасывала
 // бы таймер «застывания». Включает: смену статуса/того-кто-должен-
 // действовать (реальный прогресс или явное возобновление из паузы) и любое
@@ -626,7 +609,6 @@ export interface Project {
 export function isMeaningfulProjectChange(prev: Project, next: Project): boolean {
   return (
     prev.status !== next.status ||
-    prev.waitingFor !== next.waitingFor ||
     prev.nextActionText !== next.nextActionText ||
     prev.nextActionDate !== next.nextActionDate ||
     prev.nextActionType !== next.nextActionType

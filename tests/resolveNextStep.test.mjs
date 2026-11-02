@@ -123,11 +123,6 @@ test('isMeaningfulProjectChange is true when status changes', () => {
   assert.equal(isMeaningfulProjectChange(p, { ...p, status: 'paused' }), true);
 });
 
-test('isMeaningfulProjectChange is true when waitingFor changes', () => {
-  const p = makeProject({ waitingFor: 'client' });
-  assert.equal(isMeaningfulProjectChange(p, { ...p, waitingFor: 'master' }), true);
-});
-
 test('isMeaningfulProjectChange is true when next-step text/date/type changes', () => {
   const p = makeProject();
   assert.equal(isMeaningfulProjectChange(p, { ...p, nextActionText: 'Позвонить клиенту' }), true);

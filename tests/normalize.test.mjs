@@ -336,8 +336,6 @@ test('normalizeProject defaults every union field to its documented fallback', (
   const p = normalizeProject({}, 0);
   assert.equal(p.category, 'tattoo');
   assert.equal(p.status, 'active');
-  assert.equal(p.waitingFor, 'none');
-  assert.equal(p.priority, 'normal');
   assert.equal(p.nextActionType, null); // never guessed from nextActionText
   assert.equal(p.clientId, null);
 });
@@ -353,10 +351,9 @@ test('normalizeProject keeps a valid nextActionType unchanged', () => {
 });
 
 test('normalizeProject re-normalizes an already-valid record to the same value (idempotent)', () => {
-  const once = normalizeProject({ status: 'paused', priority: 'urgent' }, 0);
+  const once = normalizeProject({ status: 'paused' }, 0);
   const twice = normalizeProject(once, 0);
   assert.equal(twice.status, 'paused');
-  assert.equal(twice.priority, 'urgent');
 });
 
 // Старый семишаговый `stage` не мигрируется бережно — он просто игнорируется,

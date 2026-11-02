@@ -11,8 +11,6 @@ import { ACCENT_COLORS, CLIENT_TYPES, CLIENT_LANGUAGES, MARKER_COLORS, type Clie
 import {
   PROJECT_CATEGORIES,
   PROJECT_STATUSES,
-  PROJECT_WAITING_FOR,
-  PROJECT_PRIORITIES,
   NEXT_ACTION_TYPES,
   MOODBOARD_STATUSES,
   type Project,
@@ -298,14 +296,12 @@ export function normalizeProject(raw: any, index: number): Project {
     // domain/project.ts) — старая запись просто получает разумный дефолт:
     // 'active', тот же дефолт, что и у нового проекта.
     status: PROJECT_STATUSES.some((s) => s.key === raw?.status) ? raw.status : 'active',
-    waitingFor: PROJECT_WAITING_FOR.some((w) => w.key === raw?.waitingFor) ? raw.waitingFor : 'none',
     nextActionText: raw?.nextActionText ?? '',
     nextActionDate: raw?.nextActionDate ?? null,
     // Отсутствует или неизвестное значение → null (не угадываем тип по
     // nextActionText). Повторная нормализация валидного значения не меняет
     // его — та же .some()-проверка, что и у остальных union-полей проекта.
     nextActionType: NEXT_ACTION_TYPES.some((t) => t.key === raw?.nextActionType) ? raw.nextActionType : null,
-    priority: PROJECT_PRIORITIES.some((p) => p.key === raw?.priority) ? raw.priority : 'normal',
     area: raw?.area ?? '',
     style: raw?.style ?? '',
     generalNotes: raw?.generalNotes ?? '',
