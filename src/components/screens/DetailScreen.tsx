@@ -1382,52 +1382,56 @@ function ContactsSection({ client, onSave, first }: { client: Client; onSave: (c
         )}
       </div>
 
-      {/* Ссылки — ряд иконок (как «Соцсети» у мастера): тап открывает
-          профиль. Полный список с адресом и удалением — под тумблером
-          ниже, а не развёрнут всегда. */}
-      {links.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
-          {links.map((link) => {
-            const Icon = CHAT_PLATFORM_ICONS[link.platform] ?? GenericLinkIcon;
-            return (
-              <a
-                key={link.id}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Открыть ${PLATFORM_LABELS[link.platform]}`}
-                title={PLATFORM_LABELS[link.platform]}
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textDecoration: 'none',
-                  border: '1px solid rgba(var(--gold-rgb),0.3)',
-                  background: 'rgba(var(--gold-rgb),0.04)',
-                  color: COLORS.gold,
-                  flexShrink: 0,
-                }}
-              >
-                <Icon width={20} height={20} />
-              </a>
-            );
-          })}
+      {/* Ссылки — тот же тесный блок GoldFrame, что «Соцсети» у мастера
+          (лейбл + тумблер в одной строке, ряд иконок сразу под ним), а не
+          разрозненные иконки и ссылка «изменить» далеко внизу. Тап по
+          иконке открывает профиль; полный список с адресом и удалением —
+          под тумблером. */}
+      <GoldFrame plain style={{ padding: '14px 16px', marginBottom: editingLinks ? 8 : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: links.length > 0 ? 10 : 0 }}>
+          <span style={{ fontSize: fs(11), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Соцсети</span>
+          <span
+            onClick={() => setEditingLinks((v) => !v)}
+            role="button"
+            aria-label={editingLinks ? 'Готово' : links.length > 0 ? 'Изменить ссылки' : 'Добавить ссылку'}
+            style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
+          >
+            {editingLinks ? 'Готово' : links.length > 0 ? 'изменить' : '+ добавить'}
+          </span>
         </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: editingLinks ? 8 : 0 }}>
-        <span
-          onClick={() => setEditingLinks((v) => !v)}
-          role="button"
-          aria-label={editingLinks ? 'Готово' : links.length > 0 ? 'Изменить ссылки' : 'Добавить ссылку'}
-          style={{ fontSize: fs(12), color: COLORS.gold, fontStyle: 'italic', cursor: 'pointer' }}
-        >
-          {editingLinks ? 'Готово' : links.length > 0 ? 'изменить ссылки' : '+ добавить ссылку'}
-        </span>
-      </div>
+        {links.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {links.map((link) => {
+              const Icon = CHAT_PLATFORM_ICONS[link.platform] ?? GenericLinkIcon;
+              return (
+                <a
+                  key={link.id}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Открыть ${PLATFORM_LABELS[link.platform]}`}
+                  title={PLATFORM_LABELS[link.platform]}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textDecoration: 'none',
+                    border: '1px solid rgba(var(--gold-rgb),0.3)',
+                    background: 'rgba(var(--gold-rgb),0.04)',
+                    color: COLORS.gold,
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon width={20} height={20} />
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </GoldFrame>
 
       {editingLinks && (
         <>

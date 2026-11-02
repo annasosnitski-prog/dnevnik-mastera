@@ -83,12 +83,12 @@ test('the retired gem sprite still lists all six tiles in tab order', () => {
 // info, но не «личное»), красится через явный override в самом тексте
 // вкладки, а не через проп на весь бар.
 test('every tab is coloured by its own territory (kind), with a per-tab override for the odd one out', () => {
-  assert.match(designTokens, /clients: '#000080'/);
+  assert.match(designTokens, /clients: '#000066'/);
   assert.match(designTokens, /personal: '#C99516'/);
-  assert.match(designTokens, /content: '#B01236'/);
+  assert.match(designTokens, /content: '#EB0A3E'/);
   assert.match(designTokens, /projects: '#008A5A'/);
   assert.match(designTokens, /notes: '#D45A1F'/);
-  assert.match(designTokens, /admin: '#7935B2'/);
+  assert.match(designTokens, /admin: '#9536E2'/);
 
   assert.match(navFab, /label: "Проекты"[\s\S]*?color: TERRITORY_COLORS\.projects/);
   // The shared tab bar imports the same territory palette and keys every
