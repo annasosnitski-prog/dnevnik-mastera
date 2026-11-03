@@ -28,7 +28,7 @@ import type {
 import type { HealingCycleItem } from '../../reminders/healingCycle';
 import { todayISO } from '../../utils/dates';
 import { DROP_CAP_FONT, InkaTitleSuffix } from '../InkaLogo';
-import { StarDivider } from '../icons/StarIcons';
+import { GoldDotDivider } from '../icons/StarIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { ProjectTimelineList } from '../project/ProjectTimelineList';
 import { ClientActionsTab } from './ClientActionsTab';
@@ -49,11 +49,12 @@ import { UpcomingScheduleSection } from './UpcomingScheduleSection';
 // Красная вкладка «Напоминания» убрана: задачи переехали стопкой на
 // фиолетовую «Клиенты» (см. ClientActionsTab), рядом с шагами и заживлением.
 // Цвета — территориальные по kind: Расписание синее (клиенты), Проекты
-// зелёные.
+// зелёные. Проекты — первой геммой слева: тот же порядок, что у карточки
+// клиента и везде, где появляется этот рисунок вкладок (Анна, 2026-11-02).
 type AdminTab = 'schedule' | 'timeline' | 'clients';
 const ADMIN_TABS: ClientCardTabDef<AdminTab>[] = [
-  { id: 'schedule', kind: 'sessions', label: 'Расписание' },
   { id: 'timeline', kind: 'projects', label: 'Проекты' },
+  { id: 'schedule', kind: 'sessions', label: 'Расписание' },
   { id: 'clients', kind: 'info', label: 'Клиенты', color: TERRITORY_COLORS.admin },
 ];
 
@@ -146,7 +147,7 @@ export function AdminDashboardScreen({
           </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        <StarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента и личного

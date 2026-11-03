@@ -1,7 +1,7 @@
 import { memo, useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { InkaTitleSuffix } from '../InkaLogo';
-import { StarDivider } from '../icons/StarIcons';
+import { GoldDotDivider } from '../icons/StarIcons';
 import { GoldFrame } from '../ui/Stripes';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { SessionPhotos } from '../client/ClientControls';
@@ -1226,7 +1226,7 @@ export function ContentINKAScreen({
           </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        <StarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
       <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>

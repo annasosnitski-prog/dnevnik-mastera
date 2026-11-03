@@ -1,8 +1,8 @@
 import { useState, useEffect, type SVGProps } from 'react';
 import type * as React from 'react';
 import { DROP_CAP_FONT } from '../InkaLogo';
-import { StarDivider } from '../icons/StarIcons';
 import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon } from '../icons/SocialIcons';
+import { GoldDotDivider } from '../icons/StarIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { AddChatLinkForm, AddMasterLinkForm } from '../client/ClientControls';
 import { SettingsScreen, type SettingsScreenProps } from './SettingsScreen';
@@ -22,9 +22,11 @@ import { type Project } from '../../domain/project';
 // prop-driven контракта. Локальное состояние (активная вкладка, черновики
 // полей ввода, тап-копирование в буфер) сохранено как было.
 
+// Проекты всегда первой геммой слева — тот же порядок, что у карточки
+// клиента и везде, где появляется этот рисунок вкладок (Анна, 2026-11-02).
 const MASTER_TABS: ClientCardTabDef<'info' | 'projects' | 'settings'>[] = [
-  { id: 'info', kind: 'info', label: 'Инфо' },
   { id: 'projects', kind: 'projects', label: 'Проекты' },
+  { id: 'info', kind: 'info', label: 'Инфо' },
   // Так же, как Инфо/Проекты — переключает контент ниже, не отдельный
   // экран. Заимствует иконку notes (свободна в этой тройке), цвет —
   // админ-территория (фиолетовый).
@@ -170,7 +172,7 @@ export function MasterDashboardScreen({
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Профиль мастера
         </div>
-        <StarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента (см. её

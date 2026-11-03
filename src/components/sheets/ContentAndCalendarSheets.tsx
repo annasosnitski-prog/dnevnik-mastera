@@ -35,7 +35,7 @@ import {
 } from '../TattoDiary';
 import { SessionPhotos, type SessionPhotosHandle, PhotoAddIconButton, NextStepRow } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton } from '../ui/Sheet';
-import { SheetStarDivider } from '../ui/TextAtoms';
+import { GoldDotDivider } from '../icons/StarIcons';
 
 // Вынесено из TattoDiary.tsx (PR 7 рефакторинга). Логика и разметка не
 // менялись — только перенос в отдельный модуль.
@@ -183,7 +183,7 @@ export function TimelineViewSheet({
           {isConsult ? (consultationNumber ? `Консультация ${consultationNumber}` : 'Консультация') : session?.name || 'Сессия'}
         </div>
         <div style={{ fontSize: fs(13), color: COLORS.textGhost, marginTop: 4, letterSpacing: '0.3px' }}>{dateLine}</div>
-        <SheetStarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
       <div style={{ padding: '4px 24px 60px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -621,7 +621,7 @@ export function ContentLinkPickerSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(20), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>Сохранить в…</div>
-        <SheetStarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
       <div style={{ padding: '0 24px', display: 'flex', gap: 8 }} role="tablist" aria-label="Тип привязки">

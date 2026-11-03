@@ -163,7 +163,7 @@ import type { ClientCardTab } from './screens/DetailScreen';
 // только внутри TrialGate — редкого overlay (обязателен для самого первого
 // клиента, иначе шанс сработать 15% на создание карточки/сессии/заметки или
 // на возврат в приложение) — поэтому тоже лениво.
-import { StarDivider } from './icons/StarIcons';
+import { GoldDotDivider } from './icons/StarIcons';
 const RPSGame = lazyScreen(() => import('./games/RPSGame').then((m) => ({ default: m.RPSGame })));
 const RPSTauntFace = lazyScreen(() => import('./games/RPSGame').then((m) => ({ default: m.RPSTauntFace })));
 const CupsGame = lazyScreen(() => import('./games/CupsGame').then((m) => ({ default: m.CupsGame })));
@@ -2818,9 +2818,9 @@ export default function TattoDiary() {
             </div>
             <TodayDateBadge onOpen={() => setShowCalendar(true)} size={35} />
           </div>
-          <StarDivider />
-          {/* Below the divider, right-aligned — this whole row scrolls away
-              with the header, same as the client grid underneath. */}
+          <GoldDotDivider marginTop={11} />
+          {/* Right-aligned — this whole row scrolls away with the header,
+              same as the client grid underneath. */}
           <div style={{ marginTop: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
               {/* ── Поиск ── */}
@@ -4088,7 +4088,7 @@ function TrialGate({
         >
           {TRIAL_TITLES[gameKind]}
         </div>
-        <StarDivider marginTop={9} />
+        <GoldDotDivider marginTop={9} />
 
         {/* Loss counter — how close the app is to "winning" the series
             (just 1 dot for Black Jack, since a single hand decides it). */}

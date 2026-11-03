@@ -19,6 +19,17 @@ export const PROJECT_CATEGORIES: { key: ProjectCategory; label: string }[] = [
   { key: 'other', label: 'Другое' },
 ];
 
+// One gem colour per category, for the «Мастерская» pendant filter — reuses
+// the same stone hexes NaturalStoneIcon already paints elsewhere (malachite,
+// rhodonite, fire-opal, honey-jadeite) so a category reads with the same
+// jewel-tone language as the rest of the app, not a one-off palette.
+export const PROJECT_CATEGORY_COLORS: Record<ProjectCategory, string> = {
+  tattoo: '#006B3C',
+  drawing: '#B94E7E',
+  collab: '#D56800',
+  other: '#9F5A0A',
+};
+
 // Project.area remains a plain string for backwards compatibility. This list
 // constrains only the project editor/filter UI; Session.area and
 // Consultation.area remain free text.

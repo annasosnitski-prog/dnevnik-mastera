@@ -56,7 +56,8 @@ import {
   NextStepRow,
 } from '../client/ClientControls';
 import { BottomSheet, SheetCloseButton, SheetEditButton, SheetSavedCheck } from '../ui/Sheet';
-import { FieldLabel, SheetStarDivider } from '../ui/TextAtoms';
+import { FieldLabel } from '../ui/TextAtoms';
+import { GoldDotDivider } from '../icons/StarIcons';
 
 // Вынесено из TattoDiary.tsx (PR 6 рефакторинга). Логика и разметка не
 // менялись — только перенос в отдельный модуль.
@@ -262,7 +263,7 @@ export function NewSessionSheet({
             Из консультации {formatDate(prefillConsultation.date) || ''}
           </div>
         )}
-        <SheetStarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
       <div style={{ padding: '4px 24px 50px' }}>
@@ -434,7 +435,7 @@ export function ProjectSessionPickerSheet({
       <div style={{ padding: '16px 24px 14px', position: 'relative' }}>
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>В какой проект?</div>
-        <SheetStarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {scope === 'all' ? (
@@ -565,7 +566,7 @@ export function NewConsultationSheet({
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{isEdit ? 'Редактировать консультацию' : chainFrom ? 'Следующая консультация' : 'Новая консультация'}</div>
-        <SheetStarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
       <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>
@@ -762,7 +763,7 @@ export function ProjectViewSheet({
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>{clientName ?? 'Мастерская'}</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{project?.title || 'Проект'}</div>
-        <SheetStarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
       <div style={{ padding: '4px 24px 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1092,7 +1093,7 @@ export function NewProjectSheet({
         <SheetCloseButton onClose={onClose} />
         <div style={{ fontSize: fs(15), color: COLORS.textMuted, fontStyle: 'italic', marginBottom: 3, letterSpacing: '0.3px' }}>Мастерская</div>
         <div style={{ fontSize: fs(22), color: COLORS.textPrimary, fontWeight: 300, letterSpacing: '1px' }}>{isEdit ? 'Редактировать проект' : 'Новый проект'}</div>
-        <SheetStarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
       <div className="inka-consult-grid" style={{ padding: '4px 24px 20px' }}>

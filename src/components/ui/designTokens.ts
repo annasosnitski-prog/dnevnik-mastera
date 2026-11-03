@@ -22,12 +22,15 @@ export const TERRITORY_COLORS = {
   // clients and projects swapped too (were emerald/sapphire): клиент —
   // тёмно-синий navy #000080 (Crowdflower), проект — зелёный, везде, где цвет
   // систематизирует.
-  clients: '#000080',
+  // Клиенты — синий на 2 тона темнее исходного (ближе к чёрному) по
+  // просьбе Анны; контент и админка — насыщеннее и светлее (тот же тон,
+  // выше saturation/lightness), чтобы камни читались ярче.
+  clients: '#000066',
   personal: '#C99516',
-  content: '#B01236',
+  content: '#EB0A3E',
   projects: '#008A5A',
   notes: '#D45A1F',
-  admin: '#7935B2',
+  admin: '#9536E2',
 } as const;
 
 // "Размер текста" scales typography only. TattoDiary sets the multiplier at

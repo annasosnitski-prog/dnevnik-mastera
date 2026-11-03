@@ -1,20 +1,22 @@
 // Вынесено из TattoDiary.tsx (PR 2 рефакторинга) — чистые презентационные
 // иконки без связи с состоянием приложения.
 
-export function StarDivider({ marginTop = 11 }: { marginTop?: number }) {
+// Заменяет прежний разделитель со звёздочкой (убран по фидбеку) — линия с
+// рядом мелких точек вместо линии+звезды, без свечения на конце.
+export function GoldDotDivider({ marginTop, marginBottom }: { marginTop?: number; marginBottom?: number }) {
+  const line = <div style={{ flex: 1, height: 1, background: 'rgba(var(--gold-rgb),0.35)' }} />;
+  const dot = <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--gold)', opacity: 0.55, flexShrink: 0 }} />;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop }}>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(var(--gold-rgb),0.55), transparent)' }} />
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-        <path
-          d="M7 1L8.2 5.3H13L9.4 7.7L10.6 12L7 9.6L3.4 12L4.6 7.7L1 5.3H5.8Z"
-          stroke="currentColor"
-          strokeWidth="0.8"
-          fill="currentColor" fillOpacity="0.18"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(var(--gold-rgb),0.55), transparent)' }} />
+    <div style={{ display: 'flex', alignItems: 'center', marginTop, marginBottom }}>
+      {dot}
+      {line}
+      {dot}
+      {line}
+      {dot}
+      {line}
+      {dot}
+      {line}
+      {dot}
     </div>
   );
 }

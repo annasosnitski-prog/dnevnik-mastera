@@ -1,13 +1,24 @@
 import { useState } from 'react';
 import { InkaLogo } from '../InkaLogo';
 import { type Client } from '../../domain/client';
-import { type ProjectCategory, PROJECT_CATEGORIES, PROJECT_BODY_AREAS, type Project } from '../../domain/project';
+import { type ProjectCategory, PROJECT_CATEGORIES, PROJECT_CATEGORY_COLORS, PROJECT_BODY_AREAS, type Project } from '../../domain/project';
 import { buildProjectZoneFolders } from '../../domain/projectSelectors';
 import { ProjectFolderCard } from '../project/ProjectFolderCard';
 import { ProjectFolderView } from '../project/ProjectFolderView';
-import { StarDivider } from '../icons/StarIcons';
+import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
+import { GoldDotDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, INPUT_STYLE } from '../TattoDiary';
+
+// One pendant per category, in PROJECT_CATEGORIES order — `kind: 'projects'`
+// is irrelevant here (it only picks the minimalism-mode line icon), the
+// gem's actual colour always comes from `color`.
+const CATEGORY_TABS: ClientCardTabDef<ProjectCategory>[] = PROJECT_CATEGORIES.map((c) => ({
+  id: c.key,
+  kind: 'projects',
+  label: c.label,
+  color: PROJECT_CATEGORY_COLORS[c.key],
+}));
 
 // Папки верхнего уровня — по зоне тела (buildProjectZoneFolders), а не по
 // клиенту: полный список проектов клиента остаётся в его собственной
@@ -75,12 +86,25 @@ export function WorkshopScreen({
           </div>
           <TodayDateBadge onOpen={onOpenCalendar} size={35} />
         </div>
-        <StarDivider />
+        <GoldDotDivider marginTop={11} />
       </div>
 
-      {/* Same funnel-toggle + floating chip panel pattern as the client
-          list's «Фильтры» — «Все» plus the same category set used when
-          creating a project. */}
+      {/* Always-visible pendant filter, one gem per project category — same
+          jewel-tab rail the client card uses (ClientCardTabBar), reusing its
+          PROJECT_CATEGORY_COLORS so each gem reads the category's own
+          jewel-tone colour instead of the single territory green. Tapping
+          the already-active gem clears back to «Все» (categoryFilter). */}
+      <div style={{ padding: '0 16px 4px', position: 'relative', zIndex: 2 }}>
+        <ClientCardTabBar
+          ariaLabel="Фильтр по типу проекта"
+          tabs={CATEGORY_TABS}
+          activeTab={categoryFilter === 'all' ? ('' as ProjectCategory) : categoryFilter}
+          onTab={(cat) => setCategoryFilter((current) => (current === cat ? 'all' : cat))}
+        />
+      </div>
+
+      {/* Funnel-toggle + floating chip panel now covers only «Место» — type
+          filtering moved to the always-visible gem row above. */}
       <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
         <div style={{ position: 'relative' }}>
           <div
@@ -120,32 +144,6 @@ export function WorkshopScreen({
                 zIndex: 17,
               }}
             >
-              <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>Тип</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                {(['all', ...PROJECT_CATEGORIES.map((c) => c.key)] as ('all' | ProjectCategory)[]).map((v) => {
-                  const label = v === 'all' ? 'Все' : PROJECT_CATEGORIES.find((c) => c.key === v)?.label;
-                  const active = categoryFilter === v;
-                  return (
-                    <div
-                      key={v}
-                      onClick={() => setCategoryFilter(v)}
-                      style={{
-                        fontSize: fs(11),
-                        padding: '4px 9px',
-                        borderRadius: 2,
-                        cursor: 'pointer',
-                        border: active ? '1px solid rgba(var(--gold-rgb),0.6)' : '1px solid rgba(var(--gold-rgb),0.15)',
-                        background: active ? 'rgba(var(--gold-rgb),0.08)' : 'transparent',
-                        color: active ? COLORS.gold : COLORS.textFaint,
-                        letterSpacing: '0.4px',
-                      }}
-                    >
-                      {label}
-                    </div>
-                  );
-                })}
-              </div>
-
               <div style={{ fontSize: fs(10), color: COLORS.textGhost, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 8 }}>Место</div>
               <select value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)} style={{ ...INPUT_STYLE, fontSize: fs(12) }}>
                 <option value="all">Все места</option>
