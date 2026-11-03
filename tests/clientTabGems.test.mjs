@@ -258,8 +258,8 @@ test('Личный кабинет мастера reuses the same shared tab bar 
   assert.ok(listMatch, 'MASTER_TABS array not found');
   const ids = [...listMatch[1].matchAll(/\{ id: '([^']+)', kind: '([^']+)'/g)].map(([, id, kind]) => [id, kind]);
   assert.deepEqual(ids, [
-    ['info', 'info'],
     ['projects', 'projects'],
+    ['info', 'info'],
     ['settings', 'notes'],
   ]);
   // Настройки рендерятся как третье содержимое вкладки (embedded), не
