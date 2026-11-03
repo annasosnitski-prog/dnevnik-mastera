@@ -28,7 +28,9 @@ export const TERRITORY_COLORS = {
   clients: '#000066',
   personal: '#C99516',
   content: '#EB0A3E',
-  projects: '#008A5A',
+  // Проекты — тёплая лесная зелень (был холодный изумруд #008A5A,
+  // тон увели к жёлтому) по просьбе Анны.
+  projects: '#3D7A2B',
   notes: '#D45A1F',
   admin: '#9536E2',
 } as const;
