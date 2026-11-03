@@ -86,7 +86,7 @@ test('every tab is coloured by its own territory (kind), with a per-tab override
   assert.match(designTokens, /clients: '#000066'/);
   assert.match(designTokens, /personal: '#C99516'/);
   assert.match(designTokens, /content: '#EB0A3E'/);
-  assert.match(designTokens, /projects: '#008A5A'/);
+  assert.match(designTokens, /projects: '#3D7A2B'/);
   assert.match(designTokens, /notes: '#D45A1F'/);
   assert.match(designTokens, /admin: '#9536E2'/);
 
