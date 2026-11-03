@@ -42,11 +42,6 @@ interface NavFabProps {
   onQuickCreate?: (kind: QuickCreateKind) => void;
 }
 
-// Fan order follows the same colour sequence as every other gem/pendant bar
-// in the app (client card, admin dashboard): clients' navy, then projects'
-// green, content's red, notes' orange, personal's gold, admin's purple —
-// left-to-right / clockwise-from-top is a single palette order everywhere
-// gems appear, not a per-screen choice (Anna, 2026-11-02).
 const NAV_ITEMS = [
   {
     id: "clients",
@@ -56,33 +51,6 @@ const NAV_ITEMS = [
     color: TERRITORY_COLORS.clients,
     durationMs: 2000,
     moduleKey: null as ModuleKey | null,
-  },
-  {
-    id: "brush",
-    label: "Проекты",
-    screen: "workshop",
-    isActive: (active: AppScreen) => active === "workshop",
-    color: TERRITORY_COLORS.projects,
-    durationMs: 2100,
-    moduleKey: "workshop" as ModuleKey | null,
-  },
-  {
-    id: "content",
-    label: "ContentINKA",
-    screen: "content",
-    isActive: (active: AppScreen) => active === "content",
-    color: TERRITORY_COLORS.content,
-    durationMs: 3200,
-    moduleKey: "content" as ModuleKey | null,
-  },
-  {
-    id: "sketchbook",
-    label: "Заметки",
-    screen: "summary",
-    isActive: (active: AppScreen) => active === "summary",
-    color: TERRITORY_COLORS.notes,
-    durationMs: 1800,
-    moduleKey: "planner" as ModuleKey | null,
   },
   {
     id: "gear",
@@ -95,6 +63,33 @@ const NAV_ITEMS = [
     // где живут сами тогглы модулей — спрятав вкладку, было бы некуда
     // вернуться, чтобы включить модуль обратно.
     moduleKey: null as ModuleKey | null,
+  },
+  {
+    id: "content",
+    label: "ContentINKA",
+    screen: "content",
+    isActive: (active: AppScreen) => active === "content",
+    color: TERRITORY_COLORS.content,
+    durationMs: 3200,
+    moduleKey: "content" as ModuleKey | null,
+  },
+  {
+    id: "brush",
+    label: "Проекты",
+    screen: "workshop",
+    isActive: (active: AppScreen) => active === "workshop",
+    color: TERRITORY_COLORS.projects,
+    durationMs: 2100,
+    moduleKey: "workshop" as ModuleKey | null,
+  },
+  {
+    id: "sketchbook",
+    label: "Заметки",
+    screen: "summary",
+    isActive: (active: AppScreen) => active === "summary",
+    color: TERRITORY_COLORS.notes,
+    durationMs: 1800,
+    moduleKey: "planner" as ModuleKey | null,
   },
   {
     id: "profile",
