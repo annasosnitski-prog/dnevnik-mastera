@@ -76,6 +76,8 @@
     "src/domain/consultation.ts",
     "src/domain/task.ts",
     "src/domain/urgency.ts",
-    "src/utils/dates.ts"
+    "src/utils/dates.ts",
+    "src/voice/intent.ts",
+    "src/voice/commands.ts"
   ]
 }
