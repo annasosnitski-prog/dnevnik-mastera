@@ -98,3 +98,62 @@ export async function shareProjectPhotos(srcs: string[], projectId: string): Pro
   });
   return 'downloaded';
 }
+
+// ── «Все заметки проекта» ── тексты из всех записей проекта одним списком:
+// общие заметки консультаций (и их итог/чувство/креатив/источники), заметки
+// и реакция кожи сессий, заметки/задачи, привязанные к проекту, и общие
+// заметки самого проекта. Пустые поля пропускаются; порядок — та же
+// хронология, что у фото.
+export type ProjectNoteSourceKind = 'project' | 'consultation' | 'session' | 'note';
+
+export interface ProjectNoteItem {
+  key: string;
+  kind: ProjectNoteSourceKind;
+  label: string;
+  date: string;
+  text: string;
+  done?: boolean;
+}
+
+function joinParts(parts: Array<[string, string | undefined]>): string {
+  return parts
+    .map(([title, value]) => [title, (value ?? '').trim()] as const)
+    .filter(([, value]) => value.length > 0)
+    .map(([title, value]) => (title ? `${title}: ${value}` : value))
+    .join('\n\n');
+}
+
+export function collectProjectNotes(project: Project, linkedClient: Client | null, masterNotes: ClientNote[] = []): ProjectNoteItem[] {
+  const out: ProjectNoteItem[] = [];
+  const consultations = linkedClient ? getConsultationSequence(linkedClient.consultations, project.id) : getConsultationSequence(project.consultations, project.id);
+  const sessions = (linkedClient ? getSessionsByProjectId(linkedClient.sessions, project.id) : project.sessions)
+    .slice()
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const notes = linkedClient ? getTasksByProjectId(linkedClient.notes, project.id) : getTasksByProjectId(masterNotes, project.id);
+
+  const projectText = joinParts([['', project.generalNotes]]);
+  if (projectText) out.push({ key: `p-${project.id}`, kind: 'project', label: 'Проект', date: (project.createdDate || '').slice(0, 10), text: projectText });
+
+  consultations.forEach((c, i) => {
+    const text = joinParts([
+      ['', c.generalNotes],
+      ['Итог', c.outcome],
+      ['Чувство', c.feeling],
+      ['Креатив', c.creative],
+      ['Источники', c.inspirationSources],
+    ]);
+    if (text) out.push({ key: `c-${c.id}`, kind: 'consultation', label: `Консультация ${i + 1}`, date: c.date, text });
+  });
+  sessions.forEach((s, i) => {
+    const text = joinParts([
+      ['', s.note],
+      ['Кожа', s.skinReaction],
+    ]);
+    if (text) out.push({ key: `s-${s.id}`, kind: 'session', label: `Сессия ${i + 1}`, date: s.date, text });
+  });
+  notes.forEach((n) => {
+    const text = (n.text || '').trim();
+    if (text) out.push({ key: `n-${n.id}`, kind: 'note', label: 'Заметка', date: (n.createdDate || '').slice(0, 10), text, done: n.done });
+  });
+  return out;
+}

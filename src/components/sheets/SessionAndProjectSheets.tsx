@@ -59,7 +59,8 @@ import { BottomSheet, SheetCloseButton, SheetEditButton, SheetSavedCheck } from 
 import { FieldLabel } from '../ui/TextAtoms';
 import { GoldDotDivider } from '../icons/StarIcons';
 import { ProjectPhotoGallery } from '../project/ProjectPhotoGallery';
-import { collectProjectPhotos } from '../../lib/projectGallery';
+import { ProjectNotesTiles } from '../project/ProjectNotesTiles';
+import { collectProjectPhotos, collectProjectNotes } from '../../lib/projectGallery';
 
 // Вынесено из TattoDiary.tsx (PR 6 рефакторинга). Логика и разметка не
 // менялись — только перенос в отдельный модуль.
@@ -756,6 +757,8 @@ export function ProjectViewSheet({
   // фильтр чтения.
   // «Все фото проекта» — снимки из всех записей проекта одной плиткой.
   const allProjectPhotos = project ? collectProjectPhotos(project, linkedClient, masterNotes) : [];
+  // «Все заметки проекта» — тексты всех записей проекта плиткой.
+  const allProjectNotes = project ? collectProjectNotes(project, linkedClient, masterNotes) : [];
   const projectContentItems = project ? getContentEntriesForProject(contentEntries, project.id, projects, clients) : [];
   const chipStyle: React.CSSProperties = { fontSize: fs(11), color: COLORS.textFaint, border: '1px solid rgba(var(--gold-rgb),0.3)', borderRadius: 2, padding: '3px 9px', letterSpacing: '0.5px' };
   const entryRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 2, cursor: 'pointer', border: '1px solid rgba(var(--gold-rgb),0.15)', background: 'rgba(var(--surface-rgb),0.018)' };
@@ -901,7 +904,6 @@ export function ProjectViewSheet({
 
             <ViewField label="Место" value={project.area} />
             <ViewField label="Техника и стиль" value={project.style} />
-            <ViewField label="Общие заметки" value={project.generalNotes} />
             <ViewField label="Идеи и вдохновение" value={[project.creative, project.feeling, project.inspirationSources].filter((x) => x && x.trim()).join('\n\n')} />
 
             {(linkedSessions.length > 0 || linkedConsults.length > 0 || ownSessions.length > 0 || ownConsults.length > 0) && (
@@ -915,6 +917,10 @@ export function ProjectViewSheet({
                 </div>
               </div>
             )}
+
+            {/* Общие заметки проекта — первой плиткой («Проект») здесь, а не
+                отдельным полем выше. */}
+            <ProjectNotesTiles items={allProjectNotes} />
 
             {linkedTasks.length > 0 && (
               <div>

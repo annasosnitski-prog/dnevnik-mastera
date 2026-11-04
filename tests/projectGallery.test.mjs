@@ -44,3 +44,20 @@ test('projectPhotoToFile converts data URLs and rejects external links', () => {
   assert.equal(file.type, 'image/jpeg');
   assert.equal(projectPhotoToFile('https://example.com/a.jpg', 'p1', 0), null);
 });
+
+import { collectProjectNotes } from '../.test-dist/src/lib/projectGallery.js';
+
+test('collectProjectNotes gathers project, consultation, session and note texts, skipping empty ones', () => {
+  const client = {
+    id: 'cl',
+    consultations: [consultation({ id: 'c1', generalNotes: 'хочет розу', outcome: 'договорились', feeling: '', creative: '', inspirationSources: '' })],
+    sessions: [session({ id: 's1', note: '', skinReaction: '' }), session({ id: 's2', date: '2026-02-02', note: 'контур', skinReaction: 'покраснение' })],
+    notes: [{ id: 'n1', projectId: 'p1', text: 'купить иглы', done: true, photos: [], createdDate: '2026-02-03' }],
+  };
+  const p = project({ clientId: 'cl', generalNotes: 'большой проект' });
+  const items = collectProjectNotes(p, client);
+  assert.deepEqual(items.map((x) => x.label), ['Проект', 'Консультация 1', 'Сессия 2', 'Заметка']);
+  assert.equal(items[1].text, 'хочет розу\n\nИтог: договорились');
+  assert.equal(items[2].text, 'контур\n\nКожа: покраснение');
+  assert.equal(items[3].done, true);
+});
