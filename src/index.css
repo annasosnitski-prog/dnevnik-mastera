@@ -210,6 +210,7 @@
   position: absolute;
   overflow: visible;
   pointer-events: none;
+  filter: drop-shadow(0 0.5px 1px rgba(32, 18, 4, 0.32));
 }
 
 .nav-fab__ray-glow,
@@ -2237,4 +2238,19 @@ select option {
     0 3px 10px rgba(80, 60, 20, 0.12);
   --card-rest-shadow: 0 0 12px rgba(var(--gold-rgb), 0.14), 0 1px 2px rgba(80, 60, 20, 0.06),
     0 6px 18px rgba(80, 60, 20, 0.07);
+}
+
+/* GoldDotDivider: the gem bar's rail (PendantRail) reused as a plain section
+   divider — same geometry as inside the tab bar, so tube and beads line up. */
+.gold-rail-divider .client-card-tabbar__two-pendant-rays {
+  display: block;
+  position: absolute;
+  z-index: 0;
+  top: -2px;
+  left: 8px;
+  width: calc(100% - 16px);
+  height: 12px;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 0.5px 1px rgba(32, 18, 4, 0.32));
 }

@@ -329,7 +329,7 @@ function ThreadedBead({ pct }: { pct: number }) {
   );
 }
 
-function TubeDividerBeads({ count }: { count: number }) {
+export function TubeDividerBeads({ count }: { count: number }) {
   return (
     <span
       aria-hidden="true"
@@ -359,7 +359,7 @@ function TubeDividerBeads({ count }: { count: number }) {
 // each join and bulges back out at the midpoint between neighbours (where
 // TubeDividerBeads sits its bead). IDs are per-instance so two tab bars
 // cannot cross-reference each other's gradients in the DOM.
-function PendantRail({
+export function PendantRail({
   count,
   activeIndex,
 }: {

@@ -1,22 +1,18 @@
+import { PendantRail, TubeDividerBeads } from '../client/ClientCardTabBar';
 // Вынесено из TattoDiary.tsx (PR 2 рефакторинга) — чистые презентационные
 // иконки без связи с состоянием приложения.
 
 // Заменяет прежний разделитель со звёздочкой (убран по фидбеку) — линия с
 // рядом мелких точек вместо линии+звезды, без свечения на конце.
+// Section divider — the same metal rail and threaded beads as the gem bar
+// (PendantRail + TubeDividerBeads from ClientCardTabBar), just without the
+// gems and without the active-section glow, so every divider in the app is
+// one piece of hardware with the tab bar above the gems.
 export function GoldDotDivider({ marginTop, marginBottom }: { marginTop?: number; marginBottom?: number }) {
-  const line = <div style={{ flex: 1, height: 1, background: 'rgba(var(--gold-rgb),0.35)' }} />;
-  const dot = <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--gold)', opacity: 0.55, flexShrink: 0 }} />;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', marginTop, marginBottom }}>
-      {dot}
-      {line}
-      {dot}
-      {line}
-      {dot}
-      {line}
-      {dot}
-      {line}
-      {dot}
+    <div className="gold-rail-divider" aria-hidden="true" style={{ position: 'relative', height: 8, marginTop, marginBottom }}>
+      <PendantRail count={4} />
+      <TubeDividerBeads count={4} />
     </div>
   );
 }
