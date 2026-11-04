@@ -24,6 +24,7 @@
     "src/lib/contentTranslation.ts",
     "src/lib/contentLink.ts",
     "src/lib/contentProject.ts",
+    "src/lib/projectGallery.ts",
     "src/lib/sessionSave.ts",
     "src/lib/consultationSave.ts",
     "src/lib/autoProject.ts",
