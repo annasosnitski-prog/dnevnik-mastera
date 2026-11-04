@@ -3,7 +3,10 @@ import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 // перезагрузкой, а не экраном сбоя (см. lib/lazyChunk.ts).
 import { lazyScreen } from '../lib/lazyChunk';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
-import { NavFab, type QuickCreateKind } from './navigation/NavFab';
+import { NavFab } from './navigation/NavFab';
+import { useVoiceCommand } from '../voice/useVoiceCommand';
+import { draftValues, type VoiceDraft } from '../voice/commands';
+import { VoiceDraftSheet, VoiceStatusBubble } from './sheets/VoiceDraftSheet';
 import { TodayDateBadge } from './ui/TodayDateBadge';
 import {
   readSyncSettings,
@@ -110,7 +113,7 @@ import { normalizeClient, normalizeProject } from '../lib/normalize';
 // UI-примитивы вынесены в отдельные модули (PR 4 рефакторинга). Логика и
 // разметка не менялись — только перенос.
 import { TopStripe, RightStripe, GemCorner } from './ui/Stripes';
-import { COLORS, fs, setTextScale, TERRITORY_COLORS } from './ui/designTokens';
+import { COLORS, fs, setTextScale } from './ui/designTokens';
 export { COLORS, DONE_EMOJI, fs } from './ui/designTokens';
 // Bottom sheets вынесены в отдельные модули (PR 5 рефакторинга). Логика и
 // разметка не менялись — только перенос.
@@ -864,9 +867,8 @@ export default function TattoDiary() {
   // construction — two of these sheets can never both be "open" at once,
   // which a set of separate booleans could otherwise drift into.
   // 'project' joined the two original kinds so the same client-then-form walk
-  // also serves the long-press quick-create fan's «Тату» option on screens
-  // that have no client already selected (see quickCreateContext below) —
-  // calendarCreateDate simply stays null there (no date to prefill).
+  // also serves the create sheet's «Проект» option on screens that have no
+  // client already selected (see pickCreateOption below) — calendarCreateDate simply stays null there (no date to prefill).
   // 'owner' — one step earlier still, for contexts with no single owner at
   // all (Админка/Клиенты/Заметки/ContentINKA): «без клиента» (Мастерская) or
   // «для клиента» (continues into 'clientKind' as before). The calendar
@@ -2628,49 +2630,29 @@ export default function TattoDiary() {
     }
   };
 
-  // Same resolution onCreate below uses to pick a createChoiceContext — every
-  // screen offers the exact same full set of create options now (Проект/
-  // Сессия/Консультация/Заметка/Клиент), so quick-create and the tap-opened
-  // sheet always suggest the same things; only pickCreateOption's per-context
-  // routing differs (which owner is already known, if any).
-  const quickCreateContext: CreateChoiceContext | null = viewProject
-    ? 'viewProject'
-    : screen === 'admin'
-      ? 'admin'
-      : screen === 'detail' && selectedClient
-        ? 'detail'
-        : screen === 'master' || screen === 'workshop'
-          ? 'workshop'
-          : screen === 'list'
-            ? 'list'
-            : screen === 'summary'
-              ? 'summary'
-              : screen === 'content'
-                ? 'content'
-                : null;
-
-  // One universal set for every context now that pickCreateOption resolves
-  // an unknown owner itself (client-first walk, or the note's own picker) —
-  // no more per-context subset to keep in sync with CreateChoiceSheet's own
-  // options below.
-  const UNIVERSAL_CREATE_KINDS: QuickCreateKind[] = ['project', 'session', 'consultation', 'note', 'client'];
-  // Gold options render as a flat plate — same disc as the hub / main fan's
-  // «Создать» — rather than a faceted gem, since gold-on-gold facet shading
-  // barely reads and just looked like a duller plate anyway.
-  const QUICK_CREATE_META: Record<QuickCreateKind, { label: string; color: string; plate?: boolean }> = {
-    client: { label: 'Клиент', color: TERRITORY_COLORS.clients },
-    session: { label: 'Сессия', color: TERRITORY_COLORS.personal, plate: true },
-    consultation: { label: 'Консультация', color: TERRITORY_COLORS.personal, plate: true },
-    project: { label: 'Проект', color: TERRITORY_COLORS.projects },
-    note: { label: 'Заметка', color: TERRITORY_COLORS.personal, plate: true },
+  // Голосовые команды (долгое нажатие на хаб, см. src/voice/). Каждой
+  // команде реестра — свой исполнитель здесь, где есть состояние приложения.
+  // Вызывается только после зелёной галочки в VoiceDraftSheet и идёт тем же
+  // путём, что и создание из круглого меню (handleCreateClient и т.д.).
+  const voice = useVoiceCommand();
+  const VOICE_EXECUTORS: Record<string, (values: Record<string, string>) => void> = {
+    'client.create': (v) =>
+      handleCreateClient({
+        name: v.name ?? '',
+        surname: v.surname ?? '',
+        phone: v.phone ?? '',
+        styles: [],
+        color: '',
+        clientType: 'client',
+        skinType: '',
+        skinTone: '',
+        skinNotes: '',
+        note: v.note ?? '',
+      }),
   };
-  const quickCreateOptions = quickCreateContext
-    ? UNIVERSAL_CREATE_KINDS.map((kind) => ({ kind, ...QUICK_CREATE_META[kind] }))
-    : undefined;
-
-  const handleQuickCreate = (kind: QuickCreateKind) => {
-    if (!quickCreateContext) return;
-    pickCreateOption(quickCreateContext, kind);
+  const confirmVoiceDraft = (draft: VoiceDraft) => {
+    VOICE_EXECUTORS[draft.commandId]?.(draftValues(draft));
+    voice.setDraft(null);
   };
 
   return (
@@ -3259,11 +3241,10 @@ export default function TattoDiary() {
                             ? () => setCreateChoiceContext('workshop')
                             : undefined
           }
-          // Долгое нажатие на хаб — тот же набор вариантов, что предложила
-          // бы CreateChoiceSheet на этом экране (см. quickCreateOptions),
-          // только сразу, минуя и обычный веер, и саму шторку.
-          quickCreateOptions={quickCreateOptions}
-          onQuickCreate={quickCreateOptions ? handleQuickCreate : undefined}
+          // Долгое нажатие на хаб — голосовая команда (push-to-talk).
+          onVoiceHoldStart={voice.holdStart}
+          onVoiceHoldEnd={voice.holdEnd}
+          voiceListening={voice.phase === 'listening'}
         />
       )}
 
@@ -3574,6 +3555,8 @@ export default function TattoDiary() {
           when "+" was tapped — see runGated above — so submitting here just
           creates the client outright. */}
       <NewClientSheet open={showNewClientForm} onClose={closeNewClient} onCreate={handleCreateClient} />
+      <VoiceDraftSheet draft={voice.draft} onCancel={() => voice.setDraft(null)} onConfirm={confirmVoiceDraft} />
+      <VoiceStatusBubble phase={voice.phase} text={voice.text} />
 
       {/* ═══════════ EDIT CLIENT SHEET ═══════════ */}
       <EditClientSheet
