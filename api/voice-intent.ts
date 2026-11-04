@@ -1,26 +1,22 @@
 // ============================================================
-// Supabase Edge Function «voice-intent» (Deno): голосовая фраза мастера →
+// Vercel Function «/api/voice-intent»: голосовая фраза мастера →
 // {action, entity, fields}. Дешёвая модель Haiku, ответ строго через
 // инструмент с JSON-схемой, так что формат всегда предсказуем.
 //
-// Ключ — только в секретах Supabase, на клиент не попадает:
-//   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
-//   supabase functions deploy voice-intent
-// По умолчанию Supabase пускает к функции только запросы с JWT, то есть
-// только привязанные к синку устройства мастера.
+// Ключ — только в переменных окружения Vercel (Project → Settings →
+// Environment Variables → ANTHROPIC_API_KEY), на клиент не попадает.
+// Эндпоинт открыт, поэтому защита — короткий текст, маленький max_tokens,
+// проверка Origin и месячный лимит трат в консоли Anthropic.
 //
 // Списки действий/сущностей совпадают с src/voice/intent.ts — расширять
 // оба места вместе.
 // ============================================================
 
-const MODEL = Deno.env.get('VOICE_INTENT_MODEL') ?? 'claude-haiku-5-5';
-const MAX_TEXT = 1000;
+declare const process: { env: Record<string, string | undefined> };
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+const MODEL = process.env.VOICE_INTENT_MODEL ?? 'claude-haiku-5-5';
+const MAX_TEXT = 400;
+
 
 const SYSTEM = `Ты разбираешь голосовые команды тату-мастера в приложении «Дневник мастера».
 Верни намерение через инструмент intent. Не выдумывай данных, которых нет во фразе.
@@ -49,13 +45,24 @@ const TOOL = {
 };
 
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-  if (req.method !== 'POST') return json({ error: 'method' }, 405);
+// Браузер всегда шлёт Origin на POST. Чужой сайт со своего домена ключ не
+// потратит; от запросов не из браузера это не защищает — для этого лимит.
+function sameOrigin(req: Request): boolean {
+  const origin = req.headers.get('origin');
+  if (!origin) return false;
+  try {
+    return new URL(origin).host === new URL(req.url).host;
+  } catch {
+    return false;
+  }
+}
 
-  const key = Deno.env.get('ANTHROPIC_API_KEY');
+export async function POST(req: Request): Promise<Response> {
+  if (!sameOrigin(req)) return json({ error: 'origin' }, 403);
+
+  const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return json({ error: 'not_configured' }, 503);
 
   let text = '';
@@ -76,7 +83,7 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 400,
+      max_tokens: 300,
       system: SYSTEM,
       tools: [TOOL],
       tool_choice: { type: 'tool', name: 'intent' },
@@ -89,4 +96,4 @@ Deno.serve(async (req) => {
   const block = (data?.content ?? []).find((c: { type: string }) => c.type === 'tool_use');
   if (!block) return json({ error: 'no_intent' }, 502);
   return json(block.input);
-});
+}

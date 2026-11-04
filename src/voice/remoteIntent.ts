@@ -1,12 +1,11 @@
 // ============================================================
-// РАЗБОР ФРАЗЫ НА СЕРВЕРЕ — Supabase Edge Function «voice-intent»
-// (supabase/functions/voice-intent). Ключ модели живёт только там, в
-// секретах Supabase; клиент шлёт лишь текст и свой токен сессии синка
-// (functions.invoke подставляет его сам, функция без него не отвечает).
+// РАЗБОР ФРАЗЫ НА СЕРВЕРЕ — Vercel Function /api/voice-intent
+// (api/voice-intent.ts). Ключ модели живёт только там, в переменных
+// окружения Vercel; клиент шлёт лишь текст.
 //
-// Любая неудача — устройство не привязано, нет сети, функция не
-// развёрнута, таймаут — возвращает null, и вызывающий берёт локальный
-// разбор. Голос не должен ломаться из-за сервера.
+// Любая неудача — нет сети, ключ не задан, локальный dev без функций,
+// таймаут — возвращает null, и вызывающий берёт локальный разбор.
+// Голос не должен ломаться из-за сервера.
 // ============================================================
 
 import { normalizeIntent, parseIntentLocal, type VoiceIntent } from './intent';
@@ -14,21 +13,23 @@ import { normalizeIntent, parseIntentLocal, type VoiceIntent } from './intent';
 const REMOTE_TIMEOUT_MS = 6000;
 
 async function parseIntentRemote(transcript: string): Promise<VoiceIntent | null> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), REMOTE_TIMEOUT_MS);
   try {
-    const [{ getSupabaseClient }, { isPaired }] = await Promise.all([
-      import('../lib/supabaseClient'),
-      import('../lib/syncAuth'),
-    ]);
-    const client = getSupabaseClient();
-    if (!(await isPaired(client))) return null;
-    const call = client.functions.invoke('voice-intent', { body: { text: transcript } });
-    const timeout = new Promise<null>((resolve) => window.setTimeout(() => resolve(null), REMOTE_TIMEOUT_MS));
-    const response = await Promise.race([call, timeout]);
-    if (!response || response.error || !response.data) return null;
-    const intent = normalizeIntent(response.data, transcript, 'llm');
+    const response = await fetch('/api/voice-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: transcript }),
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const data: unknown = await response.json();
+    const intent = normalizeIntent(data, transcript, 'llm');
     return intent.action === 'unknown' ? null : intent;
   } catch {
     return null;
+  } finally {
+    window.clearTimeout(timer);
   }
 }
 
