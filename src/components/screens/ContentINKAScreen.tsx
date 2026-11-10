@@ -19,6 +19,7 @@ import { copyTextToClipboard, createCopyFeedbackController, type CopyFeedback } 
 import {
   createContentIngestJob,
   translateContentText,
+  splitContentIntoSlides,
   ContentSyncError,
   type ContentIngestParams,
   type ContentTranslationLanguage,
@@ -54,6 +55,11 @@ import {
   currentContentTranslation,
   isContentTranslationStale,
 } from '../../lib/contentTranslation';
+import {
+  createContentSlidesRunner,
+  currentContentSlides,
+  isContentSlidesStale,
+} from '../../lib/contentSlides';
 import {
   MAX_CONTENT_TEXT_CHARACTERS,
   contentTextLength,
@@ -409,6 +415,8 @@ export function ContentINKAScreen({
   const translationRunner = useMemo(() => createContentTranslationRunner(), []);
   const [translationMenuEntryIds, setTranslationMenuEntryIds] = useState<Set<string>>(() => new Set());
   const [translationFeedbackByKey, setTranslationFeedbackByKey] = useState<Record<string, ContentTranslationFeedback>>({});
+  const slidesRunner = useMemo(() => createContentSlidesRunner(), []);
+  const [slidesFeedbackByEntry, setSlidesFeedbackByEntry] = useState<Record<string, ContentTranslationFeedback>>({});
   const [translationCopyFeedbackByKey, setTranslationCopyFeedbackByKey] = useState<Record<string, CopyFeedback>>({});
   const [textEditorsByEntry, setTextEditorsByEntry] = useState<Record<string, ContentTextEditorState>>({});
   const [textEditFeedbackByEntry, setTextEditFeedbackByEntry] = useState<Record<string, ContentTextEditFeedback>>({});
@@ -584,6 +592,7 @@ export function ContentINKAScreen({
       contentTranslationsMountedRef.current = false;
       translationRunner.dispose();
       translationCopyFeedbackController.dispose();
+      slidesRunner.dispose();
     };
   }, [translationCopyFeedbackController, translationRunner]);
 
@@ -938,6 +947,52 @@ export function ContentINKAScreen({
     }
   };
 
+  const splitEntryIntoSlides = async (entry: ContentEntry) => {
+    const currentEntry = contentEntriesRef.current.find((candidate) => candidate.id === entry.id) ?? entry;
+    const slideCount = contentPublicationSets(currentEntry).carousel.length;
+    if (
+      hasUnsavedTextEdit(currentEntry) ||
+      isEntryRefreshing(currentEntry.id) ||
+      !currentEntry.textDraft.trim() ||
+      slideCount < 2 ||
+      slideCount > 10 ||
+      currentContentSlides(currentEntry, slideCount)
+    ) {
+      return;
+    }
+    if (slidesRunner.isRunning(currentEntry.id)) return;
+
+    setSlidesFeedbackByEntry((current) => ({
+      ...current,
+      [currentEntry.id]: { state: 'loading', message: 'Делю на слайды…', sourceText: currentEntry.textDraft },
+    }));
+
+    try {
+      const outcome = await slidesRunner.run({
+        entry: currentEntry,
+        slideCount,
+        request: () => splitContentIntoSlides({ sourceText: currentEntry.textDraft, slideCount }),
+        getCurrentEntry: () => contentEntriesRef.current.find((candidate) => candidate.id === currentEntry.id) ?? currentEntry,
+        save: saveEntryInWorkspace,
+      });
+      if (outcome.status === 'ignored' || !contentTranslationsMountedRef.current) return;
+      setSlidesFeedbackByEntry((current) => ({
+        ...current,
+        [currentEntry.id]: { state: 'success', message: 'Слайды готовы', sourceText: currentEntry.textDraft },
+      }));
+    } catch (slidesError) {
+      if (!contentTranslationsMountedRef.current) return;
+      setSlidesFeedbackByEntry((current) => ({
+        ...current,
+        [currentEntry.id]: {
+          state: 'error',
+          message: slidesError instanceof ContentSyncError ? slidesError.message : 'Не удалось разбить текст на слайды.',
+          sourceText: currentEntry.textDraft,
+        },
+      }));
+    }
+  };
+
   const copyContentTranslation = async (entry: ContentEntry, language: ContentTranslationLanguage) => {
     const translation = entry.translations?.[language];
     if (!translation?.translatedText.trim()) return;
@@ -1125,6 +1180,7 @@ export function ContentINKAScreen({
     startTextEdit,
     copyContentTranslation,
     translateEntry,
+    splitEntryIntoSlides,
     regenerate,
     retryContentJob,
     onDeleteContentIngestJob,
@@ -1144,6 +1200,7 @@ export function ContentINKAScreen({
     startTextEdit,
     copyContentTranslation,
     translateEntry,
+    splitEntryIntoSlides,
     regenerate,
     retryContentJob,
     onDeleteContentIngestJob,
@@ -1165,6 +1222,7 @@ export function ContentINKAScreen({
       contentCardActionHandlersRef.current.copyContentTranslation(entry, language),
     translateEntry: (entry: ContentEntry, language: ContentTranslationLanguage) =>
       contentCardActionHandlersRef.current.translateEntry(entry, language),
+    splitEntryIntoSlides: (entry: ContentEntry) => contentCardActionHandlersRef.current.splitEntryIntoSlides(entry),
     regenerate: (entry: ContentEntry, instruction: string, selectedArchetype?: string) =>
       contentCardActionHandlersRef.current.regenerate(entry, instruction, selectedArchetype),
     retryContentJob: (job: ContentIngestJobRecord) => contentCardActionHandlersRef.current.retryContentJob(job),
@@ -1397,6 +1455,7 @@ export function ContentINKAScreen({
                 const key = contentTranslationKey(entry.id, option.language);
                 return [translationFeedbackByKey[key], translationCopyFeedbackByKey[key]];
               }),
+              slidesFeedbackByEntry[entry.id],
               shareMenuEntryId === entry.id,
               shareFeedbackByEntry[entry.id],
             ], refreshFeedbackByEntry);
@@ -1554,6 +1613,47 @@ export function ContentINKAScreen({
                   </div>
                 );
               })}
+              {entry.slides && (() => {
+                const carouselCount = contentPublicationSets(entry).carousel.length;
+                const isStale = isContentSlidesStale(entry, carouselCount);
+                const feedback = slidesFeedbackByEntry[entry.id];
+                return (
+                  <div className={`content-slides-block${isStale ? ' is-stale' : ''}`}>
+                    <div className="content-slides-block__heading">
+                      <span>Слайды · {entry.slides.slideCount}</span>
+                      {isStale && <span>Не совпадает с текущим текстом или каруселью</span>}
+                    </div>
+                    <ol className="content-slides-block__list">
+                      {entry.slides.slides.map((slide, index) => (
+                        <li key={index} dir="auto">{slide}</li>
+                      ))}
+                    </ol>
+                    {isStale && (
+                      <div className="content-slides-block__actions">
+                        <button
+                          type="button"
+                          disabled={
+                            feedback?.state === 'loading' ||
+                            !entry.textDraft.trim() ||
+                            hasUnsavedTextEdit(entry) ||
+                            isEntryRefreshing(entry.id) ||
+                            carouselCount < 2 ||
+                            carouselCount > 10
+                          }
+                          onClick={() => contentCardActions.splitEntryIntoSlides(entry)}
+                        >
+                          {feedback?.state === 'loading' ? 'Делю…' : 'Обновить слайды'}
+                        </button>
+                      </div>
+                    )}
+                    {isStale && feedback?.state === 'error' && (
+                      <div className="content-slides-feedback is-error" role="alert">
+                        {feedback.message}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {(entry.textArchetype || entry.visualArchetype || entry.textTriad) && (
                 <div className="content-archetype-context">
                   {entry.textArchetype && <div>Основной текстовый архетип · {entry.textArchetype}</div>}
@@ -1647,6 +1747,37 @@ export function ContentINKAScreen({
                     >
                       Перевести
                     </button>
+                    {(() => {
+                      const carouselCount = contentPublicationSets(entry).carousel.length;
+                      const hasCurrentSlides = !!currentContentSlides(entry, carouselCount);
+                      const feedback = slidesFeedbackByEntry[entry.id];
+                      const disabled =
+                        !entry.textDraft.trim() ||
+                        hasUnsavedTextEdit(entry) ||
+                        isEntryRefreshing(entry.id) ||
+                        carouselCount < 2 ||
+                        carouselCount > 10 ||
+                        hasCurrentSlides ||
+                        feedback?.state === 'loading';
+                      const label =
+                        feedback?.state === 'loading'
+                          ? 'Делю на слайды…'
+                          : hasCurrentSlides
+                            ? 'Слайды готовы'
+                            : entry.slides
+                              ? 'Обновить слайды'
+                              : 'Слайды';
+                      return (
+                        <button
+                          type="button"
+                          className="content-action-button content-slides-action"
+                          disabled={disabled}
+                          onClick={() => contentCardActions.splitEntryIntoSlides(entry)}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })()}
                     {hasUnsavedTextEdit(entry) && <span className="content-text-edit-guard">Сначала сохраните текст</span>}
                     <button
                       type="button"
