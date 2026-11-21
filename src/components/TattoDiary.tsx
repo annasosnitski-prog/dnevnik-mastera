@@ -5,7 +5,8 @@ import { lazyScreen } from '../lib/lazyChunk';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
 import { useVoiceCommand } from '../voice/useVoiceCommand';
-import { draftValues, type VoiceDraft } from '../voice/commands';
+import { draftValues, NEW_PROJECT_PREFIX, NO_CLIENT, type VoiceDraft } from '../voice/commands';
+import type { VoiceContext } from '../voice/context';
 import { VoiceDraftSheet, VoiceStatusBubble } from './sheets/VoiceDraftSheet';
 import { TodayDateBadge } from './ui/TodayDateBadge';
 import {
@@ -197,6 +198,7 @@ import {
   getClientSessions,
   getClientConsultations,
   findProjectOfConsultation,
+  findProjectOfSession,
 } from '../domain/projectSelectors';
 export { clientNameFor } from '../domain/projectSelectors';
 import {
@@ -256,6 +258,7 @@ import {
   withHealingGallery,
   withMoodboardStatus,
   withMoodboardPhotoSrcs,
+  withAdvancedStatus,
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
@@ -2634,7 +2637,69 @@ export default function TattoDiary() {
   // команде реестра — свой исполнитель здесь, где есть состояние приложения.
   // Вызывается только после зелёной галочки в VoiceDraftSheet и идёт тем же
   // путём, что и создание из круглого меню (handleCreateClient и т.д.).
-  const voice = useVoiceCommand();
+  // Снимок дневника для разбора фразы: кто есть, какие проекты и записи.
+  const buildVoiceContext = (): VoiceContext => ({
+    today: todayISO(),
+    clients: clients.map((c) => ({ id: c.id, name: c.name, surname: c.surname })),
+    projects: projects.map((p) => ({
+      id: p.id,
+      title: p.title,
+      clientId: p.clientId,
+      completed: p.status === 'completed',
+      entries: [
+        ...p.sessions.map((s) => ({
+          id: s.id, kind: 'session' as const, projectId: p.id, date: s.date, time: s.time, title: s.name, done: s.done, cancelled: s.cancelled,
+        })),
+        ...p.consultations.map((c) => ({
+          id: c.id, kind: 'consultation' as const, projectId: p.id, date: c.date, time: c.time, title: '', done: c.done, cancelled: c.cancelled,
+        })),
+      ],
+    })),
+  });
+
+  // Запись открывается там же, где тап по ней: у клиента — просмотр записи,
+  // у проекта без клиента — просмотр проекта.
+  const openVoiceEntry = (entryId: string) => {
+    const owner = findProjectOfSession(projects, entryId) ?? findProjectOfConsultation(projects, entryId);
+    if (!owner) return;
+    const kind = owner.sessions.some((s: Session) => s.id === entryId) ? 'session' : 'consultation';
+    if (owner.clientId) setViewEntry({ kind, clientId: owner.clientId, id: entryId });
+    else setViewProject(owner);
+  };
+
+  // Действия без изменения данных — сразу, без шторки.
+  const runVoiceAction = (commandId: string, v: Record<string, string>) => {
+    if (commandId === 'client.open') {
+      const client = clients.find((c) => c.id === v.client);
+      if (client) openClient(client);
+    } else if (commandId === 'project.open') {
+      const project = getProjectById(projects, v.project);
+      if (project) setViewProject(project);
+    } else if (commandId === 'entry.open') {
+      openVoiceEntry(v.entry);
+    } else if (commandId === 'schedule.empty') {
+      // Записей на день нет — Админка с расписанием, без неё — календарь.
+      if (masterInfo.modules.adminka) setScreen('admin');
+      else setShowCalendar(true);
+    }
+  };
+
+  const voice = useVoiceCommand(buildVoiceContext, runVoiceAction);
+
+  // «new:<clientId>» / «new:» — мастер не выбрала проект: тот же проект-
+  // «отстойник», что и в форме при «— создать новый проект —».
+  const voiceProjectTarget = (value: string): { projects: Project[]; projectId: string; owner: Client | null } => {
+    if (value.startsWith(NEW_PROJECT_PREFIX)) {
+      const owner = clients.find((c) => c.id === value.slice(NEW_PROJECT_PREFIX.length)) ?? null;
+      return { ...ensureProject(projects, null, owner), owner };
+    }
+    const project = getProjectById(projects, value);
+    const owner = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
+    return { projects, projectId: value, owner };
+  };
+
+  const appendNote = (existing: string, note: string) => (existing.trim() ? `${existing.trim()}\n${note.trim()}` : note.trim());
+
   const VOICE_EXECUTORS: Record<string, (values: Record<string, string>) => void> = {
     'client.create': (v) =>
       handleCreateClient({
@@ -2648,6 +2713,105 @@ export default function TattoDiary() {
         skinTone: '',
         skinNotes: '',
         note: v.note ?? '',
+      }),
+    'client.open': (v) => runVoiceAction('client.open', v),
+    'project.open': (v) => runVoiceAction('project.open', v),
+    'entry.open': (v) => runVoiceAction('entry.open', v),
+    'session.create': (v) => {
+      const target = voiceProjectTarget(v.project);
+      const { projects: withSession } = upsertSessionInProjects(
+        target.projects,
+        target.projectId,
+        {
+          name: v.name ?? '', date: v.date ?? '', time: v.time ?? '', duration: '', style: '', area: '', colors: '', needles: '',
+          skinReaction: '', note: v.note ?? '', photos: [], done: false, isLastSession: false, projectId: target.projectId,
+        },
+        null,
+        null,
+      );
+      // Новая сессия снимает паузу с проекта — как и из формы.
+      saveProjects(resumeFromPauseIn(withSession, target.projectId));
+    },
+    'consultation.create': (v) => {
+      const target = voiceProjectTarget(v.project);
+      const { projects: next } = upsertConsultationInProjects(
+        target.projects,
+        target.projectId,
+        {
+          date: v.date ?? '', time: v.time ?? '', area: '', style: '', generalNotes: v.note ?? '', feeling: '', creative: '',
+          inspirationSources: '', outcome: '', urgency: 'important', photos: [], projectId: target.projectId,
+        },
+        null,
+        null,
+      );
+      saveProjects(next);
+    },
+    'session.move': (v) => updateSession(v.entry, (s) => ({ ...s, date: v.date ?? s.date, time: v.time ?? s.time })),
+    'consultation.move': (v) => updateConsultation(v.entry, (c) => ({ ...c, date: v.date ?? c.date, time: v.time ?? c.time })),
+    // Та же «Отменена», что у быстрого действия напоминания: запись остаётся.
+    'session.cancel': (v) => updateSession(v.entry, (s) => ({ ...s, cancelled: true })),
+    'consultation.cancel': (v) => updateConsultation(v.entry, (c) => ({ ...c, cancelled: true })),
+    'project.create': (v) => {
+      const now = new Date().toISOString();
+      saveProject({
+        id: crypto.randomUUID(),
+        createdDate: now,
+        lastMeaningfulActivityAt: now,
+        sessions: [],
+        consultations: [],
+        healingPhotos: [],
+        moodboard: null,
+        title: (v.title ?? '').trim(),
+        category: 'tattoo',
+        clientId: v.client && v.client !== NO_CLIENT ? v.client : null,
+        status: 'active',
+        sessionsPlan: null,
+        firstSessionWindowAmount: null,
+        firstSessionWindowUnit: null,
+        firstSessionExactDate: null,
+        firstSessionWindowSetAt: null,
+        nextActionText: '',
+        nextActionDate: null,
+        nextActionType: null,
+        area: '',
+        style: '',
+        generalNotes: (v.note ?? '').trim(),
+        feeling: '',
+        creative: '',
+        inspirationSources: '',
+        photos: [],
+      });
+    },
+    'project.complete': (v) => {
+      const project = getProjectById(projects, v.project);
+      if (project) saveProject(withAdvancedStatus(project, 'completed'));
+    },
+    // Заметка к проекту — та же запись, что из «Все заметки проекта»: у
+    // клиента в notes, у проекта без клиента — в заметках мастера.
+    'note.project': (v) => {
+      const project = getProjectById(projects, v.project);
+      if (!project) return;
+      const note: ClientNote = {
+        id: crypto.randomUUID(), text: (v.note ?? '').trim(), urgency: 'normal', done: false,
+        createdDate: new Date().toISOString(), photos: [], projectId: project.id, dueDate: null,
+      };
+      if (project.clientId) upsertNote(project.clientId, note);
+      else setMasterInfo({ ...masterInfo, notes: [...masterInfo.notes, note] });
+    },
+    'note.session': (v) => updateSession(v.entry, (s) => ({ ...s, note: appendNote(s.note, v.note ?? '') })),
+    'note.consultation': (v) =>
+      updateConsultation(v.entry, (c) => ({ ...c, generalNotes: appendNote(c.generalNotes, v.note ?? '') })),
+    // Напоминание = задача мастера со сроком — в срок всплывёт в напоминаниях.
+    'reminder.create': (v) =>
+      setMasterInfo({
+        ...masterInfo,
+        notes: [
+          ...masterInfo.notes,
+          {
+            id: crypto.randomUUID(), text: (v.note ?? '').trim(), urgency: 'important', done: false,
+            createdDate: new Date().toISOString(), photos: [], projectId: null, dueDate: v.date || null,
+          },
+        ],
       }),
   };
   const confirmVoiceDraft = (draft: VoiceDraft) => {

@@ -47,6 +47,7 @@ export function VoiceDraftSheet({
         {shown?.transcript && (
           <div style={{ marginTop: 6, fontSize: fs(12), color: COLORS.textMuted, fontStyle: 'italic' }}>«{shown.transcript}»</div>
         )}
+        {shown?.hint && <div style={{ marginTop: 8, fontSize: fs(13), color: COLORS.gold }}>{shown.hint}</div>}
         <GoldDotDivider marginTop={11} />
       </div>
       <div style={{ padding: '4px 24px 50px' }}>
@@ -56,7 +57,38 @@ export function VoiceDraftSheet({
               {field.label}
               {field.required ? ' *' : ''}
             </FieldLabel>
-            {field.multiline ? (
+            {field.options ? (
+              // Переспрос: плитки кандидатов (клиент/проект/сессия). Пока ни
+              // одна не выбрана, галочка неактивна.
+              <div role="radiogroup" aria-label={field.label} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                {field.options.map((option) => {
+                  const selected = option.value === field.value;
+                  return (
+                    <div
+                      key={option.value}
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setField(field.key, option.value)}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        minHeight: 44,
+                        cursor: 'pointer',
+                        fontSize: fs(13),
+                        lineHeight: 1.3,
+                        color: COLORS.textPrimary,
+                        border: `1px solid ${selected ? COLORS.gold : 'rgba(201, 162, 78, 0.25)'}`,
+                        background: selected ? 'rgba(201, 162, 78, 0.14)' : 'transparent',
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
+                      {option.label}
+                    </div>
+                  );
+                })}
+                {!field.options.length && <div style={{ fontSize: fs(13), color: COLORS.textMuted }}>Нет подходящих записей</div>}
+              </div>
+            ) : field.multiline ? (
               <textarea
                 dir="auto"
                 value={field.value}

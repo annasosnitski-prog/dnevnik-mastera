@@ -226,6 +226,37 @@
   100% { transform: scale(1.35); opacity: 0; }
 }
 
+/* Гравированный микрофон поверх хаба: 2 с виден, ~10 с нет (цикл 12 с).
+   Пока микрофон слушает — виден постоянно. */
+.nav-fab__mic-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.55));
+  animation: nav-fab-mic-hint 12s ease-in-out 4s infinite;
+}
+
+.nav-fab__mic-hint--on {
+  opacity: 1;
+  animation: none;
+}
+
+@keyframes nav-fab-mic-hint {
+  0% { opacity: 0; transform: scale(0.92); }
+  3% { opacity: 1; transform: scale(1); }
+  14% { opacity: 1; transform: scale(1); }
+  17% { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-fab__mic-hint:not(.nav-fab__mic-hint--on) { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nav-fab.nav-fab--open,
   .nav-fab.nav-fab--open::before,
