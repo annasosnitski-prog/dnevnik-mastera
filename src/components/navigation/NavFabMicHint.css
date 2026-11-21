@@ -1,0 +1,80 @@
+/* Подсказка-микрофон на хабе (NavFabMicHint.tsx). Цикл 12 с: плавно
+   проявляется (~0,5 с), держится ~2 с, плавно гаснет, ~10 с пауза. */
+.nav-fab__mic-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  animation: nav-fab-mic-hint 12s ease-in-out 3s infinite;
+}
+
+.nav-fab__mic-engraving {
+  /* светлый блик резца — как у гравированной пластины PendantIcon */
+  filter: drop-shadow(-0.4px -0.5px 0 rgba(255, 240, 179, 0.6));
+}
+
+/* Светлая тема: пластина бронзовая, штрих чуть темнее, блик белее. */
+:root[data-theme='light'] .nav-fab__mic-engraving {
+  stroke: #3E2A0C;
+  filter: drop-shadow(-0.4px -0.5px 0 rgba(255, 255, 255, 0.7));
+}
+
+/* Минимализм: на месте знака $ — микрофон по очереди с $. */
+.nav-fab__main--minimal .nav-fab__mic-engraving {
+  stroke: currentColor;
+  filter: none;
+}
+
+.nav-fab__main--minimal .nav-fab__minimal-home-mark {
+  animation: nav-fab-mic-hint-swap 12s ease-in-out 3s infinite;
+}
+
+/* Не мешаем: веер открыт, хаб нажат или голос уже слушает — подсказки нет. */
+.nav-fab--open .nav-fab__mic-hint,
+.nav-fab__main--pressed .nav-fab__mic-hint,
+.nav-fab__main--listening .nav-fab__mic-hint {
+  display: none;
+}
+
+.nav-fab--open .nav-fab__minimal-home-mark,
+.nav-fab__main--pressed .nav-fab__minimal-home-mark,
+.nav-fab__main--listening .nav-fab__minimal-home-mark {
+  animation: none;
+}
+
+@keyframes nav-fab-mic-hint {
+  0% { opacity: 0; transform: scale(0.9); }
+  4.5% { opacity: 1; transform: scale(1); }
+  19% { opacity: 1; transform: scale(1); }
+  23.5% { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+
+@keyframes nav-fab-mic-hint-swap {
+  0% { opacity: 1; }
+  4.5% { opacity: 0; }
+  19% { opacity: 0; }
+  23.5% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+/* Без анимаций: микрофон просто выгравирован на пластине постоянно, не
+   мигает. В минимализме остаётся знак $ — подменять его статично незачем. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-fab__mic-hint,
+  .nav-fab__main--minimal .nav-fab__minimal-home-mark {
+    animation: none;
+  }
+
+  .nav-fab__main--gold .nav-fab__mic-hint {
+    opacity: 1;
+  }
+
+  .nav-fab__main--minimal .nav-fab__mic-hint {
+    display: none;
+  }
+}

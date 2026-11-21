@@ -2,6 +2,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNod
 import { createPortal } from "react-dom";
 import { PendantIcon } from "./PendantIcon";
 import { NaturalStoneIcon, type NaturalStoneKind } from "./NaturalStoneIcon";
+import { NavFabMicHint } from "./NavFabMicHint";
 import { TERRITORY_COLORS } from "../ui/designTokens";
 import { useMinimalism } from "../ui/minimalism";
 import type { ModuleFlags, ModuleKey } from "../../modules/registry";
@@ -640,6 +641,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
               </span>
             </>
           )}
+          <NavFabMicHint size={minimalism ? Math.round(MINIMAL_HUB_SIZE * 0.6) : Math.round(HUB_SIZE * 0.52)} />
           {voiceListening && <span className="nav-fab__voice-ring" aria-hidden="true" />}
           {mainBadgeKind && (
             <span
