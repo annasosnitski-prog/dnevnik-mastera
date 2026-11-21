@@ -80,7 +80,7 @@ export function PendantIcon({
   // navy goes ice-blue (never pink), forest green goes sage (never lime),
   // purple goes lavender, red towards yellow, yellow towards red.
   const SHADOW_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#03052E',
+    [TERRITORY_COLORS.clients]: '#08042F',
     [TERRITORY_COLORS.personal]: '#1A3A12',
     [TERRITORY_COLORS.content]: '#14086E',
     [TERRITORY_COLORS.projects]: '#06302A',
@@ -88,7 +88,7 @@ export function PendantIcon({
     [TERRITORY_COLORS.admin]: '#0A1472',
   };
   const LIGHT_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#B9CCFF',
+    [TERRITORY_COLORS.clients]: '#C0C6FF',
     [TERRITORY_COLORS.personal]: '#FFB48A',
     [TERRITORY_COLORS.content]: '#FFD79A',
     [TERRITORY_COLORS.projects]: '#C6E6BC',

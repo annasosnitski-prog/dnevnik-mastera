@@ -271,7 +271,7 @@ test('gem tints follow the current palette: navy halo brighter, no pink on blue,
   assert.match(designTokens, /export const glowOf/);
   assert.match(tabBarModule, /glowOf\(color\)/);
   assert.match(navFab, /glowOf\(item\.color\)/);
-  assert.match(pendantIcon, /\[TERRITORY_COLORS\.clients\]: '#B9CCFF'/);
+  assert.match(pendantIcon, /\[TERRITORY_COLORS\.clients\]: '#C0C6FF'/);
   assert.match(pendantIcon, /\[TERRITORY_COLORS\.projects\]: '#C6E6BC'/);
   assert.match(pendantIcon, /floodColor=\{glowOf\(color\)\}/);
 });

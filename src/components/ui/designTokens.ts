@@ -39,7 +39,7 @@ export const TERRITORY_COLORS = {
 // не светится, поэтому ореол у него ярче самого камня; у остальных
 // территорий ореол — их собственный цвет. Возвращает hex #RRGGBB: вызывающие
 // дописывают к нему альфа-суффикс (`${glow}D9`).
-export const glowOf = (color: string): string => (color === TERRITORY_COLORS.clients ? '#3A4BFF' : color);
+export const glowOf = (color: string): string => (color === TERRITORY_COLORS.clients ? '#4444FF' : color);
 
 // "Размер текста" scales typography only. TattoDiary sets the multiplier at
 // the start of each render pass before child components call fs().
