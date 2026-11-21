@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { projectBodyZone, PROJECT_BODY_ZONE_OTHER, PROJECT_BODY_ZONES } from '../.test-dist/src/domain/project.js';
-import { buildProjectZoneFolders } from '../.test-dist/src/domain/projectSelectors.js';
+import { projectBodyZone, PROJECT_BODY_ZONE_OTHER } from '../.test-dist/src/domain/project.js';
+import { buildProjectOwnerFolders, groupProjectsByClient } from '../.test-dist/src/domain/projectSelectors.js';
 
 function makeProject(overrides = {}) {
   return {
@@ -47,33 +47,33 @@ test('projectBodyZone falls back to "Другое" for empty or unrecognised are
   assert.equal(projectBodyZone('Левая бровь'), PROJECT_BODY_ZONE_OTHER);
 });
 
-test('buildProjectZoneFolders always lists the 4 main zones, even empty', () => {
-  const folders = buildProjectZoneFolders([]);
-  assert.deepEqual(folders.map((f) => f.title), PROJECT_BODY_ZONES.map((z) => z.label));
+test('buildProjectOwnerFolders always lists «Личные проекты» then «Клиенты», even empty', () => {
+  const folders = buildProjectOwnerFolders([]);
+  assert.deepEqual(folders.map((f) => f.title), ['Личные проекты', 'Клиенты']);
   assert.ok(folders.every((f) => f.projectCount === 0));
 });
 
-test('buildProjectZoneFolders groups projects from different clients under the same zone', () => {
+test('buildProjectOwnerFolders splits client-less projects from client projects', () => {
   const projects = [
-    makeProject({ id: 'calf', area: 'Икра', clientId: 'client-a' }),
-    makeProject({ id: 'shin', area: 'Голень', clientId: 'client-b' }),
-    makeProject({ id: 'wrist', area: 'Кисть', clientId: 'client-a' }),
+    makeProject({ id: 'own', clientId: null }),
+    makeProject({ id: 'a1', clientId: 'client-a' }),
+    makeProject({ id: 'b1', clientId: 'client-b' }),
   ];
-
-  const folders = buildProjectZoneFolders(projects);
-  const legFolder = folders.find((f) => f.title === 'Нога');
-  const armFolder = folders.find((f) => f.title === 'Рука');
-
-  assert.deepEqual(legFolder.projects.map((p) => p.id).sort(), ['calf', 'shin']);
-  assert.deepEqual(armFolder.projects.map((p) => p.id), ['wrist']);
+  const [personal, clients] = buildProjectOwnerFolders(projects);
+  assert.deepEqual(personal.projects.map((p) => p.id), ['own']);
+  assert.deepEqual(clients.projects.map((p) => p.id), ['a1', 'b1']);
 });
 
-test('buildProjectZoneFolders only adds the "Другое" folder when something lands there', () => {
-  const withoutOther = buildProjectZoneFolders([makeProject({ area: 'Нога' })]);
-  assert.ok(!withoutOther.some((f) => f.title === PROJECT_BODY_ZONE_OTHER));
-
-  const withOther = buildProjectZoneFolders([makeProject({ area: 'Левая бровь' })]);
-  const otherFolder = withOther.find((f) => f.title === PROJECT_BODY_ZONE_OTHER);
-  assert.ok(otherFolder);
-  assert.equal(otherFolder.projectCount, 1);
+test('groupProjectsByClient groups by client name, unknown clients go to «Клиент не найден»', () => {
+  const clients = [{ id: 'client-a', name: 'Аня', surname: 'К' }];
+  const groups = groupProjectsByClient(
+    [
+      makeProject({ id: 'a1', clientId: 'client-a' }),
+      makeProject({ id: 'x1', clientId: 'gone' }),
+      makeProject({ id: 'a2', clientId: 'client-a' }),
+    ],
+    clients,
+  );
+  assert.deepEqual(groups.map((g) => g.area), ['Аня К', 'Клиент не найден']);
+  assert.deepEqual(groups[0].projects.map((p) => p.id), ['a1', 'a2']);
 });

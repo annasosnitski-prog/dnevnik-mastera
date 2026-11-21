@@ -1,0 +1,822 @@
+/* Кабала — стили перенесены из репозитория 4321 (src/index.css), все
+   селекторы ограничены .kabala-root, переменные переименованы в --kb-*
+   и привязаны к палитре дневника. */
+.kabala-root {
+  --kb-bg: transparent;
+  --kb-card: rgba(var(--surface-rgb),0.04);
+  --kb-text: var(--text);
+  --kb-text-2: var(--text-secondary);
+  --kb-text-3: var(--text-muted);
+  --kb-accent: var(--gold);
+  --kb-accent-inv: var(--bg);
+  --kb-border: rgba(var(--gold-rgb),0.2);
+  --kb-danger: var(--urgent);
+  --kb-warn: #D97706;
+  --kb-ok: #16A34A;
+  --kb-radius: 14px;
+  --kb-radius-sm: 8px;
+  --kb-nav-h: 72px;
+  --kb-safe-b: env(safe-area-inset-bottom, 0px);
+  --kb-safe-t: env(safe-area-inset-top, 0px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: var(--kb-text);
+}
+.kabala-root *, .kabala-root *::before, .kabala-root *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.kabala-root button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.kabala-root input, .kabala-root select, .kabala-root textarea {
+  font-family: inherit;
+  font-size: 16px; 
+  border: none;
+  outline: none;
+  background: none;
+}
+.kabala-root .app {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.kabala-root .screen-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: var(--kb-safe-t);
+  padding-bottom: calc(var(--kb-nav-h) + var(--kb-safe-b) + 8px);
+}
+.kabala-root .screen-wrap.fullscreen {
+  padding-bottom: 0;
+}
+.kabala-root .app-loading {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--kb-bg);
+  gap: 8px;
+}
+.kabala-root .loading-he {
+  font-size: 48px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: var(--kb-text);
+}
+.kabala-root .loading-sub {
+  color: var(--kb-text-2);
+  font-size: 14px;
+}
+.kabala-root .screen {
+  padding: 16px 16px 32px;
+}
+.kabala-root .screen-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+.kabala-root .screen-form {
+  padding: 0;
+}
+.kabala-root .form-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  background: var(--kb-bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--kb-border);
+}
+.kabala-root .form-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kabala-root .form-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--kb-text);
+}
+.kabala-root .back-btn {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--kb-accent);
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+.kabala-root .report-header, .kabala-root .settings-header {
+  padding: 20px 16px 8px;
+}
+.kabala-root .report-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--kb-text);
+}
+.kabala-root .setup-banner {
+  background: rgba(217,119,6,0.12);
+  border: 1px solid rgba(217,119,6,0.5);
+  border-radius: var(--kb-radius-sm);
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--kb-warn);
+  margin-bottom: 12px;
+}
+.kabala-root .summary-card {
+  background: var(--kb-card);
+  border-radius: var(--kb-radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+}
+.kabala-root .summary-year-label {
+  font-size: 12px;
+  color: var(--kb-text-3);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.kabala-root .summary-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+.kabala-root .summary-item {
+  flex: 1;
+}
+.kabala-root .summary-divider {
+  width: 1px;
+  background: var(--kb-border);
+  margin: 0 16px;
+}
+.kabala-root .summary-label {
+  font-size: 12px;
+  color: var(--kb-text-2);
+  margin-bottom: 4px;
+}
+.kabala-root .summary-amount {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--kb-text);
+  letter-spacing: -0.5px;
+}
+.kabala-root .summary-amount.danger { color: var(--kb-danger); }
+.kabala-root .progress-track {
+  height: 6px;
+  background: rgba(var(--gold-rgb),0.15);
+  border-radius: 99px;
+  margin: 14px 0 8px;
+  overflow: hidden;
+}
+.kabala-root .progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+.kabala-root .fill-ok { background: var(--kb-ok); }
+.kabala-root .fill-warn { background: var(--kb-warn); }
+.kabala-root .fill-danger { background: var(--kb-danger); }
+.kabala-root .remaining-text {
+  font-size: 13px;
+  color: var(--kb-text-2);
+}
+.kabala-root .remaining-text.danger { color: var(--kb-danger); font-weight: 600; }
+.kabala-root .btn-new-receipt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--kb-accent);
+  color: var(--kb-accent-inv);
+  padding: 18px;
+  border-radius: var(--kb-radius);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  margin-bottom: 24px;
+  min-height: 60px;
+  transition: opacity 0.1s;
+}
+.kabala-root .btn-new-receipt:active { opacity: 0.8; }
+.kabala-root .btn-new-plus { font-size: 24px; line-height: 1; }
+.kabala-root .list-section { margin-top: 4px; }
+.kabala-root .list-header {
+  font-size: 12px;
+  color: var(--kb-text-3);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  padding: 0 4px;
+  margin-bottom: 8px;
+}
+.kabala-root .receipt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--kb-card);
+  border-radius: var(--kb-radius-sm);
+  padding: 14px 12px;
+  margin-bottom: 8px;
+  width: 100%;
+  text-align: left;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  transition: opacity 0.1s;
+}
+.kabala-root .receipt-row:active { opacity: 0.7; }
+.kabala-root .receipt-row-num {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kb-text-3);
+  min-width: 28px;
+  flex-shrink: 0;
+}
+.kabala-root .receipt-row-body { flex: 1; min-width: 0; }
+.kabala-root .receipt-row-client {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--kb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kabala-root .receipt-row-date {
+  font-size: 12px;
+  color: var(--kb-text-2);
+  margin-top: 2px;
+}
+.kabala-root .receipt-row-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--kb-text);
+  flex-shrink: 0;
+}
+.kabala-root .receipt-chevron {
+  font-size: 20px;
+  color: var(--kb-text-3);
+  flex-shrink: 0;
+  margin-right: -2px;
+}
+.kabala-root .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 8px;
+  color: var(--kb-text-2);
+  text-align: center;
+}
+.kabala-root .empty-icon { font-size: 40px; margin-bottom: 4px; }
+.kabala-root .empty-title { font-size: 16px; font-weight: 600; color: var(--kb-text); }
+.kabala-root .empty-sub { font-size: 13px; color: var(--kb-text-2); }
+.kabala-root .field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.kabala-root .field-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.kabala-root .field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kb-text-2);
+  letter-spacing: 0.2px;
+}
+.kabala-root .field-optional { font-weight: 400; color: var(--kb-text-3); }
+.kabala-root .field-hint { font-size: 12px; color: var(--kb-text-3); margin-top: 2px; }
+.kabala-root .field-input {
+  background: var(--kb-card);
+  border: 1.5px solid var(--kb-border);
+  border-radius: var(--kb-radius-sm);
+  padding: 13px 14px;
+  font-size: 16px;
+  color: var(--kb-text);
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.kabala-root .field-input:focus {
+  border-color: var(--kb-accent);
+}
+.kabala-root .field-input.field-error {
+  border-color: var(--kb-danger);
+  background: rgba(224,102,90,0.1);
+}
+.kabala-root .field-textarea { resize: none; line-height: 1.5; }
+.kabala-root .field-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+.kabala-root .error-msg {
+  font-size: 12px;
+  color: var(--kb-danger);
+  font-weight: 500;
+}
+.kabala-root .total-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(var(--surface-rgb),0.05);
+  border-radius: var(--kb-radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.kabala-root .total-label { font-size: 14px; color: var(--kb-text-2); font-weight: 600; }
+.kabala-root .total-value { font-size: 24px; font-weight: 900; color: var(--kb-text); letter-spacing: -0.5px; }
+.kabala-root .btn-issue {
+  width: 100%;
+  background: var(--kb-accent);
+  color: var(--kb-accent-inv);
+  padding: 18px;
+  border-radius: var(--kb-radius);
+  font-size: 17px;
+  font-weight: 700;
+  margin-top: 8px;
+  min-height: 58px;
+  transition: opacity 0.1s;
+}
+.kabala-root .btn-issue:disabled { opacity: 0.5; }
+.kabala-root .btn-issue:active:not(:disabled) { opacity: 0.8; }
+.kabala-root .modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: calc(var(--kb-safe-b) + 8px);
+}
+.kabala-root .modal {
+  background: var(--sheet);
+  border-radius: var(--kb-radius) var(--kb-radius) 0 0;
+  width: 100%;
+  max-width: 430px;
+  padding: 24px 20px;
+}
+.kabala-root .modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+.kabala-root .modal-body { display: flex; flex-direction: column; gap: 8px; }
+.kabala-root .modal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 15px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--kb-border);
+}
+.kabala-root .modal-row:last-child { border: none; }
+.kabala-root .modal-row span { color: var(--kb-text-2); }
+.kabala-root .modal-note {
+  font-size: 12px;
+  color: var(--kb-text-3);
+  margin: 12px 0;
+}
+.kabala-root .modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+.kabala-root .modal-cancel {
+  background: var(--sheet);
+  color: var(--kb-text);
+  padding: 15px;
+  border-radius: var(--kb-radius-sm);
+  font-size: 16px;
+  font-weight: 600;
+}
+.kabala-root .modal-confirm {
+  background: var(--kb-accent);
+  color: var(--kb-accent-inv);
+  padding: 15px;
+  border-radius: var(--kb-radius-sm);
+  font-size: 16px;
+  font-weight: 700;
+}
+.kabala-root .modal-confirm:disabled { opacity: 0.5; }
+.kabala-root .view-card {
+  background: var(--kb-card);
+  border-radius: var(--kb-radius);
+  padding: 22px 20px;
+  margin: 0 0 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+.kabala-root .view-stamp {
+  margin-bottom: 16px;
+}
+.kabala-root .view-he-title {
+  font-size: 38px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  line-height: 1;
+  direction: rtl;
+}
+.kabala-root .view-num {
+  font-size: 13px;
+  color: var(--kb-text-2);
+  margin-top: 2px;
+  font-weight: 700;
+}
+.kabala-root .view-date {
+  font-size: 13px;
+  color: var(--kb-text-2);
+}
+.kabala-root .view-biz {
+  margin-top: 12px;
+}
+.kabala-root .view-biz-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+.kabala-root .view-biz-sub {
+  font-size: 12px;
+  color: var(--kb-text-2);
+  direction: rtl;
+  text-align: left;
+}
+.kabala-root .view-divider {
+  height: 1px;
+  background: var(--kb-border);
+  margin: 14px 0;
+}
+.kabala-root .view-field { margin-bottom: 4px; }
+.kabala-root .view-field.half { flex: 1; }
+.kabala-root .view-field-row {
+  display: flex;
+  gap: 16px;
+}
+.kabala-root .view-field-label {
+  font-size: 11px;
+  color: var(--kb-text-3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.kabala-root .view-field-value {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--kb-text);
+}
+.kabala-root .view-field-value.large { font-size: 20px; font-weight: 700; }
+.kabala-root .view-field-value.view-note { color: var(--kb-text-2); font-style: italic; }
+.kabala-root .view-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: var(--kb-text-2);
+  font-weight: 600;
+}
+.kabala-root .view-total-amount {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--kb-text);
+  letter-spacing: -1px;
+}
+.kabala-root .view-payment-badge {
+  display: inline-block;
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
+  border-radius: 99px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.kabala-root .view-legal {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--kb-text-3);
+  direction: rtl;
+  letter-spacing: 0.5px;
+}
+.kabala-root .view-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.kabala-root .action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--kb-card);
+  border-radius: var(--kb-radius);
+  padding: 18px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kb-text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  transition: opacity 0.1s;
+}
+.kabala-root .action-btn:active { opacity: 0.7; }
+.kabala-root .action-btn:disabled { opacity: 0.4; }
+.kabala-root .action-icon { font-size: 22px; }
+.kabala-root .spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--kb-border);
+  border-top-color: var(--kb-accent);
+  border-radius: 50%;
+  animation: kb-spin 0.7s linear infinite;
+}
+@keyframes kb-spin { to { transform: rotate(360deg); } }
+.kabala-root .btn-back-small {
+  margin-top: 16px;
+  background: var(--kb-bg);
+  padding: 10px 20px;
+  border-radius: var(--kb-radius-sm);
+  font-weight: 600;
+}
+.kabala-root .preset-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.kabala-root .preset-row::-webkit-scrollbar { display: none; }
+.kabala-root .preset-btn {
+  flex-shrink: 0;
+  background: var(--kb-card);
+  border: 1.5px solid var(--kb-border);
+  border-radius: 99px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kb-text-2);
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.kabala-root .preset-btn.preset-active {
+  background: var(--kb-accent);
+  border-color: var(--kb-accent);
+  color: var(--kb-accent-inv);
+}
+.kabala-root .custom-range {
+  padding: 0 16px 8px;
+}
+.kabala-root .custom-range-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.kabala-root .btn-apply {
+  background: var(--kb-accent);
+  color: var(--kb-accent-inv);
+  padding: 12px 24px;
+  border-radius: var(--kb-radius-sm);
+  font-size: 15px;
+  font-weight: 700;
+  width: 100%;
+}
+.kabala-root .report-loading {
+  text-align: center;
+  color: var(--kb-text-2);
+  padding: 40px;
+  font-size: 14px;
+}
+.kabala-root .stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+.kabala-root .stat-card {
+  background: var(--kb-card);
+  border-radius: var(--kb-radius-sm);
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.kabala-root .stat-label {
+  font-size: 11px;
+  color: var(--kb-text-3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.kabala-root .stat-value { font-size: 24px; font-weight: 900; color: var(--kb-text); }
+.kabala-root .pay-breakdown {
+  background: var(--kb-card);
+  border-radius: var(--kb-radius-sm);
+  margin: 0 16px 12px;
+  overflow: hidden;
+}
+.kabala-root .pay-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 11px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--kb-border);
+}
+.kabala-root .pay-row:last-child { border: none; }
+.kabala-root .pay-method { color: var(--kb-text-2); }
+.kabala-root .pay-amount { font-weight: 700; color: var(--kb-text); }
+.kabala-root .export-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+.kabala-root .export-btn {
+  background: var(--kb-card);
+  border: 1.5px solid var(--kb-border);
+  border-radius: var(--kb-radius-sm);
+  padding: 13px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kb-text);
+  text-align: center;
+  transition: opacity 0.1s;
+}
+.kabala-root .export-btn:active { opacity: 0.7; }
+.kabala-root .settings-section-title {
+  font-size: 12px;
+  color: var(--kb-text-3);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  padding: 8px 16px 6px;
+}
+.kabala-root .screen .field-group {
+  padding: 0 16px;
+}
+.kabala-root .screen .field-row-2 {
+  padding: 0 16px;
+}
+.kabala-root .btn-save {
+  width: calc(100% - 32px);
+  margin: 8px 16px 0;
+  background: var(--kb-accent);
+  color: var(--kb-accent-inv);
+  padding: 16px;
+  border-radius: var(--kb-radius);
+  font-size: 16px;
+  font-weight: 700;
+  transition: opacity 0.1s;
+}
+.kabala-root .btn-save:disabled { opacity: 0.5; }
+.kabala-root .backup-card {
+  background: var(--kb-card);
+  border-radius: var(--kb-radius);
+  padding: 16px;
+  margin: 8px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.kabala-root .backup-note {
+  font-size: 13px;
+  color: var(--kb-text-2);
+  line-height: 1.5;
+}
+.kabala-root .backup-btn {
+  background: var(--kb-bg);
+  border: 1.5px solid var(--kb-border);
+  border-radius: var(--kb-radius-sm);
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kb-text);
+  text-align: center;
+}
+.kabala-root .backup-btn-import {
+  border-color: var(--kb-text-3);
+  color: var(--kb-text-2);
+}
+.kabala-root .import-ok { font-size: 13px; color: var(--kb-ok); font-weight: 600; }
+.kabala-root .import-error { font-size: 13px; color: var(--kb-danger); font-weight: 500; }
+.kabala-root .app-version {
+  text-align: center;
+  font-size: 11px;
+  color: var(--kb-text-3);
+  margin: 24px 16px 8px;
+  letter-spacing: 0.5px;
+}
+.kabala-root .bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  height: calc(var(--kb-nav-h) + var(--kb-safe-b));
+  padding-bottom: var(--kb-safe-b);
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--kb-border);
+  display: flex;
+  align-items: flex-start;
+  z-index: 50;
+}
+.kabala-root .nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding-top: 10px;
+  min-height: var(--kb-nav-h);
+  color: var(--kb-text-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  transition: color 0.15s;
+}
+.kabala-root .nav-btn.nav-active { color: var(--kb-text); }
+.kabala-root .nav-icon { font-size: 22px; line-height: 1; }
+.kabala-root .nav-label { font-size: 10px; }
+.kabala-root .receipt-row-badges { display: flex; gap: 4px; margin-top: 2px; flex-wrap: wrap; }
+.kabala-root .row-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 2px 7px;
+  border-radius: 99px;
+}
+.kabala-root .row-badge-storno { background: rgba(217,48,37,0.1); color: var(--kb-danger); }
+.kabala-root .row-badge-cancelled { background: var(--kb-bg); color: var(--kb-text-3); border: 1px solid var(--kb-border); }
+.kabala-root .row-amount-cancelled { text-decoration: line-through; color: var(--kb-text-3); }
+.kabala-root .row-amount-negative { color: var(--kb-danger); }
+.kabala-root .view-status-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 99px;
+  margin-top: 8px;
+}
+.kabala-root .view-status-storno { background: rgba(217,48,37,0.1); color: var(--kb-danger); }
+.kabala-root .view-status-cancelled { background: var(--kb-bg); color: var(--kb-text-3); border: 1px solid var(--kb-border); }
+.kabala-root .action-btn-danger-full {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--kb-card);
+  border: 1px solid var(--kb-danger);
+  color: var(--kb-danger);
+  border-radius: var(--kb-radius);
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  transition: opacity 0.1s;
+}
+.kabala-root .action-btn-danger-full:active { opacity: 0.7; }
+
+/* ── Встраивание во вкладку «Кабала» Личного кабинета ──
+   Отдельное приложение занимало весь экран и держало свою нижнюю панель;
+   внутри дневника нижнее место занято тулбаром, поэтому панель разделов
+   кабалы стоит сверху обычной строкой, а экран не тянется на 100dvh. */
+.kabala-root .app { max-width: none; min-height: 0; }
+.kabala-root .screen-wrap { padding-top: 0; padding-bottom: 0; overflow: visible; }
+.kabala-root .bottom-nav {
+  position: static;
+  transform: none;
+  left: auto;
+  bottom: auto;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  padding: 0 0 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--kb-border);
+  margin-bottom: 10px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.kabala-root .app-loading { min-height: 160px; }

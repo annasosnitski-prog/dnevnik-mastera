@@ -8,9 +8,6 @@
 
 import {
   hasNextStep,
-  projectBodyZone,
-  PROJECT_BODY_ZONES,
-  PROJECT_BODY_ZONE_OTHER,
   type NextActionType,
   type Project,
   type ProjectCategory,
@@ -643,7 +640,7 @@ export function groupProjectsByArea(projects: Project[]): ProjectAreaGroup[] {
 }
 
 // ===================== ПАПКИ ПРОЕКТОВ (view-model) =====================
-export type ProjectFolderType = 'client' | 'master' | 'zone';
+export type ProjectFolderType = 'client' | 'master' | 'clients';
 
 export interface ProjectFolder {
   id: string;
@@ -759,53 +756,50 @@ export function buildProjectFolders(projects: Project[], clients: Client[], toda
   return folders;
 }
 
-// ===================== ПАПКИ ПРОЕКТОВ ПО ЗОНАМ ТЕЛА (view-model) =====================
-// «Проекты» открываются папками по крупной зоне тела (project.area →
-// projectBodyZone), а не по клиенту — buildProjectFolders выше остаётся в
-// коде нетронутым как самостоятельная выборка, просто больше не вызывается
-// экраном «Проекты». Клиент каждого проекта всё равно виден на его карточке
-// (ProjectCard принимает clientName), а полный список проектов клиента — в
-// его собственной карточке (getProjectsByClientId), эта папка её не заменяет.
-//
-// Основные 4 зоны (PROJECT_BODY_ZONES) показываются всегда, даже без единого
-// проекта — тот же принцип «место уже есть, просто пока пусто», что и у
-// клиентских папок (M6). «Другое» (проекты без распознанной зоны — пустая
-// area или свободный текст старых записей) показывается только если там
-// что-то есть — специальной папки для несуществующего случая не нужно.
-export function buildProjectZoneFolders(projects: Project[]): ProjectFolder[] {
-  const projectsByZone = new Map<string, Project[]>();
+// ===================== ДВЕ ПАПКИ «ПРОЕКТОВ» (view-model) =====================
+// Экран «Проекты» (зелёная кнопка тулбара) открывается ровно двумя папками
+// (Анна, 2026-11-21): «Личные проекты» — проекты мастера без клиента
+// (clientId === null, раньше жили отдельной вкладкой в Личном кабинете) и
+// «Клиенты» — все проекты с клиентом. Обе папки видны всегда, даже пустые —
+// тот же принцип «место уже есть», что у папок зон выше.
+export const PERSONAL_PROJECTS_FOLDER_ID = 'master';
+export const CLIENT_PROJECTS_FOLDER_ID = 'clients';
+
+export function buildProjectOwnerFolders(projects: Project[]): ProjectFolder[] {
+  const personal = getWorkshopProjects(projects);
+  const withClient = projects.filter((p) => p.clientId !== null);
+  return [
+    {
+      id: PERSONAL_PROJECTS_FOLDER_ID,
+      title: 'Личные проекты',
+      type: 'master',
+      clientId: null,
+      projects: personal,
+      projectCount: personal.length,
+    },
+    {
+      id: CLIENT_PROJECTS_FOLDER_ID,
+      title: 'Клиенты',
+      type: 'clients',
+      clientId: null,
+      projects: withClient,
+      projectCount: withClient.length,
+    },
+  ];
+}
+
+// Проекты папки «Клиенты», сгруппированные по клиенту — в порядке первого
+// появления клиента в списке. Проект с clientId, которого нет в clients,
+// попадает в группу «Клиент не найден» (данные не трогаем).
+export function groupProjectsByClient(projects: Project[], clients: Client[]): { area: string; projects: Project[] }[] {
+  const groups = new Map<string, Project[]>();
   for (const project of projects) {
-    const zone = projectBodyZone(project.area);
-    const bucket = projectsByZone.get(zone);
+    const name = clientNameFor(clients, project.clientId) ?? MISSING_CLIENT_FOLDER_TITLE;
+    const bucket = groups.get(name);
     if (bucket) bucket.push(project);
-    else projectsByZone.set(zone, [project]);
+    else groups.set(name, [project]);
   }
-
-  const folders: ProjectFolder[] = PROJECT_BODY_ZONES.map((zone) => {
-    const zoneProjects = projectsByZone.get(zone.key) ?? [];
-    return {
-      id: `zone:${zone.key}`,
-      title: zone.label,
-      type: 'zone',
-      clientId: null,
-      projects: zoneProjects,
-      projectCount: zoneProjects.length,
-    };
-  });
-
-  const otherProjects = projectsByZone.get(PROJECT_BODY_ZONE_OTHER) ?? [];
-  if (otherProjects.length > 0) {
-    folders.push({
-      id: `zone:${PROJECT_BODY_ZONE_OTHER}`,
-      title: PROJECT_BODY_ZONE_OTHER,
-      type: 'zone',
-      clientId: null,
-      projects: otherProjects,
-      projectCount: otherProjects.length,
-    });
-  }
-
-  return folders;
+  return Array.from(groups, ([area, groupedProjects]) => ({ area, projects: groupedProjects }));
 }
 
 // ===================== ОБЛОЖКА ПРОЕКТА =====================
