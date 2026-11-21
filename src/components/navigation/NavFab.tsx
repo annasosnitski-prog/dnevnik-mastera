@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { EngravedMicIcon } from "./EngravedMicIcon";
 import { createPortal } from "react-dom";
 import { PendantIcon } from "./PendantIcon";
@@ -249,8 +249,25 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
       longPressTimerRef.current = null;
     }
   };
+  // voiceHoldRef — запись идёт. iPhone посреди удержания шлёт pointercancel
+  // (всплыло окно «разрешить микрофон», жест системы) — раньше это сразу
+  // обрывало запись с «не расслышала». Теперь отмена/уход пальца запись не
+  // останавливает: она идёт дальше, а следующее касание хаба её
+  // «подхватывает» — отпустили этот палец, и запись закончилась.
+  const voiceHoldRef = useRef(false);
   const handleHubPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     setPressedId("hub");
+    if (voiceHoldRef.current) {
+      // Запись идёт без пальца (после pointercancel) — подхватываем её этим
+      // касанием: отпускание закончит запись, click меню не откроет.
+      longPressFiredRef.current = true;
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* без capture тоже работает */
+      }
+      return;
+    }
     if (!onVoiceHoldStart || open) return;
     // Палец может съехать с хаба, пока говоришь — захват указателя держит
     // pointerup на кнопке, чтобы отпускание всегда завершало запись.
@@ -264,14 +281,28 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
     longPressTimerRef.current = window.setTimeout(() => {
       longPressFiredRef.current = true;
       longPressTimerRef.current = null;
+      voiceHoldRef.current = true;
       onVoiceHoldStart();
     }, LONG_PRESS_MS);
   };
   const handleHubPointerUp = () => {
     releasePress("hub");
     clearLongPressTimer();
-    if (longPressFiredRef.current) onVoiceHoldEnd?.();
+    if (voiceHoldRef.current) {
+      voiceHoldRef.current = false;
+      onVoiceHoldEnd?.();
+    }
   };
+  // pointercancel / pointerleave: до срабатывания долгого нажатия — обычная
+  // отмена; во время записи — ничего не обрываем.
+  const handleHubPointerAbort = () => {
+    releasePress("hub");
+    clearLongPressTimer();
+  };
+  // Запись закончилась сама (страховочный таймер) — снимаем флаг.
+  useEffect(() => {
+    if (!voiceListening) voiceHoldRef.current = false;
+  }, [voiceListening]);
   const handleHubClick = () => {
     if (longPressFiredRef.current) {
       longPressFiredRef.current = false;
@@ -619,13 +650,15 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
         <button
           type="button"
           className={mainClasses.join(" ")}
-          style={minimalism ? { width: MINIMAL_HUB_SIZE, height: MINIMAL_HUB_SIZE } : undefined}
+          /* touch-action: none — браузер не забирает удержание под прокрутку
+             (иначе он шлёт pointercancel и долгое нажатие срывается). */
+          style={minimalism ? { width: MINIMAL_HUB_SIZE, height: MINIMAL_HUB_SIZE, touchAction: "none" } : { touchAction: "none" }}
           aria-label={open ? "Закрыть меню" : "Открыть меню (удерживать — голосовая команда)"}
           aria-expanded={open}
           onPointerDown={handleHubPointerDown}
           onPointerUp={handleHubPointerUp}
-          onPointerCancel={handleHubPointerUp}
-          onPointerLeave={handleHubPointerUp}
+          onPointerCancel={handleHubPointerAbort}
+          onPointerLeave={handleHubPointerAbort}
           onContextMenu={(event) => event.preventDefault()}
           onClick={handleHubClick}
         >
