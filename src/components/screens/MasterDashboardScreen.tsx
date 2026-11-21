@@ -1,4 +1,4 @@
-import { useState, useEffect, type SVGProps } from 'react';
+import { useState, useEffect, lazy, Suspense, type SVGProps } from 'react';
 import type * as React from 'react';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon } from '../icons/SocialIcons';
@@ -19,10 +19,14 @@ import { type Client, type ChatPlatform, type ChatLink, PLATFORM_LABELS, MARKER_
 // prop-driven контракта. Локальное состояние (активная вкладка, черновики
 // полей ввода, тап-копирование в буфер) сохранено как было.
 
+// Кабала грузится лениво: свой IndexedDB-слой (idb) и стили нужны только
+// тому, кто открыл эту вкладку.
+const KabalaApp = lazy(() => import('../../kabala/KabalaApp').then((m) => ({ default: m.KabalaApp })));
+
 // Личные проекты мастера переехали на экран «Проекты» (зелёная кнопка
 // тулбара, папка «Личные проекты»), их место первой геммой заняла Кабала
-// (Анна, 2026-11-21). Пока это заглушка-место: сам модуль кабалы
-// переносится отдельным шагом.
+// (Анна, 2026-11-21). Сам модуль — src/kabala (перенесён из репозитория
+// 4321), данные только на устройстве.
 type MasterTab = 'info' | 'kabala' | 'settings';
 const MASTER_TABS: ClientCardTabDef<MasterTab>[] = [
   { id: 'kabala', kind: 'notes', label: 'Кабала', color: TERRITORY_COLORS.personal },
@@ -416,12 +420,9 @@ export function MasterDashboardScreen({
       )}
 
       {tab === 'kabala' && (
-        <>
-          <div style={{ ...statLabelStyle, marginBottom: 0 }}>Кабала</div>
-          <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
-            Здесь скоро будет кабала. Личные проекты теперь живут в «Проектах» (зелёная кнопка), папка «Личные проекты».
-          </div>
-        </>
+        <Suspense fallback={<div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>Загрузка…</div>}>
+          <KabalaApp />
+        </Suspense>
       )}
       {tab === 'settings' && <SettingsScreen {...settings} embedded onBack={() => setTab('info')} />}
       </div>
