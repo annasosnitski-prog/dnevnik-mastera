@@ -20,12 +20,25 @@ const MAX_TEXT = 400;
 
 const SYSTEM = `Ты разбираешь голосовые команды тату-мастера в приложении «Дневник мастера».
 Верни намерение через инструмент intent. Не выдумывай данных, которых нет во фразе.
-Действия: create (создать), open (открыть/показать), update (обновить), complete (закрыть/завершить),
-generate (сделать пост/сториз), ask (вопрос), unknown (непонятно).
-Сущности: client, project, session, consultation, note, content, screen.
-Поля (только упомянутые): name, surname, phone (цифры и +), note, client (имя клиента), project,
-date (YYYY-MM-DD), time (HH:MM), screen, question.
-Имена и фамилии пиши с заглавной буквы в именительном падеже.`;
+Действия: create (создать), move (перенести на другое время/день), cancel (отменить запись),
+open (открыть/показать), update (обновить), complete (закрыть/завершить), generate (сделать пост/сториз),
+ask (вопрос), unknown (непонятно).
+Сущности: client, project, session, consultation, note, reminder, schedule, content, screen.
+Поля (только упомянутые): name, surname, phone (цифры и +), note (текст заметки), client (имя и фамилия
+клиента в именительном падеже), project (название проекта), title (название нового проекта или сессии),
+date (YYYY-MM-DD — куда/когда), fromDate (YYYY-MM-DD — с какой даты переносят, если сказано),
+time (HH:MM, 24 часа), target (для заметки: project | session | consultation), screen, question.
+Правила:
+- «новая сессия/запиши на сессию …» → create session; «консультация …» → create consultation.
+- «перенеси/передвинь сессию …» → move session (или consultation), date/time — новые.
+- «отмени сессию …» → cancel session/consultation.
+- «новый проект …» → create project (title, client).
+- «заметка к проекту/сессии/консультации …» → create note, target, client/project, note.
+- «напомни …» → create reminder (note, date).
+- «закрой/заверши проект …» → complete project.
+- «кто/что у меня завтра», «расписание на пятницу» → ask schedule (date).
+- «открой клиента/проект/сессию …» → open client/project/session/consultation.
+Даты считай от сегодняшней, она дана в сообщении. Имена пиши с заглавной буквы.`;
 
 const TOOL = {
   name: 'intent',
@@ -33,15 +46,21 @@ const TOOL = {
   input_schema: {
     type: 'object',
     properties: {
-      action: { type: 'string', enum: ['create', 'open', 'update', 'complete', 'generate', 'ask', 'unknown'] },
+      action: { type: 'string', enum: ['create', 'move', 'cancel', 'open', 'update', 'complete', 'generate', 'ask', 'unknown'] },
       entity: {
         type: ['string', 'null'],
-        enum: ['client', 'project', 'session', 'consultation', 'note', 'content', 'screen', null],
+        enum: ['client', 'project', 'session', 'consultation', 'note', 'reminder', 'schedule', 'content', 'screen', null],
       },
       fields: { type: 'object', additionalProperties: { type: 'string' } },
     },
     required: ['action', 'entity', 'fields'],
   },
+};
+
+const WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+const weekday = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 };
 
 const json = (body: unknown, status = 200) =>
@@ -66,9 +85,11 @@ export async function POST(req: Request): Promise<Response> {
   if (!key) return json({ error: 'not_configured' }, 503);
 
   let text = '';
+  let today = '';
   try {
     const body = await req.json();
     text = typeof body?.text === 'string' ? body.text.trim().slice(0, MAX_TEXT) : '';
+    today = typeof body?.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? body.today : new Date().toISOString().slice(0, 10);
   } catch {
     return json({ error: 'bad_json' }, 400);
   }
@@ -83,11 +104,11 @@ export async function POST(req: Request): Promise<Response> {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 300,
+      max_tokens: 400,
       system: SYSTEM,
       tools: [TOOL],
       tool_choice: { type: 'tool', name: 'intent' },
-      messages: [{ role: 'user', content: text }],
+      messages: [{ role: 'user', content: `Сегодня ${today} (${weekday(today)}). Фраза: ${text}` }],
     }),
   });
   if (!upstream.ok) return json({ error: 'upstream', status: upstream.status }, 502);

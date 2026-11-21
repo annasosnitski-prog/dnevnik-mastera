@@ -1,4 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { EngravedMicIcon } from "./EngravedMicIcon";
 import { createPortal } from "react-dom";
 import { PendantIcon } from "./PendantIcon";
 import { NaturalStoneIcon, type NaturalStoneKind } from "./NaturalStoneIcon";
@@ -641,6 +642,11 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
             </>
           )}
           {voiceListening && <span className="nav-fab__voice-ring" aria-hidden="true" />}
+          {!open && (
+            <span className={`nav-fab__mic-hint${voiceListening ? ' nav-fab__mic-hint--on' : ''}`} aria-hidden="true">
+              <EngravedMicIcon size={minimalism ? 18 : 24} />
+            </span>
+          )}
           {mainBadgeKind && (
             <span
               className="nav-fab__badge"

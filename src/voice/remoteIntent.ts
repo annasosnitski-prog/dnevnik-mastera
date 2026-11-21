@@ -12,14 +12,14 @@ import { normalizeIntent, parseIntentLocal, type VoiceIntent } from './intent';
 
 const REMOTE_TIMEOUT_MS = 6000;
 
-async function parseIntentRemote(transcript: string): Promise<VoiceIntent | null> {
+async function parseIntentRemote(transcript: string, today: string): Promise<VoiceIntent | null> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), REMOTE_TIMEOUT_MS);
   try {
     const response = await fetch('/api/voice-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: transcript }),
+      body: JSON.stringify({ text: transcript, today }),
       signal: controller.signal,
     });
     if (!response.ok) return null;
@@ -34,6 +34,7 @@ async function parseIntentRemote(transcript: string): Promise<VoiceIntent | null
 }
 
 // Сначала модель (понимает свободную речь), потом локальные правила.
-export async function resolveIntent(transcript: string): Promise<VoiceIntent> {
-  return (await parseIntentRemote(transcript)) ?? parseIntentLocal(transcript);
+// today — для «завтра», «в пятницу»: модель считает дату от него.
+export async function resolveIntent(transcript: string, today: string): Promise<VoiceIntent> {
+  return (await parseIntentRemote(transcript, today)) ?? parseIntentLocal(transcript, today);
 }

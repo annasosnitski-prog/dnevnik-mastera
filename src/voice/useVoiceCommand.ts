@@ -9,10 +9,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createWebSpeechCapture, SpeechError, type SpeechCapture } from './speech';
 import { resolveIntent } from './remoteIntent';
 import { findVoiceCommand, VOICE_COMMANDS, type VoiceDraft } from './commands';
+import type { VoiceContext } from './context';
 
 export type VoicePhase = 'idle' | 'listening' | 'thinking' | 'message';
 
 const MESSAGE_MS = 3200;
+const MESSAGE_MAX_MS = 9000;
 
 const SPEECH_ERRORS: Record<string, string> = {
   'not-allowed': 'Нет доступа к микрофону — разрешите его в настройках браузера',
@@ -21,7 +23,18 @@ const SPEECH_ERRORS: Record<string, string> = {
   'audio-capture': 'Микрофон не найден',
 };
 
-export function useVoiceCommand() {
+// getContext — свежий снимок клиентов/проектов на момент фразы (через ref,
+// чтобы колбэки не пересоздавались на каждое изменение данных).
+// onAction — действия без сохранения данных (открыть клиента/запись):
+// выполняются сразу, без шторки.
+export function useVoiceCommand(
+  getContext: () => VoiceContext,
+  onAction: (commandId: string, values: Record<string, string>) => void,
+) {
+  const contextRef = useRef(getContext);
+  contextRef.current = getContext;
+  const actionRef = useRef(onAction);
+  actionRef.current = onAction;
   const [phase, setPhase] = useState<VoicePhase>('idle');
   const [text, setText] = useState('');
   const [draft, setDraft] = useState<VoiceDraft | null>(null);
@@ -36,7 +49,7 @@ export function useVoiceCommand() {
       messageTimerRef.current = null;
       setPhase('idle');
       setText('');
-    }, MESSAGE_MS);
+    }, Math.min(MESSAGE_MAX_MS, Math.max(MESSAGE_MS, message.length * 55)));
   }, []);
 
   useEffect(
@@ -89,15 +102,30 @@ export function useVoiceCommand() {
       return;
     }
     setText(transcript);
-    const intent = await resolveIntent(transcript);
+    const ctx = contextRef.current();
+    const intent = await resolveIntent(transcript, ctx.today);
     const command = findVoiceCommand(intent);
     if (!command) {
-      showMessage(`Пока умею: «${VOICE_COMMANDS.map((c) => c.example).join('», «')}»`);
+      showMessage(`Не поняла. Например: «${VOICE_COMMANDS.slice(0, 4).map((c) => c.example).join('», «')}»`);
+      return;
+    }
+    const result = command.build(intent, ctx);
+    if (result.type === 'message') {
+      showMessage(result.text);
+      return;
+    }
+    if (result.type === 'action') {
+      actionRef.current(result.commandId, result.values);
+      if (result.message) showMessage(result.message);
+      else {
+        setPhase('idle');
+        setText('');
+      }
       return;
     }
     setPhase('idle');
     setText('');
-    setDraft(command.buildDraft(intent));
+    setDraft(result.draft);
   }, [showMessage]);
 
   return { phase, text, draft, setDraft, holdStart, holdEnd };
