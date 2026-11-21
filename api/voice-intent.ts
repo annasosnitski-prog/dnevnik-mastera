@@ -15,7 +15,7 @@
 declare const process: { env: Record<string, string | undefined> };
 
 const MODEL = process.env.VOICE_INTENT_MODEL ?? 'claude-haiku-5-5';
-const MAX_TEXT = 400;
+const MAX_TEXT = 1500;
 
 
 const SYSTEM = `Ты разбираешь голосовые команды тату-мастера в приложении «Дневник мастера».
@@ -28,6 +28,15 @@ ask (вопрос), unknown (непонятно).
 клиента в именительном падеже), project (название проекта), title (название нового проекта или сессии),
 date (YYYY-MM-DD — куда/когда), fromDate (YYYY-MM-DD — с какой даты переносят, если сказано),
 time (HH:MM, 24 часа), target (для заметки: project | session | consultation), screen, question.
+Полная карточка — мастер может надиктовать всё по теме, разложи по полям карточки:
+- session: title, date, time, status (planned | done), duration («4 ч»), style, area, colors, needles,
+  skinReaction, note.
+- consultation: date, time, area, style, note (общие заметки, договорённости), feeling, creative,
+  inspirationSources, outcome, urgency (urgent | important | normal | interesting).
+- project: title, client, category (tattoo | drawing | collab | other), sessionsPlan (single | multiple),
+  area (часть тела), style, firstSessionDate (YYYY-MM-DD), nextActionText, nextActionDate, note, creative (идеи).
+Поле, о котором ничего не сказано, не возвращай. Если значение додумано или сомнительно — верни его и добавь
+ключ в uncertain.
 Правила:
 - «новая сессия/запиши на сессию …» → create session; «консультация …» → create consultation.
 - «перенеси/передвинь сессию …» → move session (или consultation), date/time — новые.
@@ -52,6 +61,7 @@ const TOOL = {
         enum: ['client', 'project', 'session', 'consultation', 'note', 'reminder', 'schedule', 'content', 'screen', null],
       },
       fields: { type: 'object', additionalProperties: { type: 'string' } },
+      uncertain: { type: 'array', items: { type: 'string' } },
     },
     required: ['action', 'entity', 'fields'],
   },
@@ -104,7 +114,7 @@ export async function POST(req: Request): Promise<Response> {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 400,
+      max_tokens: 700,
       system: SYSTEM,
       tools: [TOOL],
       tool_choice: { type: 'tool', name: 'intent' },

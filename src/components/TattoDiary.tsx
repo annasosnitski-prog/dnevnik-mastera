@@ -175,7 +175,7 @@ const BlackjackGame = lazyScreen(() => import('./games/BlackjackGame').then((m) 
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
-import { type UrgencyKey } from '../domain/urgency';
+import { type UrgencyKey, URGENCY } from '../domain/urgency';
 import { type Session, reconcileHealingCheckPhotos } from '../domain/session';
 import { type Consultation, isConsultationDeletable } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
@@ -259,6 +259,7 @@ import {
   withMoodboardStatus,
   withMoodboardPhotoSrcs,
   withAdvancedStatus,
+  PROJECT_CATEGORIES,
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
@@ -2723,14 +2724,17 @@ export default function TattoDiary() {
         target.projects,
         target.projectId,
         {
-          name: v.name ?? '', date: v.date ?? '', time: v.time ?? '', duration: '', style: '', area: '', colors: '', needles: '',
-          skinReaction: '', note: v.note ?? '', photos: [], done: false, isLastSession: false, projectId: target.projectId,
+          name: v.name ?? '', date: v.date ?? '', time: v.time ?? '', duration: v.duration ?? '', style: v.style ?? '',
+          area: v.area ?? '', colors: v.colors ?? '', needles: v.needles ?? '', skinReaction: v.skinReaction ?? '',
+          note: v.note ?? '', photos: [], done: v.status === 'done', isLastSession: false, projectId: target.projectId,
         },
         null,
         null,
       );
-      // Новая сессия снимает паузу с проекта — как и из формы.
-      saveProjects(resumeFromPauseIn(withSession, target.projectId));
+      // Новая сессия снимает паузу с проекта, выполненная — двигает статус,
+      // как и из формы.
+      const resumed = resumeFromPauseIn(withSession, target.projectId);
+      saveProjects(v.status === 'done' ? advanceAfterDoneSessionIn(resumed, target.projectId) : resumed);
     },
     'consultation.create': (v) => {
       const target = voiceProjectTarget(v.project);
@@ -2738,8 +2742,10 @@ export default function TattoDiary() {
         target.projects,
         target.projectId,
         {
-          date: v.date ?? '', time: v.time ?? '', area: '', style: '', generalNotes: v.note ?? '', feeling: '', creative: '',
-          inspirationSources: '', outcome: '', urgency: 'important', photos: [], projectId: target.projectId,
+          date: v.date ?? '', time: v.time ?? '', area: v.area ?? '', style: v.style ?? '', generalNotes: v.note ?? '',
+          feeling: v.feeling ?? '', creative: v.creative ?? '', inspirationSources: v.inspirationSources ?? '',
+          outcome: v.outcome ?? '', urgency: (URGENCY.find((u) => u.key === v.urgency)?.key ?? 'important'), photos: [],
+          projectId: target.projectId,
         },
         null,
         null,
@@ -2762,22 +2768,22 @@ export default function TattoDiary() {
         healingPhotos: [],
         moodboard: null,
         title: (v.title ?? '').trim(),
-        category: 'tattoo',
+        category: (PROJECT_CATEGORIES.find((c) => c.key === v.category)?.key ?? 'tattoo'),
         clientId: v.client && v.client !== NO_CLIENT ? v.client : null,
         status: 'active',
-        sessionsPlan: null,
+        sessionsPlan: v.sessionsPlan === 'single' || v.sessionsPlan === 'multiple' ? v.sessionsPlan : null,
         firstSessionWindowAmount: null,
         firstSessionWindowUnit: null,
-        firstSessionExactDate: null,
+        firstSessionExactDate: v.firstSessionDate || null,
         firstSessionWindowSetAt: null,
-        nextActionText: '',
-        nextActionDate: null,
+        nextActionText: (v.nextActionText ?? '').trim(),
+        nextActionDate: v.nextActionDate || null,
         nextActionType: null,
-        area: '',
-        style: '',
+        area: (v.area ?? '').trim(),
+        style: (v.style ?? '').trim(),
         generalNotes: (v.note ?? '').trim(),
         feeling: '',
-        creative: '',
+        creative: (v.creative ?? '').trim(),
         inspirationSources: '',
         photos: [],
       });

@@ -308,3 +308,80 @@ test('модель: поля client/project/date из LLM тоже понима�
   assert.equal(field(r.draft, 'entry').value, 's1');
   assert.equal(field(r.draft, 'date').value, '2026-11-30');
 });
+
+// ── Полная карточка из диктовки ───────────────────────────────────────────
+import { extractCardFields } from '../.test-dist/src/voice/cardFields.js';
+
+test('карточка: метки раскладываются по полям сессии', () => {
+  const { fields, head } = extractCardFields(
+    'session',
+    'для Ольги завтра в 12 на 4 часа, стиль дотворк, зона левое предплечье, цвета чёрный и серый, иглы 3RL и 7RM, заметка клиентка пьёт кофе',
+  );
+  assert.match(head, /^для Ольги завтра в 12/);
+  assert.equal(fields.duration, '4 ч');
+  assert.equal(fields.style, 'дотворк');
+  assert.equal(fields.area, 'левое предплечье');
+  assert.equal(fields.colors, 'чёрный и серый');
+  assert.equal(fields.needles, '3RL и 7RM');
+  assert.equal(fields.note, 'клиентка пьёт кофе');
+});
+
+test('карточка: полная сессия — поля заполнены, ненадиктованные пусты', () => {
+  const r = run('новая сессия для Ольги Петровой завтра в 12 на 4 часа, стиль дотворк, иглы 3RL');
+  const d = r.draft;
+  assert.equal(field(d, 'project').value, 'dragon');
+  assert.equal(field(d, 'date').value, '2026-11-22');
+  assert.equal(field(d, 'time').value, '12:00');
+  assert.equal(field(d, 'duration').value, '4 ч');
+  assert.equal(field(d, 'style').value, 'дотворк');
+  assert.equal(field(d, 'needles').value, '3RL');
+  assert.equal(field(d, 'colors').value, '');
+  assert.equal(field(d, 'status').value, 'planned');
+  assert.equal(canConfirmDraft(d), true);
+});
+
+test('карточка: «уже прошла» → выполнена; «в 3 часа» — время, не длительность', () => {
+  const d = run('сессия для Марины сегодня в 3 часа дня, уже прошла, реакция кожи небольшое покраснение').draft;
+  assert.equal(field(d, 'status').value, 'done');
+  assert.equal(field(d, 'time').value, '15:00');
+  assert.equal(field(d, 'duration').value, '');
+  assert.equal(field(d, 'skinReaction').value, 'небольшое покраснение');
+});
+
+test('карточка: консультация — ощущение, референсы, итог, срочность', () => {
+  const d = run('консультация с Мариной в пятницу в 12, срочно, место плечо, ощущение лёгкость, референсы работы Ани Ли, итог делаем эскиз').draft;
+  assert.equal(field(d, 'urgency').value, 'urgent');
+  assert.equal(field(d, 'area').value, 'плечо');
+  assert.equal(field(d, 'feeling').value, 'лёгкость');
+  assert.equal(field(d, 'inspirationSources').value, 'работы Ани Ли');
+  assert.equal(field(d, 'outcome').value, 'делаем эскиз');
+});
+
+test('карточка: проект — категория, план встреч, место из списка, первая сессия', () => {
+  const d = run('новый проект Феникс для Марины, стиль японский, место левая лопатка, несколько сессий, первая сессия 5 декабря, идеи пламя и перья').draft;
+  assert.equal(field(d, 'title').value, 'Феникс');
+  assert.equal(field(d, 'client').value, 'marina');
+  assert.equal(field(d, 'category').value, 'tattoo');
+  assert.equal(field(d, 'sessionsPlan').value, 'multiple');
+  assert.equal(field(d, 'area').value, 'Лопатка');
+  assert.equal(field(d, 'area').uncertain, undefined);
+  assert.equal(field(d, 'style').value, 'японский');
+  assert.equal(field(d, 'firstSessionDate').value, '2026-12-05');
+  assert.equal(field(d, 'creative').value, 'пламя и перья');
+});
+
+test('карточка: место не из списка и неуверенные поля модели подсвечены', () => {
+  const d = run('новый проект Кит, место за ухом').draft;
+  assert.equal(field(d, 'area').value, 'за ухом');
+  assert.equal(field(d, 'area').uncertain, true);
+
+  const intent = normalizeIntent(
+    { action: 'create', entity: 'session', fields: { client: 'Марина', style: 'графика', colors: 'красный' }, uncertain: ['colors', 'nope'] },
+    'x',
+    'llm',
+  );
+  assert.deepEqual(intent.uncertain, ['colors']);
+  const r = buildVoiceResult(intent, CTX).draft;
+  assert.equal(field(r, 'colors').uncertain, true);
+  assert.equal(field(r, 'style').uncertain, undefined);
+});

@@ -34,6 +34,9 @@ import {
 } from './context.js';
 import { normalizeDate, normalizeTime } from './dates.js';
 import { formatDate } from '../utils/dates.js';
+import { PROJECT_BODY_AREAS, PROJECT_CATEGORIES, SESSIONS_PLANS } from '../domain/project.js';
+import { URGENCY } from '../domain/urgency.js';
+import { sameWord } from './context.js';
 
 export interface VoiceChoice {
   value: string;
@@ -49,6 +52,8 @@ export interface VoiceDraftField {
   inputType?: 'text' | 'tel' | 'date' | 'time';
   // Поле-выбор (клиент, проект, сессия): плитки вместо ввода текста.
   options?: VoiceChoice[];
+  // Модель не уверена в значении — шторка подсветит «проверьте».
+  uncertain?: boolean;
 }
 
 export interface VoiceDraft {
@@ -235,21 +240,62 @@ const openProject: VoiceCommand = {
 
 // ── Сессия и консультация ─────────────────────────────────────────────────
 
+// Неуверенные поля из ответа модели → подсветка в шторке.
+function markUncertain(fields: VoiceDraftField[], intent: VoiceIntent, extra: string[] = []): VoiceDraftField[] {
+  const keys = new Set([...(intent.uncertain ?? []), ...extra]);
+  // Ключи модели называются как поля карточки; title сессии лежит в name.
+  if (keys.has('title')) keys.add('name');
+  return fields.map((f) => (keys.has(f.key) && f.value ? { ...f, uncertain: true } : f));
+}
+
+const text = (key: string, label: string, value: string | undefined, multiline = false): VoiceDraftField => ({
+  key,
+  label,
+  value: value ?? '',
+  multiline,
+});
+
+// Полная карточка: те же поля, что в формах «Новая сессия» / «Новая
+// консультация», в том же порядке. Чего не надиктовали — пусто.
 function scheduleDraft(kind: 'session' | 'consultation', intent: VoiceIntent, ctx: VoiceContext): VoiceResult {
   const target = projectTargets(intent, ctx);
-  const fields: VoiceDraftField[] = [
-    choiceField('project', 'Проект', target.options, target.preselect),
-    { key: 'date', label: 'Дата', value: normalizeDate(intent.fields.date, ctx.today) ?? '', inputType: 'date' },
-    { key: 'time', label: 'Время', value: normalizeTime(intent.fields.time) ?? '', inputType: 'time' },
-  ];
-  if (kind === 'session') fields.push({ key: 'name', label: 'Название сессии', value: intent.fields.title ?? '' });
-  fields.push({ key: 'note', label: kind === 'session' ? 'Заметки' : 'Общие заметки', value: intent.fields.note ?? '', multiline: true });
+  const f = intent.fields;
+  const fields: VoiceDraftField[] = [choiceField('project', 'Проект', target.options, target.preselect)];
+  if (kind === 'session') fields.push(text('name', 'Название сессии', f.title ?? f.name));
+  fields.push(
+    { key: 'date', label: 'Дата', value: normalizeDate(f.date, ctx.today) ?? '', inputType: 'date' },
+    { key: 'time', label: 'Время', value: normalizeTime(f.time) ?? '', inputType: 'time' },
+  );
+  if (kind === 'session') {
+    fields.push(
+      { ...choiceField('status', 'Статус', [{ value: 'planned', label: 'Запланирована' }, { value: 'done', label: 'Выполнена' }], f.status === 'done' ? 'done' : 'planned') },
+      text('duration', 'Длительность', f.duration),
+      text('style', 'Стиль', f.style),
+      text('area', 'Зона', f.area),
+      text('colors', 'Цвета', f.colors),
+      text('needles', 'Иглы', f.needles),
+      text('skinReaction', 'Реакция кожи', f.skinReaction),
+      text('note', 'Заметки', f.note, true),
+    );
+  } else {
+    const urgency = URGENCY.some((u) => u.key === f.urgency) ? f.urgency : 'important';
+    fields.push(
+      text('area', 'Место', f.area),
+      text('style', 'Техника и стиль', f.style),
+      text('note', 'Общие заметки', f.note ?? f.generalNotes, true),
+      text('feeling', 'Чувство / ощущение', f.feeling, true),
+      text('creative', 'Креатив', f.creative, true),
+      text('inspirationSources', 'Источники вдохновения', f.inspirationSources, true),
+      text('outcome', 'Итог', f.outcome, true),
+      choiceField('urgency', 'Срочность', URGENCY.map((u) => ({ value: u.key, label: `${u.emoji} ${u.label}` })), urgency),
+    );
+  }
   return draft({
     commandId: `${kind}.create`,
     title: kind === 'session' ? 'Новая сессия' : 'Новая консультация',
     transcript: intent.transcript,
     hint: target.hint,
-    fields,
+    fields: markUncertain(fields, intent),
   });
 }
 
@@ -346,14 +392,38 @@ const newProject: VoiceCommand = {
       title: 'Новый проект',
       transcript: intent.transcript,
       hint,
-      fields: [
-        { key: 'title', label: 'Название', value: intent.fields.title ?? intent.fields.name ?? '', required: true },
-        choiceField('client', 'Клиент', options, preselect),
-        { key: 'note', label: 'Общие заметки', value: intent.fields.note ?? '', multiline: true },
-      ],
+      fields: markUncertain(projectCardFields(intent, ctx, options, preselect), intent, areaGuess(intent.fields.area).uncertain ? ['area'] : []),
     });
   },
 };
+
+// «левое предплечье» → «Предплечье» из списка мест проекта; не узнали —
+// оставляем как сказано и подсвечиваем.
+function areaGuess(spoken: string | undefined): { value: string; uncertain: boolean } {
+  if (!spoken) return { value: '', uncertain: false };
+  const hit = PROJECT_BODY_AREAS.find((a) => significantWords(spoken).some((w) => significantWords(a.key).some((k) => sameWord(w, k))));
+  return hit ? { value: hit.key, uncertain: false } : { value: spoken, uncertain: true };
+}
+
+// Те же поля, что в форме «Новый проект».
+function projectCardFields(intent: VoiceIntent, ctx: VoiceContext, clientOptions: VoiceChoice[], clientPreselect: string): VoiceDraftField[] {
+  const f = intent.fields;
+  const category = PROJECT_CATEGORIES.some((c) => c.key === f.category) ? f.category : 'tattoo';
+  const plan = SESSIONS_PLANS.some((p) => p.key === f.sessionsPlan) ? f.sessionsPlan : '';
+  return [
+    { key: 'title', label: 'Название', value: f.title ?? f.name ?? '', required: true },
+    choiceField('client', 'Клиент', clientOptions, clientPreselect),
+    choiceField('category', 'Категория', PROJECT_CATEGORIES.map((c) => ({ value: c.key, label: c.label })), category),
+    { ...choiceField('sessionsPlan', 'Сколько встреч', SESSIONS_PLANS.map((p) => ({ value: p.key, label: p.label })), plan), required: false },
+    text('area', 'Место', areaGuess(f.area).value),
+    text('style', 'Техника и стиль', f.style),
+    { key: 'firstSessionDate', label: 'Первая сессия', value: normalizeDate(f.firstSessionDate, ctx.today) ?? '', inputType: 'date' },
+    text('nextActionText', 'Следующий шаг', f.nextActionText),
+    { key: 'nextActionDate', label: 'Дата шага', value: normalizeDate(f.nextActionDate, ctx.today) ?? '', inputType: 'date' },
+    text('note', 'Общие заметки', f.note ?? f.generalNotes, true),
+    text('creative', 'Идеи', f.creative, true),
+  ];
+}
 
 const completeProject: VoiceCommand = {
   id: 'project.complete',

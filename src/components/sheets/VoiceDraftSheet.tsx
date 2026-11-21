@@ -3,7 +3,15 @@ import { COLORS, fs, INPUT_STYLE } from '../TattoDiary';
 import { BottomSheet, SheetCloseButton } from '../ui/Sheet';
 import { FieldLabel } from '../ui/TextAtoms';
 import { GoldDotDivider } from '../icons/StarIcons';
-import { canConfirmDraft, type VoiceDraft } from '../../voice/commands';
+import { canConfirmDraft, type VoiceDraft, type VoiceDraftField } from '../../voice/commands';
+
+// Подсветка полей карточки: неуверенное — золотая рамка, ненадиктованное —
+// пунктир, чтобы глазом было видно, что проверить и что дописать руками.
+function fieldAccent(field: VoiceDraftField) {
+  if (field.uncertain) return { borderColor: COLORS.gold, boxShadow: '0 0 0 1px rgba(201, 162, 78, 0.45)' };
+  if (!field.value.trim()) return { borderStyle: 'dashed' as const, opacity: 0.8 };
+  return {};
+}
 
 // Шторка подтверждения голосовой команды: что услышали + поля черновика,
 // которые можно поправить. Красный крестик — отмена, зелёная галочка —
@@ -56,6 +64,8 @@ export function VoiceDraftSheet({
             <FieldLabel>
               {field.label}
               {field.required ? ' *' : ''}
+              {field.uncertain && <span style={{ color: COLORS.gold, marginLeft: 6 }}>· проверьте</span>}
+              {!field.options && !field.value.trim() && <span style={{ color: COLORS.textMuted, marginLeft: 6, opacity: 0.7 }}>· не надиктовано</span>}
             </FieldLabel>
             {field.options ? (
               // Переспрос: плитки кандидатов (клиент/проект/сессия). Пока ни
@@ -68,7 +78,7 @@ export function VoiceDraftSheet({
                       key={option.value}
                       role="radio"
                       aria-checked={selected}
-                      onClick={() => setField(field.key, option.value)}
+                      onClick={() => setField(field.key, !field.required && selected ? '' : option.value)}
                       style={{
                         padding: '10px 12px',
                         borderRadius: 10,
@@ -93,7 +103,7 @@ export function VoiceDraftSheet({
                 dir="auto"
                 value={field.value}
                 onChange={(e) => setField(field.key, e.target.value)}
-                style={{ ...INPUT_STYLE, resize: 'none', height: 80 }}
+                style={{ ...INPUT_STYLE, ...fieldAccent(field), resize: 'none', height: 80 }}
               />
             ) : (
               <input
@@ -101,7 +111,7 @@ export function VoiceDraftSheet({
                 type={field.inputType ?? 'text'}
                 value={field.value}
                 onChange={(e) => setField(field.key, e.target.value)}
-                style={INPUT_STYLE}
+                style={{ ...INPUT_STYLE, ...fieldAccent(field) }}
               />
             )}
           </div>
