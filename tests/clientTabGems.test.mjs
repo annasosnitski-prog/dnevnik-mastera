@@ -276,6 +276,8 @@ test('gem tints follow the current palette: navy halo brighter, no pink on blue,
   // One source for gem colours: PendantIcon and the light-theme tab wash both read gemTone.
   assert.match(pendantIcon, /gemTone\(color\)/);
   assert.match(tabBarModule, /background: gemTone\(color\)\.stone/);
+  // Light-theme menu minerals take the section palette too.
+  assert.match(navFab, /tone=\{gemTone\(item\.color\)\}/);
   assert.match(pendantIcon, /floodColor=\{glowOf\(color\)\}/);
   // Navy stone body uses a mid-tone so its highlights match the other stones.
 });

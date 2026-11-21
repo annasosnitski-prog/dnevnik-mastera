@@ -86,6 +86,7 @@ export function NaturalStoneIcon({
   plate = false,
   medallion = false,
   goldDiamond = false,
+  tone,
   shineDelay = '0s',
   children,
 }: {
@@ -98,6 +99,10 @@ export function NaturalStoneIcon({
   // every tab shares one gold cut instead of a colour per kind. NavFab's own
   // calls never pass this, so its per-route stone colours are untouched.
   goldDiamond?: boolean;
+  // Section palette for the stone (gemTone from designTokens): the mineral
+  // keeps its texture and form, but body, shadow and rim light take the
+  // section's colours, so the light-theme menu matches every other gem.
+  tone?: { stone: string; light: string; shadow: string };
   // Delay before the plate-relief shine sweep starts — only rendered for the
   // engraved plate (currently «Создать»), so this is meaningless elsewhere.
   shineDelay?: string;
@@ -119,7 +124,7 @@ export function NaturalStoneIcon({
   const floorLightId = `stone-floor-light-${rawId}`;
   const glossId = `stone-gloss-${rawId}`;
   const softGlossId = `stone-soft-gloss-${rawId}`;
-  const material = kind ? STONE_MATERIALS[kind] : undefined;
+  const material = tone ? { body: tone.stone, deep: tone.shadow, rim: tone.light } : kind ? STONE_MATERIALS[kind] : undefined;
   const stoneColor = material?.body ?? '#9A5A28';
   const outerR = medallion ? 25.5 : 29;
   const stoneR = medallion ? 5.25 : 23;
@@ -215,6 +220,7 @@ export function NaturalStoneIcon({
               <g className="natural-stone-cabochon natural-stone-cabochon--concave" filter={`url(#${insetId})`}>
                 <circle cx="32" cy="32" r={stoneR} fill={stoneColor} />
                 <image href="/mineral-cabochons.webp" x={32 - stoneR - spriteIndex * stoneDiameter} y={32 - stoneR} width={stoneDiameter * 6} height={stoneDiameter} preserveAspectRatio="none" clipPath={`url(#${clipId})`} filter={`url(#${stoneToneId})`} />
+                {tone && <circle cx="32" cy="32" r={stoneR} fill={tone.stone} opacity=".88" style={{ mixBlendMode: 'color' }} />}
                 <circle cx="32" cy="32" r={stoneR} fill={`url(#${wallShadeId})`} opacity=".98" />
                 <circle cx="32" cy="32" r={stoneR} fill={`url(#${depthId})`} opacity="1" />
                 <circle cx="32" cy="32" r={stoneR} fill={`url(#${floorLightId})`} opacity="1" />
