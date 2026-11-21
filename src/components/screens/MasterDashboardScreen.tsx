@@ -2,7 +2,6 @@ import { useState, useEffect, lazy, Suspense, type SVGProps } from 'react';
 import type * as React from 'react';
 import { DROP_CAP_FONT } from '../InkaLogo';
 import { InstagramIcon, TikTokIcon, PinterestIcon, FacebookIcon, WhatsAppIcon } from '../icons/SocialIcons';
-import { GoldDotDivider } from '../icons/StarIcons';
 import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { AddChatLinkForm, AddMasterLinkForm } from '../client/ClientControls';
 import { SettingsScreen, type SettingsScreenProps } from './SettingsScreen';
@@ -167,7 +166,6 @@ export function MasterDashboardScreen({
         <div style={{ fontSize: fs(9.66), color: COLORS.textGhost, letterSpacing: `${fs(2.97)}px`, textTransform: 'uppercase', marginTop: 3, fontStyle: 'italic' }}>
           Профиль мастера
         </div>
-        <GoldDotDivider marginTop={11} />
       </div>
 
       {/* Та же строка вкладок-самоцветов, что у карточки клиента (см. её
