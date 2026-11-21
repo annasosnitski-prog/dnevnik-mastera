@@ -3,7 +3,7 @@ import { EngravedMicIcon } from "./EngravedMicIcon";
 import { createPortal } from "react-dom";
 import { PendantIcon } from "./PendantIcon";
 import { NaturalStoneIcon, type NaturalStoneKind } from "./NaturalStoneIcon";
-import { TERRITORY_COLORS } from "../ui/designTokens";
+import { TERRITORY_COLORS, gemTone, glowOf } from "../ui/designTokens";
 import { useMinimalism } from "../ui/minimalism";
 import type { ModuleFlags, ModuleKey } from "../../modules/registry";
 import "./NavFabReveal.css";
@@ -590,7 +590,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                   ["--travel-duration" as string]: `${durationMs}ms`,
                   ["--travel-delay" as string]: `${travelDelayMs}ms`,
                   ["--natural-jewel-color" as string]: item.color,
-                  ...(minimalism && isCurrentItem ? { ["--item-color" as string]: item.color, color: item.color } : {}),
+                  ...(minimalism && isCurrentItem ? { ["--item-color" as string]: glowOf(item.color), color: glowOf(item.color) } : {}),
                 }}
                 aria-label={item.label}
                 onPointerDown={() => setPressedId(item.id)}
@@ -611,8 +611,8 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                       aria-hidden="true"
                       style={{
                         filter: isCurrentItem
-                          ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${item.color}D9) drop-shadow(0 0 16px ${item.color}99) drop-shadow(0 0 28px ${item.color}5C)`
-                          : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
+                          ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${glowOf(item.color)}D9) drop-shadow(0 0 16px ${glowOf(item.color)}99) drop-shadow(0 0 28px ${glowOf(item.color)}5C)`
+                          : "saturate(1.42) brightness(1.1) contrast(1.06)", // ореол только у выбранного раздела
                       }}
                     >
                       <PendantIcon color={item.color} size={ITEM_SIZE}>
@@ -626,6 +626,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                     >
                       <NaturalStoneIcon
                         kind={NATURAL_STONE_BY_ITEM[item.id]}
+                        tone={gemTone(item.color)}
                         size={ITEM_SIZE}
                       />
                     </span>

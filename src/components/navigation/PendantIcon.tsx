@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from "react";
+import { gemTone } from "../ui/designTokens";
 
 function point(cx: number, cy: number, deg: number, r: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
@@ -73,7 +74,11 @@ export function PendantIcon({
   const surfaceLens = `pendant-surfacelens-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
-  const mix = (pct: number, tint: "white" | "black") => `color-mix(in srgb, ${color} ${100 - pct}%, ${tint} ${pct}%)`;
+  // Body, light and shadow tones come from the one shared source
+  // (gemTone in designTokens), so every gem in the app uses the same colours.
+  const { stone, light: lightTint, shadow: shadowTint } = gemTone(color);
+  const mix = (pct: number, tint: "white" | "black") =>
+    `color-mix(in srgb, ${stone} ${100 - pct}%, ${tint === "black" ? shadowTint : lightTint} ${pct}%)`;
 
   const cx = 32;
   const cy = 32;
@@ -202,7 +207,7 @@ export function PendantIcon({
           </radialGradient>
           <linearGradient id={qTop} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor={mix(55, "white")} stopOpacity=".62" />
-            <stop offset=".48" stopColor={color} stopOpacity=".38" />
+            <stop offset=".48" stopColor={stone} stopOpacity=".38" />
             <stop offset="1" stopColor={mix(55, "black")} stopOpacity=".12" />
           </linearGradient>
           <linearGradient id={qRight} x1="0" y1="0" x2="1" y2="1">
@@ -216,7 +221,7 @@ export function PendantIcon({
             <stop offset="1" stopColor={mix(90, "black")} stopOpacity=".55" />
           </linearGradient>
           <linearGradient id={qLeft} x1="1" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={color} stopOpacity=".34" />
+            <stop offset="0" stopColor={stone} stopOpacity=".34" />
             <stop offset=".58" stopColor={mix(75, "black")} stopOpacity=".28" />
             <stop offset="1" stopColor={mix(92, "black")} stopOpacity=".58" />
           </linearGradient>
@@ -232,7 +237,7 @@ export function PendantIcon({
           <linearGradient id={transmit} x1="1" y1="1" x2="0" y2="0">
             <stop offset="0" stopColor={mix(55, "white")} stopOpacity=".62" />
             <stop offset=".55" stopColor={mix(35, "white")} stopOpacity=".4" />
-            <stop offset="1" stopColor={color} stopOpacity="0" />
+            <stop offset="1" stopColor={stone} stopOpacity="0" />
           </linearGradient>
           {/* A lit-from-within core, like a magic potion's glowing liquid —
               drawn under the quadrant facets so their translucent colour
@@ -240,8 +245,8 @@ export function PendantIcon({
           <radialGradient id={coreGlow} cx=".5" cy=".5" r=".5">
             <stop offset="0" stopColor={mix(70, "white")} stopOpacity=".67" />
             <stop offset=".4" stopColor={mix(35, "white")} stopOpacity=".57" />
-            <stop offset=".7" stopColor={color} stopOpacity=".3" />
-            <stop offset="1" stopColor={color} stopOpacity="0" />
+            <stop offset=".7" stopColor={stone} stopOpacity=".3" />
+            <stop offset="1" stopColor={stone} stopOpacity="0" />
           </radialGradient>
           {/* The dense body under the visible crown. The centre remains
               saturated while the lower-right side falls into a near-black
@@ -255,7 +260,7 @@ export function PendantIcon({
             r={stoneR * 1.38}
           >
             <stop offset="0" stopColor={mix(52, "white")} />
-            <stop offset=".18" stopColor={color} />
+            <stop offset=".18" stopColor={stone} />
             <stop offset=".52" stopColor={mix(58, "black")} />
             <stop offset=".78" stopColor={mix(90, "black")} />
             <stop offset="1" stopColor={mix(18, "black")} />
@@ -266,7 +271,7 @@ export function PendantIcon({
           <radialGradient id={depthCaustic} cx=".5" cy=".5" r=".5">
             <stop offset="0" stopColor={mix(78, "white")} stopOpacity=".9" />
             <stop offset=".38" stopColor={mix(46, "white")} stopOpacity=".58" />
-            <stop offset="1" stopColor={color} stopOpacity="0" />
+            <stop offset="1" stopColor={stone} stopOpacity="0" />
           </radialGradient>
           {/* Refraction changes around the full thickness of the girdle:
               bright at the entry edge, dark at the shadow edge, then a
@@ -296,7 +301,7 @@ export function PendantIcon({
           >
             <stop offset="0" stopColor="#FFFFFF" stopOpacity=".3" />
             <stop offset=".38" stopColor="#FFFFFF" stopOpacity=".08" />
-            <stop offset=".68" stopColor={color} stopOpacity="0" />
+            <stop offset=".68" stopColor={stone} stopOpacity="0" />
             <stop offset="1" stopColor="#000000" stopOpacity=".32" />
           </radialGradient>
           {/* Fixed to the stone's true centre (userSpaceOnUse, not each
@@ -324,12 +329,12 @@ export function PendantIcon({
             y2={innerPts[3][1]}
           >
             <stop offset="0" stopColor={mix(25, "white")} stopOpacity=".5" />
-            <stop offset=".45" stopColor={color} stopOpacity=".4" />
+            <stop offset=".45" stopColor={stone} stopOpacity=".4" />
             <stop offset="1" stopColor={mix(55, "black")} stopOpacity=".6" />
           </linearGradient>
           <filter id={stoneGlow} x="-25%" y="-25%" width="150%" height="150%">
             <feGaussianBlur stdDeviation=".7" result="blur" />
-            <feFlood floodColor={color} floodOpacity=".32" />
+            <feFlood floodColor={stone} floodOpacity=".32" />
             <feComposite in2="blur" operator="in" />
             <feMerge>
               <feMergeNode />
