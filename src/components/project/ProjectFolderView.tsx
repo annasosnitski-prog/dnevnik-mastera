@@ -1,8 +1,8 @@
-// Открытая папка «Проектов» — список проектов одной крупной зоны тела
-// (см. buildProjectZoneFolders), внутри неё сгруппированных по конкретному
-// месту (Икра/Голень и т.п.) через groupProjectsByArea.
+// Открытая папка «Проектов». Папка «Клиенты» группирует проекты по клиенту
+// (groupProjectsByClient), остальные папки («Личные проекты», зоны тела) —
+// по конкретному месту (Икра/Голень и т.п.) через groupProjectsByArea.
 import type { ProjectFolder } from '../../domain/projectSelectors';
-import { clientNameFor, groupProjectsByArea } from '../../domain/projectSelectors';
+import { clientNameFor, groupProjectsByArea, groupProjectsByClient } from '../../domain/projectSelectors';
 import type { Client } from '../../domain/client';
 import type { Project } from '../../domain/project';
 import { COLORS, fs } from '../ui/designTokens';
@@ -19,7 +19,7 @@ export function ProjectFolderView({
   onOpenProject: (project: Project) => void;
   onBack: () => void;
 }) {
-  const areaGroups = groupProjectsByArea(folder.projects);
+  const areaGroups = folder.type === 'clients' ? groupProjectsByClient(folder.projects, clients) : groupProjectsByArea(folder.projects);
 
   return (
     <div style={{ minHeight: '100%' }}>

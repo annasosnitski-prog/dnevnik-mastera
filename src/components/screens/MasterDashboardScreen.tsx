@@ -10,24 +10,24 @@ import { GoldFrame } from '../ui/Stripes';
 import { StatBlock } from '../ui/StatBlocks';
 import { COLORS, fs, TERRITORY_COLORS } from '../ui/designTokens';
 import { INPUT_STYLE } from '../TattoDiary';
-import { ProjectCard } from '../project/ProjectCard';
 import { buildChatLink } from '../../lib/chatLink';
 import { type MasterInfo, type MasterLink } from '../../lib/masterInfoStore';
 import { mostUsedStyle } from '../../domain/plannerSelectors';
-import { getWorkshopProjects } from '../../domain/projectSelectors';
 import { type Client, type ChatPlatform, type ChatLink, PLATFORM_LABELS, MARKER_COLORS } from '../../domain/client';
-import { type Project } from '../../domain/project';
 
 // Вынесено из TattoDiary.tsx без изменения поведения, разметки и
 // prop-driven контракта. Локальное состояние (активная вкладка, черновики
 // полей ввода, тап-копирование в буфер) сохранено как было.
 
-// Проекты всегда первой геммой слева — тот же порядок, что у карточки
-// клиента и везде, где появляется этот рисунок вкладок (Анна, 2026-11-02).
-const MASTER_TABS: ClientCardTabDef<'info' | 'projects' | 'settings'>[] = [
-  { id: 'projects', kind: 'projects', label: 'Проекты' },
+// Личные проекты мастера переехали на экран «Проекты» (зелёная кнопка
+// тулбара, папка «Личные проекты»), их место первой геммой заняла Кабала
+// (Анна, 2026-11-21). Пока это заглушка-место: сам модуль кабалы
+// переносится отдельным шагом.
+type MasterTab = 'info' | 'kabala' | 'settings';
+const MASTER_TABS: ClientCardTabDef<MasterTab>[] = [
+  { id: 'kabala', kind: 'notes', label: 'Кабала', color: TERRITORY_COLORS.personal },
   { id: 'info', kind: 'info', label: 'Инфо' },
-  // Так же, как Инфо/Проекты — переключает контент ниже, не отдельный
+  // Так же, как Инфо/Кабала — переключает контент ниже, не отдельный
   // экран. Заимствует иконку notes (свободна в этой тройке), цвет —
   // админ-территория (фиолетовый).
   { id: 'settings', kind: 'notes', label: 'Настройки', color: TERRITORY_COLORS.admin },
@@ -37,30 +37,21 @@ export function MasterDashboardScreen({
   clients,
   masterInfo,
   onChangeMasterInfo,
-  projects,
-  onOpenProject,
   settings,
 }: {
   clients: Client[];
   masterInfo: MasterInfo;
   onChangeMasterInfo: (m: MasterInfo) => void;
-  // Проекты мастера без клиента («Мастерская») — тот же каркас вкладок, что
-  // у карточки клиента (см. ClientCardTabBar), своя вкладка «Проекты».
-  projects: Project[];
-  onOpenProject: (project: Project) => void;
   // Настройки — третья вкладка этого экрана (см. MASTER_TABS), не отдельный
   // маршрут: embedded=true и onBack проставляются здесь же, вызывающей
   // стороне (TattoDiary.tsx) не нужно об этом помнить.
   settings: Omit<SettingsScreenProps, 'embedded' | 'onBack'>;
 }) {
-  const [tab, setTab] = useState<'info' | 'projects' | 'settings'>('info');
+  const [tab, setTab] = useState<MasterTab>('info');
   const [name, setName] = useState(masterInfo.name);
   useEffect(() => setName(masterInfo.name), [masterInfo.name]);
 
   const style = mostUsedStyle(clients);
-  // «Проекты мастера» (clientId === null) — та же выборка, что «Мастерская»
-  // использует для своей одноимённой папки (см. buildProjectFolders).
-  const workshopProjects = getWorkshopProjects(projects);
 
   const addMasterLink = (label: string, value: string) => {
     const link: MasterLink = { id: crypto.randomUUID(), label: label.trim(), value: value.trim() };
@@ -178,11 +169,11 @@ export function MasterDashboardScreen({
       {/* Та же строка вкладок-самоцветов, что у карточки клиента (см. её
           собственный комментарий в client/ClientCardTabBar.tsx) — «оформим
           личный кабинет по форме как карточка клиента»: Инфо — весь прежний
-          профиль ниже, Проекты — «Проекты мастера» (без клиента), раньше
-          жившие только в общей Мастерской. Третья гемма — Настройки: та же
+          профиль ниже, Кабала — на месте прежней вкладки «Проекты мастера»
+          (они переехали в «Проекты», папка «Личные проекты»). Третья гемма — Настройки: та же
           огранка и подвеска, что у остальных двух, фиолетовая (админ-
           территория), и переключает контент ниже точно так же, как Инфо и
-          Проекты — свой экран Настройкам больше не нужен. */}
+          Кабала — свой экран Настройкам больше не нужен. */}
       <ClientCardTabBar
         tabs={MASTER_TABS}
         activeTab={tab}
@@ -424,20 +415,12 @@ export function MasterDashboardScreen({
         </>
       )}
 
-      {tab === 'projects' && (
+      {tab === 'kabala' && (
         <>
-          <div style={{ ...statLabelStyle, marginBottom: 0 }}>Проекты мастера</div>
-          {workshopProjects.length === 0 ? (
-            <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
-              Пока пусто — еще никто ничего не создал
-            </div>
-          ) : (
-            <div className="inka-client-grid" style={{ display: 'grid', gap: 10 }}>
-              {workshopProjects.map((p) => (
-                <ProjectCard key={p.id} project={p} clientName={null} onClick={() => onOpenProject(p)} />
-              ))}
-            </div>
-          )}
+          <div style={{ ...statLabelStyle, marginBottom: 0 }}>Кабала</div>
+          <div style={{ fontSize: fs(14), color: COLORS.textGhost, fontStyle: 'italic' }}>
+            Здесь скоро будет кабала. Личные проекты теперь живут в «Проектах» (зелёная кнопка), папка «Личные проекты».
+          </div>
         </>
       )}
       {tab === 'settings' && <SettingsScreen {...settings} embedded onBack={() => setTab('info')} />}

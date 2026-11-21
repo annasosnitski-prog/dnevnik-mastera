@@ -3355,8 +3355,6 @@ export default function TattoDiary() {
               clients={clients}
               masterInfo={masterInfo}
               onChangeMasterInfo={setMasterInfo}
-              projects={projects}
-              onOpenProject={(project) => setViewProject(project)}
               settings={{
                 theme,
                 onToggleTheme: toggleTheme,
