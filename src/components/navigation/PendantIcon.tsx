@@ -75,24 +75,26 @@ export function PendantIcon({
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
   // Tints for the stone's light and dark sides, per territory colour of the
-  // current palette. Shadows are not grey but a deep shade of the stone's own
-  // family; lit facets are a paler, slightly warmer tone of the same family:
-  // navy goes ice-blue (never pink), forest green goes sage (never lime),
-  // purple goes lavender, red towards yellow, yellow towards red.
+  // current palette. Calm, one-family tints for every stone: shadows are a
+  // deep shade of the stone's own hue and lit facets a pale tone of the same
+  // hue, never a neighbouring colour (that turned the ruby rainbow-like:
+  // violet shadows + peach highlights). Navy -> ice-blue, forest green ->
+  // sage, gold -> pale gold, ruby -> pale rose, orange -> apricot,
+  // purple -> lavender.
   const SHADOW_BY_COLOR: Record<string, string> = {
     [TERRITORY_COLORS.clients]: '#08042F',
-    [TERRITORY_COLORS.personal]: '#1A3A12',
-    [TERRITORY_COLORS.content]: '#14086E',
+    [TERRITORY_COLORS.personal]: '#3A2806',
+    [TERRITORY_COLORS.content]: '#3A0614',
     [TERRITORY_COLORS.projects]: '#06302A',
-    [TERRITORY_COLORS.notes]: '#46094A',
-    [TERRITORY_COLORS.admin]: '#0A1472',
+    [TERRITORY_COLORS.notes]: '#3A1406',
+    [TERRITORY_COLORS.admin]: '#1E0A3E',
   };
   const LIGHT_BY_COLOR: Record<string, string> = {
     [TERRITORY_COLORS.clients]: '#C0C6FF',
-    [TERRITORY_COLORS.personal]: '#FFB48A',
-    [TERRITORY_COLORS.content]: '#FFD79A',
+    [TERRITORY_COLORS.personal]: '#FFE6A8',
+    [TERRITORY_COLORS.content]: '#FFC2CC',
     [TERRITORY_COLORS.projects]: '#C6E6BC',
-    [TERRITORY_COLORS.notes]: '#FFD98A',
+    [TERRITORY_COLORS.notes]: '#FFCDA8',
     [TERRITORY_COLORS.admin]: '#E2C4FF',
   };
   // The stone body works from a mid-tone of the territory colour. Navy
