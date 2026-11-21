@@ -45,7 +45,7 @@ export const TERRITORY_COLORS = {
 //   glow   — ореол вокруг камня, hex #RRGGBB (вызывающие дописывают альфу).
 export interface GemTone { stone: string; light: string; shadow: string; glow: string }
 export const GEM_TONES: Record<string, GemTone> = {
-  [TERRITORY_COLORS.clients]: { stone: '#17067E', light: '#C6BEFF', shadow: '#07022C', glow: '#4A2CFF' },
+  [TERRITORY_COLORS.clients]: { stone: '#17067E', light: '#9C92E8', shadow: '#07022C', glow: '#4A2CFF' },
   [TERRITORY_COLORS.personal]: { stone: TERRITORY_COLORS.personal, light: '#FFE6A8', shadow: '#3A2806', glow: TERRITORY_COLORS.personal },
   [TERRITORY_COLORS.content]: { stone: TERRITORY_COLORS.content, light: '#FFC2CC', shadow: '#3A0614', glow: TERRITORY_COLORS.content },
   [TERRITORY_COLORS.projects]: { stone: TERRITORY_COLORS.projects, light: '#C6E6BC', shadow: '#06302A', glow: TERRITORY_COLORS.projects },

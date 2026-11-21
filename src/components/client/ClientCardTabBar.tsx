@@ -222,7 +222,7 @@ function GemTabMarker({
             zIndex: 2,
             filter: active
               ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${glowOf(color)}D9) drop-shadow(0 0 16px ${glowOf(color)}99) drop-shadow(0 0 28px ${glowOf(color)}5C)`
-              : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${glowOf(color)}99) drop-shadow(0 0 12px ${glowOf(color)}4D)`,
+              : 'saturate(1.42) brightness(1.1) contrast(1.06)', // ореол только у выбранной вкладки
           }}
         >
           <PendantIcon color={color} size={GEM_SIZE} shape="diamond" />

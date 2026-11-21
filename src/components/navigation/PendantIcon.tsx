@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { gemTone, glowOf } from "../ui/designTokens";
+import { gemTone } from "../ui/designTokens";
 
 function point(cx: number, cy: number, deg: number, r: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
@@ -334,7 +334,7 @@ export function PendantIcon({
           </linearGradient>
           <filter id={stoneGlow} x="-25%" y="-25%" width="150%" height="150%">
             <feGaussianBlur stdDeviation=".7" result="blur" />
-            <feFlood floodColor={glowOf(color)} floodOpacity=".32" />
+            <feFlood floodColor={stone} floodOpacity=".32" />
             <feComposite in2="blur" operator="in" />
             <feMerge>
               <feMergeNode />

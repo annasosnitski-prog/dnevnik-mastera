@@ -630,7 +630,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                       style={{
                         filter: isCurrentItem
                           ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${glowOf(item.color)}D9) drop-shadow(0 0 16px ${glowOf(item.color)}99) drop-shadow(0 0 28px ${glowOf(item.color)}5C)`
-                          : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${glowOf(item.color)}99) drop-shadow(0 0 12px ${glowOf(item.color)}4D)`,
+                          : "saturate(1.42) brightness(1.1) contrast(1.06)", // ореол только у выбранного раздела
                       }}
                     >
                       <PendantIcon color={item.color} size={ITEM_SIZE}>
