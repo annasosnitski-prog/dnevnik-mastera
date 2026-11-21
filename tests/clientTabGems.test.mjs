@@ -271,9 +271,11 @@ test('gem tints follow the current palette: navy halo brighter, no pink on blue,
   assert.match(designTokens, /export const glowOf/);
   assert.match(tabBarModule, /glowOf\(color\)/);
   assert.match(navFab, /glowOf\(item\.color\)/);
-  assert.match(pendantIcon, /\[TERRITORY_COLORS\.clients\]: '#C6BEFF'/);
-  assert.match(pendantIcon, /\[TERRITORY_COLORS\.projects\]: '#C6E6BC'/);
+  assert.match(designTokens, /\[TERRITORY_COLORS\.clients\]: \{ stone: '#17067E'/);
+  assert.match(designTokens, /\[TERRITORY_COLORS\.projects\]: \{[^}]*light: '#C6E6BC'/);
+  // One source for gem colours: PendantIcon and the light-theme tab wash both read gemTone.
+  assert.match(pendantIcon, /gemTone\(color\)/);
+  assert.match(tabBarModule, /background: gemTone\(color\)\.stone/);
   assert.match(pendantIcon, /floodColor=\{glowOf\(color\)\}/);
   // Navy stone body uses a mid-tone so its highlights match the other stones.
-  assert.match(pendantIcon, /const stone = STONE_BY_COLOR\[color\] \?\? color/);
 });

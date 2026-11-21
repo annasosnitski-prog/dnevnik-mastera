@@ -1,7 +1,7 @@
 import { useId, type CSSProperties } from 'react';
 import { useMinimalism } from '../ui/minimalism';
 import { COLORS, TERRITORY_COLORS } from '../ui/designTokens';
-import { glowOf } from '../ui/designTokens';
+import { gemTone, glowOf } from '../ui/designTokens';
 import { ClientTabIcon, type ClientTabIconName } from './ClientTabIcons';
 import { NaturalStoneIcon } from '../navigation/NaturalStoneIcon';
 import { PendantIcon } from '../navigation/PendantIcon';
@@ -250,7 +250,7 @@ function GemTabMarker({
               position: 'absolute',
               inset: 0,
               clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-              background: color,
+              background: gemTone(color).stone,
               mixBlendMode: 'color',
               opacity: 0.65,
               pointerEvents: 'none',

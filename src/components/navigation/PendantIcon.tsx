@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { glowOf, TERRITORY_COLORS } from "../ui/designTokens";
+import { gemTone, glowOf } from "../ui/designTokens";
 
 function point(cx: number, cy: number, deg: number, r: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
@@ -74,40 +74,9 @@ export function PendantIcon({
   const surfaceLens = `pendant-surfacelens-${uid}`;
   const stoneGlow = `pendant-stoneglow-${uid}`;
 
-  // Tints for the stone's light and dark sides, per territory colour of the
-  // current palette. Calm, one-family tints for every stone: shadows are a
-  // deep shade of the stone's own hue and lit facets a pale tone of the same
-  // hue, never a neighbouring colour (that turned the ruby rainbow-like:
-  // violet shadows + peach highlights). Navy -> ice-blue, forest green ->
-  // sage, gold -> pale gold, ruby -> pale rose, orange -> apricot,
-  // purple -> lavender.
-  const SHADOW_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#07022C',
-    [TERRITORY_COLORS.personal]: '#3A2806',
-    [TERRITORY_COLORS.content]: '#3A0614',
-    [TERRITORY_COLORS.projects]: '#06302A',
-    [TERRITORY_COLORS.notes]: '#3A1406',
-    [TERRITORY_COLORS.admin]: '#1E0A3E',
-  };
-  const LIGHT_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#C6BEFF',
-    [TERRITORY_COLORS.personal]: '#FFE6A8',
-    [TERRITORY_COLORS.content]: '#FFC2CC',
-    [TERRITORY_COLORS.projects]: '#C6E6BC',
-    [TERRITORY_COLORS.notes]: '#FFCDA8',
-    [TERRITORY_COLORS.admin]: '#E2C4FF',
-  };
-  // The stone body works from a mid-tone of the territory colour. Navy
-  // clients (#000066) are far darker than every other territory, so mixing
-  // their lit facets off the raw hex gave dull, different-looking highlights;
-  // the body uses Anna's indigo sample #17067E instead (richer than the raw
-  // hex), with pale-indigo light so its highlights match the other stones.
-  const STONE_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#17067E',
-  };
-  const stone = STONE_BY_COLOR[color] ?? color;
-  const shadowTint = SHADOW_BY_COLOR[color] ?? "black";
-  const lightTint = LIGHT_BY_COLOR[color] ?? "white";
+  // Body, light and shadow tones come from the one shared source
+  // (gemTone in designTokens), so every gem in the app uses the same colours.
+  const { stone, light: lightTint, shadow: shadowTint } = gemTone(color);
   const mix = (pct: number, tint: "white" | "black") =>
     `color-mix(in srgb, ${stone} ${100 - pct}%, ${tint === "black" ? shadowTint : lightTint} ${pct}%)`;
 
