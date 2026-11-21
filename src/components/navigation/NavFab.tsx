@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { PendantIcon } from "./PendantIcon";
 import { NaturalStoneIcon, type NaturalStoneKind } from "./NaturalStoneIcon";
 import { TERRITORY_COLORS } from "../ui/designTokens";
+import { glowOf } from "../ui/designTokens";
 import { useMinimalism } from "../ui/minimalism";
 import type { ModuleFlags, ModuleKey } from "../../modules/registry";
 import "./NavFabReveal.css";
@@ -134,6 +135,27 @@ const NATURAL_STONE_BY_ITEM: Record<NavItemId, NaturalStoneKind> = {
   sketchbook: 'fire-opal',
   profile: 'rhodonite',
 };
+
+// Яркое свечение камня меню. Тёмные камни (рубин ContentINKA, аметист Админки)
+// на том же фильтре смотрятся тусклее остальных, поэтому у них камень
+// светлее/насыщеннее, а гало строится от осветлённого оттенка цвета.
+const BOOSTED_GEMS: Partial<Record<NavItemId, number>> = { content: 0.4, profile: 0.4 };
+
+function lightenHex(hex: string, t: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * t);
+  const out = (mix((n >> 16) & 255) << 16) | (mix((n >> 8) & 255) << 8) | mix(n & 255);
+  return `#${out.toString(16).padStart(6, '0')}`;
+}
+
+function gemGlowFilter(id: NavItemId, color: string): string {
+  const lift = BOOSTED_GEMS[id];
+  if (lift === undefined) {
+    return `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${color}D9) drop-shadow(0 0 16px ${color}99) drop-shadow(0 0 28px ${color}5C)`;
+  }
+  const halo = lightenHex(color, lift);
+  return `saturate(1.8) brightness(1.32) contrast(1.12) drop-shadow(0 0 8px ${halo}F2) drop-shadow(0 0 18px ${halo}B3) drop-shadow(0 0 32px ${halo}73)`;
+}
 
 type FanEntry =
   | { kind: "nav"; item: (typeof NAV_ITEMS)[number] }
@@ -608,7 +630,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                   ["--travel-duration" as string]: `${durationMs}ms`,
                   ["--travel-delay" as string]: `${travelDelayMs}ms`,
                   ["--natural-jewel-color" as string]: item.color,
-                  ...(minimalism && isCurrentItem ? { ["--item-color" as string]: item.color, color: item.color } : {}),
+                  ...(minimalism && isCurrentItem ? { ["--item-color" as string]: glowOf(item.color), color: glowOf(item.color) } : {}),
                 }}
                 aria-label={item.label}
                 onPointerDown={() => setPressedId(item.id)}
@@ -628,9 +650,11 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                       className="theme-dark-jewel"
                       aria-hidden="true"
                       style={{
-                        filter: isCurrentItem
-                          ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${item.color}D9) drop-shadow(0 0 16px ${item.color}99) drop-shadow(0 0 28px ${item.color}5C)`
-                          : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
+                        // Все камни горят так же ярко, как текущий раздел (мастер:
+                        // «яркими, как синий»); тёмные рубин и аметист ещё
+                        // подтянуты — светлее гало и сам камень. Ореол берётся
+                        // от glowOf: у тёмно-синих клиентов он ярче самого камня.
+                        filter: gemGlowFilter(item.id as NavItemId, glowOf(item.color)),
                       }}
                     >
                       <PendantIcon color={item.color} size={ITEM_SIZE}>
