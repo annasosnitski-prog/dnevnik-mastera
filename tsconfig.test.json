@@ -77,6 +77,11 @@
     "src/domain/consultation.ts",
     "src/domain/task.ts",
     "src/domain/urgency.ts",
-    "src/utils/dates.ts"
+    "src/utils/dates.ts",
+    "src/voice/intent.ts",
+    "src/voice/dates.ts",
+    "src/voice/cardFields.ts",
+    "src/voice/context.ts",
+    "src/voice/commands.ts"
   ]
 }

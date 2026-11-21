@@ -12,13 +12,15 @@ const workshopScreen = readFileSync(
 );
 const project = readFileSync(new URL('../src/domain/project.ts', import.meta.url), 'utf8');
 
-test('WorkshopScreen renders the always-visible category gem row via ClientCardTabBar', () => {
-  assert.match(workshopScreen, /import \{ ClientCardTabBar, type ClientCardTabDef \} from '\.\.\/client\/ClientCardTabBar';/);
-  assert.match(workshopScreen, /<ClientCardTabBar/);
-  assert.match(workshopScreen, /tabs=\{CATEGORY_TABS\}/);
+// Анна, 2026-11-21: геммы категорий над папками убраны, экран открывается
+// ровно двумя папками — «Личные проекты» и «Клиенты».
+test('WorkshopScreen shows two owner folders and no category gem row', () => {
+  assert.doesNotMatch(workshopScreen, /ClientCardTabBar/);
+  assert.doesNotMatch(workshopScreen, /CATEGORY_TABS/);
+  assert.match(workshopScreen, /buildProjectOwnerFolders\(/);
 });
 
-test('the funnel panel no longer duplicates the category chips (moved to the gem row)', () => {
+test('the funnel panel does not bring the category chips back', () => {
   assert.doesNotMatch(workshopScreen, /ProjectCategoryChips/);
   assert.doesNotMatch(workshopScreen, /\{\(\['all', \.\.\.PROJECT_CATEGORIES/);
 });

@@ -3,7 +3,11 @@ import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 // перезагрузкой, а не экраном сбоя (см. lib/lazyChunk.ts).
 import { lazyScreen } from '../lib/lazyChunk';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
-import { NavFab, type QuickCreateKind } from './navigation/NavFab';
+import { NavFab } from './navigation/NavFab';
+import { useVoiceCommand } from '../voice/useVoiceCommand';
+import { draftValues, NEW_PROJECT_PREFIX, NO_CLIENT, type VoiceDraft } from '../voice/commands';
+import type { VoiceContext } from '../voice/context';
+import { VoiceDraftSheet, VoiceStatusBubble } from './sheets/VoiceDraftSheet';
 import { TodayDateBadge } from './ui/TodayDateBadge';
 import {
   readSyncSettings,
@@ -110,7 +114,7 @@ import { normalizeClient, normalizeProject } from '../lib/normalize';
 // UI-примитивы вынесены в отдельные модули (PR 4 рефакторинга). Логика и
 // разметка не менялись — только перенос.
 import { TopStripe, RightStripe, GemCorner } from './ui/Stripes';
-import { COLORS, fs, setTextScale, TERRITORY_COLORS } from './ui/designTokens';
+import { COLORS, fs, setTextScale } from './ui/designTokens';
 export { COLORS, DONE_EMOJI, fs } from './ui/designTokens';
 // Bottom sheets вынесены в отдельные модули (PR 5 рефакторинга). Логика и
 // разметка не менялись — только перенос.
@@ -171,7 +175,7 @@ const BlackjackGame = lazyScreen(() => import('./games/BlackjackGame').then((m) 
 // Доменные типы и их константы вынесены в src/domain/* (PR 2 рефакторинга).
 // Форма данных и значения не изменились — это те же существующие типы,
 // импортируемые обратно; второй модели Project не создавалось.
-import { type UrgencyKey } from '../domain/urgency';
+import { type UrgencyKey, URGENCY } from '../domain/urgency';
 import { type Session, reconcileHealingCheckPhotos } from '../domain/session';
 import { type Consultation, isConsultationDeletable } from '../domain/consultation';
 import { type ClientNote } from '../domain/task';
@@ -194,6 +198,7 @@ import {
   getClientSessions,
   getClientConsultations,
   findProjectOfConsultation,
+  findProjectOfSession,
 } from '../domain/projectSelectors';
 export { clientNameFor } from '../domain/projectSelectors';
 import {
@@ -253,6 +258,8 @@ import {
   withHealingGallery,
   withMoodboardStatus,
   withMoodboardPhotoSrcs,
+  withAdvancedStatus,
+  PROJECT_CATEGORIES,
 } from '../domain/project';
 import { type ContentEntry } from '../domain/content';
 export type { ContentEntry } from '../domain/content';
@@ -864,9 +871,8 @@ export default function TattoDiary() {
   // construction — two of these sheets can never both be "open" at once,
   // which a set of separate booleans could otherwise drift into.
   // 'project' joined the two original kinds so the same client-then-form walk
-  // also serves the long-press quick-create fan's «Тату» option on screens
-  // that have no client already selected (see quickCreateContext below) —
-  // calendarCreateDate simply stays null there (no date to prefill).
+  // also serves the create sheet's «Проект» option on screens that have no
+  // client already selected (see pickCreateOption below) — calendarCreateDate simply stays null there (no date to prefill).
   // 'owner' — one step earlier still, for contexts with no single owner at
   // all (Админка/Клиенты/Заметки/ContentINKA): «без клиента» (Мастерская) or
   // «для клиента» (continues into 'clientKind' as before). The calendar
@@ -2628,49 +2634,195 @@ export default function TattoDiary() {
     }
   };
 
-  // Same resolution onCreate below uses to pick a createChoiceContext — every
-  // screen offers the exact same full set of create options now (Проект/
-  // Сессия/Консультация/Заметка/Клиент), so quick-create and the tap-opened
-  // sheet always suggest the same things; only pickCreateOption's per-context
-  // routing differs (which owner is already known, if any).
-  const quickCreateContext: CreateChoiceContext | null = viewProject
-    ? 'viewProject'
-    : screen === 'admin'
-      ? 'admin'
-      : screen === 'detail' && selectedClient
-        ? 'detail'
-        : screen === 'master' || screen === 'workshop'
-          ? 'workshop'
-          : screen === 'list'
-            ? 'list'
-            : screen === 'summary'
-              ? 'summary'
-              : screen === 'content'
-                ? 'content'
-                : null;
+  // Голосовые команды (долгое нажатие на хаб, см. src/voice/). Каждой
+  // команде реестра — свой исполнитель здесь, где есть состояние приложения.
+  // Вызывается только после зелёной галочки в VoiceDraftSheet и идёт тем же
+  // путём, что и создание из круглого меню (handleCreateClient и т.д.).
+  // Снимок дневника для разбора фразы: кто есть, какие проекты и записи.
+  const buildVoiceContext = (): VoiceContext => ({
+    today: todayISO(),
+    clients: clients.map((c) => ({ id: c.id, name: c.name, surname: c.surname })),
+    projects: projects.map((p) => ({
+      id: p.id,
+      title: p.title,
+      clientId: p.clientId,
+      completed: p.status === 'completed',
+      entries: [
+        ...p.sessions.map((s) => ({
+          id: s.id, kind: 'session' as const, projectId: p.id, date: s.date, time: s.time, title: s.name, done: s.done, cancelled: s.cancelled,
+        })),
+        ...p.consultations.map((c) => ({
+          id: c.id, kind: 'consultation' as const, projectId: p.id, date: c.date, time: c.time, title: '', done: c.done, cancelled: c.cancelled,
+        })),
+      ],
+    })),
+  });
 
-  // One universal set for every context now that pickCreateOption resolves
-  // an unknown owner itself (client-first walk, or the note's own picker) —
-  // no more per-context subset to keep in sync with CreateChoiceSheet's own
-  // options below.
-  const UNIVERSAL_CREATE_KINDS: QuickCreateKind[] = ['project', 'session', 'consultation', 'note', 'client'];
-  // Gold options render as a flat plate — same disc as the hub / main fan's
-  // «Создать» — rather than a faceted gem, since gold-on-gold facet shading
-  // barely reads and just looked like a duller plate anyway.
-  const QUICK_CREATE_META: Record<QuickCreateKind, { label: string; color: string; plate?: boolean }> = {
-    client: { label: 'Клиент', color: TERRITORY_COLORS.clients },
-    session: { label: 'Сессия', color: TERRITORY_COLORS.personal, plate: true },
-    consultation: { label: 'Консультация', color: TERRITORY_COLORS.personal, plate: true },
-    project: { label: 'Проект', color: TERRITORY_COLORS.projects },
-    note: { label: 'Заметка', color: TERRITORY_COLORS.personal, plate: true },
+  // Запись открывается там же, где тап по ней: у клиента — просмотр записи,
+  // у проекта без клиента — просмотр проекта.
+  const openVoiceEntry = (entryId: string) => {
+    const owner = findProjectOfSession(projects, entryId) ?? findProjectOfConsultation(projects, entryId);
+    if (!owner) return;
+    const kind = owner.sessions.some((s: Session) => s.id === entryId) ? 'session' : 'consultation';
+    if (owner.clientId) setViewEntry({ kind, clientId: owner.clientId, id: entryId });
+    else setViewProject(owner);
   };
-  const quickCreateOptions = quickCreateContext
-    ? UNIVERSAL_CREATE_KINDS.map((kind) => ({ kind, ...QUICK_CREATE_META[kind] }))
-    : undefined;
 
-  const handleQuickCreate = (kind: QuickCreateKind) => {
-    if (!quickCreateContext) return;
-    pickCreateOption(quickCreateContext, kind);
+  // Действия без изменения данных — сразу, без шторки.
+  const runVoiceAction = (commandId: string, v: Record<string, string>) => {
+    if (commandId === 'client.open') {
+      const client = clients.find((c) => c.id === v.client);
+      if (client) openClient(client);
+    } else if (commandId === 'project.open') {
+      const project = getProjectById(projects, v.project);
+      if (project) setViewProject(project);
+    } else if (commandId === 'entry.open') {
+      openVoiceEntry(v.entry);
+    } else if (commandId === 'schedule.empty') {
+      // Записей на день нет — Админка с расписанием, без неё — календарь.
+      if (masterInfo.modules.adminka) setScreen('admin');
+      else setShowCalendar(true);
+    }
+  };
+
+  const voice = useVoiceCommand(buildVoiceContext, runVoiceAction);
+
+  // «new:<clientId>» / «new:» — мастер не выбрала проект: тот же проект-
+  // «отстойник», что и в форме при «— создать новый проект —».
+  const voiceProjectTarget = (value: string): { projects: Project[]; projectId: string; owner: Client | null } => {
+    if (value.startsWith(NEW_PROJECT_PREFIX)) {
+      const owner = clients.find((c) => c.id === value.slice(NEW_PROJECT_PREFIX.length)) ?? null;
+      return { ...ensureProject(projects, null, owner), owner };
+    }
+    const project = getProjectById(projects, value);
+    const owner = project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null;
+    return { projects, projectId: value, owner };
+  };
+
+  const appendNote = (existing: string, note: string) => (existing.trim() ? `${existing.trim()}\n${note.trim()}` : note.trim());
+
+  const VOICE_EXECUTORS: Record<string, (values: Record<string, string>) => void> = {
+    'client.create': (v) =>
+      handleCreateClient({
+        name: v.name ?? '',
+        surname: v.surname ?? '',
+        phone: v.phone ?? '',
+        styles: [],
+        color: '',
+        clientType: 'client',
+        skinType: '',
+        skinTone: '',
+        skinNotes: '',
+        note: v.note ?? '',
+      }),
+    'client.open': (v) => runVoiceAction('client.open', v),
+    'project.open': (v) => runVoiceAction('project.open', v),
+    'entry.open': (v) => runVoiceAction('entry.open', v),
+    'session.create': (v) => {
+      const target = voiceProjectTarget(v.project);
+      const { projects: withSession } = upsertSessionInProjects(
+        target.projects,
+        target.projectId,
+        {
+          name: v.name ?? '', date: v.date ?? '', time: v.time ?? '', duration: v.duration ?? '', style: v.style ?? '',
+          area: v.area ?? '', colors: v.colors ?? '', needles: v.needles ?? '', skinReaction: v.skinReaction ?? '',
+          note: v.note ?? '', photos: [], done: v.status === 'done', isLastSession: false, projectId: target.projectId,
+        },
+        null,
+        null,
+      );
+      // Новая сессия снимает паузу с проекта, выполненная — двигает статус,
+      // как и из формы.
+      const resumed = resumeFromPauseIn(withSession, target.projectId);
+      saveProjects(v.status === 'done' ? advanceAfterDoneSessionIn(resumed, target.projectId) : resumed);
+    },
+    'consultation.create': (v) => {
+      const target = voiceProjectTarget(v.project);
+      const { projects: next } = upsertConsultationInProjects(
+        target.projects,
+        target.projectId,
+        {
+          date: v.date ?? '', time: v.time ?? '', area: v.area ?? '', style: v.style ?? '', generalNotes: v.note ?? '',
+          feeling: v.feeling ?? '', creative: v.creative ?? '', inspirationSources: v.inspirationSources ?? '',
+          outcome: v.outcome ?? '', urgency: (URGENCY.find((u) => u.key === v.urgency)?.key ?? 'important'), photos: [],
+          projectId: target.projectId,
+        },
+        null,
+        null,
+      );
+      saveProjects(next);
+    },
+    'session.move': (v) => updateSession(v.entry, (s) => ({ ...s, date: v.date ?? s.date, time: v.time ?? s.time })),
+    'consultation.move': (v) => updateConsultation(v.entry, (c) => ({ ...c, date: v.date ?? c.date, time: v.time ?? c.time })),
+    // Та же «Отменена», что у быстрого действия напоминания: запись остаётся.
+    'session.cancel': (v) => updateSession(v.entry, (s) => ({ ...s, cancelled: true })),
+    'consultation.cancel': (v) => updateConsultation(v.entry, (c) => ({ ...c, cancelled: true })),
+    'project.create': (v) => {
+      const now = new Date().toISOString();
+      saveProject({
+        id: crypto.randomUUID(),
+        createdDate: now,
+        lastMeaningfulActivityAt: now,
+        sessions: [],
+        consultations: [],
+        healingPhotos: [],
+        moodboard: null,
+        title: (v.title ?? '').trim(),
+        category: (PROJECT_CATEGORIES.find((c) => c.key === v.category)?.key ?? 'tattoo'),
+        clientId: v.client && v.client !== NO_CLIENT ? v.client : null,
+        status: 'active',
+        sessionsPlan: v.sessionsPlan === 'single' || v.sessionsPlan === 'multiple' ? v.sessionsPlan : null,
+        firstSessionWindowAmount: null,
+        firstSessionWindowUnit: null,
+        firstSessionExactDate: v.firstSessionDate || null,
+        firstSessionWindowSetAt: null,
+        nextActionText: (v.nextActionText ?? '').trim(),
+        nextActionDate: v.nextActionDate || null,
+        nextActionType: null,
+        area: (v.area ?? '').trim(),
+        style: (v.style ?? '').trim(),
+        generalNotes: (v.note ?? '').trim(),
+        feeling: '',
+        creative: (v.creative ?? '').trim(),
+        inspirationSources: '',
+        photos: [],
+      });
+    },
+    'project.complete': (v) => {
+      const project = getProjectById(projects, v.project);
+      if (project) saveProject(withAdvancedStatus(project, 'completed'));
+    },
+    // Заметка к проекту — та же запись, что из «Все заметки проекта»: у
+    // клиента в notes, у проекта без клиента — в заметках мастера.
+    'note.project': (v) => {
+      const project = getProjectById(projects, v.project);
+      if (!project) return;
+      const note: ClientNote = {
+        id: crypto.randomUUID(), text: (v.note ?? '').trim(), urgency: 'normal', done: false,
+        createdDate: new Date().toISOString(), photos: [], projectId: project.id, dueDate: null,
+      };
+      if (project.clientId) upsertNote(project.clientId, note);
+      else setMasterInfo({ ...masterInfo, notes: [...masterInfo.notes, note] });
+    },
+    'note.session': (v) => updateSession(v.entry, (s) => ({ ...s, note: appendNote(s.note, v.note ?? '') })),
+    'note.consultation': (v) =>
+      updateConsultation(v.entry, (c) => ({ ...c, generalNotes: appendNote(c.generalNotes, v.note ?? '') })),
+    // Напоминание = задача мастера со сроком — в срок всплывёт в напоминаниях.
+    'reminder.create': (v) =>
+      setMasterInfo({
+        ...masterInfo,
+        notes: [
+          ...masterInfo.notes,
+          {
+            id: crypto.randomUUID(), text: (v.note ?? '').trim(), urgency: 'important', done: false,
+            createdDate: new Date().toISOString(), photos: [], projectId: null, dueDate: v.date || null,
+          },
+        ],
+      }),
+  };
+  const confirmVoiceDraft = (draft: VoiceDraft) => {
+    VOICE_EXECUTORS[draft.commandId]?.(draftValues(draft));
+    voice.setDraft(null);
   };
 
   return (
@@ -3259,11 +3411,10 @@ export default function TattoDiary() {
                             ? () => setCreateChoiceContext('workshop')
                             : undefined
           }
-          // Долгое нажатие на хаб — тот же набор вариантов, что предложила
-          // бы CreateChoiceSheet на этом экране (см. quickCreateOptions),
-          // только сразу, минуя и обычный веер, и саму шторку.
-          quickCreateOptions={quickCreateOptions}
-          onQuickCreate={quickCreateOptions ? handleQuickCreate : undefined}
+          // Долгое нажатие на хаб — голосовая команда (push-to-talk).
+          onVoiceHoldStart={voice.holdStart}
+          onVoiceHoldEnd={voice.holdEnd}
+          voiceListening={voice.phase === 'listening'}
         />
       )}
 
@@ -3355,8 +3506,6 @@ export default function TattoDiary() {
               clients={clients}
               masterInfo={masterInfo}
               onChangeMasterInfo={setMasterInfo}
-              projects={projects}
-              onOpenProject={(project) => setViewProject(project)}
               settings={{
                 theme,
                 onToggleTheme: toggleTheme,
@@ -3574,6 +3723,8 @@ export default function TattoDiary() {
           when "+" was tapped — see runGated above — so submitting here just
           creates the client outright. */}
       <NewClientSheet open={showNewClientForm} onClose={closeNewClient} onCreate={handleCreateClient} />
+      <VoiceDraftSheet draft={voice.draft} onCancel={() => voice.setDraft(null)} onConfirm={confirmVoiceDraft} />
+      <VoiceStatusBubble phase={voice.phase} text={voice.text} />
 
       {/* ═══════════ EDIT CLIENT SHEET ═══════════ */}
       <EditClientSheet

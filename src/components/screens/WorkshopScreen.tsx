@@ -1,29 +1,20 @@
 import { useState } from 'react';
 import { InkaLogo } from '../InkaLogo';
 import { type Client } from '../../domain/client';
-import { type ProjectCategory, PROJECT_CATEGORIES, PROJECT_CATEGORY_COLORS, PROJECT_BODY_AREAS, type Project } from '../../domain/project';
-import { buildProjectZoneFolders } from '../../domain/projectSelectors';
+import { PROJECT_BODY_AREAS, type Project } from '../../domain/project';
+import { buildProjectOwnerFolders, PERSONAL_PROJECTS_FOLDER_ID } from '../../domain/projectSelectors';
 import { ProjectFolderCard } from '../project/ProjectFolderCard';
 import { ProjectFolderView } from '../project/ProjectFolderView';
-import { ClientCardTabBar, type ClientCardTabDef } from '../client/ClientCardTabBar';
 import { GoldDotDivider } from '../icons/StarIcons';
 import { TodayDateBadge } from '../ui/TodayDateBadge';
 import { COLORS, fs, INPUT_STYLE } from '../TattoDiary';
+import { TERRITORY_COLORS } from '../ui/designTokens';
 
-// One pendant per category, in PROJECT_CATEGORIES order — `kind: 'projects'`
-// is irrelevant here (it only picks the minimalism-mode line icon), the
-// gem's actual colour always comes from `color`.
-const CATEGORY_TABS: ClientCardTabDef<ProjectCategory>[] = PROJECT_CATEGORIES.map((c) => ({
-  id: c.key,
-  kind: 'projects',
-  label: c.label,
-  color: PROJECT_CATEGORY_COLORS[c.key],
-}));
-
-// Папки верхнего уровня — по зоне тела (buildProjectZoneFolders), а не по
-// клиенту: полный список проектов клиента остаётся в его собственной
-// карточке. Экран полностью prop-driven, состояние (фильтр по типу, открытая
-// папка) — локальное.
+// Верхний уровень — ровно две папки (buildProjectOwnerFolders, Анна
+// 2026-11-21): «Личные проекты» (без клиента, раньше вкладка Личного
+// кабинета) и «Клиенты». Прежние геммы-фильтр по типу проекта и папки зон
+// тела убраны. Экран полностью prop-driven, состояние (фильтр по месту,
+// открытая папка) — локальное.
 export function WorkshopScreen({
   projects,
   projectsLoaded,
@@ -37,20 +28,15 @@ export function WorkshopScreen({
   onOpenProject: (project: Project) => void;
   onOpenCalendar: () => void;
 }) {
-  const [categoryFilter, setCategoryFilter] = useState<'all' | ProjectCategory>('all');
   const [areaFilter, setAreaFilter] = useState<string>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
-  const filtersActive = categoryFilter !== 'all' || areaFilter !== 'all';
-  const filtered = projects.filter((project) => {
-    if (categoryFilter !== 'all' && project.category !== categoryFilter) return false;
-    if (areaFilter !== 'all' && project.area !== areaFilter) return false;
-    return true;
-  });
-  const allFolders = buildProjectZoneFolders(filtered);
-  // Основные папки зон видны всегда, даже пустые (M6-принцип «место уже
-  // есть»); при активном фильтре это бы показывало пустые зоны как
-  // «нет проектов с такими фильтрами», поэтому фильтр прячет только их.
+  const filtersActive = areaFilter !== 'all';
+  const filtered = areaFilter === 'all' ? projects : projects.filter((project) => project.area === areaFilter);
+  const allFolders = buildProjectOwnerFolders(filtered);
+  // Обе папки видны всегда, даже пустые (M6-принцип «место уже есть»); при
+  // активном фильтре пустая папка читалась бы как «нет проектов с такими
+  // фильтрами», поэтому фильтр прячет только её.
   const folders = filtersActive ? allFolders.filter((f) => f.projectCount > 0) : allFolders;
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null;
 
@@ -89,22 +75,7 @@ export function WorkshopScreen({
         <GoldDotDivider marginTop={11} />
       </div>
 
-      {/* Always-visible pendant filter, one gem per project category — same
-          jewel-tab rail the client card uses (ClientCardTabBar), reusing its
-          PROJECT_CATEGORY_COLORS so each gem reads the category's own
-          jewel-tone colour instead of the single territory green. Tapping
-          the already-active gem clears back to «Все» (categoryFilter). */}
-      <div style={{ padding: '0 16px 4px', position: 'relative', zIndex: 2 }}>
-        <ClientCardTabBar
-          ariaLabel="Фильтр по типу проекта"
-          tabs={CATEGORY_TABS}
-          activeTab={categoryFilter === 'all' ? ('' as ProjectCategory) : categoryFilter}
-          onTab={(cat) => setCategoryFilter((current) => (current === cat ? 'all' : cat))}
-        />
-      </div>
-
-      {/* Funnel-toggle + floating chip panel now covers only «Место» — type
-          filtering moved to the always-visible gem row above. */}
+      {/* Funnel-toggle + floating chip panel — фильтр по месту. */}
       <div style={{ padding: '0 20px 8px', position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
         <div style={{ position: 'relative' }}>
           <div
@@ -159,7 +130,9 @@ export function WorkshopScreen({
           <ProjectFolderCard
             key={folder.id}
             folder={folder}
-            accentColor={COLORS.gold}
+            // Цвет папки = территория тулбара: личные проекты — зелёные
+            // «Проекты», клиентские — синие «Клиенты».
+            accentColor={folder.id === PERSONAL_PROJECTS_FOLDER_ID ? TERRITORY_COLORS.projects : TERRITORY_COLORS.clients}
             onClick={() => setOpenFolderId(folder.id)}
           />
         ))}
