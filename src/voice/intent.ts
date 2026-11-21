@@ -29,6 +29,8 @@ export interface VoiceIntent {
   fields: Record<string, string>;
   transcript: string;
   source: 'llm' | 'local';
+  // Ключи полей, в которых модель не уверена, — шторка их подсветит.
+  uncertain: string[];
 }
 
 // Приводит что угодно (ответ модели, локальный разбор) к VoiceIntent:
@@ -45,10 +47,14 @@ export function normalizeIntent(raw: unknown, transcript: string, source: VoiceI
       else if (typeof value === 'number') fields[key] = String(value);
     }
   }
-  return { action, entity, fields, transcript, source };
+  const uncertain = Array.isArray(obj.uncertain)
+    ? obj.uncertain.filter((k): k is string => typeof k === 'string' && k in fields)
+    : [];
+  return { action, entity, fields, transcript, source, uncertain };
 }
 
 import { findDates, findTimes, stripMatches } from './dates.js';
+import { extractCardFields } from './cardFields.js';
 import { todayISO } from '../utils/dates.js';
 
 const capitalize = (word: string) => (word ? word[0].toUpperCase() + word.slice(1) : word);
@@ -100,7 +106,7 @@ function parseClient(text: string): VoiceIntent {
   if (words[0]) fields.name = capitalize(words[0]);
   if (words[1]) fields.surname = capitalize(words[1]);
 
-  return { action: 'create', entity: 'client', fields, transcript: text, source: 'local' };
+  return { action: 'create', entity: 'client', fields, transcript: text, source: 'local', uncertain: [] };
 }
 
 // Дата, время и заметка из хвоста «сессия для Ольги завтра в 14, заметка …»;
@@ -126,6 +132,14 @@ const OPEN_RE = /^(?:открой|открыть|покажи|показать|�
 const SCHEDULE_RE = /^(?:кто|что|какие|какая)\s+(?:у\s+меня\s+|сегодня\s+|завтра\s+)*(?:(?:есть|будет|запланировано|записан\p{L}*|встречи|сессии|записи)\s+)*(.*)$|^(?:расписание|план|мои\s+записи|записи)(?!\p{L})\s*(.*)$/iu;
 const COMPLETE_PROJECT_RE = /^(?:закрой|закрыть|заверши|завершить|закончи|закончить)\s+проект(?!\p{L})[\s,.:—-]*(.*)$/iu;
 const REMIND_RE = /^(?:напомни|напомнить|напоминание)(?:\s+мне)?(?!\p{L})[\s,.:—-]*(.*)$/iu;
+
+// Полная карточка из диктовки: поля по меткам, а из начала фразы — кто и
+// когда (см. cardFields.ts).
+function cardFields(kind: 'session' | 'consultation', rest: string, today: string): Record<string, string> {
+  const card = extractCardFields(kind, rest);
+  const head = scheduleFields(card.head, today);
+  return { ...head, ...card.fields };
+}
 
 const entityOf = (word: string): 'session' | 'consultation' | 'project' =>
   /^консульт/i.test(word) ? 'consultation' : /^проект/i.test(word) ? 'project' : 'session';
@@ -202,20 +216,16 @@ export function parseIntentLocal(transcript: string, today: string = todayISO())
   }
 
   const session = CREATE_SESSION_RE.exec(text);
-  if (session) return local('create', 'session', scheduleFields(session[1] ?? '', today));
+  if (session) return local('create', 'session', cardFields('session', session[1] ?? '', today));
 
   const consultation = CREATE_CONSULTATION_RE.exec(text);
-  if (consultation) return local('create', 'consultation', scheduleFields(consultation[1] ?? '', today));
+  if (consultation) return local('create', 'consultation', cardFields('consultation', consultation[1] ?? '', today));
 
   const project = CREATE_PROJECT_RE.exec(text);
   if (project) {
-    const fields: Record<string, string> = {};
-    let rest = project[1] ?? '';
-    const note = NOTE_RE.exec(rest);
-    if (note) {
-      if (note[1].trim()) fields.note = note[1].trim();
-      rest = rest.slice(0, note.index);
-    }
+    const card = extractCardFields('project', project[1] ?? '');
+    const fields: Record<string, string> = { ...card.fields };
+    let rest = card.head;
     // «проект Дракон для Ольги Петровой» / «проект Дракон, клиент Ольга»
     const forClient = /(?<!\p{L})(?:для|клиент\p{L}*)(?!\p{L})\s+(.*)$/iu.exec(rest);
     if (forClient) {
