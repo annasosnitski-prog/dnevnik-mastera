@@ -63,27 +63,30 @@ export function PendantIcon({
 
   // Shadows are not grey: they slide into a deep indigo, so red goes violet,
   // green goes blue-green and the stone stays coloured in its dark facets.
-  // Per colour: green and red sink into blue, blue and gold into green,
+  // Per colour (current palette): navy sinks into near-black indigo, forest
+  // green into deep blue-green, gold into dark olive, ruby into indigo,
   // orange into plum, purple into deep blue.
   const SHADOW_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#05402E',
+    [TERRITORY_COLORS.clients]: '#03052E',
     [TERRITORY_COLORS.personal]: '#1A3A12',
     [TERRITORY_COLORS.content]: '#14086E',
-    [TERRITORY_COLORS.projects]: '#0A1E72',
+    [TERRITORY_COLORS.projects]: '#06302A',
     [TERRITORY_COLORS.notes]: '#46094A',
     [TERRITORY_COLORS.admin]: '#0A1472',
   };
   const COOL_SHADOW = SHADOW_BY_COLOR[color] ?? '#0E0450';
   // Lit facets lean warm (cream), shadows cool: the warm/cool split is the contrast.
-  // Per colour the warm shift goes the other way round the wheel: red towards
-  // yellow, yellow towards red, blue towards red, and so on.
+  // Per colour the lit facets stay in the stone's own hue family, only
+  // paler and a touch warmer: navy goes ice-blue (never pink), forest green
+  // goes soft sage (never lime), purple goes lavender, red towards
+  // yellow, yellow towards red.
   const WARM_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#FFB4C0',
+    [TERRITORY_COLORS.clients]: '#B9CCFF',
     [TERRITORY_COLORS.personal]: '#FFB48A',
     [TERRITORY_COLORS.content]: '#FFD79A',
-    [TERRITORY_COLORS.projects]: '#F4EAA0',
+    [TERRITORY_COLORS.projects]: '#C6E6BC',
     [TERRITORY_COLORS.notes]: '#FFD98A',
-    [TERRITORY_COLORS.admin]: '#FFB0BC',
+    [TERRITORY_COLORS.admin]: '#E2C4FF',
   };
   const WARM_LIGHT = WARM_BY_COLOR[color] ?? '#FFE9C2';
   const mix = (pct: number, tint: "white" | "black") =>
