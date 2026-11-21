@@ -82,7 +82,7 @@ export function PendantIcon({
   // sage, gold -> pale gold, ruby -> pale rose, orange -> apricot,
   // purple -> lavender.
   const SHADOW_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#0C0430',
+    [TERRITORY_COLORS.clients]: '#07022C',
     [TERRITORY_COLORS.personal]: '#3A2806',
     [TERRITORY_COLORS.content]: '#3A0614',
     [TERRITORY_COLORS.projects]: '#06302A',
@@ -90,7 +90,7 @@ export function PendantIcon({
     [TERRITORY_COLORS.admin]: '#1E0A3E',
   };
   const LIGHT_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#C8C4FF',
+    [TERRITORY_COLORS.clients]: '#C6BEFF',
     [TERRITORY_COLORS.personal]: '#FFE6A8',
     [TERRITORY_COLORS.content]: '#FFC2CC',
     [TERRITORY_COLORS.projects]: '#C6E6BC',
@@ -100,10 +100,10 @@ export function PendantIcon({
   // The stone body works from a mid-tone of the territory colour. Navy
   // clients (#000066) are far darker than every other territory, so mixing
   // their lit facets off the raw hex gave dull, different-looking highlights;
-  // the body uses a lighter blue-violet of the same hue instead, so its
-  // highlights have the same strength and character as the other stones.
+  // the body uses Anna's indigo sample #17067E instead (richer than the raw
+  // hex), with pale-indigo light so its highlights match the other stones.
   const STONE_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#3D24D0',
+    [TERRITORY_COLORS.clients]: '#17067E',
   };
   const stone = STONE_BY_COLOR[color] ?? color;
   const shadowTint = SHADOW_BY_COLOR[color] ?? "black";
