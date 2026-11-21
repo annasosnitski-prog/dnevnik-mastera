@@ -123,9 +123,19 @@ export function VoiceDraftSheet({
 
 // Пузырь над хабом: «Слушаю…» с живым текстом, «Разбираю…», или короткое
 // сообщение (не поняла / нет микрофона).
-export function VoiceStatusBubble({ phase, text }: { phase: 'idle' | 'listening' | 'thinking' | 'message'; text: string }) {
+// ready=false в фазе listening — движок ещё включается: говорить рано,
+// первые слова пропадут. Как только включился — «Говорите…» и вибрация.
+export function VoiceStatusBubble({
+  phase,
+  text,
+  ready = true,
+}: {
+  phase: 'idle' | 'listening' | 'thinking' | 'message';
+  text: string;
+  ready?: boolean;
+}) {
   if (phase === 'idle') return null;
-  const label = phase === 'listening' ? 'Слушаю…' : phase === 'thinking' ? 'Разбираю…' : '';
+  const label = phase === 'listening' ? (ready ? 'Говорите…' : 'Включаю микрофон…') : phase === 'thinking' ? 'Разбираю…' : '';
   return (
     <div
       role="status"

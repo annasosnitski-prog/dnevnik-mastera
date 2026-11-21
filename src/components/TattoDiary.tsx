@@ -3724,7 +3724,7 @@ export default function TattoDiary() {
           creates the client outright. */}
       <NewClientSheet open={showNewClientForm} onClose={closeNewClient} onCreate={handleCreateClient} />
       <VoiceDraftSheet draft={voice.draft} onCancel={() => voice.setDraft(null)} onConfirm={confirmVoiceDraft} />
-      <VoiceStatusBubble phase={voice.phase} text={voice.text} />
+      <VoiceStatusBubble phase={voice.phase} text={voice.text} ready={voice.ready} />
 
       {/* ═══════════ EDIT CLIENT SHEET ═══════════ */}
       <EditClientSheet
