@@ -274,4 +274,6 @@ test('gem tints follow the current palette: navy halo brighter, no pink on blue,
   assert.match(pendantIcon, /\[TERRITORY_COLORS\.clients\]: '#C0C6FF'/);
   assert.match(pendantIcon, /\[TERRITORY_COLORS\.projects\]: '#C6E6BC'/);
   assert.match(pendantIcon, /floodColor=\{glowOf\(color\)\}/);
+  // Navy stone body uses a mid-tone so its highlights match the other stones.
+  assert.match(pendantIcon, /const stone = STONE_BY_COLOR\[color\] \?\? color/);
 });
