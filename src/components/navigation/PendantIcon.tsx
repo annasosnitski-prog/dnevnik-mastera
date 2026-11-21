@@ -82,7 +82,7 @@ export function PendantIcon({
   // sage, gold -> pale gold, ruby -> pale rose, orange -> apricot,
   // purple -> lavender.
   const SHADOW_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#08042F',
+    [TERRITORY_COLORS.clients]: '#0C0430',
     [TERRITORY_COLORS.personal]: '#3A2806',
     [TERRITORY_COLORS.content]: '#3A0614',
     [TERRITORY_COLORS.projects]: '#06302A',
@@ -90,7 +90,7 @@ export function PendantIcon({
     [TERRITORY_COLORS.admin]: '#1E0A3E',
   };
   const LIGHT_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#C0C6FF',
+    [TERRITORY_COLORS.clients]: '#C8C4FF',
     [TERRITORY_COLORS.personal]: '#FFE6A8',
     [TERRITORY_COLORS.content]: '#FFC2CC',
     [TERRITORY_COLORS.projects]: '#C6E6BC',
@@ -103,7 +103,7 @@ export function PendantIcon({
   // the body uses a lighter blue-violet of the same hue instead, so its
   // highlights have the same strength and character as the other stones.
   const STONE_BY_COLOR: Record<string, string> = {
-    [TERRITORY_COLORS.clients]: '#3528D2',
+    [TERRITORY_COLORS.clients]: '#3D24D0',
   };
   const stone = STONE_BY_COLOR[color] ?? color;
   const shadowTint = SHADOW_BY_COLOR[color] ?? "black";
