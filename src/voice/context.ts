@@ -9,6 +9,7 @@
 // ============================================================
 
 import { formatDate } from '../utils/dates.js';
+import { crossScriptSameWord } from '../lib/nameSearch.js';
 
 export interface VoiceClientRef {
   id: string;
@@ -71,6 +72,8 @@ export function sameWord(spoken: string, known: string): boolean {
   const b = normalizeWord(known);
   if (!a || !b) return false;
   if (a === b) return true;
+  // Клиент записан латиницей/ивритом, а сказали по-русски (или наоборот).
+  if (crossScriptSameWord(a, b)) return true;
   const minLen = Math.min(a.length, b.length);
   if (minLen < 3) return false;
   let common = 0;
