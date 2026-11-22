@@ -110,7 +110,6 @@ const INNER_POLYGON_RADIUS = 92;
 // ~54px hub carrying the $ glyph, growing while the fan is open. Item icon
 // size keeps roughly the same icon-fills-most-of-the-button ratio as the
 // gem/pendant rendering, just without the gold plate around it.
-const MINIMAL_HUB_SIZE = 54;
 const MINIMAL_ITEM_ICON_SIZE = 26;
 
 const NATURAL_STONE_BY_ITEM: Record<NavItemId, NaturalStoneKind> = {
@@ -387,7 +386,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
       )}
 
       <div className={containerClasses.join(" ")}>
-        {open && !minimalism && (
+        {open && (
           <svg
             className="nav-fab__rays"
             aria-hidden="true"
@@ -653,7 +652,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
           className={mainClasses.join(" ")}
           /* touch-action: none — браузер не забирает удержание под прокрутку
              (иначе он шлёт pointercancel и долгое нажатие срывается). */
-          style={minimalism ? { width: MINIMAL_HUB_SIZE, height: MINIMAL_HUB_SIZE, touchAction: "none" } : { touchAction: "none" }}
+          style={{ touchAction: "none" }}
           aria-label={open ? "Закрыть меню" : "Открыть меню (удерживать — голосовая команда)"}
           aria-expanded={open}
           onPointerDown={handleHubPointerDown}

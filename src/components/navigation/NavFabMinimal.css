@@ -11,8 +11,6 @@
      NavFabReveal.css) for the same reason — stay reachable over a detail
      sheet even in Минимализм mode. */
   z-index: 961;
-  transform: scale(0.89);
-  transform-origin: 0 0;
 }
 
 .nav-fab__main--minimal,
@@ -48,9 +46,8 @@
   height: 62px !important;
 }
 
+
 .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
-  width: 47px !important;
-  height: 47px !important;
   --nav-scale: 1 !important;
   border-width: 0.8px !important;
   box-shadow:
@@ -66,12 +63,6 @@
     0 0 8px rgba(var(--gold-rgb), 0.15),
     0 0 16px rgba(var(--gold-rgb), 0.07),
     0 6px 13px rgba(74, 49, 16, 0.14);
-}
-
-/* External controls are one third smaller than the approved reference pass. */
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal {
-  width: 64px;
-  height: 64px;
 }
 
 /* Every destination stays fully legible. The current one is distinguished by
@@ -190,10 +181,11 @@
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__minimal-home-mark {
-  font-size: 28px;
+  font-size: 34px;
 }
 
-/* Approved icon mapping:
+/* Approved icon mapping (web-thin 1.1/32 line with 3.8/32 nodes at corners and joints, one
+   shared grid so every pictogram reads at the same weight and size):
    closed padlock = Личный кабинет; paired silhouettes = Клиенты;
    sparkle cluster = ContentINKA; document = Заметки;
    pencil = Проекты; door key = Админка; plus = Создать. */
@@ -203,8 +195,8 @@
   top: 50%;
   left: 50%;
   z-index: 2;
-  width: 43px;
-  height: 43px;
+  width: 42px;
+  height: 42px;
   transform: translate(-50%, -50%) scale(0.84);
   border-radius: 0;
   background: currentColor;
@@ -220,18 +212,6 @@
   -webkit-mask-size: contain;
   mask-size: contain;
   pointer-events: none;
-}
-
-.nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет']::before,
-.nav-fab--minimal .nav-fab__item--minimal[aria-label='Проекты']::before,
-.nav-fab--minimal .nav-fab__item--minimal[aria-label='Админка']::before {
-  width: 39px;
-  height: 39px;
-}
-
-.nav-fab--minimal .nav-fab__item--minimal[aria-label='ContentINKA']::before {
-  width: 37px;
-  height: 37px;
 }
 
 .nav-fab--minimal .nav-fab__item--minimal-create::before {
@@ -254,117 +234,31 @@
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Личный кабинет'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M8,14V10a8,8,0,0,1,16,0v4h3v16H5V14Zm4,0h8V10a4,4,0,0,0-8,0Zm4,5a2.4,2.4,0,0,1,1.5,4.3L19,27H13l1.5-3.7A2.4,2.4,0,0,1,16,19Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='none'%20stroke='black'%20stroke-width='1.0'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M11%2014v-3.5a5%205%200%200%201%2010%200V14'/%3E%3Crect%20x='7.5'%20y='14'%20width='17'%20height='13.5'%20rx='2.5'/%3E%3Ccircle%20cx='16'%20cy='19.6'%20r='1.4'/%3E%3Cpath%20d='M16%2021v2.8'/%3E%3C/g%3E%3Ccircle%20cx='7.5'%20cy='14'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='24.5'%20cy='14'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='7.5'%20cy='27.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='24.5'%20cy='27.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Клиенты'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Ccircle%20cx='10'%20cy='10'%20r='4.5'%20fill='black'/%3E%3Ccircle%20cx='22'%20cy='10'%20r='4.5'%20fill='black'/%3E%3Cpath%20fill='black'%20d='M2.5,27c.5-6.3,3-9.5,7.5-9.5s7,3.2,7.5,9.5ZM14.5,27c.5-6.3,3-9.5,7.5-9.5s7,3.2,7.5,9.5Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='none'%20stroke='black'%20stroke-width='1.0'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx='12'%20cy='11'%20r='4'/%3E%3Cpath%20d='M4.5%2026.5c0-4.7%203.3-8%207.5-8s7.5%203.3%207.5%208'/%3E%3Cpath%20d='M20%207.2a4%204%200%200%201%200%207.6'/%3E%3Cpath%20d='M22.6%2018.9c2.9%201%204.9%203.8%204.9%207.6'/%3E%3C/g%3E%3Ccircle%20cx='4.5'%20cy='26.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='19.5'%20cy='26.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='27.5'%20cy='26.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='ContentINKA'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M14%206C15%2012%2018%2016%2024%2018C18%2020%2015%2024%2014%2030C13%2024%2010%2020%204%2018C10%2016%2013%2012%2014%206Z'/%3E%3Cpath%20fill='black'%20d='M24%202C24.6%205.3%2026.4%207.4%2030%208C26.4%208.6%2024.6%2010.7%2024%2014C23.4%2010.7%2021.6%208.6%2018%208C21.6%207.4%2023.4%205.3%2024%202Z'/%3E%3Cpath%20fill='black'%20d='M27%2016C27.4%2018.2%2028.6%2019.6%2031%2020C28.6%2020.4%2027.4%2021.8%2027%2024C26.6%2021.8%2025.4%2020.4%2023%2020C25.4%2019.6%2026.6%2018.2%2027%2016Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='none'%20stroke='black'%20stroke-width='1.0'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M13%2010C13.8%2015.5%2016.5%2018.2%2022%2019C16.5%2019.8%2013.8%2022.5%2013%2028C12.2%2022.5%209.5%2019.8%204%2019C9.5%2018.2%2012.2%2015.5%2013%2010Z'/%3E%3Cpath%20d='M23%203.5C23.4%206.2%2024.8%207.6%2027.5%208C24.8%208.4%2023.4%209.8%2023%2012.5C22.6%209.8%2021.2%208.4%2018.5%208C21.2%207.6%2022.6%206.2%2023%203.5Z'/%3E%3Cpath%20d='M26.5%2017v5M24%2019.5h5'/%3E%3C/g%3E%3Ccircle%20cx='13'%20cy='10'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='22'%20cy='19'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='13'%20cy='28'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='4'%20cy='19'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='23'%20cy='3.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='27.5'%20cy='8'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='23'%20cy='12.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='18.5'%20cy='8'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Заметки'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M7,3H25V29H7ZM11,9H21V11H11ZM11,15H21V17H11ZM11,21H21V23H11Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='none'%20stroke='black'%20stroke-width='1.0'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M8.5%204.5H19l5.5%205.5v17.5h-16Z'/%3E%3Cpath%20d='M19%204.5V10h5.5'/%3E%3Cpath%20d='M12%2015.5h8M12%2019.5h8M12%2023.5h5'/%3E%3C/g%3E%3Ccircle%20cx='8.5'%20cy='4.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='19'%20cy='4.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='24.5'%20cy='10'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='24.5'%20cy='27.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='8.5'%20cy='27.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Проекты'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M3,29l2-7L21.8,5.2l5,5L10,27Z'/%3E%3Cpath%20fill='black'%20d='M23.2,3.8l1.2-1.2a2.2,2.2,0,0,1,3.1,0l1.9,1.9a2.2,2.2,0,0,1,0,3.1l-1.2,1.2Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='none'%20stroke='black'%20stroke-width='1.0'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6%2026l1.3-5.2L21.5%206.6a2%202%200%200%201%202.8%200l1.1%201.1a2%202%200%200%201%200%202.8L11.2%2024.7Z'/%3E%3Cpath%20d='M19.3%208.8l3.9%203.9M7.3%2020.8l3.9%203.9'/%3E%3C/g%3E%3Ccircle%20cx='6'%20cy='26'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='11.2'%20cy='24.7'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='7.3'%20cy='20.8'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='25.4'%20cy='10.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Админка'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20fill-rule='evenodd'%20d='M10,7a8,8,0,1,0,0,16,8,8,0,0,0,0-16Zm0,4a4,4,0,1,0,0,8,4,4,0,0,0,0-8ZM16,14H30v5H27v4H23V19H16Z'/%3E%3C/svg%3E");
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='none'%20stroke='black'%20stroke-width='1.0'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx='10'%20cy='16'%20r='5.5'/%3E%3Ccircle%20cx='10'%20cy='16'%20r='1.3'/%3E%3Cpath%20d='M15.5%2016h12M23.5%2016v3.5M27.5%2016v4.5'/%3E%3C/g%3E%3Ccircle%20cx='27.5'%20cy='16'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='23.5'%20cy='19.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='27.5'%20cy='20.5'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3C/svg%3E");
 }
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Создать'] {
-  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='black'%20d='M13,3h6v10h10v6H19v10h-6V19H3v-6h10Z'/%3E%3C/svg%3E");
-}
-
-/* Hairline gold spokes with long, needle-sharp tapers at both ends. */
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
-  content: '';
-  position: absolute;
-  top: calc(50% - 1px);
-  left: 50%;
-  z-index: -1;
-  width: 91px;
-  height: 2px;
-  transform-origin: 0 50%;
-  background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.84), rgba(var(--gold-rgb), 0.36));
-  -webkit-clip-path: polygon(0 50%, 12% 30%, 88% 30%, 100% 50%, 88% 70%, 12% 70%);
-  clip-path: polygon(0 50%, 12% 30%, 88% 30%, 100% 50%, 88% 70%, 12% 70%);
-  box-shadow:
-    0 0 4px rgba(var(--gold-rgb), 0.38),
-    0 0 10px rgba(var(--gold-rgb), 0.18);
-  opacity: 0.82;
-  pointer-events: none;
-}
-
-:root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
-  box-shadow:
-    0 0 4px rgba(var(--gold-rgb), 0.16),
-    0 0 8px rgba(var(--gold-rgb), 0.08);
-  opacity: 0.6;
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(1)::after {
-  transform: rotate(90deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(2)::after {
-  transform: rotate(141.4286deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(3)::after {
-  transform: rotate(192.8571deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(4)::after {
-  transform: rotate(244.2857deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(5)::after {
-  transform: rotate(295.7143deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(6)::after {
-  transform: rotate(347.1429deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(7)::after {
-  transform: rotate(38.5714deg) translateX(32px);
-}
-
-/* Fallback geometry for screens where the optional create action is absent. */
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(1)::after {
-  transform: rotate(90deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(2)::after {
-  transform: rotate(150deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(3)::after {
-  transform: rotate(210deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(4)::after {
-  transform: rotate(270deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(5)::after {
-  transform: rotate(330deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(6)::after {
-  transform: rotate(30deg) translateX(32px);
+  --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='none'%20stroke='black'%20stroke-width='1.0'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M16%207v18M7%2016h18'/%3E%3C/g%3E%3Ccircle%20cx='16'%20cy='7'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='16'%20cy='25'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='7'%20cy='16'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3Ccircle%20cx='25'%20cy='16'%20r='1.5'%20fill='black'%20stroke='none'/%3E%3C/svg%3E");
 }
 
 /* Every shared ClientCardTabBar gets the exact same minimal treatment: client and master alike. */
