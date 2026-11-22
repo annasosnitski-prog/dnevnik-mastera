@@ -11,8 +11,6 @@
      NavFabReveal.css) for the same reason — stay reachable over a detail
      sheet even in Минимализм mode. */
   z-index: 961;
-  transform: scale(0.89);
-  transform-origin: 0 0;
 }
 
 .nav-fab__main--minimal,
@@ -48,9 +46,8 @@
   height: 62px !important;
 }
 
+
 .nav-fab--minimal.nav-fab--open .nav-fab__main--minimal {
-  width: 47px !important;
-  height: 47px !important;
   --nav-scale: 1 !important;
   border-width: 0.8px !important;
   box-shadow:
@@ -66,12 +63,6 @@
     0 0 8px rgba(var(--gold-rgb), 0.15),
     0 0 16px rgba(var(--gold-rgb), 0.07),
     0 6px 13px rgba(74, 49, 16, 0.14);
-}
-
-/* External controls are one third smaller than the approved reference pass. */
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal {
-  width: 64px;
-  height: 64px;
 }
 
 /* Every destination stays fully legible. The current one is distinguished by
@@ -190,7 +181,7 @@
 }
 
 .nav-fab--minimal.nav-fab--open .nav-fab__minimal-home-mark {
-  font-size: 28px;
+  font-size: 34px;
 }
 
 /* Approved icon mapping (thin 1.6/32 line set, round caps and joins, one
@@ -268,92 +259,6 @@
 
 .nav-fab--minimal .nav-fab__item--minimal[aria-label='Создать'] {
   --inka-toolbar-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='none'%20stroke='black'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M16%207v18M7%2016h18'%20stroke-width='2.4'/%3E%3C/g%3E%3C/svg%3E");
-}
-
-/* Hairline gold spokes with long, needle-sharp tapers at both ends. */
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
-  content: '';
-  position: absolute;
-  top: calc(50% - 1px);
-  left: 50%;
-  z-index: -1;
-  width: 91px;
-  height: 2px;
-  transform-origin: 0 50%;
-  background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.84), rgba(var(--gold-rgb), 0.36));
-  -webkit-clip-path: polygon(0 50%, 12% 30%, 88% 30%, 100% 50%, 88% 70%, 12% 70%);
-  clip-path: polygon(0 50%, 12% 30%, 88% 30%, 100% 50%, 88% 70%, 12% 70%);
-  box-shadow:
-    0 0 4px rgba(var(--gold-rgb), 0.38),
-    0 0 10px rgba(var(--gold-rgb), 0.18);
-  opacity: 0.82;
-  pointer-events: none;
-}
-
-:root[data-theme='light'] .nav-fab--minimal.nav-fab--open .nav-fab__item--minimal::after {
-  box-shadow:
-    0 0 4px rgba(var(--gold-rgb), 0.16),
-    0 0 8px rgba(var(--gold-rgb), 0.08);
-  opacity: 0.6;
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(1)::after {
-  transform: rotate(90deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(2)::after {
-  transform: rotate(141.4286deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(3)::after {
-  transform: rotate(192.8571deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(4)::after {
-  transform: rotate(244.2857deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(5)::after {
-  transform: rotate(295.7143deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(6)::after {
-  transform: rotate(347.1429deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open .nav-fab__item--minimal:nth-of-type(7)::after {
-  transform: rotate(38.5714deg) translateX(32px);
-}
-
-/* Fallback geometry for screens where the optional create action is absent. */
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(1)::after {
-  transform: rotate(90deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(2)::after {
-  transform: rotate(150deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(3)::after {
-  transform: rotate(210deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(4)::after {
-  transform: rotate(270deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(5)::after {
-  transform: rotate(330deg) translateX(32px);
-}
-
-.nav-fab--minimal.nav-fab--open:not(:has(.nav-fab__item--minimal-create))
-  .nav-fab__item--minimal:nth-of-type(6)::after {
-  transform: rotate(30deg) translateX(32px);
 }
 
 /* Every shared ClientCardTabBar gets the exact same minimal treatment: client and master alike. */
