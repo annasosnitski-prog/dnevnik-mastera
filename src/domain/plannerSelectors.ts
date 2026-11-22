@@ -9,6 +9,7 @@
 // overdueProjects и их ключи) сюда НЕ переносились — это отдельный слой,
 // см. docs/TECH_REFACTOR_AUDIT.md.
 
+import { compareNames } from '../lib/nameSearch.js';
 import type { Client } from './client';
 import type { Session } from './session';
 import { clientStyles } from './client.js';
@@ -91,7 +92,7 @@ export function sessionSortKey(c: Client): { hasUpcoming: boolean; date: string 
 export function sortClients(clients: Client[], mode: SortMode): Client[] {
   const list = [...clients];
   if (mode === 'name') {
-    return list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru', { sensitivity: 'base' }));
+    return list.sort((a, b) => compareNames(a.name || '', b.name || ''));
   }
   if (mode === 'added') {
     // Newest first.
@@ -103,7 +104,7 @@ export function sortClients(clients: Client[], mode: SortMode): Client[] {
     const kb = sessionSortKey(b);
     if (ka.hasUpcoming !== kb.hasUpcoming) return ka.hasUpcoming ? -1 : 1;
     if (ka.hasUpcoming) return ka.date.localeCompare(kb.date); // soonest first
-    if (!ka.date && !kb.date) return (a.name || '').localeCompare(b.name || '', 'ru');
+    if (!ka.date && !kb.date) return compareNames(a.name || '', b.name || '');
     if (!ka.date) return 1;
     if (!kb.date) return -1;
     return kb.date.localeCompare(ka.date); // most recent past first

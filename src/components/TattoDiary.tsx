@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 // Не React.lazy напрямую: экран, чей файл исчез после деплоя, чинится
 // перезагрузкой, а не экраном сбоя (см. lib/lazyChunk.ts).
+import { nameMatches } from '../lib/nameSearch';
 import { lazyScreen } from '../lib/lazyChunk';
 import { InkaLogo, DROP_CAP_FONT } from './InkaLogo';
 import { NavFab } from './navigation/NavFab';
@@ -1709,7 +1710,7 @@ export default function TattoDiary() {
   const filteredClients = sortClients(
     clients.filter((c) => {
       const q = searchQuery.trim().toLowerCase();
-      if (q && !`${c.name} ${c.surname} ${c.style}`.toLowerCase().includes(q)) return false;
+      if (q && !nameMatches(`${c.name} ${c.surname} ${c.style}`, q)) return false;
       if (colorFilter !== 'all' && c.color.toLowerCase() !== colorFilter.toLowerCase()) return false;
       if (typeFilter !== 'all' && (c.clientType || 'client') !== typeFilter) return false;
       return true;

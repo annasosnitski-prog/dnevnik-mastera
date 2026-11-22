@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { compareNames, nameMatches } from '../../lib/nameSearch';
 import { InkaLogo } from '../InkaLogo';
 import { type ClientType, type Client, clientStyles } from '../../domain/client';
 import {
@@ -456,9 +457,9 @@ export function ClientPickerSheet({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const sorted = [...clients].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    const sorted = [...clients].sort((a, b) => compareNames(a.name, b.name));
     if (!q) return sorted;
-    return sorted.filter((c) => [c.name, c.surname].filter(Boolean).join(' ').toLowerCase().includes(q));
+    return sorted.filter((c) => nameMatches([c.name, c.surname].filter(Boolean).join(' '), q));
   }, [clients, query]);
 
   return (
