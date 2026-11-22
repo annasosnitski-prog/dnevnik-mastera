@@ -6,7 +6,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createWebSpeechCapture, SpeechError, type SpeechCapture } from './speech';
+import { createWebSpeechCapture, keepMicWarm, scheduleMicRelease, SpeechError, type SpeechCapture } from './speech';
 import { resolveIntent } from './remoteIntent';
 import { findVoiceCommand, VOICE_COMMANDS, type VoiceDraft } from './commands';
 import type { VoiceContext } from './context';
@@ -15,6 +15,10 @@ export type VoicePhase = 'idle' | 'listening' | 'thinking' | 'message';
 
 const MESSAGE_MS = 3200;
 const MESSAGE_MAX_MS = 9000;
+// Удержание короче этого — человек не успел ничего сказать.
+const MIN_SPEECH_MS = 900;
+// Страховка, если отпускание пальца потерялось: сами заканчиваем запись.
+const MAX_LISTEN_MS = 90_000;
 
 const SPEECH_ERRORS: Record<string, string> = {
   'not-allowed': 'Нет доступа к микрофону — разрешите его в настройках браузера',
@@ -36,6 +40,8 @@ export function useVoiceCommand(
   const actionRef = useRef(onAction);
   actionRef.current = onAction;
   const [phase, setPhase] = useState<VoicePhase>('idle');
+  const phaseRef = useRef<VoicePhase>('idle');
+  phaseRef.current = phase;
   const [text, setText] = useState('');
   const [draft, setDraft] = useState<VoiceDraft | null>(null);
   const captureRef = useRef<SpeechCapture | null>(null);
@@ -56,38 +62,87 @@ export function useVoiceCommand(
     () => () => {
       captureRef.current?.abort();
       if (messageTimerRef.current != null) window.clearTimeout(messageTimerRef.current);
+      if (maxTimerRef.current != null) window.clearTimeout(maxTimerRef.current);
     },
     [],
   );
 
-  const holdStart = useCallback(() => {
+  // holdIdRef отличает текущее удержание от прошлых: пока ждём доступ к
+  // микрофону, палец могли уже отпустить и нажать снова.
+  const holdIdRef = useRef(0);
+  const holdStartedAtRef = useRef(0);
+  const [ready, setReady] = useState(false);
+  const maxTimerRef = useRef<number | null>(null);
+  const holdEndRef = useRef<() => void>(() => {});
+
+  const clearMaxTimer = () => {
+    if (maxTimerRef.current != null) {
+      window.clearTimeout(maxTimerRef.current);
+      maxTimerRef.current = null;
+    }
+  };
+
+  const holdStart = useCallback(async () => {
     captureRef.current?.abort();
+    captureRef.current = null;
+    const holdId = ++holdIdRef.current;
+    holdStartedAtRef.current = Date.now();
+    if (messageTimerRef.current != null) window.clearTimeout(messageTimerRef.current);
+    setText('');
+    setReady(false);
+    setPhase('listening');
+    // Один поток микрофона на всю сессию приложения — иначе iPhone
+    // спрашивает разрешение при каждом удержании.
+    const denied = await keepMicWarm();
+    if (holdId !== holdIdRef.current) return; // уже отпустили — holdEnd разобрался
+    if (denied) {
+      holdIdRef.current += 1;
+      showMessage(SPEECH_ERRORS['not-allowed']);
+      return;
+    }
     const capture = createWebSpeechCapture();
     if (!capture) {
+      holdIdRef.current += 1;
       showMessage('Голосовой ввод не поддерживается этим браузером');
       return;
     }
     captureRef.current = capture;
-    if (messageTimerRef.current != null) window.clearTimeout(messageTimerRef.current);
-    setText('');
-    setPhase('listening');
     try {
-      navigator.vibrate?.(15);
-    } catch {
-      /* не все платформы умеют вибрацию */
-    }
-    try {
-      capture.start((interim) => setText(interim));
+      capture.start(
+        (interim) => setText(interim),
+        () => {
+          if (holdId !== holdIdRef.current) return;
+          setReady(true);
+          try {
+            navigator.vibrate?.(15);
+          } catch {
+            /* не все платформы умеют вибрацию */
+          }
+        },
+      );
     } catch {
       captureRef.current = null;
+      holdIdRef.current += 1;
       showMessage('Не удалось включить микрофон');
+      return;
     }
+    clearMaxTimer();
+    maxTimerRef.current = window.setTimeout(() => holdEndRef.current(), MAX_LISTEN_MS);
   }, [showMessage]);
 
   const holdEnd = useCallback(async () => {
+    clearMaxTimer();
     const capture = captureRef.current;
-    if (!capture) return;
     captureRef.current = null;
+    const heldMs = Date.now() - holdStartedAtRef.current;
+    holdIdRef.current += 1;
+    setReady(false);
+    scheduleMicRelease();
+    if (!capture) {
+      // Отпустили, пока ещё включался микрофон (или ждали разрешения).
+      if (phaseRef.current === 'listening') showMessage('Держите кнопку, пока говорите');
+      return;
+    }
     setPhase('thinking');
     let transcript = '';
     try {
@@ -98,7 +153,11 @@ export function useVoiceCommand(
       return;
     }
     if (!transcript) {
-      showMessage('Не расслышала — держите кнопку и говорите');
+      showMessage(
+        heldMs < MIN_SPEECH_MS
+          ? 'Держите кнопку, пока говорите'
+          : 'Не расслышала — говорите ближе к телефону, кнопку держите до конца фразы',
+      );
       return;
     }
     setText(transcript);
@@ -128,5 +187,7 @@ export function useVoiceCommand(
     setDraft(result.draft);
   }, [showMessage]);
 
-  return { phase, text, draft, setDraft, holdStart, holdEnd };
+  holdEndRef.current = holdEnd;
+
+  return { phase, ready, text, draft, setDraft, holdStart, holdEnd };
 }

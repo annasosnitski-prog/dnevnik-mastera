@@ -1,9 +1,9 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { EngravedMicIcon } from "./EngravedMicIcon";
 import { createPortal } from "react-dom";
 import { PendantIcon } from "./PendantIcon";
 import { NaturalStoneIcon, type NaturalStoneKind } from "./NaturalStoneIcon";
-import { TERRITORY_COLORS } from "../ui/designTokens";
+import { TERRITORY_COLORS, gemTone, glowOf } from "../ui/designTokens";
 import { useMinimalism } from "../ui/minimalism";
 import type { ModuleFlags, ModuleKey } from "../../modules/registry";
 import "./NavFabReveal.css";
@@ -248,8 +248,25 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
       longPressTimerRef.current = null;
     }
   };
+  // voiceHoldRef — запись идёт. iPhone посреди удержания шлёт pointercancel
+  // (всплыло окно «разрешить микрофон», жест системы) — раньше это сразу
+  // обрывало запись с «не расслышала». Теперь отмена/уход пальца запись не
+  // останавливает: она идёт дальше, а следующее касание хаба её
+  // «подхватывает» — отпустили этот палец, и запись закончилась.
+  const voiceHoldRef = useRef(false);
   const handleHubPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     setPressedId("hub");
+    if (voiceHoldRef.current) {
+      // Запись идёт без пальца (после pointercancel) — подхватываем её этим
+      // касанием: отпускание закончит запись, click меню не откроет.
+      longPressFiredRef.current = true;
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* без capture тоже работает */
+      }
+      return;
+    }
     if (!onVoiceHoldStart || open) return;
     // Палец может съехать с хаба, пока говоришь — захват указателя держит
     // pointerup на кнопке, чтобы отпускание всегда завершало запись.
@@ -263,14 +280,28 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
     longPressTimerRef.current = window.setTimeout(() => {
       longPressFiredRef.current = true;
       longPressTimerRef.current = null;
+      voiceHoldRef.current = true;
       onVoiceHoldStart();
     }, LONG_PRESS_MS);
   };
   const handleHubPointerUp = () => {
     releasePress("hub");
     clearLongPressTimer();
-    if (longPressFiredRef.current) onVoiceHoldEnd?.();
+    if (voiceHoldRef.current) {
+      voiceHoldRef.current = false;
+      onVoiceHoldEnd?.();
+    }
   };
+  // pointercancel / pointerleave: до срабатывания долгого нажатия — обычная
+  // отмена; во время записи — ничего не обрываем.
+  const handleHubPointerAbort = () => {
+    releasePress("hub");
+    clearLongPressTimer();
+  };
+  // Запись закончилась сама (страховочный таймер) — снимаем флаг.
+  useEffect(() => {
+    if (!voiceListening) voiceHoldRef.current = false;
+  }, [voiceListening]);
   const handleHubClick = () => {
     if (longPressFiredRef.current) {
       longPressFiredRef.current = false;
@@ -558,7 +589,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                   ["--travel-duration" as string]: `${durationMs}ms`,
                   ["--travel-delay" as string]: `${travelDelayMs}ms`,
                   ["--natural-jewel-color" as string]: item.color,
-                  ...(minimalism && isCurrentItem ? { ["--item-color" as string]: item.color, color: item.color } : {}),
+                  ...(minimalism && isCurrentItem ? { ["--item-color" as string]: glowOf(item.color), color: glowOf(item.color) } : {}),
                 }}
                 aria-label={item.label}
                 onPointerDown={() => setPressedId(item.id)}
@@ -579,8 +610,8 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                       aria-hidden="true"
                       style={{
                         filter: isCurrentItem
-                          ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${item.color}D9) drop-shadow(0 0 16px ${item.color}99) drop-shadow(0 0 28px ${item.color}5C)`
-                          : `saturate(1.42) brightness(1.1) contrast(1.06) drop-shadow(0 0 5px ${item.color}99) drop-shadow(0 0 12px ${item.color}4D)`,
+                          ? `saturate(1.55) brightness(1.18) contrast(1.1) drop-shadow(0 0 7px ${glowOf(item.color)}D9) drop-shadow(0 0 16px ${glowOf(item.color)}99) drop-shadow(0 0 28px ${glowOf(item.color)}5C)`
+                          : "saturate(1.42) brightness(1.1) contrast(1.06)", // ореол только у выбранного раздела
                       }}
                     >
                       <PendantIcon color={item.color} size={ITEM_SIZE}>
@@ -594,6 +625,7 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
                     >
                       <NaturalStoneIcon
                         kind={NATURAL_STONE_BY_ITEM[item.id]}
+                        tone={gemTone(item.color)}
                         size={ITEM_SIZE}
                       />
                     </span>
@@ -618,12 +650,15 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
         <button
           type="button"
           className={mainClasses.join(" ")}
+          /* touch-action: none — браузер не забирает удержание под прокрутку
+             (иначе он шлёт pointercancel и долгое нажатие срывается). */
+          style={{ touchAction: "none" }}
           aria-label={open ? "Закрыть меню" : "Открыть меню (удерживать — голосовая команда)"}
           aria-expanded={open}
           onPointerDown={handleHubPointerDown}
           onPointerUp={handleHubPointerUp}
-          onPointerCancel={handleHubPointerUp}
-          onPointerLeave={handleHubPointerUp}
+          onPointerCancel={handleHubPointerAbort}
+          onPointerLeave={handleHubPointerAbort}
           onContextMenu={(event) => event.preventDefault()}
           onClick={handleHubClick}
         >

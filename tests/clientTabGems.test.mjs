@@ -267,3 +267,20 @@ test('Личный кабинет мастера reuses the same shared tab bar 
   // через отдельный экран/навигацию.
   assert.match(masterDashboardScreen, /\{tab === 'settings' && <SettingsScreen \{\.\.\.settings\} embedded onBack=\{\(\) => setTab\('info'\)\} \/>\}/);
 });
+
+test('gem tints follow the current palette: navy halo brighter, no pink on blue, no lime on green', () => {
+  assert.match(designTokens, /export const glowOf/);
+  assert.match(tabBarModule, /glowOf\(color\)/);
+  assert.match(navFab, /glowOf\(item\.color\)/);
+  assert.match(designTokens, /\[TERRITORY_COLORS\.clients\]: \{ stone: '#17067E'/);
+  assert.match(designTokens, /\[TERRITORY_COLORS\.projects\]: \{[^}]*light: '#C6E6BC'/);
+  // One source for gem colours: PendantIcon and the light-theme tab wash both read gemTone.
+  assert.match(pendantIcon, /gemTone\(color\)/);
+  assert.match(tabBarModule, /background: gemTone\(color\)\.stone/);
+  // Light-theme menu minerals take the section palette too.
+  assert.match(navFab, /tone=\{gemTone\(item\.color\)\}/);
+  // Halo only on the selected section: resting gems have no drop-shadow.
+  assert.doesNotMatch(navFab, /drop-shadow\(0 0 5px/);
+  assert.doesNotMatch(tabBarModule, /drop-shadow\(0 0 5px/);
+  // Navy stone body uses a mid-tone so its highlights match the other stones.
+});
