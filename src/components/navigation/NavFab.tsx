@@ -664,7 +664,12 @@ export function NavFab({ active, onNavigate, moduleFlags, adminBadges, onCreate,
           onClick={handleHubClick}
         >
           {minimalism ? (
-            <span className="nav-fab__minimal-home-mark" aria-hidden="true">$</span>
+            <span className="nav-fab__minimal-home-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="100%" height="100%" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 4.5V27.5" />
+                <path d="M21.2 11.4C21 9 18.9 7.8 16 7.8c-2.9 0-5 1.4-5 3.6 0 5.2 10.2 2.6 10.2 8.2 0 2.4-2.3 4-5.2 4-2.9 0-5.1-1.3-5.300-3.800" />
+              </svg>
+            </span>
           ) : (
             <>
               <span className="theme-dark-jewel" aria-hidden="true">
